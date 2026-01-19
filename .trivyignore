@@ -1,0 +1,36 @@
+# Trivy CVE Ignore List
+# 
+# This file documents known CVEs that are accepted risks with justification.
+# All CVEs here are from third-party binaries we do not control.
+#
+# Last reviewed: 2026-01-19 by AI Review Router team
+
+# ============================================================================
+# OpenCode CLI Binary (Go runtime CVEs)
+# 
+# OpenCode v1.1.26 is compiled with an older Go runtime that contains these
+# vulnerabilities. We are using the latest available release. The OpenCode
+# team must release a new version compiled with Go 1.24.11+ or 1.25.5+ to fix.
+#
+# Risk assessment: LOW - OpenCode runs in isolated subprocess with stripped
+# tokens and socket listener guards (CVE-2026-22812 mitigation in place).
+# ============================================================================
+
+# Go crypto/x509 - DoS via malformed certificate
+# Fixed in: Go 1.24.11, 1.25.5 | OpenCode compiled with older Go
+CVE-2025-61729
+
+# Go database/sql - Postgres scanning vulnerability  
+# Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
+CVE-2025-47907
+
+# Go archive/tar - Unbounded allocation parsing GNU tar headers
+# Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
+CVE-2025-58183
+
+# ============================================================================
+# npm transitive dependencies (if any appear and need exceptions)
+# ============================================================================
+
+# Note: glob package CVE-2025-64756 should be fixed by updating dependencies
+# rather than ignoring. Check if rimraf/globby/fast-glob update fixes it.
