@@ -1,8 +1,10 @@
 /**
  * GitHub Reporter
  * Posts findings as PR comments and check run summaries
+ * Includes deduplication and throttling
  */
 
+import { createHash } from 'crypto';
 import { Octokit } from '@octokit/rest';
 import type { Finding, Severity } from '../agents/index.js';
 import type { Config } from '../config.js';
@@ -27,6 +29,26 @@ export interface ReportResult {
   checkRunId?: number;
   commentId?: number;
   error?: string;
+  /** Number of findings skipped due to deduplication */
+  skippedDuplicates?: number;
+}
+
+/** Delay between inline comments to avoid spam (ms) */
+const INLINE_COMMENT_DELAY_MS = 100;
+
+/**
+ * Generate a fingerprint for a finding (used for deduplication)
+ */
+function generateFindingFingerprint(finding: Finding): string {
+  const data = `${finding.file}:${finding.line ?? 0}:${finding.message}:${finding.ruleId ?? ''}`;
+  return createHash('sha256').update(data).digest('hex').slice(0, 16);
+}
+
+/**
+ * Delay helper for rate limiting
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -52,6 +74,7 @@ export async function reportToGitHub(
   try {
     let checkRunId: number | undefined;
     let commentId: number | undefined;
+    let skippedDuplicates = 0;
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
@@ -63,18 +86,21 @@ export async function reportToGitHub(
       context.prNumber &&
       (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
     ) {
-      commentId = await postPRComment(
+      const result = await postPRComment(
         octokit,
         context,
         sorted,
         reportingConfig.max_inline_comments
       );
+      commentId = result.commentId;
+      skippedDuplicates = result.skippedDuplicates;
     }
 
     return {
       success: true,
       checkRunId,
       commentId,
+      skippedDuplicates,
     };
   } catch (error) {
     return {
@@ -140,14 +166,14 @@ async function createCheckRun(
 }
 
 /**
- * Post a summary comment on the PR
+ * Post a summary comment on the PR with deduplication
  */
 async function postPRComment(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
   maxInlineComments: number
-): Promise<number> {
+): Promise<{ commentId: number; skippedDuplicates: number }> {
   if (!context.prNumber) {
     throw new Error('PR number required for comments');
   }
@@ -189,29 +215,128 @@ async function postPRComment(
     console.log(`[github] Created new comment ${commentId}`);
   }
 
-  // Post inline comments for top findings
+  // Get existing review comments for deduplication
+  const existingReviewComments = await octokit.pulls.listReviewComments({
+    owner: context.owner,
+    repo: context.repo,
+    pull_number: context.prNumber,
+  });
+
+  // Build set of existing comment fingerprints
+  const existingFingerprints = new Set<string>();
+  for (const comment of existingReviewComments.data) {
+    // Extract finding info from existing comments if they match our format
+    if (comment.body?.includes('**') && comment.path) {
+      const fingerprint = createHash('sha256')
+        .update(`${comment.path}:${comment.line ?? 0}:${comment.body}`)
+        .digest('hex')
+        .slice(0, 16);
+      existingFingerprints.add(fingerprint);
+    }
+  }
+
+  // Filter findings for inline comments
   const inlineFindings = findings
     .filter((f): f is Finding & { line: number } => f.line !== undefined)
-    .slice(0, maxInlineComments);
+    .sort((a, b) => {
+      // Sort by severity (error > warning > info)
+      const severityOrder = { error: 0, warning: 1, info: 2 };
+      return (severityOrder[a.severity] ?? 2) - (severityOrder[b.severity] ?? 2);
+    });
 
-  for (const finding of inlineFindings) {
+  // Group adjacent findings (within 3 lines of each other in same file)
+  const groupedFindings = groupAdjacentFindings(inlineFindings);
+
+  let skippedDuplicates = 0;
+  let postedCount = 0;
+
+  for (const findingOrGroup of groupedFindings) {
+    if (postedCount >= maxInlineComments) break;
+
+    const fingerprint = Array.isArray(findingOrGroup)
+      ? findingOrGroup.map(generateFindingFingerprint).join(':')
+      : generateFindingFingerprint(findingOrGroup);
+
+    // Skip if already posted
+    if (existingFingerprints.has(fingerprint)) {
+      skippedDuplicates++;
+      continue;
+    }
+
+    const finding = Array.isArray(findingOrGroup) ? findingOrGroup[0] : findingOrGroup;
+    if (!finding) continue;
+
+    const body = Array.isArray(findingOrGroup)
+      ? formatGroupedInlineComment(findingOrGroup)
+      : formatInlineComment(finding);
+
     try {
       await octokit.pulls.createReviewComment({
         owner: context.owner,
         repo: context.repo,
         pull_number: context.prNumber,
-        body: formatInlineComment(finding),
+        body,
         commit_id: context.headSha,
         path: finding.file,
         line: finding.line,
       });
+      postedCount++;
+
+      // Rate limiting delay
+      await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
       // Inline comments can fail for various reasons (line not in diff, etc.)
       console.warn(`[github] Failed to post inline comment: ${error}`);
     }
   }
 
-  return commentId;
+  console.log(
+    `[github] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+  );
+
+  return { commentId, skippedDuplicates };
+}
+
+/**
+ * Group adjacent findings (within 3 lines in the same file)
+ */
+function groupAdjacentFindings(
+  findings: (Finding & { line: number })[]
+): ((Finding & { line: number }) | (Finding & { line: number })[])[] {
+  if (findings.length === 0) return [];
+
+  const result: ((Finding & { line: number }) | (Finding & { line: number })[])[] = [];
+  const firstFinding = findings[0];
+  if (!firstFinding) return [];
+
+  let currentGroup: (Finding & { line: number })[] = [firstFinding];
+
+  for (let i = 1; i < findings.length; i++) {
+    const prev = currentGroup[currentGroup.length - 1];
+    const curr = findings[i];
+
+    if (!prev || !curr) continue;
+
+    // Group if same file and within 3 lines
+    if (prev.file === curr.file && Math.abs(curr.line - prev.line) <= 3) {
+      currentGroup.push(curr);
+    } else {
+      // Finish current group
+      const firstInGroup = currentGroup[0];
+      if (firstInGroup) {
+        result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
+      }
+      currentGroup = [curr];
+    }
+  }
+
+  // Don't forget the last group
+  const firstInGroup = currentGroup[0];
+  if (firstInGroup) {
+    result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
+  }
+
+  return result;
 }
 
 /**
@@ -230,4 +355,24 @@ function formatInlineComment(finding: Finding): string {
   }
 
   return lines.join('');
+}
+
+/**
+ * Format grouped findings as a single inline comment
+ */
+function formatGroupedInlineComment(findings: (Finding & { line: number })[]): string {
+  const lines: string[] = [`**Multiple issues found in this area (${findings.length}):**\n`];
+
+  for (const finding of findings) {
+    const emoji =
+      finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
+    lines.push(`${emoji} **Line ${finding.line}** (${finding.sourceAgent}): ${finding.message}`);
+
+    if (finding.suggestion) {
+      lines.push(`   💡 ${finding.suggestion}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
 }
