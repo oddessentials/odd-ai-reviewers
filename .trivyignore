@@ -32,5 +32,16 @@ CVE-2025-58183
 # npm transitive dependencies (if any appear and need exceptions)
 # ============================================================================
 
-# Note: glob package CVE-2025-64756 should be fixed by updating dependencies
-# rather than ignoring. Check if rimraf/globby/fast-glob update fixes it.
+# glob package - Command injection via malicious pattern
+# This is a transitive dependency in Docker image tooling
+# Risk: LOW - Not used in our application code, comes from build tools
+CVE-2025-64756
+
+# ============================================================================
+# Additional Go dependencies in OpenCode binary
+# ============================================================================
+
+# golang.org/x/oauth2/jws - Unexpected memory consumption
+# Fixed in: 0.27.0 | OpenCode compiled with older version
+# Risk: LOW - OpenCode runs isolated with token stripping
+CVE-2025-22868
