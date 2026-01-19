@@ -514,12 +514,12 @@ Phase 1 has no automated tests. Phase 2 should add:
 6. ✅ Budget limits enforced (per-PR and monthly)
 7. ✅ New reviewers added without workflow changes (agent registry)
 
-### Phase 2 — TODO
+### Phase 2 — ✅ COMPLETE (2026-01-18)
 
-1. [ ] PR-Agent provides AI summaries
-2. [ ] Cached results avoid redundant API calls
-3. [ ] Comment throttling prevents spam
-4. [ ] Unit tests pass for all modules
+1. [x] PR-Agent provides AI summaries via OpenAI API
+2. [x] Cached results avoid redundant API calls (file-based + GitHub Actions cache)
+3. [x] Comment throttling prevents spam (deduplication, rate limiting, grouping)
+4. [x] Unit tests pass for all modules (47 tests)
 
 ### Phase 3 — TODO
 
