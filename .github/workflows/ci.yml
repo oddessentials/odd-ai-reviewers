@@ -63,7 +63,7 @@ jobs:
         run: npm run build --workspace=router
 
       - name: Build container image
-        run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile router
+        run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .
 
       - name: Trivy scan (HIGH,CRITICAL)
         uses: aquasecurity/trivy-action@0.28.0

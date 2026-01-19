@@ -37,24 +37,29 @@ RUN curl -fsSL -o /tmp/reviewdog.tar.gz \
     reviewdog --version
 
 # Install OpenCode CLI
-# SECURITY: Post-CVE version (CVE-2026-22812 fixed in v0.8.0+, released Jan 14, 2026)
-# Direct binary download - no curl|bash installer per INVARIANTS.md
-ARG OPENCODE_VERSION=0.8.0
+# SECURITY: Post-CVE version (CVE-2026-22812 fixed in v0.8.0+)
+# Direct binary download with SHA256 verification - no curl|bash per INVARIANTS.md
+# GitHub org moved from sst/opencode to anomalyco/opencode
+ARG OPENCODE_VERSION=1.1.26
+ARG OPENCODE_SHA256=ac5f426b82bf9d7a89d857d5fe9bb75cb2fd670804e03e97e5dda9373bf47be4
 RUN curl -fsSL -o /tmp/opencode.tar.gz \
-    "https://github.com/sst/opencode/releases/download/v${OPENCODE_VERSION}/opencode_Linux_x86_64.tar.gz" && \
-    tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode && \
+    "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-x64.tar.gz" && \
+    echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - && \
+    tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin && \
     chmod +x /usr/local/bin/opencode && \
     rm /tmp/opencode.tar.gz && \
     opencode --version
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files for monorepo workspace setup
+COPY package.json package-lock.json ./
+COPY router/package.json ./router/
 
-# Install dependencies (production only)
-RUN npm ci --omit=dev
+# Install dependencies (production only) for router workspace
+# --ignore-scripts skips prepare hooks (husky) not needed in container
+RUN npm ci --omit=dev --ignore-scripts --workspace=@odd-ai-reviewers/router
 
 # Copy built source and config
-COPY dist/ ./dist/
+COPY router/dist/ ./dist/
 COPY config/ ./config/
 
 # ============================================
@@ -95,12 +100,11 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/config ./config
 COPY --from=builder /app/package.json ./package.json
 
-# Create non-root user (OSCR requirement)
-RUN useradd -m -s /bin/bash -u 1000 reviewer && \
-    chown -R reviewer:reviewer /app
+# Set ownership for non-root user (node user exists in base image with UID 1000)
+RUN chown -R node:node /app
 
 # Switch to non-root user
-USER reviewer
+USER node
 
 # Set security environment variables
 # These disable OpenCode HTTP server (CVE-2026-22812 mitigation)
