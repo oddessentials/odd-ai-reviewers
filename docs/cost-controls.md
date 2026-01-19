@@ -5,6 +5,7 @@ This document explains how odd-ai-reviewers manages and controls costs.
 ## Why Cost Controls Matter
 
 AI-powered code review can incur costs from:
+
 - LLM API calls (OpenCode.ai, OpenAI, etc.)
 - Token consumption (input + output)
 - Compute time
@@ -16,6 +17,7 @@ Without controls, a single large PR could cost more than expected.
 ### Layer 1: Static Analysis First
 
 Static analysis tools (Semgrep) run before any LLM calls:
+
 - Zero cost
 - Catches common issues
 - Reduces work for AI agents
@@ -26,13 +28,14 @@ Each PR is checked against limits before LLM calls:
 
 ```yaml
 limits:
-  max_files: 50           # Skip LLM if too many files
-  max_diff_lines: 2000    # Truncate large diffs
-  max_tokens_per_pr: 12000  # Token budget
-  max_usd_per_pr: 1.00    # Cost cap
+  max_files: 50 # Skip LLM if too many files
+  max_diff_lines: 2000 # Truncate large diffs
+  max_tokens_per_pr: 12000 # Token budget
+  max_usd_per_pr: 1.00 # Cost cap
 ```
 
 If limits are exceeded:
+
 - Static analysis still runs
 - LLM passes are skipped
 - A summary explains why
@@ -47,6 +50,7 @@ limits:
 ```
 
 When the monthly budget is exhausted:
+
 - New PRs get static analysis only
 - A warning appears in the review summary
 
@@ -55,16 +59,19 @@ When the monthly budget is exhausted:
 ### Token Estimation
 
 Tokens are estimated from diff size:
+
 - ~4 characters per token (approximate)
 - Both input and output counted
 
 ### Cost Calculation
 
 Based on typical GPT-4 pricing:
+
 - Input: $0.01 per 1K tokens
 - Output: $0.03 per 1K tokens (estimated at 20% of input)
 
 Example:
+
 ```
 10,000 input tokens
 = $0.10 input cost
@@ -114,12 +121,12 @@ Reduce costs by excluding generated/vendored code:
 ```yaml
 path_filters:
   include:
-    - "src/**"
-    - "lib/**"
+    - 'src/**'
+    - 'lib/**'
   exclude:
-    - "**/generated/**"
-    - "**/vendor/**"
-    - "**/*.min.js"
+    - '**/generated/**'
+    - '**/vendor/**'
+    - '**/*.min.js'
 ```
 
 ## Static-Only Mode
@@ -133,7 +140,7 @@ passes:
     enabled: true
   - name: semantic
     agents: [opencode]
-    enabled: false  # Disabled
+    enabled: false # Disabled
 ```
 
 ## Monitoring Costs
@@ -141,6 +148,7 @@ passes:
 ### Check Run Summary
 
 Each review includes cost information:
+
 - Estimated tokens used
 - Estimated cost
 - Budget remaining
@@ -153,6 +161,7 @@ Settings → Actions → Usage
 ### API Provider Dashboards
 
 Check spending at your LLM provider:
+
 - OpenCode.ai dashboard
 - OpenAI usage page
 

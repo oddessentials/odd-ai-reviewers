@@ -3,15 +3,19 @@
   "version": "1.0.0",
   "description": "Extensible AI code review system with pluggable agents",
   "private": true,
+  "type": "module",
   "workspaces": [
     "router"
   ],
   "scripts": {
     "build": "npm run build --workspace=router",
     "test": "npm run test --workspace=router",
-    "lint": "npm run lint --workspace=router",
+    "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run lint && npm run format:check && npm run typecheck && npm run build",
+    "prepare": "husky"
   },
   "keywords": [
     "code-review",
@@ -23,8 +27,27 @@
   "author": "OddEssentials",
   "license": "MIT",
   "devDependencies": {
-    "prettier": "^3.4.2",
-    "typescript": "^5.7.3"
+    "@commitlint/cli": "20.2.0",
+    "@commitlint/config-conventional": "20.2.0",
+    "@eslint/js": "9.39.1",
+    "@oddessentials/repo-standards": "6.0.0",
+    "@typescript-eslint/eslint-plugin": "8.48.1",
+    "@typescript-eslint/parser": "8.48.1",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
+    "husky": "9.1.7",
+    "lint-staged": "16.2.7",
+    "prettier": "3.4.2",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.48.1"
+  },
+  "lint-staged": {
+    "*.{js,cjs,ts,mjs,json,md,yml,yaml}": [
+      "prettier --check"
+    ],
+    "*.{js,cjs,ts,mjs}": [
+      "eslint"
+    ]
   },
   "engines": {
     "node": ">=22.0.0"

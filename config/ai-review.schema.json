@@ -1,186 +1,160 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://github.com/oddessentials/odd-ai-reviewers/config/ai-review.schema.json",
-    "title": "AI Review Configuration",
-    "description": "Configuration schema for .ai-review.yml files",
-    "type": "object",
-    "properties": {
-        "version": {
-            "type": "integer",
-            "description": "Schema version",
-            "default": 1,
-            "enum": [
-                1
-            ]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/oddessentials/odd-ai-reviewers/config/ai-review.schema.json",
+  "title": "AI Review Configuration",
+  "description": "Configuration schema for .ai-review.yml files",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version",
+      "default": 1,
+      "enum": [1]
+    },
+    "trusted_only": {
+      "type": "boolean",
+      "description": "Only run on trusted (non-fork) PRs",
+      "default": true
+    },
+    "triggers": {
+      "type": "object",
+      "description": "When to trigger reviews",
+      "properties": {
+        "on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["pull_request", "push"]
+          },
+          "default": ["pull_request"]
         },
-        "trusted_only": {
-            "type": "boolean",
-            "description": "Only run on trusted (non-fork) PRs",
-            "default": true
-        },
-        "triggers": {
-            "type": "object",
-            "description": "When to trigger reviews",
-            "properties": {
-                "on": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "pull_request",
-                            "push"
-                        ]
-                    },
-                    "default": [
-                        "pull_request"
-                    ]
-                },
-                "branches": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "default": [
-                        "main"
-                    ]
-                }
-            }
-        },
-        "passes": {
-            "type": "array",
-            "description": "Review passes to execute in order",
-            "items": {
-                "type": "object",
-                "required": [
-                    "name",
-                    "agents"
-                ],
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Pass name"
-                    },
-                    "agents": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "enum": [
-                                "semgrep",
-                                "reviewdog",
-                                "opencode",
-                                "pr_agent",
-                                "local_llm"
-                            ]
-                        }
-                    },
-                    "enabled": {
-                        "type": "boolean",
-                        "default": true
-                    }
-                }
-            }
-        },
-        "limits": {
-            "type": "object",
-            "description": "Budget and size limits",
-            "properties": {
-                "max_files": {
-                    "type": "integer",
-                    "description": "Maximum files to review",
-                    "default": 50
-                },
-                "max_diff_lines": {
-                    "type": "integer",
-                    "description": "Maximum diff lines to process",
-                    "default": 2000
-                },
-                "max_tokens_per_pr": {
-                    "type": "integer",
-                    "description": "Maximum tokens for LLM input per PR",
-                    "default": 12000
-                },
-                "max_usd_per_pr": {
-                    "type": "number",
-                    "description": "Maximum USD cost per PR",
-                    "default": 1.00
-                },
-                "monthly_budget_usd": {
-                    "type": "number",
-                    "description": "Monthly budget limit in USD",
-                    "default": 100
-                }
-            }
-        },
-        "reporting": {
-            "type": "object",
-            "description": "How to report findings",
-            "properties": {
-                "github": {
-                    "type": "object",
-                    "properties": {
-                        "mode": {
-                            "type": "string",
-                            "enum": [
-                                "checks_only",
-                                "comments_only",
-                                "checks_and_comments"
-                            ],
-                            "default": "checks_and_comments"
-                        },
-                        "max_inline_comments": {
-                            "type": "integer",
-                            "description": "Maximum inline comments per PR",
-                            "default": 20
-                        },
-                        "summary": {
-                            "type": "boolean",
-                            "description": "Post summary comment",
-                            "default": true
-                        }
-                    }
-                }
-            }
-        },
-        "gating": {
-            "type": "object",
-            "description": "Gating configuration",
-            "properties": {
-                "enabled": {
-                    "type": "boolean",
-                    "description": "Fail the check if blocking findings exist",
-                    "default": false
-                },
-                "fail_on_severity": {
-                    "type": "string",
-                    "enum": [
-                        "error",
-                        "warning",
-                        "info"
-                    ],
-                    "description": "Minimum severity to fail on",
-                    "default": "error"
-                }
-            }
-        },
-        "path_filters": {
-            "type": "object",
-            "description": "File path filtering",
-            "properties": {
-                "include": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "Glob patterns to include"
-                },
-                "exclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "Glob patterns to exclude"
-                }
-            }
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["main"]
         }
+      }
+    },
+    "passes": {
+      "type": "array",
+      "description": "Review passes to execute in order",
+      "items": {
+        "type": "object",
+        "required": ["name", "agents"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Pass name"
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["semgrep", "reviewdog", "opencode", "pr_agent", "local_llm"]
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "description": "Budget and size limits",
+      "properties": {
+        "max_files": {
+          "type": "integer",
+          "description": "Maximum files to review",
+          "default": 50
+        },
+        "max_diff_lines": {
+          "type": "integer",
+          "description": "Maximum diff lines to process",
+          "default": 2000
+        },
+        "max_tokens_per_pr": {
+          "type": "integer",
+          "description": "Maximum tokens for LLM input per PR",
+          "default": 12000
+        },
+        "max_usd_per_pr": {
+          "type": "number",
+          "description": "Maximum USD cost per PR",
+          "default": 1.0
+        },
+        "monthly_budget_usd": {
+          "type": "number",
+          "description": "Monthly budget limit in USD",
+          "default": 100
+        }
+      }
+    },
+    "reporting": {
+      "type": "object",
+      "description": "How to report findings",
+      "properties": {
+        "github": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["checks_only", "comments_only", "checks_and_comments"],
+              "default": "checks_and_comments"
+            },
+            "max_inline_comments": {
+              "type": "integer",
+              "description": "Maximum inline comments per PR",
+              "default": 20
+            },
+            "summary": {
+              "type": "boolean",
+              "description": "Post summary comment",
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "gating": {
+      "type": "object",
+      "description": "Gating configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Fail the check if blocking findings exist",
+          "default": false
+        },
+        "fail_on_severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "description": "Minimum severity to fail on",
+          "default": "error"
+        }
+      }
+    },
+    "path_filters": {
+      "type": "object",
+      "description": "File path filtering",
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns to include"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns to exclude"
+        }
+      }
     }
+  }
 }

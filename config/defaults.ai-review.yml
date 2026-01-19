@@ -33,7 +33,6 @@ reporting:
 gating:
   enabled: false
   fail_on_severity: error
-
 # path_filters:
 #   include:
 #     - "src/**"

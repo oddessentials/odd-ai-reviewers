@@ -5,45 +5,45 @@ The `.ai-review.yml` file controls how AI review runs in your repository.
 ## Full Schema
 
 ```yaml
-version: 1                    # Schema version (required: 1)
-trusted_only: true            # Only run on non-fork PRs
+version: 1 # Schema version (required: 1)
+trusted_only: true # Only run on non-fork PRs
 
 triggers:
-  on: [pull_request, push]    # When to trigger
-  branches: [main, develop]   # Which branches to review
+  on: [pull_request, push] # When to trigger
+  branches: [main, develop] # Which branches to review
 
 passes:
-  - name: static              # Pass name
-    agents: [semgrep]         # Agents to run
-    enabled: true             # Enable/disable pass
+  - name: static # Pass name
+    agents: [semgrep] # Agents to run
+    enabled: true # Enable/disable pass
   - name: semantic
     agents: [opencode, pr_agent]
     enabled: true
 
 limits:
-  max_files: 50               # Max files per PR
-  max_diff_lines: 2000        # Max diff lines
-  max_tokens_per_pr: 12000    # Max LLM tokens
-  max_usd_per_pr: 1.00        # Max cost per PR
-  monthly_budget_usd: 100     # Monthly budget
+  max_files: 50 # Max files per PR
+  max_diff_lines: 2000 # Max diff lines
+  max_tokens_per_pr: 12000 # Max LLM tokens
+  max_usd_per_pr: 1.00 # Max cost per PR
+  monthly_budget_usd: 100 # Monthly budget
 
 reporting:
   github:
     mode: checks_and_comments # checks_only | comments_only | checks_and_comments
-    max_inline_comments: 20   # Max inline comments
-    summary: true             # Post summary comment
+    max_inline_comments: 20 # Max inline comments
+    summary: true # Post summary comment
 
 gating:
-  enabled: false              # Block merge on findings
-  fail_on_severity: error     # error | warning | info
+  enabled: false # Block merge on findings
+  fail_on_severity: error # error | warning | info
 
 path_filters:
-  include:                    # Only review these paths
-    - "src/**"
-    - "lib/**"
-  exclude:                    # Skip these paths
-    - "**/*.test.ts"
-    - "**/node_modules/**"
+  include: # Only review these paths
+    - 'src/**'
+    - 'lib/**'
+  exclude: # Skip these paths
+    - '**/*.test.ts'
+    - '**/node_modules/**'
 ```
 
 ## Properties
@@ -72,6 +72,7 @@ Array of review passes executed in order. Each pass has:
 - `enabled`: Whether the pass runs
 
 Available agents:
+
 - `semgrep` - Static security analysis (free)
 - `reviewdog` - Output formatter (stub)
 - `opencode` - OpenCode.ai semantic review
@@ -82,13 +83,13 @@ Available agents:
 
 Budget controls to prevent runaway costs:
 
-| Property | Default | Description |
-|----------|---------|-------------|
-| `max_files` | 50 | Skip review if more files changed |
-| `max_diff_lines` | 2000 | Truncate diff at this limit |
-| `max_tokens_per_pr` | 12000 | Max LLM input tokens |
-| `max_usd_per_pr` | 1.00 | Max estimated cost per PR |
-| `monthly_budget_usd` | 100 | Monthly spending cap |
+| Property             | Default | Description                       |
+| -------------------- | ------- | --------------------------------- |
+| `max_files`          | 50      | Skip review if more files changed |
+| `max_diff_lines`     | 2000    | Truncate diff at this limit       |
+| `max_tokens_per_pr`  | 12000   | Max LLM input tokens              |
+| `max_usd_per_pr`     | 1.00    | Max estimated cost per PR         |
+| `monthly_budget_usd` | 100     | Monthly spending cap              |
 
 ### `reporting`
 
@@ -157,6 +158,6 @@ limits:
   max_usd_per_pr: 5.00
 path_filters:
   exclude:
-    - "**/generated/**"
-    - "**/vendor/**"
+    - '**/generated/**'
+    - '**/vendor/**'
 ```
