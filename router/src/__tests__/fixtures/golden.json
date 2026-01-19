@@ -1,0 +1,73 @@
+{
+  "diff": {
+    "files": [
+      {
+        "path": "src/utils.ts",
+        "status": "modified",
+        "additions": 10,
+        "deletions": 2
+      }
+    ],
+    "totalAdditions": 10,
+    "totalDeletions": 2
+  },
+  "diffContent": "diff --git a/src/utils.ts b/src/utils.ts\nindex 1234567..abcdefg 100644\n--- a/src/utils.ts\n+++ b/src/utils.ts\n@@ -1,5 +1,13 @@\n export function greet(name: string): string {\n-  return 'Hello, ' + name;\n+  if (!name) {\n+    throw new Error('Name is required');\n+  }\n+  return `Hello, ${name}!`;\n+}\n+\n+export function formatDate(date: Date): string {\n+  return date.toISOString();\n }",
+  "config": {
+    "version": 1,
+    "trusted_only": true,
+    "passes": [
+      {
+        "name": "semantic",
+        "agents": ["pr_agent"]
+      }
+    ],
+    "limits": {
+      "max_files": 50,
+      "max_diff_lines": 2000,
+      "max_tokens_per_pr": 12000,
+      "max_usd_per_pr": 1.0
+    },
+    "reporting": {
+      "github": {
+        "mode": "checks_and_comments",
+        "max_inline_comments": 20,
+        "summary": true
+      }
+    }
+  },
+  "prAgentResponse": {
+    "summary": "This PR improves the greet function with validation and adds a new formatDate utility.",
+    "type": "feature",
+    "findings": [
+      {
+        "severity": "info",
+        "file": "src/utils.ts",
+        "line": 3,
+        "message": "Good practice: Added input validation",
+        "suggestion": null
+      }
+    ],
+    "overall_assessment": "approve"
+  },
+  "openaiCompletion": {
+    "id": "chatcmpl-test123",
+    "object": "chat.completion",
+    "created": 1704067200,
+    "model": "gpt-4o-mini",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\"summary\":\"Improved greet function with validation\",\"type\":\"feature\",\"findings\":[{\"severity\":\"info\",\"file\":\"src/utils.ts\",\"line\":3,\"message\":\"Good input validation\"}],\"overall_assessment\":\"approve\"}"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 500,
+      "completion_tokens": 100,
+      "total_tokens": 600
+    }
+  }
+}

@@ -1,11 +1,14 @@
 /**
- * OpenCode.ai Agent
- * AI-powered semantic code review
+ * OpenCode Agent
+ * Spawns OpenCode CLI for AI-powered code review
+ *
+ * Uses the real OpenCode CLI (sst/opencode) with stdin-based prompt input.
+ * Requires opencode to be installed in the runtime environment.
  */
 
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import { spawn, execSync } from 'child_process';
+import type { ReviewAgent, AgentContext, AgentResult } from './index.js';
 import type { DiffFile } from '../diff.js';
-import { estimateTokens } from '../budget.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -28,36 +31,139 @@ const SUPPORTED_EXTENSIONS = [
   '.svelte',
 ];
 
-// OpenCode.ai API endpoint
-const OPENCODE_API_URL = 'https://api.opencode.ai/v1/review';
-
-interface OpenCodeRequest {
-  diff: string;
-  context?: string;
-  config?: {
-    focus?: string[];
-    severity_threshold?: string;
-  };
+interface OpencodeResult {
+  ok: boolean;
+  output: string;
+  error?: string;
+  exitCode: number;
 }
 
-interface OpenCodeResponse {
-  findings: OpenCodeFinding[];
-  summary: string;
-  tokens_used: number;
+/**
+ * Check if opencode CLI is ready (subcommand available + required env vars)
+ */
+function isOpencodeReady(env: Record<string, string | undefined>): {
+  ready: boolean;
+  error?: string;
+} {
+  // 1. Check subcommand availability
+  try {
+    execSync('opencode github --help', { stdio: 'ignore', timeout: 5000 });
+  } catch {
+    return { ready: false, error: 'opencode CLI not installed or github subcommand unavailable' };
+  }
+
+  // 2. Validate required env vars
+  const hasGithubToken = env['GITHUB_TOKEN'] || env['GH_TOKEN'];
+  if (!hasGithubToken) {
+    return { ready: false, error: 'GITHUB_TOKEN or GH_TOKEN required for opencode' };
+  }
+
+  const hasModel = env['OPENCODE_MODEL'] || env['MODEL'];
+  if (!hasModel) {
+    return { ready: false, error: 'OPENCODE_MODEL or MODEL required for opencode' };
+  }
+
+  return { ready: true };
 }
 
-interface OpenCodeFinding {
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  file: string;
-  line?: number;
-  message: string;
-  suggestion?: string;
-  category: string;
+/**
+ * Build review prompt from context
+ */
+function buildReviewPrompt(context: AgentContext): string {
+  const files = context.files
+    .filter((f) => f.status !== 'deleted')
+    .map((f) => `- ${f.path} (+${f.additions}/-${f.deletions})`)
+    .join('\n');
+
+  return `Review this pull request and provide feedback on code quality, bugs, and improvements.
+
+## Files Changed
+${files}
+
+## Diff
+\`\`\`diff
+${context.diffContent}
+\`\`\`
+
+Provide a concise summary and list any issues found.`;
+}
+
+/**
+ * Run opencode CLI with stdin-based prompt
+ */
+async function runOpencode(context: AgentContext): Promise<OpencodeResult> {
+  const prompt = buildReviewPrompt(context);
+
+  return new Promise((resolve) => {
+    const proc = spawn('opencode', ['github', 'run'], {
+      env: {
+        ...process.env,
+        MODEL: context.env['OPENCODE_MODEL'] || context.env['MODEL'] || 'openai/gpt-4o-mini',
+        USE_GITHUB_TOKEN: 'true',
+        GITHUB_TOKEN: context.env['GITHUB_TOKEN'] || context.env['GH_TOKEN'],
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // Write prompt to stdin (correct CLI contract)
+    if (proc.stdin) {
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    }
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on('close', (code) => {
+      const exitCode = code ?? 1;
+
+      // Non-zero exit code = failure
+      if (exitCode !== 0) {
+        resolve({
+          ok: false,
+          output: stdout,
+          error: stderr || `opencode exited with code ${exitCode}`,
+          exitCode,
+        });
+        return;
+      }
+
+      // Check for auth failures in stderr
+      if (/auth required|missing token|unauthorized|permission denied/i.test(stderr)) {
+        resolve({
+          ok: false,
+          output: stdout,
+          error: `Auth error: ${stderr}`,
+          exitCode: 1,
+        });
+        return;
+      }
+
+      resolve({ ok: true, output: stdout, exitCode: 0 });
+    });
+
+    proc.on('error', (err) => {
+      resolve({
+        ok: false,
+        output: '',
+        error: `Failed to spawn opencode: ${err.message}`,
+        exitCode: 1,
+      });
+    });
+  });
 }
 
 export const opencodeAgent: ReviewAgent = {
   id: 'opencode',
-  name: 'OpenCode.ai',
+  name: 'OpenCode',
   usesLlm: true,
 
   supports(file: DiffFile): boolean {
@@ -67,16 +173,16 @@ export const opencodeAgent: ReviewAgent = {
 
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
-    const findings: Finding[] = [];
 
-    // Check for API key
-    const apiKey = context.env['OPENCODE_API_KEY'];
-    if (!apiKey) {
+    // Check readiness
+    const readiness = isOpencodeReady(context.env);
+    if (!readiness.ready) {
+      console.log(`[opencode] Not ready: ${readiness.error}`);
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: 'OPENCODE_API_KEY environment variable not set',
+        error: readiness.error,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
@@ -84,9 +190,8 @@ export const opencodeAgent: ReviewAgent = {
       };
     }
 
-    // Get files that OpenCode supports
+    // Get supported files
     const supportedFiles = context.files.filter((f) => this.supports(f));
-
     if (supportedFiles.length === 0) {
       return {
         agentId: this.id,
@@ -99,85 +204,36 @@ export const opencodeAgent: ReviewAgent = {
       };
     }
 
-    const estimatedInputTokens = estimateTokens(context.diffContent);
+    console.log(`[opencode] Running on ${supportedFiles.length} files`);
 
-    try {
-      const request: OpenCodeRequest = {
-        diff: context.diffContent,
-        config: {
-          focus: ['security', 'bugs', 'performance', 'maintainability'],
-          severity_threshold: 'low',
-        },
-      };
+    // Run opencode CLI
+    const result = await runOpencode(context);
 
-      const response = await fetch(OPENCODE_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenCode API error: ${response.status} - ${errorText}`);
-      }
-
-      const result = (await response.json()) as OpenCodeResponse;
-
-      // Convert OpenCode findings to our format
-      for (const finding of result.findings) {
-        findings.push({
-          severity: mapSeverity(finding.severity),
-          file: finding.file,
-          line: finding.line,
-          message: finding.message,
-          suggestion: finding.suggestion,
-          ruleId: finding.category,
-          sourceAgent: this.id,
-        });
-      }
-
-      // Calculate estimated cost (approximate GPT-4 pricing)
-      const tokensUsed = result.tokens_used || estimatedInputTokens;
-      const estimatedCostUsd = (tokensUsed / 1000) * 0.01 + ((tokensUsed * 0.2) / 1000) * 0.03;
-
-      return {
-        agentId: this.id,
-        success: true,
-        findings,
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: supportedFiles.length,
-          tokensUsed,
-          estimatedCostUsd,
-        },
-      };
-    } catch (error) {
+    if (!result.ok) {
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: result.error,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
-          tokensUsed: estimatedInputTokens,
         },
       };
     }
+
+    // OpenCode posts directly to GitHub, so we log the output
+    // Findings would be parsed from structured output if available
+    console.log(`[opencode] Output: ${result.output.slice(0, 500)}...`);
+
+    return {
+      agentId: this.id,
+      success: true,
+      findings: [], // OpenCode posts its own comments
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: supportedFiles.length,
+      },
+    };
   },
 };
-
-function mapSeverity(opencodeSeverity: string): Severity {
-  switch (opencodeSeverity) {
-    case 'critical':
-    case 'high':
-      return 'error';
-    case 'medium':
-      return 'warning';
-    default:
-      return 'info';
-  }
-}
