@@ -1,86 +1,58 @@
+/**
+ * AI Semantic Review Agent
+ * Direct OpenAI SDK integration for semantic code review
+ *
+ * This agent uses the OpenAI API directly (like pr_agent) rather than
+ * a fictional third-party API. It's designed for semantic analysis
+ * of code changes beyond what static analyzers can detect.
+ */
+
+import OpenAI from 'openai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import OpenAI from 'openai';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 
-// Retry configuration
+// Retry configuration (same as pr_agent)
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
 
-/**
- * Determine retry delay for an error, or null if non-retryable.
- * - 429 Rate Limit: retry with Retry-After header or longer backoff
- * - 5xx/timeout: retryable with exponential backoff
- * - 4xx (except 429): non-retryable
- */
 function getRetryDelayMs(error: unknown, attempt: number): number | null {
-  // 429 Rate Limit: retry with Retry-After or extended exponential backoff
   if (error instanceof OpenAI.RateLimitError) {
     const headers = (error as { headers?: Record<string, string> }).headers;
     const retryAfter = headers?.['retry-after'];
-    if (retryAfter) {
-      return parseInt(retryAfter, 10) * 1000;
-    }
-    // Longer backoff for rate limits (start at 4x base delay)
+    if (retryAfter) return parseInt(retryAfter, 10) * 1000;
     return BASE_DELAY_MS * Math.pow(2, attempt + 2);
   }
-
-  // 5xx errors: retryable
-  if (error instanceof OpenAI.InternalServerError) {
-    return BASE_DELAY_MS * Math.pow(2, attempt);
-  }
-
-  // Connection/timeout errors: retryable
-  if (error instanceof OpenAI.APIConnectionError) {
-    return BASE_DELAY_MS * Math.pow(2, attempt);
-  }
-
-  // Generic API error with status code
+  if (error instanceof OpenAI.InternalServerError) return BASE_DELAY_MS * Math.pow(2, attempt);
+  if (error instanceof OpenAI.APIConnectionError) return BASE_DELAY_MS * Math.pow(2, attempt);
   if (error instanceof OpenAI.APIError) {
     const status = (error as { status?: number }).status;
-    if (status && status >= 500) {
-      return BASE_DELAY_MS * Math.pow(2, attempt);
-    }
+    if (status && status >= 500) return BASE_DELAY_MS * Math.pow(2, attempt);
   }
-
-  // 4xx errors (except 429): non-retryable
   if (error instanceof OpenAI.AuthenticationError) return null;
   if (error instanceof OpenAI.BadRequestError) return null;
   if (error instanceof OpenAI.NotFoundError) return null;
   if (error instanceof OpenAI.PermissionDeniedError) return null;
-
-  // Unknown errors: don't retry
   return null;
 }
 
-/**
- * Execute a function with exponential backoff retries
- */
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       return await fn();
     } catch (error) {
       const delayMs = getRetryDelayMs(error, attempt);
-      const isLastAttempt = attempt === MAX_RETRIES - 1;
-
-      if (delayMs === null || isLastAttempt) {
-        throw error;
-      }
-
-      console.log(
-        `[pr_agent] Retry ${attempt + 1}/${MAX_RETRIES} after ${delayMs}ms: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      if (delayMs === null || attempt === MAX_RETRIES - 1) throw error;
+      console.log(`[ai_semantic_review] Retry ${attempt + 1}/${MAX_RETRIES} after ${delayMs}ms`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
   throw new Error('Retry exhausted');
 }
 
-// Supported file extensions for PR-Agent review
 const SUPPORTED_EXTENSIONS = [
   '.ts',
   '.tsx',
@@ -100,36 +72,27 @@ const SUPPORTED_EXTENSIONS = [
   '.scala',
   '.vue',
   '.svelte',
-  '.md',
-  '.json',
-  '.yaml',
-  '.yml',
 ];
 
-// Default prompt path
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/pr_agent_review.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/semantic_review.md');
 
-/**
- * Response structure from OpenAI
- */
-interface PRAgentResponse {
+interface SemanticReviewResponse {
+  findings: SemanticFinding[];
   summary: string;
-  type: 'feature' | 'bugfix' | 'refactor' | 'docs' | 'test' | 'chore';
-  findings: PRAgentFinding[];
-  overall_assessment: 'approve' | 'comment' | 'request_changes';
 }
 
-interface PRAgentFinding {
+interface SemanticFinding {
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   file: string;
   line?: number;
   message: string;
   suggestion?: string;
+  category: string;
 }
 
-export const prAgentAgent: ReviewAgent = {
-  id: 'pr_agent',
-  name: 'PR-Agent',
+export const aiSemanticReviewAgent: ReviewAgent = {
+  id: 'ai_semantic_review',
+  name: 'AI Semantic Review',
   usesLlm: true,
 
   supports(file: DiffFile): boolean {
@@ -141,7 +104,7 @@ export const prAgentAgent: ReviewAgent = {
     const startTime = Date.now();
 
     // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = context.env['OPENAI_API_KEY'] || context.env['PR_AGENT_API_KEY'];
+    const apiKey = context.env['OPENAI_API_KEY'] || context.env['AI_SEMANTIC_REVIEW_API_KEY'];
     const azureEndpoint = context.env['AZURE_OPENAI_ENDPOINT'];
     const azureApiKey = context.env['AZURE_OPENAI_API_KEY'];
     const azureDeployment = context.env['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
@@ -151,8 +114,7 @@ export const prAgentAgent: ReviewAgent = {
         agentId: this.id,
         success: false,
         findings: [],
-        error:
-          'No API key configured for PR-Agent (set OPENAI_API_KEY, PR_AGENT_API_KEY, or AZURE_OPENAI_API_KEY)',
+        error: 'No API key configured (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
@@ -160,25 +122,19 @@ export const prAgentAgent: ReviewAgent = {
       };
     }
 
-    // Get files that PR-Agent supports
     const supportedFiles = context.files.filter((f) => this.supports(f));
-
     if (supportedFiles.length === 0) {
       return {
         agentId: this.id,
         success: true,
         findings: [],
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
+        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
       };
     }
 
     // Initialize OpenAI client
     let openai: OpenAI;
     if (azureEndpoint && azureApiKey) {
-      // Azure OpenAI
       openai = new OpenAI({
         apiKey: azureApiKey,
         baseURL: `${azureEndpoint}/openai/deployments/${azureDeployment}`,
@@ -186,21 +142,28 @@ export const prAgentAgent: ReviewAgent = {
         defaultHeaders: { 'api-key': azureApiKey },
       });
     } else {
-      // Standard OpenAI
       openai = new OpenAI({ apiKey });
     }
 
     // Load prompt template
-    let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response.`;
+    let systemPrompt = `You are a senior code reviewer focused on semantic analysis.
+Analyze the provided diff for:
+- Logic errors and edge cases
+- Security vulnerabilities
+- Performance issues
+- API misuse or anti-patterns
+- Missing error handling
+
+Return a JSON object with findings.`;
+
     if (existsSync(PROMPT_PATH)) {
       try {
         systemPrompt = await readFile(PROMPT_PATH, 'utf-8');
       } catch {
-        console.log('[pr_agent] Using default prompt (failed to load template)');
+        console.log('[ai_semantic_review] Using default prompt');
       }
     }
 
-    // Build file summary for context
     const fileSummary = supportedFiles
       .map((f) => `- ${f.path} (${f.status}: +${f.additions}/-${f.deletions})`)
       .join('\n');
@@ -213,20 +176,19 @@ ${fileSummary}
 ${context.diffContent}
 \`\`\`
 
-Analyze this pull request and provide your review as a JSON object with the following structure:
+Analyze this code and return JSON:
 {
-  "summary": "Brief description of what this PR does",
-  "type": "feature|bugfix|refactor|docs|test|chore",
   "findings": [
     {
       "severity": "critical|high|medium|low|info",
       "file": "path/to/file.ts",
       "line": 42,
-      "message": "Description of the issue",
-      "suggestion": "How to fix it (optional)"
+      "message": "Description",
+      "suggestion": "How to fix",
+      "category": "security|performance|logic|error-handling|api-misuse"
     }
   ],
-  "overall_assessment": "approve|comment|request_changes"
+  "summary": "Brief summary of the review"
 }`;
 
     const estimatedInputTokens = estimateTokens(systemPrompt + userPrompt);
@@ -246,15 +208,11 @@ Analyze this pull request and provide your review as a JSON object with the foll
       );
 
       const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('Empty response from OpenAI');
-      }
+      if (!content) throw new Error('Empty response from OpenAI');
 
-      // Parse the JSON response
-      const result = JSON.parse(content) as PRAgentResponse;
+      const result = JSON.parse(content) as SemanticReviewResponse;
       const findings: Finding[] = [];
 
-      // Convert findings to our format
       for (const finding of result.findings || []) {
         findings.push({
           severity: mapSeverity(finding.severity),
@@ -262,23 +220,14 @@ Analyze this pull request and provide your review as a JSON object with the foll
           line: finding.line,
           message: finding.message,
           suggestion: finding.suggestion,
-          ruleId: `pr-agent/${result.type}`,
+          ruleId: `semantic/${finding.category}`,
           sourceAgent: this.id,
         });
       }
 
-      // Add summary as an info-level finding if there are no issues
-      if (findings.length === 0 && result.summary) {
-        console.log(`[pr_agent] Summary: ${result.summary}`);
-        console.log(`[pr_agent] Assessment: ${result.overall_assessment}`);
-      }
-
-      // Calculate token usage and cost
       const tokensUsed = response.usage?.total_tokens || estimatedInputTokens;
       const promptTokens = response.usage?.prompt_tokens || estimatedInputTokens;
       const completionTokens = response.usage?.completion_tokens || 0;
-
-      // Approximate cost (GPT-4o-mini pricing)
       const estimatedCostUsd = (promptTokens / 1000) * 0.00015 + (completionTokens / 1000) * 0.0006;
 
       return {
@@ -293,13 +242,11 @@ Analyze this pull request and provide your review as a JSON object with the foll
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Unknown error',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
@@ -310,11 +257,8 @@ Analyze this pull request and provide your review as a JSON object with the foll
   },
 };
 
-/**
- * Map PR-Agent severity to our standard severity
- */
-function mapSeverity(prAgentSeverity: string): Severity {
-  switch (prAgentSeverity) {
+function mapSeverity(severity: string): Severity {
+  switch (severity) {
     case 'critical':
     case 'high':
       return 'error';

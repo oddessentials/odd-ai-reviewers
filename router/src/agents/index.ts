@@ -146,9 +146,11 @@ import { opencodeAgent } from './opencode.js';
 import { reviewdogAgent } from './reviewdog.js';
 import { prAgentAgent } from './pr_agent.js';
 import { localLlmAgent } from './local_llm.js';
+import { aiSemanticReviewAgent } from './ai_semantic_review.js';
 
 registerAgent(semgrepAgent);
-registerAgent(opencodeAgent);
+registerAgent(opencodeAgent); // Uses fictional API - to be updated for real OpenCode CLI
 registerAgent(reviewdogAgent);
 registerAgent(prAgentAgent);
 registerAgent(localLlmAgent);
+registerAgent(aiSemanticReviewAgent); // Direct OpenAI SDK integration
