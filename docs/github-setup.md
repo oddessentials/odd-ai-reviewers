@@ -27,7 +27,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    
+
     uses: oddessentials/odd-ai-reviewers/.github/workflows/ai-review.yml@main
     with:
       target_repo: ${{ github.repository }}
@@ -42,16 +42,16 @@ Navigate to your repository's Settings → Secrets and variables → Actions.
 
 ### Required Secrets (for AI review)
 
-| Secret | Description | Get it from |
-|--------|-------------|-------------|
+| Secret             | Description         | Get it from                        |
+| ------------------ | ------------------- | ---------------------------------- |
 | `OPENCODE_API_KEY` | OpenCode.ai API key | [opencode.ai](https://opencode.ai) |
 
 ### Optional Secrets
 
-| Secret | Description | Get it from |
-|--------|-------------|-------------|
-| `OPENAI_API_KEY` | For PR-Agent (Phase 2) | [platform.openai.com](https://platform.openai.com) |
-| `OLLAMA_BASE_URL` | Local LLM endpoint | Your Ollama server |
+| Secret            | Description            | Get it from                                        |
+| ----------------- | ---------------------- | -------------------------------------------------- |
+| `OPENAI_API_KEY`  | For PR-Agent (Phase 2) | [platform.openai.com](https://platform.openai.com) |
+| `OLLAMA_BASE_URL` | Local LLM endpoint     | Your Ollama server                                 |
 
 > **Note**: `GITHUB_TOKEN` is automatically provided by GitHub Actions.
 
@@ -126,6 +126,7 @@ Your PR exceeds the configured limits. Options:
 ### No inline comments appearing
 
 Check that:
+
 - The lines are in the diff (not unchanged lines)
 - `max_inline_comments` isn't set to 0
 - The GitHub token has `pull-requests: write` permission

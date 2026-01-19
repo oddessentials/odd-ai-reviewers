@@ -1,33 +1,33 @@
 {
-    "name": "@odd-ai-reviewers/router",
-    "version": "1.0.0",
-    "description": "Review Router - orchestrates AI code review passes",
-    "type": "module",
-    "main": "dist/main.js",
-    "bin": {
-        "ai-review": "dist/main.js"
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "start": "node dist/main.js",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "lint": "eslint src --ext .ts"
-    },
-    "dependencies": {
-        "@octokit/rest": "^21.0.0",
-        "commander": "^13.0.0",
-        "minimatch": "^10.0.1",
-        "yaml": "^2.7.0",
-        "zod": "^3.24.1"
-    },
-    "devDependencies": {
-        "@types/node": "^22.10.7",
-        "typescript": "^5.7.3",
-        "vitest": "^2.1.8"
-    },
-    "engines": {
-        "node": ">=22.0.0"
-    }
+  "name": "@odd-ai-reviewers/router",
+  "version": "1.0.0",
+  "description": "Review Router - orchestrates AI code review passes",
+  "type": "module",
+  "main": "dist/main.js",
+  "bin": {
+    "ai-review": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "commander": "^13.0.0",
+    "minimatch": "^10.0.1",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }

@@ -1,6 +1,7 @@
-# odd-ai-reviewers
+# 🐝 odd-ai-reviewers
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENCE.md)
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents, all without modifying your CI runtime.
 
@@ -65,11 +66,11 @@ reporting:
 
 Add these secrets to your repository or organization:
 
-| Secret | Required | Description |
-|--------|----------|-------------|
+| Secret             | Required      | Description         |
+| ------------------ | ------------- | ------------------- |
 | `OPENCODE_API_KEY` | For AI review | OpenCode.ai API key |
-| `OPENAI_API_KEY` | For PR-Agent | OpenAI API key |
-| `OLLAMA_BASE_URL` | For local LLM | Ollama server URL |
+| `OPENAI_API_KEY`   | For PR-Agent  | OpenAI API key      |
+| `OLLAMA_BASE_URL`  | For local LLM | Ollama server URL   |
 
 ## How It Works
 
@@ -93,13 +94,13 @@ graph LR
 
 ## Available Agents
 
-| Agent | Type | Description |
-|-------|------|-------------|
-| `semgrep` | Static | Security and bug patterns (free) |
-| `reviewdog` | Static | Annotation converter (Phase 2) |
-| `opencode` | AI | OpenCode.ai semantic review |
-| `pr_agent` | AI | PR summarizer and reviewer (Phase 2) |
-| `local_llm` | AI | Ollama/llama.cpp (Phase 3) |
+| Agent       | Type   | Description                          |
+| ----------- | ------ | ------------------------------------ |
+| `semgrep`   | Static | Security and bug patterns (free)     |
+| `reviewdog` | Static | Annotation converter (Phase 2)       |
+| `opencode`  | AI     | OpenCode.ai semantic review          |
+| `pr_agent`  | AI     | PR summarizer and reviewer (Phase 2) |
+| `local_llm` | AI     | Ollama/llama.cpp (Phase 3)           |
 
 ## Configuration Reference
 
@@ -135,6 +136,6 @@ node router/dist/main.js review \
 - **Phase 2**: PR-Agent, caching, comment throttling
 - **Phase 3**: Azure DevOps, GitLab, Gitea, local LLMs
 
-## License
+## Licence
 
-MIT © OddEssentials
+This project is licenced under the MIT Licence - see the [LICENCE.md](LICENCE.md) file for details.

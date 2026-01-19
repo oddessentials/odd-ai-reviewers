@@ -12,6 +12,7 @@ Analyze this pull request and provide a comprehensive review.
 ## Format
 
 Respond with structured JSON containing:
+
 - summary: string
 - type: string
 - findings: array of { severity, file, line, message, suggestion }

@@ -7,11 +7,13 @@ This document describes the security architecture and best practices for odd-ai-
 ### Untrusted Code Execution
 
 **Risk**: Malicious code in a fork PR could attempt to:
+
 - Steal secrets via environment variables
 - Exfiltrate source code
 - Manipulate review results
 
 **Mitigation**:
+
 - Fork PRs are blocked by default (`trusted_only: true`)
 - Review runs in isolated containers
 - Secrets are injected only for specific agents
@@ -19,11 +21,13 @@ This document describes the security architecture and best practices for odd-ai-
 ### Secret Exposure
 
 **Risk**: API keys or tokens could be leaked through:
+
 - Log output
 - Error messages
 - Network requests
 
 **Mitigation**:
+
 - Secrets are never logged
 - Container runs with minimal permissions
 - Network egress limited to known endpoints
@@ -31,11 +35,13 @@ This document describes the security architecture and best practices for odd-ai-
 ### Denial of Service
 
 **Risk**: Malicious PRs could:
+
 - Trigger expensive LLM calls
 - Overwhelm the review system
 - Exhaust monthly budgets
 
 **Mitigation**:
+
 - Per-PR limits on files, lines, tokens, cost
 - Monthly budget caps
 - Static analysis runs first (free)
@@ -52,6 +58,7 @@ trusted_only: true
 ```
 
 This prevents:
+
 - Untrusted code from accessing secrets
 - Attackers from probing your review configuration
 - Budget exhaustion via external PRs
@@ -62,14 +69,15 @@ The GitHub workflow requests only necessary permissions:
 
 ```yaml
 permissions:
-  contents: read        # Read repository content
-  pull-requests: write  # Post comments
-  checks: write         # Create check runs
+  contents: read # Read repository content
+  pull-requests: write # Post comments
+  checks: write # Create check runs
 ```
 
 ### 3. Secret Handling
 
 Secrets are:
+
 - Stored in GitHub's encrypted secret store
 - Injected only when needed
 - Never printed to logs
@@ -78,6 +86,7 @@ Secrets are:
 ### 4. Container Isolation
 
 The review router runs in an isolated container:
+
 - Non-root user
 - Read-only filesystem where possible
 - No persistent storage
@@ -86,6 +95,7 @@ The review router runs in an isolated container:
 ### 5. Input Validation
 
 All inputs are validated:
+
 - Configuration schema enforcement (Zod)
 - Path traversal prevention
 - Command injection protection
@@ -123,6 +133,7 @@ If you suspect a security breach:
 ## Reporting Vulnerabilities
 
 Please report security vulnerabilities via:
+
 - GitHub Security Advisories
 - Email: security@oddessentials.com
 
