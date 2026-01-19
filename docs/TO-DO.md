@@ -1,4 +1,4 @@
-# TO-DO: Remaining Phase 3 Features
+# THESE FEATURES WILL COME IN A LATER PHASE
 
 > Items below are **not critical** for current milestone. Prioritized for future sprints.
 
