@@ -43,16 +43,101 @@ infrastructure with zero cloud cost.
 
 ---
 
+## First Version Critical Path
+
+Before the first legitimate self-hosted deployment, these items must be completed:
+
+| Item | Status | Priority | Notes |
+| ---- | ------ | -------- | ----- |
+| Add `runs_on` input to workflow | ❌ Not Done | **P0 BLOCKER** | Required for OSCR integration |
+| E2E test on real repository | ❌ Not Done | **P0** | Validates full flow works |
+| Choose reporting architecture | ⚠️ Decision Needed | **P1** | See "Reporting Architecture" below |
+| Fix duplicate semgrep execution | ⚠️ Not Done | **P1** | Currently runs twice per PR |
+| Azure OpenAI API version | ⚠️ Hardcoded | P2 | `2024-02-15-preview` in code |
+
+### Immediate Action Required
+
+The `runs_on` input is the **single blocker** preventing self-hosted runner usage. Implement Option A below before any pilot deployment.
+
+---
+
 ## Current Integration Status
 
 | Component                     | Status       | Notes                                  |
 | ----------------------------- | ------------ | -------------------------------------- |
 | OSCR GitHub runner            | ✅ Ready     | Docker-based, auto-register/unregister |
 | OSCR ADO agent                | ✅ Ready     | Same model, different provider         |
-| odd-ai-reviewers workflow     | ⚠️ Hardcoded | Uses `runs-on: ubuntu-latest`          |
-| odd-ai-reviewers Docker image | ✅ Ready     | Has semgrep, opencode, reviewdog       |
+| odd-ai-reviewers router       | ✅ Ready     | Core logic, agents, budget, trust      |
+| odd-ai-reviewers workflow     | ❌ Blocked   | `runs-on: ubuntu-latest` hardcoded     |
+| Semgrep agent                 | ✅ Ready     | Returns structured findings to router  |
+| PR-Agent                      | ✅ Ready     | Returns structured findings to router  |
+| OpenCode agent                | ⚠️ Fire-and-forget | Posts directly to GitHub, not captured |
+| Reviewdog agent               | ⚠️ Fire-and-forget | Posts directly to GitHub, not captured |
 
-**Gap:** The reusable workflow needs a `runs-on` input to allow self-hosted runners.
+**Primary Gap:** The reusable workflow needs a `runs_on` input to allow self-hosted runners.
+
+---
+
+## Reporting Architecture Decision
+
+### Current State
+
+The router has two reporting paths that operate independently:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Router Unified Path                          │
+│  Agents: semgrep, pr_agent, ai_semantic_review                   │
+│  → Returns findings[] to router                                  │
+│  → Deduplicated, sorted, summarized                              │
+│  → Posted via router's GitHub reporter                           │
+│  → Subject to gating rules                                       │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   Direct-Post Path (Fire-and-Forget)             │
+│  Agents: opencode, reviewdog                                     │
+│  → Posts directly to GitHub API                                  │
+│  → Returns findings: [] to router                                │
+│  → NOT deduplicated with other agents                            │
+│  → NOT included in summary or gating                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Impact
+
+- **Duplicate comments**: If semgrep and reviewdog both run, you get findings posted twice (once by router, once by reviewdog)
+- **Incomplete gating**: Gating logic only sees findings from unified-path agents
+- **Fragmented summary**: OpenCode findings don't appear in the PR summary comment
+
+### Recommended Configuration (First Version)
+
+For a clean first deployment, use agents that return structured findings:
+
+```yaml
+# .ai-review.yml - Recommended for unified reporting
+passes:
+  - name: static
+    agents: [semgrep]      # Returns findings to router
+    enabled: true
+
+  - name: semantic
+    agents: [pr_agent]     # Returns findings to router
+    enabled: true
+
+# AVOID for first version:
+# - reviewdog (duplicates semgrep, posts directly)
+# - opencode (posts directly, findings not captured)
+```
+
+### Future Improvement
+
+To unify all reporting, OpenCode and Reviewdog agents need refactoring to:
+1. Capture their output as structured findings
+2. Return findings to the router
+3. Let the router handle all GitHub posting
+
+This is tracked as a Phase 3 enhancement.
 
 ---
 
@@ -136,38 +221,63 @@ The workflow will:
 
 ## Required Changes to odd-ai-reviewers
 
-### Option A: Add `runs-on` Input (Recommended)
+> **STATUS: NOT YET IMPLEMENTED** — This is the primary blocker for self-hosted deployment.
+
+### Option A: Add `runs-on` Input (Recommended) ✅
+
+This approach maintains a single workflow file with configurable runner.
 
 Update `.github/workflows/ai-review.yml`:
 
 ```yaml
-inputs:
-  runs_on:
-    description: 'Runner label(s)'
-    required: false
-    type: string
-    default: 'ubuntu-latest'
+on:
+  workflow_call:
+    inputs:
+      # ... existing inputs ...
+      runs_on:
+        description: 'Runner label (JSON string for arrays)'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
 
 jobs:
   ai-review:
-    runs-on: ${{ inputs.runs_on }}
+    name: AI Code Review
+    runs-on: ${{ fromJSON(format('[{0}]', inputs.runs_on)) }}
+    # Note: fromJSON handles both 'ubuntu-latest' and '["self-hosted", "linux"]'
 ```
 
-Callers can then specify:
+Callers specify:
 
 ```yaml
+# For GitHub-hosted
 with:
-  runs_on: '[\"self-hosted\", \"linux\"]'
+  runs_on: '"ubuntu-latest"'
+
+# For self-hosted
+with:
+  runs_on: '"self-hosted", "linux"'
 ```
+
+**Pros:** Single workflow, backwards compatible, flexible
+**Cons:** JSON escaping can be confusing
 
 ### Option B: Create Separate Self-Hosted Workflow
 
-Create `.github/workflows/ai-review-selfhosted.yml`:
+Create `.github/workflows/ai-review-selfhosted.yml` as a copy with hardcoded self-hosted runner.
 
 ```yaml
-# Copy of ai-review.yml with:
-runs-on: [self-hosted, linux]
+jobs:
+  ai-review:
+    runs-on: [self-hosted, linux]
 ```
+
+**Pros:** No JSON escaping, clear intent
+**Cons:** Code duplication, two files to maintain
+
+### Recommendation
+
+**Use Option A** for flexibility. The JSON escaping complexity is a one-time setup cost.
 
 ---
 
@@ -265,15 +375,90 @@ for security reasons. To allow specific authors, use `trusted_authors` in
 
 ---
 
+## E2E Validation Checklist
+
+Before declaring "first version ready," validate each item on a real repository:
+
+### Pre-Deployment
+
+- [ ] `runs_on` input added to `ai-review.yml`
+- [ ] OSCR runner registered and showing "Idle" in GitHub Settings
+- [ ] Test repository has `.ai-review.yml` with recommended config
+- [ ] `OPENAI_API_KEY` secret configured in test repository
+- [ ] Caller workflow created with correct inputs
+
+### Deployment Test
+
+- [ ] Open PR with intentional issues (unused import, type error, etc.)
+- [ ] Verify job picked up by OSCR runner (check runner logs)
+- [ ] Verify semgrep findings appear as check annotations
+- [ ] Verify PR-Agent summary comment posted
+- [ ] Verify no duplicate comments (if using only unified-path agents)
+- [ ] Close PR, verify no lingering processes on runner
+
+### Edge Cases
+
+- [ ] Fork PR blocked (if `trusted_only: true`)
+- [ ] Draft PR skipped (expected behavior)
+- [ ] Large PR (>50 files) triggers budget skip for LLM passes
+- [ ] PR with no code changes (.md only) completes gracefully
+
+### Performance Baseline
+
+- [ ] Record typical review duration (semgrep + LLM)
+- [ ] Record token usage and estimated cost per PR
+- [ ] Verify cache hit on re-push to same PR
+
+---
+
 ## Summary
 
 | Step | Action                                                          |
 | ---- | --------------------------------------------------------------- |
-| 1    | Clone and configure OSCR                                        |
-| 2    | Start self-hosted runner                                        |
-| 3    | Add `runs_on` input to ai-review.yml OR use self-hosted variant |
-| 4    | Create caller workflow in target repo                           |
-| 5    | Add secrets (OPENAI_API_KEY)                                    |
-| 6    | Open PR and verify                                              |
+| 1    | **Implement `runs_on` input** in ai-review.yml (P0 blocker)     |
+| 2    | Clone and configure OSCR on target machine                      |
+| 3    | Start self-hosted runner, verify registration                   |
+| 4    | Create caller workflow in target repo with self-hosted config   |
+| 5    | Add secrets (`OPENAI_API_KEY`)                                  |
+| 6    | Run E2E validation checklist above                              |
+| 7    | Open real PR and verify full flow                               |
 
 **Result:** Zero-cost AI code reviews running on your own hardware.
+
+---
+
+## Appendix: Default Config for First Version
+
+Use this configuration for initial deployment to avoid the dual-reporting issues:
+
+```yaml
+# .ai-review.yml
+version: 1
+trusted_only: true
+
+passes:
+  - name: static
+    agents: [semgrep]
+    enabled: true
+
+  - name: semantic
+    agents: [pr_agent]  # NOT opencode (fire-and-forget)
+    enabled: true
+
+limits:
+  max_files: 50
+  max_diff_lines: 2000
+  max_tokens_per_pr: 12000
+  max_usd_per_pr: 1.00
+
+reporting:
+  github:
+    mode: checks_and_comments
+    max_inline_comments: 20
+    summary: true
+
+gating:
+  enabled: false
+```
+
+This ensures all findings flow through the unified router for consistent deduplication, summarization, and (optional) gating.
