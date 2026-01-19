@@ -2,10 +2,21 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Install semgrep for static analysis
-RUN apt-get update && apt-get install -y python3-pip git && \
-    pip3 install semgrep --break-system-packages && \
+# Install system dependencies
+RUN apt-get update && apt-get install -y python3-pip git curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install semgrep for static analysis
+RUN pip3 install semgrep --break-system-packages
+
+# Install reviewdog (version-pinned)
+ARG REVIEWDOG_VERSION=v0.20.3
+RUN curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/refs/heads/master/install.sh | sh -s -- -b /usr/local/bin ${REVIEWDOG_VERSION}
+
+# Install opencode CLI (version-pinned)
+ARG OPENCODE_VERSION=v0.7.0
+RUN curl -fsSL https://opencode.ai/install | OPENCODE_VERSION=${OPENCODE_VERSION} bash && \
+    ln -s /root/.opencode/bin/opencode /usr/local/bin/opencode
 
 # Copy package files
 COPY package.json package-lock.json* ./
