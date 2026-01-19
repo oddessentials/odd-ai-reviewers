@@ -14,6 +14,7 @@ import { existsSync } from 'fs';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
+import { buildAgentEnv } from './security.js';
 
 // Retry configuration (same as pr_agent)
 const MAX_RETRIES = 5;
@@ -103,11 +104,13 @@ export const aiSemanticReviewAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
+    const agentEnv = buildAgentEnv('ai_semantic_review', context.env);
+
     // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = context.env['OPENAI_API_KEY'] || context.env['AI_SEMANTIC_REVIEW_API_KEY'];
-    const azureEndpoint = context.env['AZURE_OPENAI_ENDPOINT'];
-    const azureApiKey = context.env['AZURE_OPENAI_API_KEY'];
-    const azureDeployment = context.env['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+    const apiKey = agentEnv['OPENAI_API_KEY'] || agentEnv['AI_SEMANTIC_REVIEW_API_KEY'];
+    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
+    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
+    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
     if (!apiKey && !azureApiKey) {
       return {
@@ -196,7 +199,7 @@ Analyze this code and return JSON:
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: context.env['OPENAI_MODEL'] || 'gpt-4o-mini',
+          model: agentEnv['OPENAI_MODEL'] || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

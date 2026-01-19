@@ -17,6 +17,7 @@ import {
 } from './agents/index.js';
 import { reportToGitHub, type GitHubContext } from './report/github.js';
 import { deduplicateFindings, sortFindings, generateSummaryMarkdown } from './report/formats.js';
+import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 
 const program = new Command();
 
@@ -71,6 +72,8 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Repository: ${options.repo}`);
   console.log(`[router] Diff: ${options.base}...${options.head}`);
 
+  const routerEnv = buildRouterEnv(process.env as Record<string, string | undefined>);
+
   // Load configuration
   const config = await loadConfig(options.repo);
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
@@ -80,11 +83,11 @@ async function runReview(options: ReviewOptions): Promise<void> {
     number: options.pr ?? 0,
     headRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
     baseRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
-    author: process.env['GITHUB_ACTOR'] ?? 'unknown',
-    isFork: process.env['GITHUB_HEAD_REPO'] !== process.env['GITHUB_REPOSITORY'],
+    author: routerEnv['GITHUB_ACTOR'] ?? 'unknown',
+    isFork: routerEnv['GITHUB_HEAD_REPO'] !== routerEnv['GITHUB_REPOSITORY'],
     isDraft:
-      process.env['GITHUB_EVENT_NAME'] === 'pull_request' &&
-      process.env['GITHUB_EVENT_PULL_REQUEST_DRAFT'] === 'true',
+      routerEnv['GITHUB_EVENT_NAME'] === 'pull_request' &&
+      routerEnv['GITHUB_EVENT_PULL_REQUEST_DRAFT'] === 'true',
   };
 
   // Check trust
@@ -135,7 +138,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     config,
     diffContent,
     prNumber: options.pr,
-    env: process.env as Record<string, string | undefined>,
+    env: routerEnv,
   };
 
   // Run passes
@@ -162,7 +165,28 @@ async function runReview(options: ReviewOptions): Promise<void> {
       console.log(`[router] Running agent: ${agent.name} (${agent.id})`);
 
       try {
-        const result = await agent.run(agentContext);
+        if (!isKnownAgentId(agent.id)) {
+          throw new Error(`Unknown agent id "${agent.id}" has no allowlisted environment`);
+        }
+
+        const isMainBranch =
+          routerEnv['GITHUB_REF_NAME'] === 'main' ||
+          routerEnv['GITHUB_REF'] === 'refs/heads/main' ||
+          routerEnv['GITHUB_BASE_REF'] === 'main';
+
+        if (isMainBranch && (agent.id === 'pr_agent' || agent.id === 'ai_semantic_review')) {
+          console.error(
+            `[router] Policy violation: in-process LLM agent "${agent.id}" is forbidden on main`
+          );
+          process.exit(1);
+        }
+
+        const scopedContext: AgentContext = {
+          ...agentContext,
+          env: buildAgentEnv(agent.id, routerEnv),
+        };
+
+        const result = await agent.run(scopedContext);
         allResults.push(result);
 
         if (result.success) {
@@ -192,13 +216,13 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log('\n' + summary);
 
   // Report to GitHub (unless dry run)
-  if (!options.dryRun && options.owner && options.repoName && process.env['GITHUB_TOKEN']) {
+  if (!options.dryRun && options.owner && options.repoName && routerEnv['GITHUB_TOKEN']) {
     const githubContext: GitHubContext = {
       owner: options.owner,
       repo: options.repoName,
       prNumber: options.pr,
       headSha: options.head,
-      token: process.env['GITHUB_TOKEN'],
+      token: routerEnv['GITHUB_TOKEN'],
     };
 
     console.log('[router] Reporting to GitHub...');

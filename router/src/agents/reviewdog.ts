@@ -15,7 +15,7 @@ import { join } from 'path';
 import { execSync } from 'child_process';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
-import { stripTokensFromEnv } from './security.js';
+import { buildAgentEnv } from './security.js';
 import { generateFingerprint } from '../report/formats.js';
 
 /**
@@ -244,7 +244,7 @@ export const reviewdogAgent: ReviewAgent = {
 
     // ROUTER MONOPOLY RULE: Strip ALL tokens from environment
     // Agents must NOT have access to posting credentials
-    const cleanEnv = stripTokensFromEnv(context.env);
+    const cleanEnv = buildAgentEnv('reviewdog', context.env);
 
     // Primary path: Run semgrep directly and parse structured output
     const result = await runSemgrepStructured(context.repoPath, filePaths, cleanEnv);

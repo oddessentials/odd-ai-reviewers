@@ -10,6 +10,8 @@
 import { createHash } from 'crypto';
 import type { Finding, Severity } from '../agents/index.js';
 
+const FINGERPRINT_MARKER_PREFIX = 'odd-ai-reviewers:fingerprint:v1:';
+
 /**
  * Generate a stable fingerprint for a finding
  *
@@ -210,4 +212,23 @@ export function toGitHubAnnotation(finding: Finding): GitHubAnnotation | null {
       ? `[${finding.sourceAgent}] ${finding.ruleId}`
       : `[${finding.sourceAgent}]`,
   };
+}
+
+export function buildFingerprintMarker(finding: Finding): string {
+  const key = getDedupeKey(finding);
+  return `<!-- ${FINGERPRINT_MARKER_PREFIX}${key} -->`;
+}
+
+export function extractFingerprintMarkers(body: string): string[] {
+  const markers: string[] = [];
+  const regex = new RegExp(`<!--\\s*${FINGERPRINT_MARKER_PREFIX}([^\\s]+)\\s*-->`, 'g');
+
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    if (match[1]) {
+      markers.push(match[1]);
+    }
+  }
+
+  return markers;
 }

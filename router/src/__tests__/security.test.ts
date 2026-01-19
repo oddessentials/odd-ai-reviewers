@@ -9,12 +9,16 @@
  * These tests MUST pass before any release.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { execSync } from 'child_process';
+import * as childProcess from 'child_process';
 import {
   stripTokensFromEnv,
   hasTokenInEnv,
   validateNoListeningSockets,
   createSafeAgentEnv,
+  buildAgentEnv,
+  buildRouterEnv,
 } from '../agents/security.js';
 
 describe('Security Module', () => {
@@ -222,18 +226,34 @@ describe('Security Module', () => {
 
   describe('validateNoListeningSockets (Invariant 10)', () => {
     it('should return safe when no listeners detected', async () => {
-      // This test verifies the function works - actual socket detection
-      // depends on system state
+      execSync('command -v lsof', { stdio: 'ignore' });
       const result = await validateNoListeningSockets('nonexistent-process-xyz');
 
-      // Should return safe (either no listeners or lsof not available)
       expect(result.safe).toBe(true);
     });
 
-    it('should handle missing lsof gracefully', async () => {
-      // The function should not throw if lsof is unavailable
-      const result = await validateNoListeningSockets();
-      expect(typeof result.safe).toBe('boolean');
+    it('should fail closed when lsof is unavailable', async () => {
+      const execSpy = vi.spyOn(childProcess, 'execSync');
+      execSpy.mockImplementationOnce(() => {
+        throw new Error('command not found');
+      });
+
+      const result = await validateNoListeningSockets('node');
+      expect(result.safe).toBe(false);
+      expect(result.error).toContain('lsof not installed');
+      execSpy.mockRestore();
+    });
+
+    it('should fail when a listening socket is detected', async () => {
+      execSync('command -v lsof', { stdio: 'ignore' });
+      const { createServer } = await import('net');
+      const server = createServer();
+
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      const result = await validateNoListeningSockets('node');
+      server.close();
+
+      expect(result.safe).toBe(false);
     });
   });
 });
@@ -295,6 +315,58 @@ describe('Agent Token Stripping Verification', () => {
       expect(result[tokenVar]).toBeUndefined();
       expect(result['PATH']).toBe('/bin');
     });
+  });
+});
+
+describe('Agent Environment Allowlist', () => {
+  it('should only allowlisted keys through for PR-Agent', () => {
+    const env = {
+      OPENAI_API_KEY: 'sk-allowed',
+      GITHUB_TOKEN: 'ghp-secret',
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token',
+      NPM_TOKEN: 'npm-secret',
+      PATH: '/usr/bin',
+      HOME: '/home/user',
+    };
+
+    const result = buildAgentEnv('pr_agent', env);
+
+    expect(result['OPENAI_API_KEY']).toBe('sk-allowed');
+    expect(result['GITHUB_TOKEN']).toBeUndefined();
+    expect(result['ACTIONS_ID_TOKEN_REQUEST_TOKEN']).toBeUndefined();
+    expect(result['NPM_TOKEN']).toBeUndefined();
+    expect(result['PATH']).toBeDefined();
+    expect(result['HOME']).toBe('/home/user');
+  });
+
+  it('should build a minimal router environment for posting', () => {
+    const env = {
+      GITHUB_TOKEN: 'ghp-secret',
+      GITHUB_REPOSITORY: 'oddessentials/odd-ai-reviewers',
+      GITHUB_EVENT_NAME: 'pull_request',
+      SSH_AUTH_SOCK: '/tmp/ssh',
+      NODE_AUTH_TOKEN: 'secret',
+    };
+
+    const routerEnv = buildRouterEnv(env);
+
+    expect(routerEnv['GITHUB_TOKEN']).toBe('ghp-secret');
+    expect(routerEnv['GITHUB_REPOSITORY']).toBe('oddessentials/odd-ai-reviewers');
+    expect(routerEnv['SSH_AUTH_SOCK']).toBeUndefined();
+    expect(routerEnv['NODE_AUTH_TOKEN']).toBeUndefined();
+  });
+
+  it('should block token access in agent environments', () => {
+    const env = {
+      GITHUB_TOKEN: 'ghp-secret',
+      GH_TOKEN: 'ghp-secret-2',
+      OPENAI_API_KEY: 'sk-allowed',
+    };
+
+    const agentEnv = buildAgentEnv('pr_agent', env);
+    const tokenCheck = hasTokenInEnv(agentEnv);
+
+    expect(tokenCheck.hasToken).toBe(false);
   });
 });
 

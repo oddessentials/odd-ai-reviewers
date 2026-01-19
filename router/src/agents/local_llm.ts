@@ -7,6 +7,7 @@
 
 import type { ReviewAgent, AgentContext, AgentResult } from './index.js';
 import type { DiffFile } from '../diff.js';
+import { buildAgentEnv } from './security.js';
 
 export const localLlmAgent: ReviewAgent = {
   id: 'local_llm',
@@ -21,7 +22,8 @@ export const localLlmAgent: ReviewAgent = {
     const startTime = Date.now();
 
     // Check for Ollama endpoint
-    const ollamaUrl = context.env['OLLAMA_BASE_URL'] || 'http://localhost:11434';
+    const agentEnv = buildAgentEnv('local_llm', context.env);
+    const ollamaUrl = agentEnv['OLLAMA_BASE_URL'] || 'http://localhost:11434';
 
     // Stub implementation - Ollama integration to be added in Phase 3
     console.log(

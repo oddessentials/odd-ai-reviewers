@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
+import { buildAgentEnv } from './security.js';
 
 // Retry configuration
 const MAX_RETRIES = 5;
@@ -140,11 +141,13 @@ export const prAgentAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
+    const agentEnv = buildAgentEnv('pr_agent', context.env);
+
     // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = context.env['OPENAI_API_KEY'] || context.env['PR_AGENT_API_KEY'];
-    const azureEndpoint = context.env['AZURE_OPENAI_ENDPOINT'];
-    const azureApiKey = context.env['AZURE_OPENAI_API_KEY'];
-    const azureDeployment = context.env['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+    const apiKey = agentEnv['OPENAI_API_KEY'] || agentEnv['PR_AGENT_API_KEY'];
+    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
+    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
+    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
     if (!apiKey && !azureApiKey) {
       return {
@@ -234,7 +237,7 @@ Analyze this pull request and provide your review as a JSON object with the foll
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: context.env['OPENAI_MODEL'] || 'gpt-4o-mini',
+          model: agentEnv['OPENAI_MODEL'] || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

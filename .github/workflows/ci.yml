@@ -38,4 +38,36 @@ jobs:
 
       - name: Test
         run: npm run test
-        continue-on-error: true # No tests yet
+
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build router
+        run: npm run build --workspace=router
+
+      - name: Build container image
+        run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile router
+
+      - name: Trivy scan (HIGH,CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: odd-ai-reviewers-router:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
