@@ -65,3 +65,20 @@ CVE-2024-45337
 # Fixed in: Go 1.21.9, 1.22.2 | OpenCode compiled with older Go
 # Risk: LOW - OpenCode CLI mode doesn't run HTTP2 servers
 CVE-2023-45288
+
+# ============================================================================
+# Reviewdog Binary (Go runtime and library CVEs)
+#
+# Reviewdog v0.20.3 is compiled with Go 1.21.7 which contains these
+# vulnerabilities. These are inherited from upstream releases.
+# ============================================================================
+
+# golang.org/x/crypto/ssh - DoS in SSH key exchange
+# Fixed in: 0.35.0 | Reviewdog compiled with v0.28.0
+# Risk: LOW - Reviewdog doesn't use SSH functionality
+CVE-2025-22869
+
+# Go net/netip - Unexpected behavior for IPv4-mapped IPv6 addresses
+# Fixed in: Go 1.21.11, 1.22.4 | Reviewdog compiled with Go 1.21.7
+# Risk: LOW - Reviewdog only processes diff/lint data, not network addresses
+CVE-2024-24790
