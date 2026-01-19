@@ -15,7 +15,7 @@
 import { spawn, execSync } from 'child_process';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
-import { stripTokensFromEnv, validateNoListeningSockets } from './security.js';
+import { buildAgentEnv, validateNoListeningSockets } from './security.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -220,7 +220,7 @@ function mapSeverity(severity?: string): Severity {
  */
 async function runOpencode(context: AgentContext, prompt: string): Promise<OpencodeResult> {
   // Strip ALL tokens from environment (Router Monopoly Rule)
-  const cleanEnv = stripTokensFromEnv(context.env);
+  const cleanEnv = buildAgentEnv('opencode', context.env);
 
   // Add OpenCode-specific config to disable HTTP server (CVE mitigation)
   const safeEnv: Record<string, string> = {
@@ -230,12 +230,10 @@ async function runOpencode(context: AgentContext, prompt: string): Promise<Openc
     OPENCODE_NO_SERVER: 'true',
     OPENCODE_HEADLESS: 'true',
     // Set model if provided (without tokens)
-    MODEL: context.env['OPENCODE_MODEL'] ?? context.env['MODEL'] ?? 'openai/gpt-4o-mini',
+    MODEL: cleanEnv['OPENCODE_MODEL'] ?? cleanEnv['MODEL'] ?? 'openai/gpt-4o-mini',
     // LLM API keys are allowed (not GitHub tokens)
-    ...(context.env['OPENAI_API_KEY'] ? { OPENAI_API_KEY: context.env['OPENAI_API_KEY'] } : {}),
-    ...(context.env['ANTHROPIC_API_KEY']
-      ? { ANTHROPIC_API_KEY: context.env['ANTHROPIC_API_KEY'] }
-      : {}),
+    ...(cleanEnv['OPENAI_API_KEY'] ? { OPENAI_API_KEY: cleanEnv['OPENAI_API_KEY'] } : {}),
+    ...(cleanEnv['ANTHROPIC_API_KEY'] ? { ANTHROPIC_API_KEY: cleanEnv['ANTHROPIC_API_KEY'] } : {}),
   };
 
   return new Promise((resolve) => {

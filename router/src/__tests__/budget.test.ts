@@ -8,6 +8,8 @@ import {
   estimateCost,
   estimateTokens,
   checkMonthlyBudget,
+  COST_PER_1K_TOKENS_INPUT,
+  COST_PER_1K_TOKENS_OUTPUT,
   type BudgetContext,
   type MonthlyUsage,
 } from '../budget.js';
@@ -76,22 +78,58 @@ describe('checkBudget', () => {
   });
 
   it('should fail PR exceeding cost limit', () => {
+    // With GPT-4o-mini pricing: input=$0.00015/1K, output=$0.0006/1K
+    // For 50000 tokens with 20% output ratio:
+    // - Input cost: 50000 / 1000 * 0.00015 = $0.0075
+    // - Output cost: 50000 * 0.2 / 1000 * 0.0006 = $0.006
+    // - Total: ~$0.0135 which exceeds $0.01 limit
     const context: BudgetContext = {
       fileCount: 10,
       diffLines: 500,
-      estimatedTokens: 10000, // Will estimate to ~$0.16 which is under $1
+      estimatedTokens: 50000,
     };
 
-    // Use tight limits
+    // Use tight cost limit but allow the tokens through
     const tightLimits: Limits = {
       ...defaultLimits,
-      max_usd_per_pr: 0.01, // Very low limit
+      max_tokens_per_pr: 100000, // High enough to pass token check
+      max_usd_per_pr: 0.01, // Very low cost limit, will be exceeded
     };
 
     const result = checkBudget(context, tightLimits);
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('Estimated cost');
     expect(result.reason).toContain('exceeds limit');
+  });
+});
+
+describe('Pricing Consistency', () => {
+  /**
+   * CRITICAL: This test ensures budget estimates match actual agent cost calculations.
+   * If this test fails, the budget module and agents have drifted out of sync,
+   * which could cause budget limits to fail silently or block valid PRs.
+   */
+  it('should use consistent pricing with budget module', () => {
+    // These are the exact values used in pr_agent.ts and ai_semantic_review.ts
+    const agentInputCostPer1K = 0.00015;
+    const agentOutputCostPer1K = 0.0006;
+
+    // Verify budget module uses the same constants
+    expect(COST_PER_1K_TOKENS_INPUT).toBe(agentInputCostPer1K);
+    expect(COST_PER_1K_TOKENS_OUTPUT).toBe(agentOutputCostPer1K);
+  });
+
+  it('should calculate cost matching agent formula', () => {
+    const tokens = 10000;
+    const cost = estimateCost(tokens);
+
+    // Replicate the agent formula exactly
+    const expectedInputCost = (tokens / 1000) * 0.00015;
+    const expectedOutputTokens = tokens * 0.2; // ESTIMATED_OUTPUT_RATIO
+    const expectedOutputCost = (expectedOutputTokens / 1000) * 0.0006;
+    const expectedTotal = expectedInputCost + expectedOutputCost;
+
+    expect(cost.estimatedUsd).toBeCloseTo(expectedTotal, 6);
   });
 });
 

@@ -6,6 +6,7 @@
 import { execSync } from 'child_process';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
+import { buildAgentEnv } from './security.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -78,6 +79,8 @@ export const semgrepAgent: ReviewAgent = {
     }
 
     try {
+      const agentEnv = buildAgentEnv('semgrep', context.env);
+
       // Build file list for Semgrep
       const filePaths = supportedFiles.map((f) => f.path);
 
@@ -89,6 +92,7 @@ export const semgrepAgent: ReviewAgent = {
           encoding: 'utf-8',
           maxBuffer: 50 * 1024 * 1024,
           timeout: 300000, // 5 minute timeout
+          env: agentEnv,
         }
       );
 

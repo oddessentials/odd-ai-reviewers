@@ -12,6 +12,74 @@
 
 import { execSync } from 'child_process';
 
+export type AgentId =
+  | 'semgrep'
+  | 'reviewdog'
+  | 'opencode'
+  | 'pr_agent'
+  | 'ai_semantic_review'
+  | 'local_llm';
+
+const COMMON_AGENT_ENV_ALLOWLIST = [
+  'PATH',
+  'HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'LANG',
+  'LC_ALL',
+  'TERM',
+  'NO_COLOR',
+  'NODE_ENV',
+];
+
+const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
+  semgrep: [],
+  reviewdog: [],
+  opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENCODE_MODEL', 'MODEL'],
+  pr_agent: [
+    'OPENAI_API_KEY',
+    'PR_AGENT_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_DEPLOYMENT',
+    'OPENAI_MODEL',
+  ],
+  ai_semantic_review: [
+    'OPENAI_API_KEY',
+    'AI_SEMANTIC_REVIEW_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_DEPLOYMENT',
+    'OPENAI_MODEL',
+  ],
+  local_llm: ['OLLAMA_BASE_URL'],
+};
+
+const ROUTER_ENV_ALLOWLIST = [
+  'GITHUB_TOKEN',
+  'GITHUB_ACTOR',
+  'GITHUB_HEAD_REPO',
+  'GITHUB_REPOSITORY',
+  'GITHUB_EVENT_NAME',
+  'GITHUB_EVENT_PULL_REQUEST_DRAFT',
+  'GITHUB_REF',
+  'GITHUB_REF_NAME',
+  'GITHUB_BASE_REF',
+  'GITHUB_WORKSPACE',
+  'GITHUB_ACTIONS',
+  'CI',
+  'PATH',
+  'HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'LANG',
+  'LC_ALL',
+  'TERM',
+  'NODE_ENV',
+];
+
 /**
  * List of environment variable patterns that should be stripped from agent subprocesses.
  * These are tokens that would allow agents to post to GitHub/ADO directly.
@@ -77,6 +145,40 @@ export function stripTokensFromEnv(
   return clean;
 }
 
+function pickEnv(
+  env: Record<string, string | undefined>,
+  allowlist: string[]
+): Record<string, string | undefined> {
+  const picked: Record<string, string | undefined> = {};
+
+  for (const key of allowlist) {
+    if (env[key] !== undefined) {
+      picked[key] = env[key];
+    }
+  }
+
+  return picked;
+}
+
+export function buildRouterEnv(
+  env: Record<string, string | undefined>
+): Record<string, string | undefined> {
+  return pickEnv(env, ROUTER_ENV_ALLOWLIST);
+}
+
+export function buildAgentEnv(
+  agentId: AgentId,
+  env: Record<string, string | undefined>
+): Record<string, string> {
+  const allowlist = new Set([...COMMON_AGENT_ENV_ALLOWLIST, ...AGENT_ENV_ALLOWLIST[agentId]]);
+  const picked = pickEnv(env, [...allowlist]);
+  return createSafeAgentEnv(picked, Object.keys(picked));
+}
+
+export function isKnownAgentId(agentId: string): agentId is AgentId {
+  return Object.prototype.hasOwnProperty.call(AGENT_ENV_ALLOWLIST, agentId);
+}
+
 /**
  * Check if a specific token exists in the environment.
  * Used for testing that tokens were properly stripped.
@@ -109,6 +211,12 @@ export async function validateNoListeningSockets(processName?: string): Promise<
   listeners?: string[];
 }> {
   try {
+    try {
+      execSync('command -v lsof', { encoding: 'utf-8', stdio: 'ignore', timeout: 2000 });
+    } catch {
+      return { safe: false, error: 'Listener detection unavailable: lsof not installed' };
+    }
+
     // Use lsof to find listening TCP sockets
     // -i TCP -sTCP:LISTEN shows only listening TCP connections
     // -n -P prevents hostname and port name resolution for speed
@@ -149,12 +257,10 @@ export async function validateNoListeningSockets(processName?: string): Promise<
 
     return { safe: true };
   } catch (error) {
-    // If lsof fails (not installed, etc.), log warning but don't fail
-    // This allows the system to work in environments without lsof
-    console.warn(
-      `[security] Could not check for listening sockets: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-    return { safe: true };
+    return {
+      safe: false,
+      error: `Listener detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
   }
 }
 

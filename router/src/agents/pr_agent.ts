@@ -5,80 +5,8 @@ import OpenAI from 'openai';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
-
-// Retry configuration
-const MAX_RETRIES = 5;
-const BASE_DELAY_MS = 1000;
-
-/**
- * Determine retry delay for an error, or null if non-retryable.
- * - 429 Rate Limit: retry with Retry-After header or longer backoff
- * - 5xx/timeout: retryable with exponential backoff
- * - 4xx (except 429): non-retryable
- */
-function getRetryDelayMs(error: unknown, attempt: number): number | null {
-  // 429 Rate Limit: retry with Retry-After or extended exponential backoff
-  if (error instanceof OpenAI.RateLimitError) {
-    const headers = (error as { headers?: Record<string, string> }).headers;
-    const retryAfter = headers?.['retry-after'];
-    if (retryAfter) {
-      return parseInt(retryAfter, 10) * 1000;
-    }
-    // Longer backoff for rate limits (start at 4x base delay)
-    return BASE_DELAY_MS * Math.pow(2, attempt + 2);
-  }
-
-  // 5xx errors: retryable
-  if (error instanceof OpenAI.InternalServerError) {
-    return BASE_DELAY_MS * Math.pow(2, attempt);
-  }
-
-  // Connection/timeout errors: retryable
-  if (error instanceof OpenAI.APIConnectionError) {
-    return BASE_DELAY_MS * Math.pow(2, attempt);
-  }
-
-  // Generic API error with status code
-  if (error instanceof OpenAI.APIError) {
-    const status = (error as { status?: number }).status;
-    if (status && status >= 500) {
-      return BASE_DELAY_MS * Math.pow(2, attempt);
-    }
-  }
-
-  // 4xx errors (except 429): non-retryable
-  if (error instanceof OpenAI.AuthenticationError) return null;
-  if (error instanceof OpenAI.BadRequestError) return null;
-  if (error instanceof OpenAI.NotFoundError) return null;
-  if (error instanceof OpenAI.PermissionDeniedError) return null;
-
-  // Unknown errors: don't retry
-  return null;
-}
-
-/**
- * Execute a function with exponential backoff retries
- */
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      const delayMs = getRetryDelayMs(error, attempt);
-      const isLastAttempt = attempt === MAX_RETRIES - 1;
-
-      if (delayMs === null || isLastAttempt) {
-        throw error;
-      }
-
-      console.log(
-        `[pr_agent] Retry ${attempt + 1}/${MAX_RETRIES} after ${delayMs}ms: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-  throw new Error('Retry exhausted');
-}
+import { buildAgentEnv } from './security.js';
+import { withRetry } from './retry.js';
 
 // Supported file extensions for PR-Agent review
 const SUPPORTED_EXTENSIONS = [
@@ -140,11 +68,13 @@ export const prAgentAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
+    const agentEnv = buildAgentEnv('pr_agent', context.env);
+
     // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = context.env['OPENAI_API_KEY'] || context.env['PR_AGENT_API_KEY'];
-    const azureEndpoint = context.env['AZURE_OPENAI_ENDPOINT'];
-    const azureApiKey = context.env['AZURE_OPENAI_API_KEY'];
-    const azureDeployment = context.env['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+    const apiKey = agentEnv['OPENAI_API_KEY'] || agentEnv['PR_AGENT_API_KEY'];
+    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
+    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
+    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
     if (!apiKey && !azureApiKey) {
       return {
@@ -234,7 +164,7 @@ Analyze this pull request and provide your review as a JSON object with the foll
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: context.env['OPENAI_MODEL'] || 'gpt-4o-mini',
+          model: agentEnv['OPENAI_MODEL'] || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

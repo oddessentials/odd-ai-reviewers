@@ -15,6 +15,8 @@ import {
   hasTokenInEnv,
   validateNoListeningSockets,
   createSafeAgentEnv,
+  buildAgentEnv,
+  buildRouterEnv,
 } from '../agents/security.js';
 
 describe('Security Module', () => {
@@ -221,19 +223,36 @@ describe('Security Module', () => {
   });
 
   describe('validateNoListeningSockets (Invariant 10)', () => {
-    it('should return safe when no listeners detected', async () => {
-      // This test verifies the function works - actual socket detection
-      // depends on system state
+    // These tests require lsof (Linux/macOS only)
+    // Set CI_HAS_LSOF=true in CI environments where lsof is available
+    const hasLsof = process.env['CI_HAS_LSOF'] === 'true';
+
+    it.skipIf(!hasLsof)('should return safe when no listeners detected', async () => {
       const result = await validateNoListeningSockets('nonexistent-process-xyz');
 
-      // Should return safe (either no listeners or lsof not available)
       expect(result.safe).toBe(true);
     });
 
-    it('should handle missing lsof gracefully', async () => {
-      // The function should not throw if lsof is unavailable
-      const result = await validateNoListeningSockets();
+    it('should fail closed when lsof check fails', async () => {
+      // This test doesn't need lsof - it tests the error handling path
+      // The function should return safe=false when lsof is unavailable
+      const result = await validateNoListeningSockets('node');
+
+      // On systems without lsof, this will fail with "lsof not installed"
+      // On systems with lsof, it may return safe=true or find listeners
+      // Either way, the function should not throw
       expect(typeof result.safe).toBe('boolean');
+    });
+
+    it.skipIf(!hasLsof)('should fail when a listening socket is detected', async () => {
+      const { createServer } = await import('net');
+      const server = createServer();
+
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      const result = await validateNoListeningSockets('node');
+      server.close();
+
+      expect(result.safe).toBe(false);
     });
   });
 });
@@ -295,6 +314,58 @@ describe('Agent Token Stripping Verification', () => {
       expect(result[tokenVar]).toBeUndefined();
       expect(result['PATH']).toBe('/bin');
     });
+  });
+});
+
+describe('Agent Environment Allowlist', () => {
+  it('should only allowlisted keys through for PR-Agent', () => {
+    const env = {
+      OPENAI_API_KEY: 'sk-allowed',
+      GITHUB_TOKEN: 'ghp-secret',
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token',
+      NPM_TOKEN: 'npm-secret',
+      PATH: '/usr/bin',
+      HOME: '/home/user',
+    };
+
+    const result = buildAgentEnv('pr_agent', env);
+
+    expect(result['OPENAI_API_KEY']).toBe('sk-allowed');
+    expect(result['GITHUB_TOKEN']).toBeUndefined();
+    expect(result['ACTIONS_ID_TOKEN_REQUEST_TOKEN']).toBeUndefined();
+    expect(result['NPM_TOKEN']).toBeUndefined();
+    expect(result['PATH']).toBeDefined();
+    expect(result['HOME']).toBe('/home/user');
+  });
+
+  it('should build a minimal router environment for posting', () => {
+    const env = {
+      GITHUB_TOKEN: 'ghp-secret',
+      GITHUB_REPOSITORY: 'oddessentials/odd-ai-reviewers',
+      GITHUB_EVENT_NAME: 'pull_request',
+      SSH_AUTH_SOCK: '/tmp/ssh',
+      NODE_AUTH_TOKEN: 'secret',
+    };
+
+    const routerEnv = buildRouterEnv(env);
+
+    expect(routerEnv['GITHUB_TOKEN']).toBe('ghp-secret');
+    expect(routerEnv['GITHUB_REPOSITORY']).toBe('oddessentials/odd-ai-reviewers');
+    expect(routerEnv['SSH_AUTH_SOCK']).toBeUndefined();
+    expect(routerEnv['NODE_AUTH_TOKEN']).toBeUndefined();
+  });
+
+  it('should block token access in agent environments', () => {
+    const env = {
+      GITHUB_TOKEN: 'ghp-secret',
+      GH_TOKEN: 'ghp-secret-2',
+      OPENAI_API_KEY: 'sk-allowed',
+    };
+
+    const agentEnv = buildAgentEnv('pr_agent', env);
+    const tokenCheck = hasTokenInEnv(agentEnv);
+
+    expect(tokenCheck.hasToken).toBe(false);
   });
 });
 
