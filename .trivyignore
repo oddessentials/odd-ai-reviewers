@@ -55,3 +55,13 @@ CVE-2024-34156
 # This is a transitive dependency in npm tooling
 # Risk: LOW - Only used during Docker build, not at runtime
 CVE-2026-23745
+
+# golang.org/x/crypto/ssh - Authorization bypass in SSH handshake
+# Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
+# Risk: LOW - OpenCode doesn't use SSH for LLM API calls
+CVE-2024-45337
+
+# Go net/http2 - Unlimited CONTINUATION frames causing resource exhaustion
+# Fixed in: Go 1.21.9, 1.22.2 | OpenCode compiled with older Go
+# Risk: LOW - OpenCode CLI mode doesn't run HTTP2 servers
+CVE-2023-45288
