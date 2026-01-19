@@ -1,0 +1,96 @@
+# AI Review Manual Dispatch Workflow
+# Allows manual triggering of AI review on any repository
+
+name: AI Review (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: 'Target repository (owner/repo)'
+        required: true
+        type: string
+      target_ref:
+        description: 'Git ref to review (SHA or branch)'
+        required: true
+        type: string
+      base_ref:
+        description: 'Base ref for diff'
+        required: true
+        type: string
+        default: 'main'
+      pr_number:
+        description: 'PR number (optional, for posting comments)'
+        required: false
+        type: number
+
+jobs:
+  ai-review:
+    name: Manual AI Review
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    
+    steps:
+      - name: Checkout review router
+        uses: actions/checkout@v4
+
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.target_repo }}
+          ref: ${{ inputs.target_ref }}
+          path: target
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build router
+        run: npm run build --workspace=router
+
+      - name: Install Semgrep
+        run: pip3 install semgrep
+
+      - name: Get base SHA
+        id: base
+        working-directory: target
+        run: |
+          echo "sha=$(git rev-parse origin/${{ inputs.base_ref }})" >> $GITHUB_OUTPUT
+
+      - name: Run AI Review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          OWNER=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f1)
+          REPO=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f2)
+          
+          node router/dist/main.js review \
+            --repo target \
+            --base ${{ steps.base.outputs.sha }} \
+            --head ${{ inputs.target_ref }} \
+            --owner "$OWNER" \
+            --repo-name "$REPO" \
+            ${{ inputs.pr_number && format('--pr {0}', inputs.pr_number) || '' }}
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-review-manual-${{ github.run_id }}
+          path: |
+            review-*.json
+            review-*.md
+          retention-days: 30

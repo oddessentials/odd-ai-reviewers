@@ -1,0 +1,44 @@
+# Default AI Review Configuration
+# Copy this to .ai-review.yml in your repository and customize
+
+version: 1
+trusted_only: true
+
+triggers:
+  on: [pull_request]
+  branches: [main]
+
+passes:
+  - name: static
+    agents: [semgrep]
+    enabled: true
+
+  - name: semantic
+    agents: [opencode]
+    enabled: true
+
+limits:
+  max_files: 50
+  max_diff_lines: 2000
+  max_tokens_per_pr: 12000
+  max_usd_per_pr: 1.00
+  monthly_budget_usd: 100
+
+reporting:
+  github:
+    mode: checks_and_comments
+    max_inline_comments: 20
+    summary: true
+
+gating:
+  enabled: false
+  fail_on_severity: error
+
+# path_filters:
+#   include:
+#     - "src/**"
+#     - "lib/**"
+#   exclude:
+#     - "**/*.test.ts"
+#     - "**/node_modules/**"
+#     - "**/dist/**"

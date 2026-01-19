@@ -1,0 +1,26 @@
+# AI Review Workflow Template
+# Copy this file to .github/workflows/ai-review.yml in your repository
+
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+jobs:
+  ai-review:
+    # Only run on:
+    # - Push to main
+    # - PRs from the same repository (not forks)
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    
+    uses: oddessentials/odd-ai-reviewers/.github/workflows/ai-review.yml@main
+    with:
+      target_repo: ${{ github.repository }}
+      target_ref: ${{ github.sha }}
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets: inherit

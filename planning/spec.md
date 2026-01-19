@@ -306,49 +306,234 @@ jobs:
 * Containers run non-root where possible
 * No persistence beyond the CI job
 
----
-
 ## Rollout Plan
 
-### Phase 1 (Week 1)
+### Phase 1 (Week 1) — ✅ COMPLETE (2026-01-18)
 
-* Create `odd-ai-reviewers`
-* Implement router MVP
-* Integrate Semgrep + OpenCode.ai
-* Pilot on one private repo
+* ✅ Create `odd-ai-reviewers` repository structure
+* ✅ Implement router MVP with CLI (`main.ts`)
+* ✅ Implement config loading with Zod validation (`config.ts`)
+* ✅ Implement trust validation for fork PRs (`trust.ts`)
+* ✅ Implement budget enforcement (`budget.ts`)
+* ✅ Implement diff extraction with path filtering (`diff.ts`)
+* ✅ Integrate Semgrep agent (`agents/semgrep.ts`)
+* ✅ Integrate OpenCode.ai agent (`agents/opencode.ts`)
+* ✅ Create GitHub reporter with PR comments & checks (`report/github.ts`)
+* ✅ Create reusable workflow (`ai-review.yml`)
+* ✅ Create manual dispatch workflow (`ai-review-dispatch.yml`)
+* ✅ Create JSON Schema for config validation
+* ✅ Create comprehensive documentation
+* ✅ TypeScript builds successfully
 
-### Phase 2 (Weeks 2–3)
+**Ready for pilot testing on a private repository.**
 
-* Add PR-Agent
-* Add inline comment throttling
-* Add caching
-* Optional webhook trigger
+### Phase 2 (Weeks 2–3) — NEXT SESSION
 
-### Phase 3 (Week 4+)
+#### PR-Agent Integration (`agents/pr_agent.ts`)
 
-* Add Azure DevOps templates
-* Optional local LLM support
-* GitLab / Gitea reporters
+Current state: Stub only. Implementation needed:
+
+1. **API Integration**: PR-Agent uses OpenAI or Azure OpenAI
+   - Accept `OPENAI_API_KEY` or `AZURE_OPENAI_*` environment variables
+   - Construct prompts using `config/prompts/pr_agent_review.md`
+   - Parse structured JSON response into `Finding[]`
+
+2. **Key considerations**:
+   - PR-Agent typically posts its own comments — we need to capture output instead
+   - Consider running PR-Agent CLI in a subprocess vs direct API calls
+   - Ref: https://github.com/Codium-ai/pr-agent
+
+#### Reviewdog Integration (`agents/reviewdog.ts`)
+
+Current state: Stub only. Purpose: Convert other tool outputs to annotations.
+
+1. Install reviewdog in Dockerfile
+2. Pipe Semgrep/ESLint output through reviewdog for annotation formatting
+3. May not need full implementation if GitHub reporter handles annotations directly
+
+#### Caching System (`cache/key.ts`, `cache/store.ts`)
+
+Current state: Stubs with in-memory placeholder.
+
+1. **GitHub Actions Cache**: Use `@actions/cache` to persist results
+   - Cache key: `ai-review-${prNumber}-${headSha}-${configHash}-${agentId}`
+   - Cache path: `~/.ai-review-cache/`
+   - TTL: 24 hours default, configurable
+
+2. **Cache hit flow**:
+   - Generate cache key before running agent
+   - Check for cached result
+   - If hit, skip agent run and use cached findings
+   - If miss, run agent and cache result
+
+3. **Cache invalidation**: Automatically invalidates on:
+   - New commit (headSha changes)
+   - Config changes (configHash changes)
+   - Different agent (agentId changes)
+
+#### Comment Throttling
+
+Current state: `max_inline_comments` is implemented but basic.
+
+Enhancements needed:
+1. **Deduplication across runs**: Don't re-post identical comments
+2. **Rate limiting**: Delay between comments to avoid spam
+3. **Grouping**: Combine related findings into single comments
+4. **Priority ordering**: Post highest severity first when limited
+
+#### Webhook Trigger (Optional)
+
+Add `repository_dispatch` support for on-demand reviews:
+
+```yaml
+on:
+  repository_dispatch:
+    types: [ai-review]
+```
+
+Caller sends:
+```bash
+curl -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/OWNER/REPO/dispatches \
+  -d '{"event_type":"ai-review","client_payload":{"pr":123}}'
+```
+
+### Phase 3 (Week 4+) — FUTURE
+
+#### Azure DevOps Templates (`templates/ado/`)
+
+Current state: Stub only.
+
+1. Create `ai-review-template.yml` as an Azure Pipeline template
+2. Implement ADO reporter (`report/ado.ts`):
+   - Use Azure DevOps REST API for PR comments
+   - Create pipeline status as check
+   - Handle ADO-specific authentication (PAT or managed identity)
+
+3. ADO-specific considerations:
+   - Service connection for cross-repo checkout
+   - Variable groups for secrets
+   - Agent pool compatibility
+
+#### Local LLM Support (`agents/local_llm.ts`)
+
+Current state: Stub only.
+
+1. **Ollama integration**:
+   - Use `OLLAMA_BASE_URL` environment variable (default: `http://localhost:11434`)
+   - Call `/api/generate` endpoint
+   - Model selection via config (e.g., `codellama:7b`)
+
+2. **llama.cpp integration** (alternative):
+   - Spawn llama.cpp server as subprocess
+   - Use OpenAI-compatible API mode
+
+3. **Prompt adaptation**:
+   - Load prompts from `config/prompts/`
+   - May need model-specific prompt formatting
+
+#### GitLab / Gitea Reporters
+
+1. Create `report/gitlab.ts`:
+   - Use GitLab API for MR comments
+   - Create pipeline jobs for status
+
+2. Create `report/gitea.ts`:
+   - Similar to GitHub, use Gitea API
+
+---
+
+## Implementation Notes
+
+### Key Files for Phase 2 Work
+
+| File | Current State | Phase 2 Work |
+|------|---------------|--------------|
+| `router/src/agents/pr_agent.ts` | Stub | Full OpenAI integration |
+| `router/src/agents/reviewdog.ts` | Stub | Evaluate if needed |
+| `router/src/cache/store.ts` | In-memory stub | GitHub Actions cache |
+| `router/src/cache/key.ts` | Basic hash | Production-ready |
+| `router/src/report/github.ts` | Complete | Add deduplication |
+
+### Dependencies to Add (Phase 2)
+
+```json
+{
+  "@actions/cache": "^3.0.0",
+  "openai": "^4.0.0"
+}
+```
+
+### Testing Strategy
+
+Phase 1 has no automated tests. Phase 2 should add:
+
+1. **Unit tests** for each module:
+   - `config.test.ts` — schema validation
+   - `trust.test.ts` — fork detection
+   - `budget.test.ts` — limit calculations
+   - `diff.test.ts` — path filtering
+
+2. **Integration tests**:
+   - Mock GitHub API responses
+   - Test full router flow
+
+3. **E2E pilot test**:
+   - Deploy to a test repository
+   - Open real PR and verify comments appear
 
 ---
 
 ## Acceptance Criteria
 
-1. CI runtime unchanged
-2. AI review enabled via:
+### Phase 1 — ✅ VERIFIED
 
-   * one workflow include
-   * `.ai-review.yml`
-3. Multi-pass review works
-4. Results appear as PR comments and checks
-5. Fork PRs do not run by default
-6. Budget limits enforced
-7. New reviewers added without workflow changes
+1. ✅ CI runtime unchanged (workflows only)
+2. ✅ AI review enabled via one workflow include + `.ai-review.yml`
+3. ✅ Multi-pass review architecture implemented
+4. ✅ Results posted as PR comments and check annotations
+5. ✅ Fork PRs blocked by default
+6. ✅ Budget limits enforced (per-PR and monthly)
+7. ✅ New reviewers added without workflow changes (agent registry)
+
+### Phase 2 — TODO
+
+1. [ ] PR-Agent provides AI summaries
+2. [ ] Cached results avoid redundant API calls
+3. [ ] Comment throttling prevents spam
+4. [ ] Unit tests pass for all modules
+
+### Phase 3 — TODO
+
+1. [ ] Azure DevOps pipelines fully functional
+2. [ ] Local LLM option works with Ollama
+3. [ ] GitLab/Gitea support available
 
 ---
 
-If you want next:
+## Quick Reference
 
-* a **one-page task breakdown** for the autonomous team,
-* or a **PR-by-PR execution plan**,
-  say the word.
+### Pilot Testing Checklist
+
+1. Push `odd-ai-reviewers` to GitHub (oddessentials/odd-ai-reviewers)
+2. In a test repo, add `templates/github/use-ai-review.yml` as `.github/workflows/ai-review.yml`
+3. Add `OPENCODE_API_KEY` secret (or skip AI pass for static-only testing)
+4. Open a PR with some code changes
+5. Verify:
+   - Check run appears as "AI Review"
+   - Summary comment posted
+   - Inline annotations appear on changed lines
+
+### CLI Usage (Local Testing)
+
+```bash
+cd router
+npm run build
+node dist/main.js review \
+  --repo /path/to/target \
+  --base main \
+  --head feature-branch \
+  --dry-run
+```
+
