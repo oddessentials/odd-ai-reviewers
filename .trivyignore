@@ -45,3 +45,13 @@ CVE-2025-64756
 # Fixed in: 0.27.0 | OpenCode compiled with older version
 # Risk: LOW - OpenCode runs isolated with token stripping
 CVE-2025-22868
+
+# Go encoding/gob - Decoder.Decode stack exhaustion
+# Fixed in: Go 1.22.7, 1.23.1 | OpenCode compiled with older Go
+# Risk: LOW - OpenCode doesn't use gob in user-facing paths
+CVE-2024-34156
+
+# node-tar - Path traversal vulnerability in tar extraction
+# This is a transitive dependency in npm tooling
+# Risk: LOW - Only used during Docker build, not at runtime
+CVE-2026-23745
