@@ -18,6 +18,8 @@ import {
 import { reportToGitHub, type GitHubContext } from './report/github.js';
 import { deduplicateFindings, sortFindings, generateSummaryMarkdown } from './report/formats.js';
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
+import { getCached, setCache } from './cache/store.js';
+import { generateCacheKey, hashConfig } from './cache/key.js';
 
 const program = new Command();
 
@@ -77,6 +79,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   // Load configuration
   const config = await loadConfig(options.repo);
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
+  const configHash = hashConfig(config);
 
   // Build PR context for trust check
   const prContext: PullRequestContext = {
@@ -186,7 +189,35 @@ async function runReview(options: ReviewOptions): Promise<void> {
           env: buildAgentEnv(agent.id, routerEnv),
         };
 
-        const result = await agent.run(scopedContext);
+        let result: AgentResult | null = null;
+
+        if (options.pr && options.head) {
+          const cacheKey = generateCacheKey({
+            prNumber: options.pr,
+            headSha: options.head,
+            configHash,
+            agentId: agent.id,
+          });
+          const cached = await getCached(cacheKey);
+          if (cached) {
+            console.log(`[router] Cache hit for ${agent.id}`);
+            result = cached;
+          }
+        }
+
+        if (!result) {
+          result = await agent.run(scopedContext);
+
+          if (options.pr && options.head && result.success) {
+            const cacheKey = generateCacheKey({
+              prNumber: options.pr,
+              headSha: options.head,
+              configHash,
+              agentId: agent.id,
+            });
+            await setCache(cacheKey, result);
+          }
+        }
         allResults.push(result);
 
         if (result.success) {
