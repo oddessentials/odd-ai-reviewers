@@ -1,29 +1,51 @@
-# Plan 5 (Final): Extensible AI Code Review on OSCR
+# Plan 5 (Final): odd-ai-reviewers: An Extensible AI Code Review
 
 ## Objective
 
-Add thorough, multi-pass AI code review to PRs and main branch **without modifying OSCR**, while keeping costs near zero and enabling **plug-in reviewers** over time (OpenCode.ai first, then PR-Agent, etc.).
+Add thorough, multi-pass AI code review to pull requests and main branch **without modifying the CI runtime**, while keeping costs near zero and enabling **plug-in reviewers** over time (OpenCode.ai first, then PR-Agent, local LLMs, etc.).
 
-## Non-Negotiables (OSCR Alignment)
+This system must work on **any self-hosted CI runner** and remain portable across GitHub, Azure DevOps, GitLab, and Gitea.
 
-* **OSCR remains unchanged**: no AI logic inside OSCR. OSCR stays a thin runner launcher.
-* **Trusted PRs only**: do **not** run on fork PRs by default.
-* **Provider-native secrets only**: no new secret manager; use GitHub/ADO secret mechanisms.
-* **Non-root, ephemeral**: everything runs in containerized jobs on OSCR runners; workspace is clean per job.
+---
+
+## Non-Negotiables
+
+* **CI runtime remains unchanged**
+  No AI logic is embedded into the runner or orchestrator.
+
+* **Trusted PRs only by default**
+  Do **not** run AI review on forked or untrusted PRs unless explicitly enabled.
+
+* **Provider-native secrets only**
+  Use GitHub / Azure DevOps / GitLab secret mechanisms. No custom secret store.
+
+* **Ephemeral, isolated execution**
+  All review logic runs in containerized jobs with clean workspaces per run.
+
+---
 
 ## Strategy Summary
 
-Implement a companion project: **`odd-ai-reviewers`** (new repo) that provides:
+Implement a companion project: **`odd-ai-reviewers`** (new repository) that provides:
 
-1. **Reusable workflows/templates** (GitHub first, future ADO/GitLab/Gitea).
-2. A **Review Router** that reads per-repo config (`.ai-review.yml`) and runs configured reviewers in **passes**.
-3. Pluggable **agents** (static tools + AI reviewers like OpenCode.ai, PR-Agent, local LLM).
-4. A **comment engine** that posts:
+1. **Reusable CI workflows / templates**
+   GitHub first; extensible to Azure DevOps, GitLab, and Gitea.
 
-   * PR review comments / check summaries on PRs,
-   * optional “required” gate on main (configurable).
+2. A **Review Router**
+   Reads per-repo config (`.ai-review.yml`) and executes reviewers in ordered **passes**.
 
-This gives consistency and fast rollout while keeping each repo’s behavior configurable.
+3. **Pluggable reviewer agents**
+
+   * Static tools (Semgrep, linters)
+   * AI reviewers (OpenCode.ai, PR-Agent)
+   * Optional local LLMs (Ollama / llama.cpp)
+
+4. A **comment & reporting engine**
+
+   * Posts PR review comments and/or check summaries
+   * Optional gating on main branch (configurable)
+
+This approach provides consistency and low-friction adoption while keeping per-repo behavior fully configurable.
 
 ---
 
@@ -31,42 +53,45 @@ This gives consistency and fast rollout while keeping each repo’s behavior con
 
 ### Control Plane vs Execution Plane
 
-* **Control Plane (odd-ai-reviewers repo)**
+### Control Plane (`odd-ai-reviewers` repo)
 
-  * reusable GitHub workflow(s)
-  * router container/image
-  * schema + docs for `.ai-review.yml`
-  * shared prompts, allow/deny rules, reporting formatters
+* Reusable CI workflows
+* Review Router container/image
+* `.ai-review.yml` schema + documentation
+* Shared prompts and reporting formatters
 
-* **Execution Plane (each target repo)**
+### Execution Plane (each target repo)
 
-  * a tiny workflow include that calls the reusable workflow
-  * a `.ai-review.yml` file in the repo root
-  * secrets stored per repo/org (GitHub) used by the workflow
-
-### High-Level Flow
-
-1. PR opened/updated → triggers **AI Review** workflow.
-2. Workflow runs on **OSCR self-hosted runner** (`runs-on: [self-hosted, linux]`).
-3. Router checks:
-
-   * trusted PR condition
-   * `.ai-review.yml` presence (fallback defaults if missing)
-   * budget limits (monthly + per PR)
-4. Passes run in order:
-
-   * Static pass (free tools)
-   * LLM/semantic pass (OpenCode.ai / PR-Agent)
-   * Optional architecture pass (only on large/high-risk changes)
-5. Comment engine posts:
-
-   * check summary + inline comments (deduped/throttled)
+* A minimal workflow include that calls the reusable workflow
+* A `.ai-review.yml` file at the repo root
+* Secrets stored per repo or org and injected by the CI provider
 
 ---
 
-## Repo: `odd-ai-reviewers` (NEW)
+### High-Level Flow
 
-### Directory Layout (authoritative)
+1. PR opened or updated → triggers **AI Review** workflow
+2. Workflow runs on a **self-hosted Linux runner**
+3. Review Router:
+
+   * validates PR trust
+   * loads `.ai-review.yml` (or defaults)
+   * enforces per-PR and monthly budget limits
+4. Review passes execute in order:
+
+   * Static pass (free tools)
+   * Semantic / LLM pass (OpenCode.ai, PR-Agent)
+   * Optional architecture pass (large or high-risk diffs only)
+5. Results are deduplicated and posted as:
+
+   * PR comments
+   * CI check summary
+
+---
+
+## Repository: `odd-ai-reviewers` (NEW)
+
+### Directory Layout (Authoritative)
 
 ```
 odd-ai-reviewers/
@@ -77,8 +102,8 @@ odd-ai-reviewers/
 │  ├─ security.md
 │  └─ cost-controls.md
 ├─ config/
-│  ├─ ai-review.schema.json          # JSON Schema for .ai-review.yml
-│  ├─ defaults.ai-review.yml         # default config if repo has none
+│  ├─ ai-review.schema.json
+│  ├─ defaults.ai-review.yml
 │  └─ prompts/
 │     ├─ opencode_system.md
 │     ├─ pr_agent_review.md
@@ -86,11 +111,11 @@ odd-ai-reviewers/
 ├─ router/
 │  ├─ Dockerfile
 │  ├─ src/
-│  │  ├─ main.ts                     # entrypoint
-│  │  ├─ config.ts                   # load/validate .ai-review.yml
-│  │  ├─ trust.ts                    # fork/trust logic
-│  │  ├─ budget.ts                   # token + cost limits
-│  │  ├─ diff.ts                     # diff extraction + file filtering
+│  │  ├─ main.ts
+│  │  ├─ config.ts
+│  │  ├─ trust.ts
+│  │  ├─ budget.ts
+│  │  ├─ diff.ts
 │  │  ├─ agents/
 │  │  │  ├─ index.ts
 │  │  │  ├─ semgrep.ts
@@ -99,64 +124,69 @@ odd-ai-reviewers/
 │  │  │  ├─ pr_agent.ts
 │  │  │  └─ local_llm.ts
 │  │  ├─ report/
-│  │  │  ├─ github.ts                # Checks + PR comments
-│  │  │  └─ formats.ts               # normalized finding format
+│  │  │  ├─ github.ts
+│  │  │  └─ formats.ts
 │  │  └─ cache/
-│  │     ├─ key.ts                   # hash-based cache keys
-│  │     └─ store.ts                 # filesystem cache (phase 1)
+│  │     ├─ key.ts
+│  │     └─ store.ts
 │  └─ package.json
 ├─ .github/
 │  └─ workflows/
-│     ├─ ai-review.yml               # reusable workflow_call
-│     └─ ai-review-dispatch.yml      # optional repository_dispatch/webhook bridge (phase 2)
+│     ├─ ai-review.yml
+│     └─ ai-review-dispatch.yml
 └─ templates/
    ├─ github/
-   │  └─ use-ai-review.yml           # snippet to copy into target repos
+   │  └─ use-ai-review.yml
    └─ ado/
-      └─ ai-review-template.yml      # future phase
+      └─ ai-review-template.yml
 ```
 
-### Router Responsibilities (MUST)
+---
 
-* Load `.ai-review.yml` from target repo; validate against schema; merge defaults.
-* Determine PR trust (reject forks by default).
-* Extract diff + changed files, apply allow/deny filters.
-* Execute configured passes in order; each pass runs one or more agents.
-* Normalize all findings to one format:
+## Review Router Responsibilities (MUST)
 
-  ```
-  { severity, file, line?, message, suggestion?, ruleId?, sourceAgent }
-  ```
-* Deduplicate and throttle comments.
-* Emit final result:
+* Load and validate `.ai-review.yml` (merge defaults if missing)
+* Enforce trust rules (block forks by default)
+* Extract PR diff and changed files
+* Apply include/exclude path filters
+* Execute review passes in order
+* Normalize findings into a single format:
+
+```
+{ severity, file, line?, message, suggestion?, ruleId?, sourceAgent }
+```
+
+* Deduplicate and throttle comments
+* Emit:
 
   * summary markdown
-  * optional “fail the job” if configured as gate
+  * optional job failure if configured as a gate
 
-### Agent Interface (MUST)
+---
+
+## Agent Interface (MUST)
 
 Each agent implements:
 
 * `id`
-* `supports(language/files)`
-* `run(context) -> findings[] + metrics`
+* `supports(language | file patterns)`
+* `run(context) -> { findings[], metrics }`
 
-Agents can be:
+Agents may be implemented as:
 
-* CLI tool (Semgrep)
-* containerized tool
-* API call (OpenAI/Anthropic/etc.)
-* local inference call (Ollama endpoint)
+* CLI tools (Semgrep)
+* Containers
+* API-backed reviewers
+* Local inference calls (Ollama / llama.cpp)
 
 ---
 
-## Per-Repo Config: `.ai-review.yml` (Authoritative v1)
+## Per-Repo Configuration: `.ai-review.yml`
 
 ### Minimal Example
 
 ```yaml
 version: 1
-
 trusted_only: true
 
 triggers:
@@ -165,13 +195,10 @@ triggers:
 
 passes:
   - name: static
-    agents:
-      - semgrep
-      - reviewdog
+    agents: [semgrep, reviewdog]
 
   - name: semantic
-    agents:
-      - opencode
+    agents: [opencode]
 
 limits:
   max_files: 50
@@ -182,101 +209,42 @@ limits:
 
 reporting:
   github:
-    mode: checks_and_comments   # checks_only | comments_only | checks_and_comments
+    mode: checks_and_comments
     max_inline_comments: 20
     summary: true
 
 gating:
-  enabled: false                # if true, fail job on severity>=error
-  fail_on_severity: error
-```
-
-### Recommended “Full” Example (multi-pass)
-
-```yaml
-version: 1
-trusted_only: true
-
-triggers:
-  on: [pull_request, push]
-  branches: [main]
-
-filters:
-  include_paths: ["src/**", "lib/**", "apps/**"]
-  exclude_paths: ["**/node_modules/**", "**/dist/**", "**/*.lock", "**/generated/**"]
-
-passes:
-  - name: static
-    agents:
-      - semgrep
-      - reviewdog
-
-  - name: quick_ai
-    agents:
-      - pr_agent
-
-  - name: deep_ai
-    when:
-      min_changed_files: 10
-      min_diff_lines: 400
-    agents:
-      - opencode
-      - architecture_llm
-
-models:
-  default:
-    provider: local_ollama
-    model: llama3.1
-  fallback:
-    provider: api
-    model: gpt-4o-mini
-
-limits:
-  max_files: 80
-  max_diff_lines: 3000
-  max_tokens_per_pr: 15000
-  max_usd_per_pr: 1.00
-  monthly_budget_usd: 100
-  skip_if_over_limits: true
-
-reporting:
-  github:
-    mode: checks_and_comments
-    max_inline_comments: 30
-    summary: true
-
-gating:
-  enabled: true
+  enabled: false
   fail_on_severity: error
 ```
 
 ---
 
-## GitHub: Reusable Workflow (odd-ai-reviewers)
+## GitHub: Reusable Workflow Contract
 
-### `.github/workflows/ai-review.yml` (requirements)
+### `ai-review.yml` (Reusable Workflow)
 
-* `on: workflow_call`
-* inputs:
+* Triggered via `workflow_call`
+* Inputs:
 
   * `target_repo`
   * `target_ref`
   * `pr_number`
-* secrets:
+* Secrets:
 
-  * `GITHUB_TOKEN` (or installation token if using GitHub App)
-  * optional `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / etc.
-  * optional `OLLAMA_BASE_URL` (if local model server)
+  * `GITHUB_TOKEN`
+  * Optional LLM API keys
+  * Optional `OLLAMA_BASE_URL`
 * Steps:
 
   1. Checkout target repo at PR ref
-  2. Run router container with env vars + inputs
-  3. Upload summary artifact (markdown, json)
+  2. Run Review Router container
+  3. Upload summary artifacts
   4. Set check conclusion based on gating rules
 
-### Target Repo Workflow Include (tiny snippet)
+---
 
-Create `.github/workflows/ai-review.yml` in each repo:
+### Target Repo Workflow Include (Minimal)
 
 ```yaml
 name: AI Review
@@ -289,7 +257,6 @@ on:
 
 jobs:
   ai-review:
-    # Trusted PRs only (no forks)
     if: |
       github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -301,97 +268,272 @@ jobs:
     secrets: inherit
 ```
 
-**Notes for implementers**
-
-* Keep this snippet minimal to preserve OSCR’s “minimal workflow diff” spirit.
-* Fork PRs are blocked by default per OSCR invariants.
-
 ---
 
-## Tooling: Default Agent Stack (Phase 1)
+## Default Agent Stack (Phase 1)
 
-* **Semgrep**: security + bug patterns (free).
-* **Reviewdog**: convert linter outputs into PR annotations (free).
-* **OpenCode.ai**: semantic review agent (primary).
-* **PR-Agent**: quick scan / summarizer / reviewer.
-
-### Multi-Provider Openness
-
-* GitHub first.
-* Add ADO next via templates in `templates/ado/`.
-* Later: GitLab/Gitea by adding provider adapters in router’s `report/` and webhook handling (no OSCR changes required; provider isolation matches OSCR’s extensibility approach).
+* **Semgrep** – security and bug patterns (free)
+* **Reviewdog** – converts tool output to PR annotations
+* **OpenCode.ai** – primary semantic reviewer
+* **PR-Agent** – fast AI summarizer / reviewer
 
 ---
 
 ## Cost Controls (MUST)
 
-* Always run **static pass first** (no LLM cost).
-* LLM only runs:
+* Always run **static pass first**
+* LLM passes run only:
 
-  * within `.ai-review.yml` max tokens / max USD per PR
+  * within per-PR limits
   * within monthly budget
-  * diff-only, filtered files only
-* Cache key = hash of (PR number, head sha, config hash, agent id)
-* Default behavior if over limits: `skip_if_over_limits: true` and post summary “skipped due to budget/size”.
+  * on filtered diffs only
+* Cache key:
+
+  ```
+  hash(PR number + head SHA + config hash + agent id)
+  ```
+* If limits exceeded:
+
+  * skip LLM pass
+  * post summary explaining why
 
 ---
 
 ## Security Controls (MUST)
 
-* Trust gating: do not run on forks by default.
-* Secrets only via provider-native secrets.
-* Never echo secrets into logs.
-* Run containers as non-root where feasible; match OSCR non-root invariant.
-* Keep all review artifacts inside CI job; do not persist workspace state beyond job.
+* Fork PRs blocked by default
+* Secrets never logged
+* Containers run non-root where possible
+* No persistence beyond the CI job
+
+## Rollout Plan
+
+### Phase 1 (Week 1) — ✅ COMPLETE (2026-01-18)
+
+* ✅ Create `odd-ai-reviewers` repository structure
+* ✅ Implement router MVP with CLI (`main.ts`)
+* ✅ Implement config loading with Zod validation (`config.ts`)
+* ✅ Implement trust validation for fork PRs (`trust.ts`)
+* ✅ Implement budget enforcement (`budget.ts`)
+* ✅ Implement diff extraction with path filtering (`diff.ts`)
+* ✅ Integrate Semgrep agent (`agents/semgrep.ts`)
+* ✅ Integrate OpenCode.ai agent (`agents/opencode.ts`)
+* ✅ Create GitHub reporter with PR comments & checks (`report/github.ts`)
+* ✅ Create reusable workflow (`ai-review.yml`)
+* ✅ Create manual dispatch workflow (`ai-review-dispatch.yml`)
+* ✅ Create JSON Schema for config validation
+* ✅ Create comprehensive documentation
+* ✅ TypeScript builds successfully
+
+**Ready for pilot testing on a private repository.**
+
+### Phase 2 (Weeks 2–3) — NEXT SESSION
+
+#### PR-Agent Integration (`agents/pr_agent.ts`)
+
+Current state: Stub only. Implementation needed:
+
+1. **API Integration**: PR-Agent uses OpenAI or Azure OpenAI
+   - Accept `OPENAI_API_KEY` or `AZURE_OPENAI_*` environment variables
+   - Construct prompts using `config/prompts/pr_agent_review.md`
+   - Parse structured JSON response into `Finding[]`
+
+2. **Key considerations**:
+   - PR-Agent typically posts its own comments — we need to capture output instead
+   - Consider running PR-Agent CLI in a subprocess vs direct API calls
+   - Ref: https://github.com/Codium-ai/pr-agent
+
+#### Reviewdog Integration (`agents/reviewdog.ts`)
+
+Current state: Stub only. Purpose: Convert other tool outputs to annotations.
+
+1. Install reviewdog in Dockerfile
+2. Pipe Semgrep/ESLint output through reviewdog for annotation formatting
+3. May not need full implementation if GitHub reporter handles annotations directly
+
+#### Caching System (`cache/key.ts`, `cache/store.ts`)
+
+Current state: Stubs with in-memory placeholder.
+
+1. **GitHub Actions Cache**: Use `@actions/cache` to persist results
+   - Cache key: `ai-review-${prNumber}-${headSha}-${configHash}-${agentId}`
+   - Cache path: `~/.ai-review-cache/`
+   - TTL: 24 hours default, configurable
+
+2. **Cache hit flow**:
+   - Generate cache key before running agent
+   - Check for cached result
+   - If hit, skip agent run and use cached findings
+   - If miss, run agent and cache result
+
+3. **Cache invalidation**: Automatically invalidates on:
+   - New commit (headSha changes)
+   - Config changes (configHash changes)
+   - Different agent (agentId changes)
+
+#### Comment Throttling
+
+Current state: `max_inline_comments` is implemented but basic.
+
+Enhancements needed:
+1. **Deduplication across runs**: Don't re-post identical comments
+2. **Rate limiting**: Delay between comments to avoid spam
+3. **Grouping**: Combine related findings into single comments
+4. **Priority ordering**: Post highest severity first when limited
+
+#### Webhook Trigger (Optional)
+
+Add `repository_dispatch` support for on-demand reviews:
+
+```yaml
+on:
+  repository_dispatch:
+    types: [ai-review]
+```
+
+Caller sends:
+```bash
+curl -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/OWNER/REPO/dispatches \
+  -d '{"event_type":"ai-review","client_payload":{"pr":123}}'
+```
+
+### Phase 3 (Week 4+) — FUTURE
+
+#### Azure DevOps Templates (`templates/ado/`)
+
+Current state: Stub only.
+
+1. Create `ai-review-template.yml` as an Azure Pipeline template
+2. Implement ADO reporter (`report/ado.ts`):
+   - Use Azure DevOps REST API for PR comments
+   - Create pipeline status as check
+   - Handle ADO-specific authentication (PAT or managed identity)
+
+3. ADO-specific considerations:
+   - Service connection for cross-repo checkout
+   - Variable groups for secrets
+   - Agent pool compatibility
+
+#### Local LLM Support (`agents/local_llm.ts`)
+
+Current state: Stub only.
+
+1. **Ollama integration**:
+   - Use `OLLAMA_BASE_URL` environment variable (default: `http://localhost:11434`)
+   - Call `/api/generate` endpoint
+   - Model selection via config (e.g., `codellama:7b`)
+
+2. **llama.cpp integration** (alternative):
+   - Spawn llama.cpp server as subprocess
+   - Use OpenAI-compatible API mode
+
+3. **Prompt adaptation**:
+   - Load prompts from `config/prompts/`
+   - May need model-specific prompt formatting
+
+#### GitLab / Gitea Reporters
+
+1. Create `report/gitlab.ts`:
+   - Use GitLab API for MR comments
+   - Create pipeline jobs for status
+
+2. Create `report/gitea.ts`:
+   - Similar to GitHub, use Gitea API
 
 ---
 
-## Rollout Plan (Execution)
+## Implementation Notes
 
-### Phase 1 (Week 1): Working Pilot (GitHub)
+### Key Files for Phase 2 Work
 
-* Create `odd-ai-reviewers` repo with:
+| File | Current State | Phase 2 Work |
+|------|---------------|--------------|
+| `router/src/agents/pr_agent.ts` | Stub | Full OpenAI integration |
+| `router/src/agents/reviewdog.ts` | Stub | Evaluate if needed |
+| `router/src/cache/store.ts` | In-memory stub | GitHub Actions cache |
+| `router/src/cache/key.ts` | Basic hash | Production-ready |
+| `router/src/report/github.ts` | Complete | Add deduplication |
 
-  * schema + defaults
-  * router container (minimal: config load + diff + post single summary comment)
-  * semgrep agent
-  * opencode agent (even if stubbed initially)
-  * reusable workflow
-* Pilot on 1 private repo.
-* Success criteria:
+### Dependencies to Add (Phase 2)
 
-  * comments show up reliably
-  * no forks executed
-  * budgets respected
+```json
+{
+  "@actions/cache": "^3.0.0",
+  "openai": "^4.0.0"
+}
+```
 
-### Phase 2 (Week 2–3): Multi-Agent + Better Reporting
+### Testing Strategy
 
-* Add PR-Agent integration.
-* Add Reviewdog integration.
-* Add inline comment posting with throttling/dedupe.
-* Add cache.
-* Add optional webhook bridge workflow (repository_dispatch) if desired.
+Phase 1 has no automated tests. Phase 2 should add:
 
-### Phase 3 (Week 4+): Providers + Local LLM
+1. **Unit tests** for each module:
+   - `config.test.ts` — schema validation
+   - `trust.test.ts` — fork detection
+   - `budget.test.ts` — limit calculations
+   - `diff.test.ts` — path filtering
 
-* Add ADO template and reporter.
-* Add local Ollama integration (optional).
-* Add GitLab/Gitea reporter scaffolding.
+2. **Integration tests**:
+   - Mock GitHub API responses
+   - Test full router flow
+
+3. **E2E pilot test**:
+   - Deploy to a test repository
+   - Open real PR and verify comments appear
 
 ---
 
-## Acceptance Criteria (Definition of Done)
+## Acceptance Criteria
 
-1. OSCR repo unchanged; invariants upheld.
-2. Target repos can enable AI review with:
+### Phase 1 — ✅ VERIFIED
 
-   * one workflow include
-   * `.ai-review.yml`
-3. Multi-pass review works (static + semantic at minimum).
-4. Output appears as GitHub Checks + PR comments.
-5. Fork PRs do not trigger runs by default.
-6. Budget controls prevent runaway LLM spend ($100/month configurable).
-7. New agent can be added by:
+1. ✅ CI runtime unchanged (workflows only)
+2. ✅ AI review enabled via one workflow include + `.ai-review.yml`
+3. ✅ Multi-pass review architecture implemented
+4. ✅ Results posted as PR comments and check annotations
+5. ✅ Fork PRs blocked by default
+6. ✅ Budget limits enforced (per-PR and monthly)
+7. ✅ New reviewers added without workflow changes (agent registry)
 
-   * implementing agent module
-   * adding config entry (no workflow changes)
+### Phase 2 — TODO
+
+1. [ ] PR-Agent provides AI summaries
+2. [ ] Cached results avoid redundant API calls
+3. [ ] Comment throttling prevents spam
+4. [ ] Unit tests pass for all modules
+
+### Phase 3 — TODO
+
+1. [ ] Azure DevOps pipelines fully functional
+2. [ ] Local LLM option works with Ollama
+3. [ ] GitLab/Gitea support available
+
+---
+
+## Quick Reference
+
+### Pilot Testing Checklist
+
+1. Push `odd-ai-reviewers` to GitHub (oddessentials/odd-ai-reviewers)
+2. In a test repo, add `templates/github/use-ai-review.yml` as `.github/workflows/ai-review.yml`
+3. Add `OPENCODE_API_KEY` secret (or skip AI pass for static-only testing)
+4. Open a PR with some code changes
+5. Verify:
+   - Check run appears as "AI Review"
+   - Summary comment posted
+   - Inline annotations appear on changed lines
+
+### CLI Usage (Local Testing)
+
+```bash
+cd router
+npm run build
+node dist/main.js review \
+  --repo /path/to/target \
+  --base main \
+  --head feature-branch \
+  --dry-run
+```
+

@@ -1,0 +1,53 @@
+# Azure DevOps AI Review Template (Stub)
+# To be fully implemented in Phase 3
+
+# This template can be extended by pipelines in target repositories
+
+parameters:
+  - name: targetRepo
+    type: string
+    displayName: 'Target Repository'
+  - name: targetRef
+    type: string
+    displayName: 'Target Git Ref'
+  - name: baseRef
+    type: string
+    default: 'main'
+    displayName: 'Base Git Ref'
+  - name: prNumber
+    type: number
+    default: 0
+    displayName: 'PR Number (0 if not a PR)'
+
+stages:
+  - stage: AIReview
+    displayName: 'AI Code Review'
+    jobs:
+      - job: Review
+        displayName: 'Run AI Review'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            displayName: 'Checkout AI Review Router'
+
+          - task: NodeTool@0
+            displayName: 'Setup Node.js'
+            inputs:
+              versionSpec: '22.x'
+
+          - script: |
+              echo "Azure DevOps AI Review Template"
+              echo "This is a stub for Phase 3 implementation"
+              echo ""
+              echo "Target Repo: ${{ parameters.targetRepo }}"
+              echo "Target Ref: ${{ parameters.targetRef }}"
+              echo "Base Ref: ${{ parameters.baseRef }}"
+              echo "PR Number: ${{ parameters.prNumber }}"
+            displayName: 'Placeholder'
+
+          # TODO: Implement full ADO pipeline in Phase 3
+          # - Checkout target repository
+          # - Install dependencies
+          # - Run router with ADO-specific reporter
+          # - Post comments via ADO API

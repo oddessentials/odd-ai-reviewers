@@ -1,0 +1,159 @@
+/**
+ * Configuration Module
+ * Loads and validates .ai-review.yml files
+ */
+
+import { z } from 'zod';
+import { readFile } from 'fs/promises';
+import { parse as parseYaml } from 'yaml';
+import { existsSync } from 'fs';
+import { join } from 'path';
+
+// Schema definitions
+const AgentSchema = z.enum([
+    'semgrep',
+    'reviewdog',
+    'opencode',
+    'pr_agent',
+    'local_llm',
+]);
+
+const PassSchema = z.object({
+    name: z.string(),
+    agents: z.array(AgentSchema),
+    enabled: z.boolean().default(true),
+});
+
+const LimitsSchema = z.object({
+    max_files: z.number().default(50),
+    max_diff_lines: z.number().default(2000),
+    max_tokens_per_pr: z.number().default(12000),
+    max_usd_per_pr: z.number().default(1.0),
+    monthly_budget_usd: z.number().default(100),
+});
+
+const GithubReportingSchema = z.object({
+    mode: z.enum(['checks_only', 'comments_only', 'checks_and_comments']).default('checks_and_comments'),
+    max_inline_comments: z.number().default(20),
+    summary: z.boolean().default(true),
+});
+
+const ReportingSchema = z.object({
+    github: GithubReportingSchema.optional(),
+});
+
+const GatingSchema = z.object({
+    enabled: z.boolean().default(false),
+    fail_on_severity: z.enum(['error', 'warning', 'info']).default('error'),
+});
+
+const TriggersSchema = z.object({
+    on: z.array(z.enum(['pull_request', 'push'])).default(['pull_request']),
+    branches: z.array(z.string()).default(['main']),
+});
+
+const PathFiltersSchema = z.object({
+    include: z.array(z.string()).optional(),
+    exclude: z.array(z.string()).optional(),
+});
+
+export const ConfigSchema = z.object({
+    version: z.number().default(1),
+    trusted_only: z.boolean().default(true),
+    triggers: TriggersSchema.default({}),
+    passes: z.array(PassSchema).default([
+        { name: 'static', agents: ['semgrep'], enabled: true },
+        { name: 'semantic', agents: ['opencode'], enabled: true },
+    ]),
+    limits: LimitsSchema.default({}),
+    reporting: ReportingSchema.default({}),
+    gating: GatingSchema.default({}),
+    path_filters: PathFiltersSchema.optional(),
+});
+
+export type Config = z.infer<typeof ConfigSchema>;
+export type Pass = z.infer<typeof PassSchema>;
+export type Limits = z.infer<typeof LimitsSchema>;
+export type AgentId = z.infer<typeof AgentSchema>;
+
+const CONFIG_FILENAME = '.ai-review.yml';
+const DEFAULTS_PATH = join(import.meta.dirname, '../../config/defaults.ai-review.yml');
+
+/**
+ * Load configuration from the target repository
+ * Falls back to defaults if no config file exists
+ */
+export async function loadConfig(repoRoot: string): Promise<Config> {
+    const configPath = join(repoRoot, CONFIG_FILENAME);
+
+    let userConfig: Record<string, unknown> = {};
+
+    if (existsSync(configPath)) {
+        const content = await readFile(configPath, 'utf-8');
+        userConfig = parseYaml(content) as Record<string, unknown>;
+        console.log(`[config] Loaded ${CONFIG_FILENAME} from repository`);
+    } else {
+        console.log(`[config] No ${CONFIG_FILENAME} found, using defaults`);
+    }
+
+    // Load defaults and merge with user config
+    let defaults: Record<string, unknown> = {};
+    if (existsSync(DEFAULTS_PATH)) {
+        const defaultsContent = await readFile(DEFAULTS_PATH, 'utf-8');
+        defaults = parseYaml(defaultsContent) as Record<string, unknown>;
+    }
+
+    const merged = deepMerge(defaults, userConfig);
+
+    // Validate and return
+    const result = ConfigSchema.safeParse(merged);
+    if (!result.success) {
+        throw new Error(`Invalid configuration: ${result.error.message}`);
+    }
+
+    return result.data;
+}
+
+/**
+ * Deep merge two objects, with source taking precedence
+ */
+function deepMerge(
+    target: Record<string, unknown>,
+    source: Record<string, unknown>
+): Record<string, unknown> {
+    const result = { ...target };
+
+    for (const key of Object.keys(source)) {
+        const sourceVal = source[key];
+        const targetVal = target[key];
+
+        if (
+            sourceVal &&
+            typeof sourceVal === 'object' &&
+            !Array.isArray(sourceVal) &&
+            targetVal &&
+            typeof targetVal === 'object' &&
+            !Array.isArray(targetVal)
+        ) {
+            result[key] = deepMerge(
+                targetVal as Record<string, unknown>,
+                sourceVal as Record<string, unknown>
+            );
+        } else {
+            result[key] = sourceVal;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Get the list of enabled agents for a specific pass
+ */
+export function getEnabledAgents(config: Config, passName: string): AgentId[] {
+    const pass = config.passes.find((p) => p.name === passName);
+    if (!pass || !pass.enabled) {
+        return [];
+    }
+    return pass.agents;
+}
