@@ -71,8 +71,8 @@ jobs:
       - name: Run AI Review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           OWNER=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f1)
           REPO=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f2)

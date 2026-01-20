@@ -53,7 +53,7 @@ describe('No OPENCODE_API_KEY References', () => {
   }
 
   it('should not reference OPENCODE_API_KEY in security.ts allowlist', () => {
-    const securityPath = join(routerRoot, 'router/src/agents/security.ts');
+    const securityPath = join(routerRoot, 'src/agents/security.ts');
 
     try {
       const result = execSync(`grep "OPENCODE_API_KEY" "${securityPath}" || true`, {
@@ -67,7 +67,7 @@ describe('No OPENCODE_API_KEY References', () => {
   });
 
   it('should not reference OPENCODE_API_KEY in preflight.ts', () => {
-    const preflightPath = join(routerRoot, 'router/src/preflight.ts');
+    const preflightPath = join(routerRoot, 'src/preflight.ts');
 
     try {
       const result = execSync(`grep "OPENCODE_API_KEY" "${preflightPath}" || true`, {

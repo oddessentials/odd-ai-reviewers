@@ -535,7 +535,7 @@ Phase 1 has no automated tests. Phase 2 should add:
 
 1. Push `odd-ai-reviewers` to GitHub (oddessentials/odd-ai-reviewers)
 2. In a test repo, add `templates/github/use-ai-review.yml` as `.github/workflows/ai-review.yml`
-3. Add `OPENCODE_API_KEY` secret (or skip AI pass for static-only testing)
+3. Add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` secret (or skip AI pass for static-only testing)
 4. Open a PR with some code changes
 5. Verify:
    - Check run appears as "AI Review"

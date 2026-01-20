@@ -66,11 +66,11 @@ reporting:
 
 Add these secrets to your repository or organization:
 
-| Secret             | Required      | Description         |
-| ------------------ | ------------- | ------------------- |
-| `OPENCODE_API_KEY` | For AI review | OpenCode.ai API key |
-| `OPENAI_API_KEY`   | For PR-Agent  | OpenAI API key      |
-| `OLLAMA_BASE_URL`  | For local LLM | Ollama server URL   |
+| Secret              | Required              | Description       |
+| ------------------- | --------------------- | ----------------- |
+| `OPENAI_API_KEY`    | For OpenCode/PR-Agent | OpenAI API key    |
+| `ANTHROPIC_API_KEY` | For OpenCode (Claude) | Anthropic API key |
+| `OLLAMA_BASE_URL`   | For local LLM         | Ollama server URL |
 
 ## How It Works
 
