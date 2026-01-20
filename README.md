@@ -134,10 +134,19 @@ See [OSCR Integration Guide](docs/OSCR-INTEGRATION.md) for conceptual overview a
 
 ## Documentation
 
+### Core Documentation
+
+- [System Specification](docs/SPEC.md) - Architecture and design specification
 - [GitHub Setup Guide](docs/github-setup.md)
 - [Configuration Schema](docs/config-schema.md)
 - [Security Model](docs/security.md)
 - [Cost Controls](docs/cost-controls.md)
+
+### Local LLM (Ollama)
+
+- [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) - Configuration and behavior
+- [OSCR Integration](docs/OSCR-INTEGRATION.md) - Running with self-hosted CI
+- [Model Provisioning](docs/MODEL-PROVISIONING.md) - Air-gapped model deployment
 
 ## Development
 
