@@ -232,3 +232,65 @@ export function extractFingerprintMarkers(body: string): string[] {
 
   return markers;
 }
+
+/**
+ * Skipped agent info for status reporting
+ */
+export interface SkippedAgent {
+  id: string;
+  name: string;
+  reason: string;
+}
+
+/**
+ * Generate agent status table for GitHub summary
+ *
+ * Shows which agents ran, which were skipped, and why.
+ * Per user requirements: "Agent Status table: ran / skipped (reason) / failed (reason)"
+ */
+export function generateAgentStatusTable(
+  results: { agentId: string; success: boolean; findings: unknown[]; error?: string }[],
+  skipped: SkippedAgent[]
+): string {
+  const lines: string[] = [
+    '',
+    '## Agent Status',
+    '',
+    '| Agent | Status | Details |',
+    '|-------|--------|---------|',
+  ];
+
+  // Add results for agents that ran
+  for (const r of results) {
+    const status = r.success ? '✅ Ran' : '❌ Failed';
+    const details = r.success
+      ? `${r.findings.length} finding${r.findings.length === 1 ? '' : 's'}`
+      : r.error || 'Unknown error';
+    lines.push(`| ${r.agentId} | ${status} | ${details} |`);
+  }
+
+  // Add skipped agents
+  for (const s of skipped) {
+    lines.push(`| ${s.id} | ⏭️ Skipped | ${s.reason} |`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Generate complete summary markdown with agent status table
+ */
+export function generateFullSummaryMarkdown(
+  findings: Finding[],
+  results: { agentId: string; success: boolean; findings: unknown[]; error?: string }[],
+  skipped: SkippedAgent[]
+): string {
+  // Start with the findings summary
+  let summary = generateSummaryMarkdown(findings);
+
+  // Append agent status table
+  summary += generateAgentStatusTable(results, skipped);
+
+  return summary;
+}

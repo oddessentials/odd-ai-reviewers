@@ -67,7 +67,43 @@ describe('ConfigSchema', () => {
       if (defaultPass) {
         expect(defaultPass.name).toBe('static');
         expect(defaultPass.agents).toEqual(['semgrep']);
+        // Static analysis is required by default
+        expect(defaultPass.required).toBe(true);
       }
+    }
+  });
+
+  it('should default required to false for user-defined passes', () => {
+    const input = {
+      passes: [{ name: 'custom', agents: ['opencode'], enabled: true }],
+    };
+
+    const result = ConfigSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const pass = result.data.passes[0];
+      expect(pass).toBeDefined();
+      expect(pass?.required).toBe(false);
+    }
+  });
+
+  it('should allow explicit required: true on user passes', () => {
+    const input = {
+      passes: [
+        { name: 'critical', agents: ['semgrep'], enabled: true, required: true },
+        { name: 'optional', agents: ['opencode'], enabled: true, required: false },
+      ],
+    };
+
+    const result = ConfigSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const pass0 = result.data.passes[0];
+      const pass1 = result.data.passes[1];
+      expect(pass0).toBeDefined();
+      expect(pass1).toBeDefined();
+      expect(pass0?.required).toBe(true);
+      expect(pass1?.required).toBe(false);
     }
   });
 
@@ -114,9 +150,9 @@ describe('getEnabledAgents', () => {
     trusted_only: true,
     triggers: { on: ['pull_request'], branches: ['main'] },
     passes: [
-      { name: 'static', agents: ['semgrep'], enabled: true },
-      { name: 'semantic', agents: ['opencode', 'pr_agent'], enabled: true },
-      { name: 'disabled', agents: ['local_llm'], enabled: false },
+      { name: 'static', agents: ['semgrep'], enabled: true, required: true },
+      { name: 'semantic', agents: ['opencode', 'pr_agent'], enabled: true, required: false },
+      { name: 'disabled', agents: ['local_llm'], enabled: false, required: false },
     ],
     limits: {
       max_files: 50,
