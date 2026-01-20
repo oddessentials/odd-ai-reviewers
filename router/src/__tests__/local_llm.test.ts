@@ -76,6 +76,7 @@ describe('sanitizeDiffForLLM', () => {
       expect(result.truncated).toBe(true);
       expect(result.reason).toContain('Limited to 50 files');
       expect(result.reason).toContain('60 total');
+      expect(result.sortedFiles).toHaveLength(50);
     });
 
     it('should limit to 2000 lines', () => {
@@ -102,6 +103,7 @@ describe('sanitizeDiffForLLM', () => {
 
       expect(result.truncated).toBe(false);
       expect(result.reason).toBeUndefined();
+      expect(result.sortedFiles).toHaveLength(1);
     });
   });
 
@@ -120,6 +122,10 @@ describe('sanitizeDiffForLLM', () => {
       const result2 = sanitizeDiffForLLM(files, diff);
 
       expect(result1.sanitized).toBe(result2.sanitized);
+      // Verify sorted order is enforced
+      expect(result1.sortedFiles[0]?.path).toBe('a.ts');
+      expect(result1.sortedFiles[1]?.path).toBe('m.ts');
+      expect(result1.sortedFiles[2]?.path).toBe('z.ts');
     });
   });
 });

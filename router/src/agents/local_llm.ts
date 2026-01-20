@@ -43,6 +43,8 @@ const MAX_DIFF_LINES = 2000;
 const MAX_TOKENS = 8192;
 /** Timeout for Ollama requests (120 seconds) */
 const TIMEOUT_MS = 120000;
+/** Default Ollama model */
+const DEFAULT_MODEL = 'codellama:7b';
 
 /** Secret patterns to redact from diff content */
 const SECRET_PATTERNS = [
@@ -98,17 +100,19 @@ interface LlmFinding {
 
 /**
  * Sanitize diff content by removing secrets and applying bounding limits
+ * Returns sorted files for deterministic ordering
  */
 export function sanitizeDiffForLLM(
   files: DiffFile[],
   diffContent: string
-): { sanitized: string; truncated: boolean; reason?: string } {
+): { sanitized: string; truncated: boolean; reason?: string; sortedFiles: DiffFile[] } {
   // Sort files alphabetically for determinism
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
 
-  // Limit to MAX_FILES
+  // Limit to MAX_FILES and truncate diff content accordingly
   let truncated = false;
   let reason: string | undefined;
+  const limitedFiles = sortedFiles.slice(0, MAX_FILES);
 
   if (sortedFiles.length > MAX_FILES) {
     truncated = true;
@@ -119,6 +123,31 @@ export function sanitizeDiffForLLM(
   let sanitized = diffContent;
   for (const pattern of SECRET_PATTERNS) {
     sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+
+  // If files were truncated, filter diff content to only include limited files
+  if (truncated) {
+    const limitedPaths = new Set(limitedFiles.map((f) => f.path));
+    const diffLines = sanitized.split('\n');
+    const filteredLines: string[] = [];
+    let currentFile: string | null = null;
+    let includeCurrentFile = false;
+
+    for (const line of diffLines) {
+      // Detect file headers (e.g., "diff --git a/path b/path" or "+++ b/path")
+      const diffHeader = line.match(/^(?:diff --git a\/(.+) b\/|\+\+\+ b\/)(.+)$/);
+      if (diffHeader) {
+        currentFile = (diffHeader[2] || diffHeader[1]) ?? null;
+        includeCurrentFile = currentFile ? limitedPaths.has(currentFile) : false;
+      }
+
+      if (includeCurrentFile || currentFile === null) {
+        filteredLines.push(line);
+      }
+    }
+
+    sanitized = filteredLines.join('\n');
+    sanitized += `\n\n[... ${sortedFiles.length - MAX_FILES} files omitted ...]`;
   }
 
   // Limit to MAX_DIFF_LINES
@@ -132,13 +161,15 @@ export function sanitizeDiffForLLM(
       : `Limited to ${MAX_DIFF_LINES} lines`;
   }
 
-  return { sanitized, truncated, reason };
+  return { sanitized, truncated, reason, sortedFiles: limitedFiles };
 }
 
 /**
  * Build review prompt for Ollama
+ * Files must be pre-sorted for determinism
  */
 function buildPrompt(files: DiffFile[], diffContent: string): string {
+  // Files are already sorted by sanitizeDiffForLLM
   const fileSummary = files
     .map((f) => `- ${f.path} (${f.status}: +${f.additions}/-${f.deletions})`)
     .join('\n');
@@ -344,7 +375,7 @@ export const localLlmAgent: ReviewAgent = {
     }
 
     // Sanitize and bound input
-    const { sanitized, truncated, reason } = sanitizeDiffForLLM(
+    const { sanitized, truncated, reason, sortedFiles } = sanitizeDiffForLLM(
       supportedFiles,
       context.diffContent
     );
@@ -353,8 +384,11 @@ export const localLlmAgent: ReviewAgent = {
       console.log(`[local_llm] Input truncated: ${reason}`);
     }
 
-    // Check token limit
-    const estimatedTokens = estimateTokens(sanitized);
+    // Build prompt with sorted files for deterministic ordering
+    const prompt = buildPrompt(sortedFiles, sanitized);
+
+    // Estimate tokens on COMPLETE prompt (not just diff body)
+    const estimatedTokens = estimateTokens(prompt);
     if (estimatedTokens > MAX_TOKENS) {
       return {
         agentId: this.id,
@@ -368,12 +402,9 @@ export const localLlmAgent: ReviewAgent = {
       };
     }
 
-    // Build prompt
-    const prompt = buildPrompt(supportedFiles.slice(0, MAX_FILES), sanitized);
-
-    // Prepare Ollama request with deterministic settings
+    // Build Ollama request (prompt already built above for token estimation)
     const request: OllamaRequest = {
-      model,
+      model: agentEnv['OLLAMA_MODEL'] || DEFAULT_MODEL,
       prompt,
       stream: false,
       format: 'json',
