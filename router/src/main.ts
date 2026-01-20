@@ -174,10 +174,11 @@ async function runReview(options: ReviewOptions): Promise<void> {
     console.log(`[router] Running pass: ${pass.name}`);
     const agents = getAgentsByIds(pass.agents);
 
-    // Check if this pass uses LLM and we're over budget
-    const usesLlm = agents.some((a) => a.usesLlm);
-    if (usesLlm && !budgetCheck.allowed) {
-      console.log(`[router] Skipping LLM pass due to budget: ${pass.name}`);
+    // Check if this pass uses PAID LLM services and we're over budget
+    // Local LLM (Ollama) is exempt from budget checks since it's free
+    const usesPaidLlm = agents.some((a) => a.usesLlm && a.id !== 'local_llm');
+    if (usesPaidLlm && !budgetCheck.allowed) {
+      console.log(`[router] Skipping paid LLM pass due to budget: ${pass.name}`);
       continue;
     }
 
