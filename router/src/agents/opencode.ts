@@ -1,21 +1,24 @@
 /**
  * OpenCode Agent
- * Spawns OpenCode CLI for AI-powered code review
+ * Multi-provider AI-powered code review using OpenAI or Anthropic APIs
  *
  * INVARIANTS ENFORCED:
- * - Router owns posting: OpenCode runs without GitHub tokens, returns structured findings only
- * - Agents return structured findings: Output must be valid JSON conforming to schema
- * - No network listeners: HTTP server is disabled, guard validates no open ports
+ * - Router owns posting: Agent returns structured findings only
+ * - Agents return structured findings: Output must conform to Finding schema
+ * - Preflight validates API keys before execution
  *
- * CVE-2026-22812 Mitigation:
- * - OpenCode HTTP server is hard-disabled via environment
- * - Runtime guard detects any listening sockets and fails the job
+ * This is the "Path B" implementation per the agent hardening plan:
+ * - No CLI detection required
+ * - Direct API calls to OpenAI/Anthropic
+ * - Optional agent (skip if no API key configured)
  */
 
-import { spawn, execSync } from 'child_process';
+import OpenAI from 'openai';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
-import { buildAgentEnv, validateNoListeningSockets } from './security.js';
+import { estimateTokens } from '../budget.js';
+import { buildAgentEnv } from './security.js';
+import { withRetry } from './retry.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -38,73 +41,52 @@ const SUPPORTED_EXTENSIONS = [
   '.svelte',
 ];
 
-/** Timeout for OpenCode execution (5 minutes) */
-const EXECUTION_TIMEOUT_MS = 300000;
-
-/** Expected JSON schema for OpenCode output */
-interface OpencodeJsonOutput {
-  findings?: OpencodeRawFinding[];
-  summary?: string;
-  error?: string;
+/**
+ * Response structure from the LLM
+ */
+interface OpencodeResponse {
+  summary: string;
+  findings: OpencodeRawFinding[];
 }
 
 interface OpencodeRawFinding {
-  severity?: string;
-  file?: string;
+  severity: 'error' | 'warning' | 'info';
+  file: string;
   line?: number;
   end_line?: number;
-  message?: string;
+  message: string;
   suggestion?: string;
   rule_id?: string;
 }
 
-interface OpencodeResult {
-  ok: boolean;
-  findings: Finding[];
-  error?: string;
-  exitCode: number;
-}
-
 /**
- * Check if opencode CLI is available (not that it's ready with tokens - we strip those)
+ * Build the review prompt for the LLM
  */
-function isOpencodeInstalled(): { installed: boolean; error?: string } {
-  try {
-    execSync('opencode --version', { stdio: 'ignore', timeout: 5000 });
-    return { installed: true };
-  } catch {
-    return { installed: false, error: 'opencode CLI not installed' };
-  }
-}
-
-/**
- * Build review prompt requesting structured JSON output
- */
-function buildReviewPrompt(context: AgentContext): string {
+function buildReviewPrompt(context: AgentContext): { system: string; user: string } {
   const files = context.files
     .filter((f) => f.status !== 'deleted')
     .map((f) => `- ${f.path} (+${f.additions}/-${f.deletions})`)
     .join('\n');
 
-  return `Review this code diff and return ONLY a valid JSON object with the following structure:
-{
-  "findings": [
-    {
-      "severity": "error|warning|info",
-      "file": "path/to/file.ts",
-      "line": 42,
-      "end_line": 45,
-      "message": "Description of the issue",
-      "suggestion": "How to fix it (optional)",
-      "rule_id": "category/rule-name"
-    }
-  ],
-  "summary": "Brief overall assessment"
-}
+  const systemPrompt = `You are a senior code reviewer specializing in security, performance, and code quality analysis.
 
-Do NOT include any text before or after the JSON object. Output ONLY the JSON.
+Your task is to review code diffs and identify issues. For each issue found, provide:
+- Severity (error, warning, or info)
+- File path
+- Line number(s) if applicable
+- Clear description of the issue
+- Suggestion for how to fix it
 
-## Files Changed
+Focus on:
+- Security vulnerabilities (OWASP Top 10, CWE)
+- Logic errors and bugs
+- Performance issues
+- Code quality problems
+- Best practice violations
+
+Return your findings as a JSON object. Do NOT include any text before or after the JSON.`;
+
+  const userPrompt = `## Files Changed
 ${files}
 
 ## Diff
@@ -112,102 +94,35 @@ ${files}
 ${context.diffContent}
 \`\`\`
 
-Analyze for:
-- Security vulnerabilities
-- Logic errors and bugs
-- Performance issues
-- Code quality problems
-- Best practice violations`;
-}
-
-/**
- * Parse OpenCode stdout into structured findings
- * Enforces strict JSON envelope as required by CONSOLIDATED.md
- */
-function parseOpencodeOutput(stdout: string): {
-  ok: boolean;
-  findings: Finding[];
-  error?: string;
-} {
-  const trimmed = stdout.trim();
-
-  if (!trimmed) {
-    return { ok: false, findings: [], error: 'Empty output from opencode' };
-  }
-
-  // Find JSON object boundaries
-  const jsonStart = trimmed.indexOf('{');
-  const jsonEnd = trimmed.lastIndexOf('}');
-
-  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    return { ok: false, findings: [], error: 'No valid JSON object in opencode output' };
-  }
-
-  // Reject if there's non-whitespace content before or after JSON (mixed stdout)
-  const beforeJson = trimmed.slice(0, jsonStart).trim();
-  const afterJson = trimmed.slice(jsonEnd + 1).trim();
-
-  if (beforeJson || afterJson) {
-    return {
-      ok: false,
-      findings: [],
-      error: 'Mixed stdout detected: opencode output contains non-JSON content',
-    };
-  }
-
-  const jsonStr = trimmed.slice(jsonStart, jsonEnd + 1);
-
-  let parsed: OpencodeJsonOutput;
-  try {
-    parsed = JSON.parse(jsonStr) as OpencodeJsonOutput;
-  } catch (e) {
-    return {
-      ok: false,
-      findings: [],
-      error: `Invalid JSON from opencode: ${e instanceof Error ? e.message : 'parse error'}`,
-    };
-  }
-
-  // Handle error response from OpenCode
-  if (parsed.error) {
-    return { ok: false, findings: [], error: `OpenCode error: ${parsed.error}` };
-  }
-
-  // Convert to our Finding format
-  const findings: Finding[] = [];
-  for (const raw of parsed.findings ?? []) {
-    // Validate required fields
-    if (!raw.file || !raw.message) {
-      console.warn('[opencode] Skipping finding with missing required fields:', raw);
-      continue;
+Review this code diff and return a JSON object with the following structure:
+{
+  "summary": "Brief overall assessment of the changes",
+  "findings": [
+    {
+      "severity": "error|warning|info",
+      "file": "path/to/file.ts",
+      "line": 42,
+      "end_line": 45,
+      "message": "Description of the issue",
+      "suggestion": "How to fix it",
+      "rule_id": "category/rule-name"
     }
+  ]
+}
 
-    findings.push({
-      severity: mapSeverity(raw.severity),
-      file: raw.file,
-      line: raw.line,
-      endLine: raw.end_line,
-      message: raw.message,
-      suggestion: raw.suggestion,
-      ruleId: raw.rule_id ?? 'opencode/review',
-      sourceAgent: 'opencode',
-    });
-  }
+If no issues are found, return an empty findings array.`;
 
-  return { ok: true, findings };
+  return { system: systemPrompt, user: userPrompt };
 }
 
 /**
- * Map OpenCode severity to our standard severity
+ * Map raw severity to Finding severity
  */
-function mapSeverity(severity?: string): Severity {
-  switch (severity?.toLowerCase()) {
+function mapSeverity(raw: string): Severity {
+  switch (raw) {
     case 'error':
-    case 'critical':
-    case 'high':
       return 'error';
     case 'warning':
-    case 'medium':
       return 'warning';
     default:
       return 'info';
@@ -215,104 +130,103 @@ function mapSeverity(severity?: string): Severity {
 }
 
 /**
- * Run opencode CLI as untrusted subprocess
- * SECURITY: Tokens are stripped, HTTP server is disabled
+ * Run review using OpenAI API
  */
-async function runOpencode(context: AgentContext, prompt: string): Promise<OpencodeResult> {
-  // Strip ALL tokens from environment (Router Monopoly Rule)
-  const cleanEnv = buildAgentEnv('opencode', context.env);
+async function runWithOpenAI(
+  context: AgentContext,
+  apiKey: string,
+  model: string
+): Promise<AgentResult> {
+  const startTime = Date.now();
+  const agentId = 'opencode';
 
-  // Add OpenCode-specific config to disable HTTP server (CVE mitigation)
-  const safeEnv: Record<string, string> = {
-    ...cleanEnv,
-    // Hard-disable HTTP server mode
-    OPENCODE_HTTP_DISABLED: 'true',
-    OPENCODE_NO_SERVER: 'true',
-    OPENCODE_HEADLESS: 'true',
-    // Set model if provided (without tokens)
-    MODEL: cleanEnv['OPENCODE_MODEL'] ?? cleanEnv['MODEL'] ?? 'openai/gpt-4o-mini',
-    // LLM API keys are allowed (not GitHub tokens)
-    ...(cleanEnv['OPENAI_API_KEY'] ? { OPENAI_API_KEY: cleanEnv['OPENAI_API_KEY'] } : {}),
-    ...(cleanEnv['ANTHROPIC_API_KEY'] ? { ANTHROPIC_API_KEY: cleanEnv['ANTHROPIC_API_KEY'] } : {}),
-  };
+  const supportedFiles = context.files.filter((f) =>
+    SUPPORTED_EXTENSIONS.some((ext) => f.path.endsWith(ext))
+  );
 
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
+  if (supportedFiles.length === 0) {
+    return {
+      agentId,
+      success: true,
+      findings: [],
+      metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+    };
+  }
 
-    // Run in non-interactive, JSON output mode
-    const proc = spawn('opencode', ['--json', '--non-interactive'], {
-      env: safeEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: context.repoPath,
-    });
+  const openai = new OpenAI({ apiKey });
+  const { system, user } = buildReviewPrompt(context);
+  const estimatedInputTokens = estimateTokens(system + user);
 
-    // Set timeout
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      proc.kill('SIGTERM');
-    }, EXECUTION_TIMEOUT_MS);
+  try {
+    const response = await withRetry(() =>
+      openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 4000,
+        temperature: 0.3,
+      })
+    );
 
-    // Write prompt to stdin
-    if (proc.stdin) {
-      proc.stdin.write(prompt);
-      proc.stdin.end();
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Empty response from OpenAI');
     }
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
+    const result = JSON.parse(content) as OpencodeResponse;
+    const findings: Finding[] = [];
 
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timeout);
-      const exitCode = code ?? 1;
-
-      if (timedOut) {
-        resolve({
-          ok: false,
-          findings: [],
-          error: `opencode timed out after ${EXECUTION_TIMEOUT_MS}ms`,
-          exitCode: 124,
-        });
-        return;
-      }
-
-      // Non-zero exit code = failure
-      if (exitCode !== 0) {
-        resolve({
-          ok: false,
-          findings: [],
-          error: stderr || `opencode exited with code ${exitCode}`,
-          exitCode,
-        });
-        return;
-      }
-
-      // Parse structured output
-      const parseResult = parseOpencodeOutput(stdout);
-      resolve({
-        ok: parseResult.ok,
-        findings: parseResult.findings,
-        error: parseResult.error,
-        exitCode: 0,
+    for (const raw of result.findings || []) {
+      findings.push({
+        severity: mapSeverity(raw.severity),
+        file: raw.file,
+        line: raw.line,
+        endLine: raw.end_line,
+        message: raw.message,
+        suggestion: raw.suggestion,
+        ruleId: raw.rule_id || 'opencode/ai-review',
+        sourceAgent: agentId,
       });
-    });
+    }
 
-    proc.on('error', (err: Error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        findings: [],
-        error: `Failed to spawn opencode: ${err.message}`,
-        exitCode: 1,
-      });
-    });
-  });
+    if (result.summary) {
+      console.log(`[opencode] Summary: ${result.summary}`);
+    }
+
+    const tokensUsed = response.usage?.total_tokens || estimatedInputTokens;
+    const promptTokens = response.usage?.prompt_tokens || estimatedInputTokens;
+    const completionTokens = response.usage?.completion_tokens || 0;
+    const estimatedCostUsd = (promptTokens / 1000) * 0.00015 + (completionTokens / 1000) * 0.0006;
+
+    return {
+      agentId,
+      success: true,
+      findings,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: supportedFiles.length,
+        tokensUsed,
+        estimatedCostUsd,
+      },
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return {
+      agentId,
+      success: false,
+      findings: [],
+      error: errorMessage,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: 0,
+        tokensUsed: estimatedInputTokens,
+      },
+    };
+  }
 }
 
 export const opencodeAgent: ReviewAgent = {
@@ -327,85 +241,39 @@ export const opencodeAgent: ReviewAgent = {
 
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
+    const agentEnv = buildAgentEnv('opencode', context.env);
 
-    // Check if opencode is installed
-    const installCheck = isOpencodeInstalled();
-    if (!installCheck.installed) {
-      console.log(`[opencode] Not installed: ${installCheck.error}`);
+    // Check for API key (OpenAI or Anthropic)
+    const openaiKey = agentEnv['OPENAI_API_KEY'];
+    const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
+
+    // OpenAI takes precedence
+    if (openaiKey) {
+      const model = agentEnv['OPENAI_MODEL'] || agentEnv['MODEL'] || 'gpt-4o-mini';
+      console.log(`[opencode] Using OpenAI with model: ${model}`);
+      return runWithOpenAI(context, openaiKey, model);
+    }
+
+    // Anthropic support (future implementation)
+    if (anthropicKey) {
+      // TODO: Implement Anthropic Claude support
+      // For now, return a clear error message
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: installCheck.error,
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
+        error: 'Anthropic support not yet implemented. Please use OPENAI_API_KEY.',
+        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
       };
     }
 
-    // Get supported files
-    const supportedFiles = context.files.filter((f) => this.supports(f));
-    if (supportedFiles.length === 0) {
-      return {
-        agentId: this.id,
-        success: true,
-        findings: [],
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
-    console.log(`[opencode] Running on ${supportedFiles.length} files (tokens stripped)`);
-
-    // Build prompt
-    const prompt = buildReviewPrompt(context);
-
-    // Run opencode as untrusted subprocess
-    const result = await runOpencode(context, prompt);
-
-    // Security guard: check for listening sockets (CVE mitigation)
-    const socketCheck = await validateNoListeningSockets('opencode');
-    if (!socketCheck.safe) {
-      console.error(`[opencode] SECURITY VIOLATION: ${socketCheck.error}`);
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: `Security violation: ${socketCheck.error}`,
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
-    if (!result.ok) {
-      console.error(`[opencode] Failed: ${result.error}`);
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: result.error,
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
-    console.log(`[opencode] Found ${result.findings.length} findings`);
-
+    // No API key configured
     return {
       agentId: this.id,
-      success: true,
-      findings: result.findings,
-      metrics: {
-        durationMs: Date.now() - startTime,
-        filesProcessed: supportedFiles.length,
-      },
+      success: false,
+      findings: [],
+      error: 'No API key configured (set OPENAI_API_KEY or ANTHROPIC_API_KEY)',
+      metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
     };
   },
 };

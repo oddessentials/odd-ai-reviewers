@@ -16,6 +16,12 @@ const PassSchema = z.object({
   name: z.string(),
   agents: z.array(AgentSchema),
   enabled: z.boolean().default(true),
+  /**
+   * When true: missing prerequisites (API keys, CLI tools) cause fail-fast with actionable error.
+   * When false: missing prerequisites cause skip with clear reason, continue to next agent.
+   * Default: false (optional) for backward compatibility.
+   */
+  required: z.boolean().default(false),
 });
 
 const LimitsSchema = z.object({
@@ -59,8 +65,9 @@ export const ConfigSchema = z.object({
   triggers: TriggersSchema.default({}),
   passes: z.array(PassSchema).default([
     // Safe default: static analysis only (no AI agents, no API keys required)
+    // Static analysis is required by default - if semgrep fails, the review fails
     // To enable AI agents, create .ai-review.yml in your repository
-    { name: 'static', agents: ['semgrep'], enabled: true },
+    { name: 'static', agents: ['semgrep'], enabled: true, required: true },
   ]),
   limits: LimitsSchema.default({}),
   reporting: ReportingSchema.default({}),

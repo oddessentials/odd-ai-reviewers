@@ -46,7 +46,7 @@ describe('Check Run Lifecycle', () => {
     version: 1,
     trusted_only: true,
     triggers: { on: ['pull_request'], branches: ['main'] },
-    passes: [{ name: 'static', agents: ['semgrep'], enabled: true }],
+    passes: [{ name: 'static', agents: ['semgrep'], enabled: true, required: true }],
     limits: {
       max_files: 50,
       max_diff_lines: 2000,

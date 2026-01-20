@@ -16,11 +16,16 @@ import {
   type Finding,
 } from './agents/index.js';
 import { reportToGitHub, startCheckRun, type GitHubContext } from './report/github.js';
-import { deduplicateFindings, sortFindings, generateSummaryMarkdown } from './report/formats.js';
+import {
+  deduplicateFindings,
+  sortFindings,
+  generateFullSummaryMarkdown,
+} from './report/formats.js';
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 import { getCached, setCache } from './cache/store.js';
 import { generateCacheKey, hashConfig } from './cache/key.js';
 import { validateAgentSecrets } from './preflight.js';
+import { isMainBranchPush, isAgentForbiddenOnMain } from './policy.js';
 
 const program = new Command();
 
@@ -205,6 +210,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   // Run passes
   const allFindings: Finding[] = [];
   const allResults: AgentResult[] = [];
+  const skippedAgents: { id: string; name: string; reason: string }[] = [];
 
   for (const pass of config.passes) {
     if (!pass.enabled) {
@@ -212,14 +218,21 @@ async function runReview(options: ReviewOptions): Promise<void> {
       continue;
     }
 
-    console.log(`[router] Running pass: ${pass.name}`);
+    console.log(`[router] Running pass: ${pass.name} (required: ${pass.required})`);
     const agents = getAgentsByIds(pass.agents);
 
     // Check if this pass uses PAID LLM services and we're over budget
     // Local LLM (Ollama) is exempt from budget checks since it's free
     const usesPaidLlm = agents.some((a) => a.usesLlm && a.id !== 'local_llm');
     if (usesPaidLlm && !budgetCheck.allowed) {
-      console.log(`[router] Skipping paid LLM pass due to budget: ${pass.name}`);
+      if (pass.required) {
+        console.error(`[router] ❌ Required pass ${pass.name} blocked by budget limit`);
+        process.exit(1);
+      }
+      console.log(`[router] Skipping optional paid LLM pass due to budget: ${pass.name}`);
+      for (const agent of agents) {
+        skippedAgents.push({ id: agent.id, name: agent.name, reason: 'Budget limit exceeded' });
+      }
       continue;
     }
 
@@ -231,14 +244,11 @@ async function runReview(options: ReviewOptions): Promise<void> {
           throw new Error(`Unknown agent id "${agent.id}" has no allowlisted environment`);
         }
 
-        const isMainBranch =
-          routerEnv['GITHUB_REF_NAME'] === 'main' ||
-          routerEnv['GITHUB_REF'] === 'refs/heads/main' ||
-          routerEnv['GITHUB_BASE_REF'] === 'main';
-
-        if (isMainBranch && (agent.id === 'pr_agent' || agent.id === 'ai_semantic_review')) {
+        // Check if LLM agent is forbidden on main branch pushes
+        // Note: PRs targeting main are allowed (isMainBranchPush returns false for PRs)
+        if (isMainBranchPush(routerEnv) && isAgentForbiddenOnMain(agent.id)) {
           console.error(
-            `[router] Policy violation: in-process LLM agent "${agent.id}" is forbidden on main`
+            `[router] Policy violation: in-process LLM agent "${agent.id}" is forbidden on direct main push`
           );
           process.exit(1);
         }
@@ -285,10 +295,27 @@ async function runReview(options: ReviewOptions): Promise<void> {
           );
           allFindings.push(...result.findings);
         } else {
-          console.error(`[router] ${agent.name} failed: ${result.error}`);
+          // Agent failed - check if pass is required
+          if (pass.required) {
+            console.error(`[router] ❌ Required agent ${agent.name} failed: ${result.error}`);
+            process.exit(1);
+          }
+          // Optional agent failed - log skip reason and continue
+          console.log(`[router] ⏭️  Optional agent ${agent.name} skipped: ${result.error}`);
+          skippedAgents.push({
+            id: agent.id,
+            name: agent.name,
+            reason: result.error || 'Unknown error',
+          });
         }
       } catch (error) {
-        console.error(`[router] ${agent.name} crashed:`, error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (pass.required) {
+          console.error(`[router] ❌ Required agent ${agent.name} crashed: ${errorMsg}`);
+          process.exit(1);
+        }
+        console.error(`[router] ⏭️  Optional agent ${agent.name} crashed: ${errorMsg}`);
+        skippedAgents.push({ id: agent.id, name: agent.name, reason: errorMsg });
       }
     }
   }
@@ -301,8 +328,16 @@ async function runReview(options: ReviewOptions): Promise<void> {
     `[router] Total findings: ${sorted.length} (deduplicated from ${allFindings.length})`
   );
 
-  // Generate summary
-  const summary = generateSummaryMarkdown(sorted);
+  // Log skipped agents summary
+  if (skippedAgents.length > 0) {
+    console.log(`[router] Skipped agents: ${skippedAgents.length}`);
+    for (const s of skippedAgents) {
+      console.log(`[router]   - ${s.name}: ${s.reason}`);
+    }
+  }
+
+  // Generate summary with agent status table
+  const summary = generateFullSummaryMarkdown(sorted, allResults, skippedAgents);
   console.log('\n' + summary);
 
   // Report to GitHub (unless dry run)
