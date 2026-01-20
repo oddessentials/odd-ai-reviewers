@@ -117,23 +117,6 @@ async function runReview(options: ReviewOptions): Promise<void> {
     return;
   }
 
-  // Start GitHub check run in 'in_progress' state for proper lifecycle
-  // This shows users the review is actively running
-  let checkRunId: number | undefined;
-  if (!options.dryRun && options.owner && options.repoName && routerEnv['GITHUB_TOKEN']) {
-    try {
-      checkRunId = await startCheckRun({
-        owner: options.owner,
-        repo: options.repoName,
-        headSha: options.head,
-        token: routerEnv['GITHUB_TOKEN'],
-      });
-    } catch (error) {
-      console.warn('[router] Failed to start check run:', error);
-      // Continue without check run - will fall back to creating on completion
-    }
-  }
-
   // Get diff
   console.log('[router] Extracting diff...');
   const diff = getDiff(options.repo, options.base, options.head);
@@ -148,6 +131,35 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (filteredFiles.length === 0) {
     console.log('[router] No files to review after filtering');
     return;
+  }
+
+  // Start GitHub check run in 'in_progress' state for proper lifecycle
+  // This shows users the review is actively running
+  // Only start after early exits to prevent orphaned in_progress checks
+  // Only start if reporting mode includes checks (not comments_only)
+  let checkRunId: number | undefined;
+  const reportingMode = config.reporting.github?.mode ?? 'checks_and_comments';
+  const shouldUseChecks =
+    reportingMode === 'checks_only' || reportingMode === 'checks_and_comments';
+
+  if (
+    shouldUseChecks &&
+    !options.dryRun &&
+    options.owner &&
+    options.repoName &&
+    routerEnv['GITHUB_TOKEN']
+  ) {
+    try {
+      checkRunId = await startCheckRun({
+        owner: options.owner,
+        repo: options.repoName,
+        headSha: options.head,
+        token: routerEnv['GITHUB_TOKEN'],
+      });
+    } catch (error) {
+      console.warn('[router] Failed to start check run:', error);
+      // Continue without check run - will fall back to creating on completion
+    }
   }
 
   // Build combined diff for LLM context

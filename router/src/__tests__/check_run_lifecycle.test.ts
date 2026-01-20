@@ -179,4 +179,45 @@ describe('Check Run Lifecycle', () => {
       );
     });
   });
+
+  describe('Mode gating (comments_only should not use check runs)', () => {
+    const commentsOnlyConfig: Config = {
+      ...baseConfig,
+      reporting: {
+        github: {
+          mode: 'comments_only',
+          max_inline_comments: 20,
+          summary: true,
+        },
+      },
+    };
+
+    it('should NOT create check run when mode is comments_only', async () => {
+      mockChecksCreate.mockClear();
+      mockChecksUpdate.mockClear();
+
+      // When mode is comments_only, reportToGitHub should skip check run creation
+      await reportToGitHub([], baseContext, commentsOnlyConfig);
+
+      // No check run should be created or updated
+      expect(mockChecksCreate).not.toHaveBeenCalled();
+      expect(mockChecksUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should NOT update check run even if checkRunId provided when mode is comments_only', async () => {
+      mockChecksCreate.mockClear();
+      mockChecksUpdate.mockClear();
+
+      const contextWithCheckRun: GitHubContext = {
+        ...baseContext,
+        checkRunId: 12345,
+      };
+
+      await reportToGitHub([], contextWithCheckRun, commentsOnlyConfig);
+
+      // Even with checkRunId, should not touch checks when mode is comments_only
+      expect(mockChecksCreate).not.toHaveBeenCalled();
+      expect(mockChecksUpdate).not.toHaveBeenCalled();
+    });
+  });
 });
