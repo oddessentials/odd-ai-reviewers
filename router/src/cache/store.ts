@@ -9,6 +9,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
 import { AI_REVIEW_CACHE_PATH, CACHE_KEY_PREFIX, generateRestoreKeyPrefix } from './key.js';
+import { buildRouterEnv } from '../agents/security.js';
 
 export interface CacheEntry {
   key: string;
@@ -26,7 +27,8 @@ const memoryCache = new Map<string, CacheEntry>();
 /** Cache directory path */
 function getCacheDir(): string {
   // Use GITHUB_WORKSPACE in CI, otherwise ~/.ai-review-cache
-  const base = process.env['GITHUB_WORKSPACE'] || homedir();
+  const routerEnv = buildRouterEnv(process.env as Record<string, string | undefined>);
+  const base = routerEnv['GITHUB_WORKSPACE'] || homedir();
   return join(base, AI_REVIEW_CACHE_PATH);
 }
 
@@ -34,7 +36,8 @@ function getCacheDir(): string {
  * Check if we're running in GitHub Actions
  */
 function isGitHubActions(): boolean {
-  return process.env['GITHUB_ACTIONS'] === 'true';
+  const routerEnv = buildRouterEnv(process.env as Record<string, string | undefined>);
+  return routerEnv['GITHUB_ACTIONS'] === 'true';
 }
 
 /**

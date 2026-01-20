@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: 'main'
+      runs_on:
+        description: 'Runner labels as JSON (e.g., "ubuntu-latest" or ["self-hosted","linux"])'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
     secrets:
       OPENCODE_API_KEY:
         description: 'OpenCode.ai API key'
@@ -37,7 +42,7 @@ on:
 jobs:
   ai-review:
     name: AI Code Review
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
 
     permissions:
       contents: read

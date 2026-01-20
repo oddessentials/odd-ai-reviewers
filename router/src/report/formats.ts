@@ -1,19 +1,75 @@
 /**
  * Finding Formats Module
  * Normalizes findings from different agents into a unified format
+ *
+ * CONSOLIDATED.md Compliance:
+ * - Fingerprint generation for stable deduplication
+ * - Deduplication using fingerprint + path + start_line
  */
 
+import { createHash } from 'crypto';
 import type { Finding, Severity } from '../agents/index.js';
 
+const FINGERPRINT_MARKER_PREFIX = 'odd-ai-reviewers:fingerprint:v1:';
+
 /**
- * Deduplicate findings by file, line, and message
+ * Generate a stable fingerprint for a finding
+ *
+ * Per CONSOLIDATED.md Section E:
+ * - Router dedupes using: fingerprint + path + start_line
+ * - Fingerprints must be reproducible and collision-resistant (INVARIANTS.md #21)
+ *
+ * The fingerprint is computed from:
+ * - ruleId (or message hash if no ruleId)
+ * - file path
+ * - normalized message content
+ *
+ * IMPORTANT: sourceAgent is NOT included in fingerprint calculation.
+ * This ensures the same issue found by different agents produces the same fingerprint,
+ * enabling cross-agent deduplication (e.g., semgrep + reviewdog finding same issue).
+ */
+export function generateFingerprint(finding: Finding): string {
+  // Use ruleId if available, otherwise hash the message
+  const ruleComponent =
+    finding.ruleId ?? createHash('sha256').update(finding.message).digest('hex').slice(0, 16);
+
+  // Normalize message for fingerprinting (remove line numbers, whitespace variations)
+  const normalizedMessage = finding.message
+    .replace(/line \d+/gi, 'line N')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  // Create fingerprint from: rule + file + normalized message
+  // NOTE: sourceAgent is intentionally excluded to allow cross-agent deduplication
+  const fingerprintInput = `${ruleComponent}:${finding.file}:${normalizedMessage}`;
+
+  return createHash('sha256').update(fingerprintInput).digest('hex').slice(0, 32);
+}
+
+/**
+ * Generate a deduplication key for a finding
+ *
+ * Per CONSOLIDATED.md: fingerprint + path + start_line
+ */
+export function getDedupeKey(finding: Finding): string {
+  const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+  return `${fingerprint}:${finding.file}:${finding.line ?? 0}`;
+}
+
+/**
+ * Deduplicate findings using fingerprint + path + start_line
+ *
+ * Per CONSOLIDATED.md Section E and INVARIANTS.md #3:
+ * - Deduplication happens centrally in the router
+ * - Uses fingerprint + path + start_line for key
  */
 export function deduplicateFindings(findings: Finding[]): Finding[] {
   const seen = new Set<string>();
   const unique: Finding[] = [];
 
   for (const finding of findings) {
-    const key = `${finding.file}:${finding.line ?? 0}:${finding.message}`;
+    const key = getDedupeKey(finding);
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(finding);
@@ -156,4 +212,23 @@ export function toGitHubAnnotation(finding: Finding): GitHubAnnotation | null {
       ? `[${finding.sourceAgent}] ${finding.ruleId}`
       : `[${finding.sourceAgent}]`,
   };
+}
+
+export function buildFingerprintMarker(finding: Finding): string {
+  const key = getDedupeKey(finding);
+  return `<!-- ${FINGERPRINT_MARKER_PREFIX}${key} -->`;
+}
+
+export function extractFingerprintMarkers(body: string): string[] {
+  const markers: string[] = [];
+  const regex = new RegExp(`<!--\\s*${FINGERPRINT_MARKER_PREFIX}([^\\s]+)\\s*-->`, 'g');
+
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    if (match[1]) {
+      markers.push(match[1]);
+    }
+  }
+
+  return markers;
 }

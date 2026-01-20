@@ -31,10 +31,14 @@ export interface CostEstimate {
   breakdown: Record<string, number>;
 }
 
-// Approximate cost per 1K tokens (GPT-4 class models)
-const COST_PER_1K_TOKENS_INPUT = 0.01;
-const COST_PER_1K_TOKENS_OUTPUT = 0.03;
-const ESTIMATED_OUTPUT_RATIO = 0.2; // Output is typically 20% of input
+/**
+ * Pricing constants for GPT-4o-mini model
+ * These MUST stay in sync with the hardcoded values in agents (pr_agent.ts, ai_semantic_review.ts)
+ * See test: "should use consistent pricing with budget module" in budget.test.ts
+ */
+export const COST_PER_1K_TOKENS_INPUT = 0.00015;
+export const COST_PER_1K_TOKENS_OUTPUT = 0.0006;
+export const ESTIMATED_OUTPUT_RATIO = 0.2; // Output is typically 20% of input
 
 /**
  * Check if the PR is within budget limits

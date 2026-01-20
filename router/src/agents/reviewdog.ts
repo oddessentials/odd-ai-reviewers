@@ -1,6 +1,11 @@
 /**
  * Reviewdog Agent
- * Pipes linter output through reviewdog for PR annotations
+ *
+ * ROUTER MONOPOLY RULE COMPLIANCE (INVARIANTS.md #1):
+ * - This agent runs reviewdog in LOCAL mode only (-reporter=local)
+ * - NO GitHub tokens are passed to subprocess
+ * - Returns structured findings for router to post
+ * - Never posts directly to GitHub
  */
 
 import { spawn, type ChildProcess } from 'child_process';
@@ -8,8 +13,33 @@ import { createReadStream, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import type { ReviewAgent, AgentContext, AgentResult } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
+import { buildAgentEnv } from './security.js';
+import { generateFingerprint } from '../report/formats.js';
+
+/**
+ * Semgrep JSON output format
+ */
+interface SemgrepResult {
+  results: SemgrepFinding[];
+  errors: unknown[];
+  version: string;
+}
+
+interface SemgrepFinding {
+  check_id: string;
+  path: string;
+  start: { line: number; col: number };
+  end: { line: number; col: number };
+  extra: {
+    message: string;
+    severity: string;
+    metadata?: Record<string, unknown>;
+    fix?: string;
+    fingerprint?: string;
+  };
+}
 
 /**
  * Check if reviewdog binary is available
@@ -24,14 +54,42 @@ function isReviewdogAvailable(): boolean {
 }
 
 /**
- * Run semgrep and pipe output to reviewdog
+ * Check if semgrep binary is available
  */
-async function runReviewdogWithSemgrep(
+function isSemgrepAvailable(): boolean {
+  try {
+    execSync('semgrep --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Map semgrep severity to Finding severity
+ */
+function mapSeverity(semgrepSeverity: string): Severity {
+  switch (semgrepSeverity.toUpperCase()) {
+    case 'ERROR':
+      return 'error';
+    case 'WARNING':
+      return 'warning';
+    case 'INFO':
+    default:
+      return 'info';
+  }
+}
+
+/**
+ * Run semgrep and parse results into structured findings
+ * This is the primary path - no GitHub posting
+ */
+async function runSemgrepStructured(
   repoPath: string,
   filePaths: string[],
-  token: string
-): Promise<{ success: boolean; error?: string }> {
-  // Run semgrep first
+  _env: Record<string, string>
+): Promise<{ success: boolean; findings: Finding[]; error?: string }> {
+  // Run semgrep with JSON output
   let semgrepOutput: string;
   try {
     semgrepOutput = execSync(
@@ -41,6 +99,7 @@ async function runReviewdogWithSemgrep(
         encoding: 'utf-8',
         maxBuffer: 50 * 1024 * 1024,
         timeout: 300000, // 5 minute timeout
+        env: _env, // Clean env, no tokens
       }
     );
   } catch (error: unknown) {
@@ -51,71 +110,92 @@ async function runReviewdogWithSemgrep(
     } else {
       return {
         success: false,
+        findings: [],
         error: `Semgrep failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
 
-  // Write semgrep output to temp file (avoids shell injection)
-  const tempFile = join(tmpdir(), `semgrep-${Date.now()}.json`);
-
+  // Parse semgrep JSON output
+  let parsed: SemgrepResult;
   try {
-    writeFileSync(tempFile, semgrepOutput);
-
-    return await new Promise((resolve) => {
-      const reviewdog: ChildProcess = spawn(
-        'reviewdog',
-        ['-f=semgrep', '-reporter=github-pr-review', '-fail-level=warning'],
-        {
-          env: { ...process.env, REVIEWDOG_GITHUB_API_TOKEN: token },
-          stdio: ['pipe', 'inherit', 'inherit'],
-        }
-      );
-
-      const input = createReadStream(tempFile);
-      if (reviewdog.stdin) {
-        input.pipe(reviewdog.stdin);
-      }
-
-      reviewdog.once('close', (code) => {
-        // Cleanup temp file
-        try {
-          unlinkSync(tempFile);
-        } catch {
-          // Ignore cleanup errors
-        }
-
-        if (code === 0) {
-          resolve({ success: true });
-        } else {
-          resolve({ success: false, error: `reviewdog exited with code ${code}` });
-        }
-      });
-
-      reviewdog.once('error', (err) => {
-        // Cleanup temp file
-        try {
-          unlinkSync(tempFile);
-        } catch {
-          // Ignore cleanup errors
-        }
-        resolve({ success: false, error: err.message });
-      });
-    });
-  } catch (error) {
-    // Cleanup on error
-    try {
-      if (existsSync(tempFile)) {
-        unlinkSync(tempFile);
-      }
-    } catch {
-      // Ignore cleanup errors
-    }
+    parsed = JSON.parse(semgrepOutput) as SemgrepResult;
+  } catch {
     return {
       success: false,
-      error: `Failed to run reviewdog: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      findings: [],
+      error: 'Failed to parse semgrep JSON output',
     };
   }
+
+  // Convert to structured findings
+  const findings: Finding[] = parsed.results.map((result) => {
+    const finding: Finding = {
+      severity: mapSeverity(result.extra.severity),
+      file: result.path,
+      line: result.start.line,
+      endLine: result.end.line,
+      message: result.extra.message,
+      ruleId: result.check_id,
+      sourceAgent: 'reviewdog',
+      suggestion: result.extra.fix,
+      metadata: result.extra.metadata,
+    };
+
+    // Generate stable fingerprint
+    finding.fingerprint = generateFingerprint(finding);
+
+    return finding;
+  });
+
+  return { success: true, findings };
+}
+
+/**
+ * Run reviewdog in local mode (for validation/format checking only)
+ * This does NOT post to GitHub - purely for local validation
+ */
+async function runReviewdogLocal(
+  repoPath: string,
+  semgrepJsonPath: string,
+  cleanEnv: Record<string, string>
+): Promise<{ success: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    // CRITICAL: -reporter=local means no GitHub posting
+    // No REVIEWDOG_GITHUB_API_TOKEN in environment
+    const reviewdog: ChildProcess = spawn(
+      'reviewdog',
+      ['-f=semgrep', '-reporter=local', '-fail-level=none'],
+      {
+        cwd: repoPath,
+        env: cleanEnv, // Clean env, no tokens
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    );
+
+    const input = createReadStream(semgrepJsonPath);
+    if (reviewdog.stdin) {
+      input.pipe(reviewdog.stdin);
+    }
+
+    let stderr = '';
+    reviewdog.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    reviewdog.once('close', (code) => {
+      if (code === 0 || code === 1) {
+        // Exit code 1 means findings were found, which is expected
+        resolve({ success: true });
+      } else {
+        resolve({ success: false, error: `reviewdog exited with code ${code}: ${stderr}` });
+      }
+    });
+
+    reviewdog.once('error', (err) => {
+      resolve({ success: false, error: err.message });
+    });
+  });
 }
 
 export const reviewdogAgent: ReviewAgent = {
@@ -131,28 +211,9 @@ export const reviewdogAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
-    // Check if reviewdog is available
-    if (!isReviewdogAvailable()) {
-      console.log('[reviewdog] Binary not found, skipping');
-      return {
-        agentId: this.id,
-        success: true,
-        findings: [],
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
-    // Get GitHub token
-    const token =
-      context.env['REVIEWDOG_GITHUB_API_TOKEN'] ||
-      context.env['GITHUB_TOKEN'] ||
-      context.env['GH_TOKEN'];
-
-    if (!token) {
-      console.log('[reviewdog] No GitHub token available, skipping');
+    // Check if semgrep is available (primary requirement)
+    if (!isSemgrepAvailable()) {
+      console.log('[reviewdog] Semgrep binary not found, skipping');
       return {
         agentId: this.id,
         success: true,
@@ -181,7 +242,12 @@ export const reviewdogAgent: ReviewAgent = {
 
     console.log(`[reviewdog] Processing ${filePaths.length} files via semgrep`);
 
-    const result = await runReviewdogWithSemgrep(context.repoPath, filePaths, token);
+    // ROUTER MONOPOLY RULE: Strip ALL tokens from environment
+    // Agents must NOT have access to posting credentials
+    const cleanEnv = buildAgentEnv('reviewdog', context.env);
+
+    // Primary path: Run semgrep directly and parse structured output
+    const result = await runSemgrepStructured(context.repoPath, filePaths, cleanEnv);
 
     if (!result.success) {
       return {
@@ -196,12 +262,49 @@ export const reviewdogAgent: ReviewAgent = {
       };
     }
 
-    // Reviewdog posts directly to GitHub, so we don't return findings
-    // The annotations are created via the GitHub API
+    // Optional: If reviewdog is available, run it in local mode for validation
+    // This verifies the output format but does NOT post to GitHub
+    if (isReviewdogAvailable() && result.findings.length > 0) {
+      const tempFile = join(tmpdir(), `semgrep-${Date.now()}.json`);
+      try {
+        // Re-run semgrep to get raw JSON for reviewdog validation
+        const semgrepOutput = execSync(
+          `semgrep scan --config=auto --json ${filePaths.map((p) => `"${p}"`).join(' ')}`,
+          {
+            cwd: context.repoPath,
+            encoding: 'utf-8',
+            maxBuffer: 50 * 1024 * 1024,
+            timeout: 300000,
+            env: cleanEnv,
+          }
+        );
+        writeFileSync(tempFile, semgrepOutput);
+
+        const validation = await runReviewdogLocal(context.repoPath, tempFile, cleanEnv);
+        if (!validation.success) {
+          console.warn(`[reviewdog] Local validation warning: ${validation.error}`);
+        }
+      } catch {
+        // Semgrep may throw on findings - ignore for validation
+      } finally {
+        try {
+          if (existsSync(tempFile)) {
+            unlinkSync(tempFile);
+          }
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    }
+
+    console.log(`[reviewdog] Found ${result.findings.length} findings`);
+
+    // Return structured findings for router to post
+    // Router owns all GitHub API interactions per INVARIANTS.md #1
     return {
       agentId: this.id,
       success: true,
-      findings: [],
+      findings: result.findings,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: filePaths.length,

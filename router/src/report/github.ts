@@ -4,7 +4,6 @@
  * Includes deduplication and throttling
  */
 
-import { createHash } from 'crypto';
 import { Octokit } from '@octokit/rest';
 import type { Finding, Severity } from '../agents/index.js';
 import type { Config } from '../config.js';
@@ -14,6 +13,9 @@ import {
   generateSummaryMarkdown,
   toGitHubAnnotation,
   countBySeverity,
+  buildFingerprintMarker,
+  extractFingerprintMarkers,
+  getDedupeKey,
 } from './formats.js';
 
 export interface GitHubContext {
@@ -35,14 +37,6 @@ export interface ReportResult {
 
 /** Delay between inline comments to avoid spam (ms) */
 const INLINE_COMMENT_DELAY_MS = 100;
-
-/**
- * Generate a fingerprint for a finding (used for deduplication)
- */
-function generateFindingFingerprint(finding: Finding): string {
-  const data = `${finding.file}:${finding.line ?? 0}:${finding.message}:${finding.ruleId ?? ''}`;
-  return createHash('sha256').update(data).digest('hex').slice(0, 16);
-}
 
 /**
  * Delay helper for rate limiting
@@ -222,16 +216,14 @@ async function postPRComment(
     pull_number: context.prNumber,
   });
 
-  // Build set of existing comment fingerprints
+  // Build set of existing comment fingerprints (canonical markers only)
   const existingFingerprints = new Set<string>();
   for (const comment of existingReviewComments.data) {
-    // Extract finding info from existing comments if they match our format
-    if (comment.body?.includes('**') && comment.path) {
-      const fingerprint = createHash('sha256')
-        .update(`${comment.path}:${comment.line ?? 0}:${comment.body}`)
-        .digest('hex')
-        .slice(0, 16);
-      existingFingerprints.add(fingerprint);
+    if (comment.body) {
+      const markers = extractFingerprintMarkers(comment.body);
+      for (const marker of markers) {
+        existingFingerprints.add(marker);
+      }
     }
   }
 
@@ -253,12 +245,12 @@ async function postPRComment(
   for (const findingOrGroup of groupedFindings) {
     if (postedCount >= maxInlineComments) break;
 
-    const fingerprint = Array.isArray(findingOrGroup)
-      ? findingOrGroup.map(generateFindingFingerprint).join(':')
-      : generateFindingFingerprint(findingOrGroup);
+    const fingerprints = Array.isArray(findingOrGroup)
+      ? findingOrGroup.map((finding) => getDedupeKey(finding))
+      : [getDedupeKey(findingOrGroup)];
 
     // Skip if already posted
-    if (existingFingerprints.has(fingerprint)) {
+    if (fingerprints.every((fingerprint) => existingFingerprints.has(fingerprint))) {
       skippedDuplicates++;
       continue;
     }
@@ -281,6 +273,9 @@ async function postPRComment(
         line: finding.line,
       });
       postedCount++;
+      for (const fingerprint of fingerprints) {
+        existingFingerprints.add(fingerprint);
+      }
 
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
@@ -354,6 +349,8 @@ function formatInlineComment(finding: Finding): string {
     lines.push(`\n💡 **Suggestion**: ${finding.suggestion}`);
   }
 
+  lines.push(`\n\n${buildFingerprintMarker(finding)}`);
+
   return lines.join('');
 }
 
@@ -372,6 +369,10 @@ function formatGroupedInlineComment(findings: (Finding & { line: number })[]): s
       lines.push(`   💡 ${finding.suggestion}`);
     }
     lines.push('');
+  }
+
+  for (const finding of findings) {
+    lines.push(buildFingerprintMarker(finding));
   }
 
   return lines.join('\n').trim();

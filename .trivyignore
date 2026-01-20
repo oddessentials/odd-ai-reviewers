@@ -1,0 +1,84 @@
+# Trivy CVE Ignore List
+# 
+# This file documents known CVEs that are accepted risks with justification.
+# All CVEs here are from third-party binaries we do not control.
+#
+# Last reviewed: 2026-01-19 by AI Review Router team
+
+# ============================================================================
+# OpenCode CLI Binary (Go runtime CVEs)
+# 
+# OpenCode v1.1.26 is compiled with an older Go runtime that contains these
+# vulnerabilities. We are using the latest available release. The OpenCode
+# team must release a new version compiled with Go 1.24.11+ or 1.25.5+ to fix.
+#
+# Risk assessment: LOW - OpenCode runs in isolated subprocess with stripped
+# tokens and socket listener guards (CVE-2026-22812 mitigation in place).
+# ============================================================================
+
+# Go crypto/x509 - DoS via malformed certificate
+# Fixed in: Go 1.24.11, 1.25.5 | OpenCode compiled with older Go
+CVE-2025-61729
+
+# Go database/sql - Postgres scanning vulnerability  
+# Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
+CVE-2025-47907
+
+# Go archive/tar - Unbounded allocation parsing GNU tar headers
+# Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
+CVE-2025-58183
+
+# ============================================================================
+# npm transitive dependencies (if any appear and need exceptions)
+# ============================================================================
+
+# glob package - Command injection via malicious pattern
+# This is a transitive dependency in Docker image tooling
+# Risk: LOW - Not used in our application code, comes from build tools
+CVE-2025-64756
+
+# ============================================================================
+# Additional Go dependencies in OpenCode binary
+# ============================================================================
+
+# golang.org/x/oauth2/jws - Unexpected memory consumption
+# Fixed in: 0.27.0 | OpenCode compiled with older version
+# Risk: LOW - OpenCode runs isolated with token stripping
+CVE-2025-22868
+
+# Go encoding/gob - Decoder.Decode stack exhaustion
+# Fixed in: Go 1.22.7, 1.23.1 | OpenCode compiled with older Go
+# Risk: LOW - OpenCode doesn't use gob in user-facing paths
+CVE-2024-34156
+
+# node-tar - Path traversal vulnerability in tar extraction
+# This is a transitive dependency in npm tooling
+# Risk: LOW - Only used during Docker build, not at runtime
+CVE-2026-23745
+
+# golang.org/x/crypto/ssh - Authorization bypass in SSH handshake
+# Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
+# Risk: LOW - OpenCode doesn't use SSH for LLM API calls
+CVE-2024-45337
+
+# Go net/http2 - Unlimited CONTINUATION frames causing resource exhaustion
+# Fixed in: Go 1.21.9, 1.22.2 | OpenCode compiled with older Go
+# Risk: LOW - OpenCode CLI mode doesn't run HTTP2 servers
+CVE-2023-45288
+
+# ============================================================================
+# Reviewdog Binary (Go runtime and library CVEs)
+#
+# Reviewdog v0.20.3 is compiled with Go 1.21.7 which contains these
+# vulnerabilities. These are inherited from upstream releases.
+# ============================================================================
+
+# golang.org/x/crypto/ssh - DoS in SSH key exchange
+# Fixed in: 0.35.0 | Reviewdog compiled with v0.28.0
+# Risk: LOW - Reviewdog doesn't use SSH functionality
+CVE-2025-22869
+
+# Go net/netip - Unexpected behavior for IPv4-mapped IPv6 addresses
+# Fixed in: Go 1.21.11, 1.22.4 | Reviewdog compiled with Go 1.21.7
+# Risk: LOW - Reviewdog only processes diff/lint data, not network addresses
+CVE-2024-24790
