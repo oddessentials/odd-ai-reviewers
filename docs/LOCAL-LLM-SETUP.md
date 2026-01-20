@@ -91,6 +91,12 @@ The agent enforces these limits to prevent timeouts:
 
 When running odd-ai-reviewers inside [OSCR](https://github.com/oddessentials/odd-self-hosted-ci-runtime) runner containers, Ollama setup is handled by the OSCR operator.
 
+**For operators:** See the [OSCR Ollama Integration Guide](https://github.com/oddessentials/odd-self-hosted-ci-runtime/blob/main/docs/ollama-integration.md) for:
+
+- Network configuration
+- Air-gap model provisioning
+- Troubleshooting
+
 See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 
 ## Troubleshooting

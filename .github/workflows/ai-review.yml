@@ -79,8 +79,17 @@ jobs:
         working-directory: router
         run: npm run build
 
+      # Runtime smoke test - verify toolchain as actual job user
+      - name: Verify toolchain
+        run: |
+          echo "=== Toolchain Smoke Test ==="
+          echo "User: $(whoami)"
+          echo "Shell: $SHELL"
+          echo "PATH: $PATH"
+          which semgrep 2>/dev/null && semgrep --version || echo "semgrep: will install"
+
       - name: Install Semgrep
-        run: pip3 install semgrep
+        run: pip3 install semgrep==1.148.0
 
       - name: Determine base SHA
         id: base
