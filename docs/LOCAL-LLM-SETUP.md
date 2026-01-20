@@ -24,6 +24,16 @@ env:
   # LOCAL_LLM_OPTIONAL: true  # Uncomment for graceful degradation
 ```
 
+### Authoritative OLLAMA_BASE_URL Values
+
+| Environment   | URL                                 | Notes                                                    |
+| ------------- | ----------------------------------- | -------------------------------------------------------- |
+| **OSCR**      | `http://ollama:11434`               | Service name (also works: `http://ollama-sidecar:11434`) |
+| **Local dev** | `http://localhost:11434`            | Default Ollama install                                   |
+| **Docker**    | `http://host.docker.internal:11434` | From container to host                                   |
+
+> **Recommendation:** Always set `OLLAMA_BASE_URL` explicitly in CI to avoid ambiguity, even if defaults exist.
+
 > **⚠️ Air-Gapped Environments:** If Ollama is truly air-gapped (no internet access), models **must be provisioned ahead of time** via pre-pull, cache volume, or baked image. Otherwise, the agent will fail-closed when models are unavailable. See [Model Provisioning Guide](./MODEL-PROVISIONING.md).
 
 ## Behavior Modes

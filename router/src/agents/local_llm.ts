@@ -436,7 +436,7 @@ export const localLlmAgent: ReviewAgent = {
 
         if (optionalMode) {
           console.log(
-            `[local_llm] Ollama unavailable (${result.error}), skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
+            `[local_llm] Ollama unavailable at ${ollamaUrl} (${result.error}), skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
           );
           return {
             agentId: this.id,
@@ -449,7 +449,9 @@ export const localLlmAgent: ReviewAgent = {
           };
         } else {
           console.error(
-            `[local_llm] Ollama unavailable (${result.error}). Set LOCAL_LLM_OPTIONAL=true to allow graceful degradation.`
+            `[local_llm] Cannot connect to Ollama at ${ollamaUrl}. ` +
+              `Verify: (1) Ollama container is running, (2) OLLAMA_BASE_URL is set correctly. ` +
+              `Error: ${result.error}`
           );
           return {
             agentId: this.id,
