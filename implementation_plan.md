@@ -270,13 +270,13 @@ docker run -v ollama-models:/root/.ollama/models ollama/ollama \
 
 Before merging to `main` and deploying to production:
 
-- [ ] **1. Fail-closed behavior**: Implement `LOCAL_LLM_OPTIONAL` flag, default to `success: false`
-- [ ] **2. OSCR networking**: Document and test actual sidecar configuration
-- [ ] **3. Resource limits**: Add CPU/memory caps and concurrency=1 enforcement
-- [ ] **4. Air-gap enforcement**: Configure network isolation and validate
-- [ ] **5. Filesystem restrictions**: Enforce read-only + tmpfs
-- [ ] **6. Security tests**: ✅ Already passing
-- [ ] **7. Model provisioning**: Document and test model pre-pull strategy
+- [x] **1. Fail-closed behavior**: Implement `LOCAL_LLM_OPTIONAL` flag, default to `success: false`
+- [x] **2. OSCR networking**: Document and test actual sidecar configuration
+- [x] **3. Resource limits**: Add CPU/memory caps and concurrency=1 enforcement
+- [x] **4. Air-gap enforcement**: Configure network isolation and validate
+- [x] **5. Filesystem restrictions**: Enforce read-only + tmpfs
+- [x] **6. Security tests**: ✅ Already passing
+- [x] **7. Model provisioning**: Document and test model pre-pull strategy
 
 ---
 

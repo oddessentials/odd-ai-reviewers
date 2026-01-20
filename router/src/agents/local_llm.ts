@@ -423,22 +423,45 @@ export const localLlmAgent: ReviewAgent = {
     const result = await callOllama(ollamaUrl, request, TIMEOUT_MS);
 
     if (!result.ok) {
-      // Graceful degradation: if Ollama is unavailable, don't fail the CI
-      if (
+      // Check if connection failure should be graceful or fail-closed
+      const isConnectionFailure =
         result.error?.includes('ECONNREFUSED') ||
         result.error?.includes('fetch failed') ||
-        result.error?.includes('ENOTFOUND')
-      ) {
-        console.log(`[local_llm] Ollama unavailable (${result.error}), skipping gracefully`);
-        return {
-          agentId: this.id,
-          success: true,
-          findings: [],
-          metrics: {
-            durationMs: Date.now() - startTime,
-            filesProcessed: 0,
-          },
-        };
+        result.error?.includes('ENOTFOUND');
+
+      if (isConnectionFailure) {
+        // Default behavior: fail-closed (success: false)
+        // Only graceful if LOCAL_LLM_OPTIONAL=true
+        const optionalMode = agentEnv['LOCAL_LLM_OPTIONAL'] === 'true';
+
+        if (optionalMode) {
+          console.log(
+            `[local_llm] Ollama unavailable (${result.error}), skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
+          );
+          return {
+            agentId: this.id,
+            success: true,
+            findings: [],
+            metrics: {
+              durationMs: Date.now() - startTime,
+              filesProcessed: 0,
+            },
+          };
+        } else {
+          console.error(
+            `[local_llm] Ollama unavailable (${result.error}). Set LOCAL_LLM_OPTIONAL=true to allow graceful degradation.`
+          );
+          return {
+            agentId: this.id,
+            success: false,
+            findings: [],
+            error: `Ollama unavailable: ${result.error}`,
+            metrics: {
+              durationMs: Date.now() - startTime,
+              filesProcessed: 0,
+            },
+          };
+        }
       }
 
       // Other errors are real failures

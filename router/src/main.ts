@@ -23,6 +23,17 @@ import { generateCacheKey, hashConfig } from './cache/key.js';
 
 const program = new Command();
 
+/**
+ * Agent concurrency limits
+ * Agents execute sequentially by default (for loop at line 167).
+ * This map documents explicit limits for resource-intensive agents.
+ */
+const _AGENT_CONCURRENCY_LIMITS: Record<string, number> = {
+  local_llm: 1, // Only one LLM request at a time (CPU/memory intensive)
+  ai_semantic_review: 1, // OpenAI rate limiting
+  pr_agent: 1, // OpenAI rate limiting
+};
+
 program.name('ai-review').description('AI Code Review Router').version('1.0.0');
 
 program

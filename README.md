@@ -106,6 +106,32 @@ graph LR
 
 See [docs/config-schema.md](docs/config-schema.md) for the full configuration reference.
 
+## Using Local LLM (Ollama)
+
+The `local_llm` agent provides air-gapped, local AI code review using Ollama.
+
+### Configuration
+
+Set these environment variables in your CI:
+
+| Variable             | Required | Default                       | Description                 |
+| -------------------- | -------- | ----------------------------- | --------------------------- |
+| `OLLAMA_BASE_URL`    | Yes      | `http://ollama-sidecar:11434` | Ollama API endpoint         |
+| `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use                |
+| `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation |
+
+### Fail-Closed Behavior (Default)
+
+By default, CI **fails** if Ollama is unavailable. This ensures code review is never silently skipped.
+
+Set `LOCAL_LLM_OPTIONAL=true` to continue when Ollama is unavailable (use with caution).
+
+### Running with OSCR
+
+When running inside [OSCR](https://github.com/oddessentials/odd-self-hosted-ci-runtime) runner containers, configure `OLLAMA_BASE_URL` to point to your Ollama service.
+
+See [OSCR Integration Guide](docs/OSCR-INTEGRATION.md) for conceptual overview and [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) for configuration details.
+
 ## Documentation
 
 - [GitHub Setup Guide](docs/github-setup.md)

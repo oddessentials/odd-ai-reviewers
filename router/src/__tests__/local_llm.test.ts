@@ -177,7 +177,7 @@ describe('localLlmAgent', () => {
     });
   });
 
-  describe('run - graceful degradation', () => {
+  describe('run - fail-closed behavior', () => {
     beforeEach(() => {
       // Reset fetch mock
       vi.restoreAllMocks();
@@ -209,6 +209,42 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
+      // Fail-closed behavior: should block CI by default
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Ollama unavailable');
+      expect(result.findings).toEqual([]);
+      expect(result.metrics.filesProcessed).toBe(0);
+    });
+
+    it('should gracefully degrade when LOCAL_LLM_OPTIONAL=true', async () => {
+      // Mock fetch to simulate connection refused
+      global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'test diff',
+        env: {
+          LOCAL_LLM_OPTIONAL: 'true', // Opt-in to graceful degradation
+        },
+      };
+
+      const result = await localLlmAgent.run(context);
+
+      // Graceful degradation: should pass with empty findings
       expect(result.success).toBe(true);
       expect(result.findings).toEqual([]);
       expect(result.metrics.filesProcessed).toBe(0);
