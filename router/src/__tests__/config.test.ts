@@ -59,7 +59,15 @@ describe('ConfigSchema', () => {
       expect(result.data.limits.max_diff_lines).toBe(2000);
       expect(result.data.limits.max_tokens_per_pr).toBe(12000);
       expect(result.data.gating.enabled).toBe(false);
-      expect(result.data.passes).toHaveLength(2);
+      // Enterprise-safe default: only static analysis (semgrep) runs without explicit config
+      // AI agents require opt-in via .ai-review.yml
+      expect(result.data.passes).toHaveLength(1);
+      const defaultPass = result.data.passes[0];
+      expect(defaultPass).toBeDefined();
+      if (defaultPass) {
+        expect(defaultPass.name).toBe('static');
+        expect(defaultPass.agents).toEqual(['semgrep']);
+      }
     }
   });
 

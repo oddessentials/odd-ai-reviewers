@@ -58,8 +58,9 @@ export const ConfigSchema = z.object({
   trusted_only: z.boolean().default(true),
   triggers: TriggersSchema.default({}),
   passes: z.array(PassSchema).default([
+    // Safe default: static analysis only (no AI agents, no API keys required)
+    // To enable AI agents, create .ai-review.yml in your repository
     { name: 'static', agents: ['semgrep'], enabled: true },
-    { name: 'semantic', agents: ['opencode'], enabled: true },
   ]),
   limits: LimitsSchema.default({}),
   reporting: ReportingSchema.default({}),
@@ -89,7 +90,14 @@ export async function loadConfig(repoRoot: string): Promise<Config> {
     userConfig = parseYaml(content) as Record<string, unknown>;
     console.log(`[config] Loaded ${CONFIG_FILENAME} from repository`);
   } else {
-    console.log(`[config] No ${CONFIG_FILENAME} found, using defaults`);
+    // Enterprise-grade warning: explicit opt-in for AI agents
+    console.warn(
+      `[config] ⚠️  No ${CONFIG_FILENAME} found. Running static analysis (Semgrep) only.`
+    );
+    console.warn(
+      `[config] To enable AI agents (local_llm, OpenCode, PR-Agent), add ${CONFIG_FILENAME} to your repository.`
+    );
+    console.warn(`[config] See: https://github.com/oddessentials/odd-ai-reviewers#configuration`);
   }
 
   // Load defaults and merge with user config

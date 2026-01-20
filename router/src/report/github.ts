@@ -24,6 +24,8 @@ export interface GitHubContext {
   prNumber?: number;
   headSha: string;
   token: string;
+  /** Check run ID created at start of review (for proper lifecycle) */
+  checkRunId?: number;
 }
 
 export interface ReportResult {
@@ -43,6 +45,30 @@ const INLINE_COMMENT_DELAY_MS = 100;
  */
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Start a check run in 'in_progress' state
+ * Call this at the beginning of the review to show users the review is running
+ */
+export async function startCheckRun(context: GitHubContext): Promise<number> {
+  const octokit = new Octokit({ auth: context.token });
+
+  const response = await octokit.checks.create({
+    owner: context.owner,
+    repo: context.repo,
+    name: 'AI Code Review',
+    head_sha: context.headSha,
+    status: 'in_progress',
+    started_at: new Date().toISOString(),
+    output: {
+      title: 'AI Code Review in progress...',
+      summary: 'Analyzing code changes. This may take a moment.',
+    },
+  });
+
+  console.log(`[github] Started check run ${response.data.id} (in_progress)`);
+  return response.data.id;
 }
 
 /**
@@ -105,7 +131,9 @@ export async function reportToGitHub(
 }
 
 /**
- * Create a GitHub check run with annotations
+ * Create or update a GitHub check run with annotations
+ * If context.checkRunId is provided, updates existing check run (proper lifecycle)
+ * Otherwise creates a new check run (legacy/fallback behavior)
  */
 async function createCheckRun(
   octokit: Octokit,
@@ -141,6 +169,29 @@ async function createCheckRun(
 
   const summary = generateSummaryMarkdown(findings);
 
+  const output = {
+    title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
+    summary,
+    annotations,
+  };
+
+  // If we have an existing check run ID, update it (proper lifecycle)
+  if (context.checkRunId) {
+    await octokit.checks.update({
+      owner: context.owner,
+      repo: context.repo,
+      check_run_id: context.checkRunId,
+      status: 'completed',
+      conclusion,
+      completed_at: new Date().toISOString(),
+      output,
+    });
+
+    console.log(`[github] Updated check run ${context.checkRunId} with conclusion: ${conclusion}`);
+    return context.checkRunId;
+  }
+
+  // Fallback: create new check run (legacy behavior if startCheckRun wasn't called)
   const response = await octokit.checks.create({
     owner: context.owner,
     repo: context.repo,
@@ -148,11 +199,7 @@ async function createCheckRun(
     head_sha: context.headSha,
     status: 'completed',
     conclusion,
-    output: {
-      title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
-      summary,
-      annotations,
-    },
+    output,
   });
 
   console.log(`[github] Created check run ${response.data.id} with conclusion: ${conclusion}`);
