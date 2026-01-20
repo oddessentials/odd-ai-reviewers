@@ -1,4 +1,4 @@
-# THESE FEATURES WILL COME IN A LATER PHASE
+# TO-DO: Remaining Phase 3 Features
 
 > Items below are **not critical** for current milestone. Prioritized for future sprints.
 
@@ -106,14 +106,14 @@ on:
 
 ## Azure OpenAI API Version
 
-**Files:** `pr_agent.ts`, `ai_semantic_review.ts`  
-**Current:** Hardcoded `2024-02-15-preview`
+**Files:** `pr_agent.ts`, `ai_semantic_review.ts`
+**Status:** **COMPLETE** (2026-01-20)
 
-### Requirements
+### Implementation
 
-- Make API version configurable via env var
-- Update to latest stable version
-- Document supported versions
+- API version is now configurable via `AZURE_OPENAI_API_VERSION` environment variable
+- Default: `2024-02-15-preview`
+- Supported versions: Any Azure OpenAI API version (e.g., `2024-02-15-preview`, `2024-05-01-preview`)
 
 ---
 
@@ -135,7 +135,7 @@ on:
 1. 🔴 Local LLM (enables offline/private use)
 2. 🔴 E2E Pilot Deployment (validates production readiness)
 3. 🟡 ADO Reporter (enterprise customers)
-4. 🟡 Azure OpenAI API Version (stability)
+4. ✅ ~~Azure OpenAI API Version~~ (COMPLETE - 2026-01-20)
 5. 🟢 Webhook Trigger (on-demand reviews)
 6. 🟢 GitLab Reporter
 7. 🟢 Gitea Reporter
