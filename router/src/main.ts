@@ -93,12 +93,18 @@ async function runReview(options: ReviewOptions): Promise<void> {
   const configHash = hashConfig(config);
 
   // Build PR context for trust check
+  // Note: GITHUB_HEAD_REPO is only set for fork PRs by some CI systems.
+  // If not set, assume same repo (not a fork) to avoid false positives.
+  const headRepo = routerEnv['GITHUB_HEAD_REPO'];
+  const baseRepo = routerEnv['GITHUB_REPOSITORY'];
+  const isFork = headRepo !== undefined && headRepo !== '' && headRepo !== baseRepo;
+
   const prContext: PullRequestContext = {
     number: options.pr ?? 0,
     headRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
     baseRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
     author: routerEnv['GITHUB_ACTOR'] ?? 'unknown',
-    isFork: routerEnv['GITHUB_HEAD_REPO'] !== routerEnv['GITHUB_REPOSITORY'],
+    isFork,
     isDraft:
       routerEnv['GITHUB_EVENT_NAME'] === 'pull_request' &&
       routerEnv['GITHUB_EVENT_PULL_REQUEST_DRAFT'] === 'true',
