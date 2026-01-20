@@ -20,6 +20,7 @@ import { deduplicateFindings, sortFindings, generateSummaryMarkdown } from './re
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 import { getCached, setCache } from './cache/store.js';
 import { generateCacheKey, hashConfig } from './cache/key.js';
+import { validateAgentSecrets } from './preflight.js';
 
 const program = new Command();
 
@@ -189,6 +190,17 @@ async function runReview(options: ReviewOptions): Promise<void> {
     prNumber: options.pr,
     env: routerEnv,
   };
+
+  // Preflight validation: ensure required secrets are configured for enabled agents
+  // This fails fast before any agent execution with clear error messages
+  const preflight = validateAgentSecrets(config, process.env as Record<string, string | undefined>);
+  if (!preflight.valid) {
+    console.error('[router] ❌ Preflight validation failed:');
+    for (const error of preflight.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
 
   // Run passes
   const allFindings: Finding[] = [];

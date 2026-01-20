@@ -54,6 +54,8 @@ When the monthly budget is exhausted:
 - New PRs get static analysis only
 - A warning appears in the review summary
 
+> [!WARNING] > **Not Yet Implemented**: Monthly budget tracking requires persistent storage to accumulate costs across runs. Currently, only **per-PR limits** (`max_usd_per_pr`) are enforced. The `monthly_budget_usd` config is parsed but not enforced until a storage backend is added.
+
 ## How Costs Are Estimated
 
 ### Token Estimation

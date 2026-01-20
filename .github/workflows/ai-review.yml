@@ -29,11 +29,11 @@ on:
         type: string
         default: '"ubuntu-latest"'
     secrets:
-      OPENCODE_API_KEY:
-        description: 'OpenCode.ai API key'
-        required: false
       OPENAI_API_KEY:
-        description: 'OpenAI API key (for PR-Agent)'
+        description: 'OpenAI API key (for opencode or pr_agent)'
+        required: false
+      ANTHROPIC_API_KEY:
+        description: 'Anthropic API key (for opencode with Claude models)'
         required: false
       OLLAMA_BASE_URL:
         description: 'Ollama server URL for local LLM'
@@ -105,8 +105,8 @@ jobs:
         working-directory: router
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
         run: |
           OWNER=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f1)
