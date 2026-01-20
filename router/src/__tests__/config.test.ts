@@ -62,8 +62,12 @@ describe('ConfigSchema', () => {
       // Enterprise-safe default: only static analysis (semgrep) runs without explicit config
       // AI agents require opt-in via .ai-review.yml
       expect(result.data.passes).toHaveLength(1);
-      expect(result.data.passes[0].name).toBe('static');
-      expect(result.data.passes[0].agents).toEqual(['semgrep']);
+      const defaultPass = result.data.passes[0];
+      expect(defaultPass).toBeDefined();
+      if (defaultPass) {
+        expect(defaultPass.name).toBe('static');
+        expect(defaultPass.agents).toEqual(['semgrep']);
+      }
     }
   });
 
