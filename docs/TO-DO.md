@@ -4,28 +4,68 @@
 
 ---
 
-## Local LLM Agent (Ollama)
+## Completed Features
+
+### ✅ Local LLM Agent (Ollama) — Phase 3
 
 **File:** `router/src/agents/local_llm.ts`  
-**Current:** Stub only (42 lines)
+**Status:** ✅ Complete (458 lines, 19 comprehensive tests)
 
-### Requirements
+**Implementation Details:**
 
-- Connect to `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
-- Call `/api/generate` endpoint with model from config
-- Parse streaming response into findings
-- Support models: `codellama:7b`, `deepseek-coder`
+- Full Ollama HTTP API integration (`POST /api/generate`)
+- Input sanitization: secret redaction, 50 file limit, 2000 line limit, 8192 token limit
+- Strict JSON parsing with fail-fast on invalid responses
+- 120-second timeout using `AbortController`
+- Deterministic settings: `temperature=0`, `seed=42`, alphabetical file ordering
+- Graceful degradation: connection refused → empty findings (doesn't block CI)
+- Default endpoint: `http://ollama-sidecar:11434` (OSCR sidecar networking)
+- Supported models: `codellama:7b` (default), `deepseek-coder`, `llama3`
 
-### Implementation Note
+**Test Coverage:** 19 tests in `router/src/__tests__/local_llm.test.ts`
 
-```typescript
-const response = await fetch(`${ollamaUrl}/api/generate`, {
-  method: 'POST',
-  body: JSON.stringify({ model, prompt, stream: false }),
-});
+- Security: GitHub token redaction verification
+- Input bounding: file/line/token limits
+- JSON parsing: strict schema validation, mixed stdout rejection
+- Error handling: timeout, connection refused, invalid responses
+- All tests use mocked HTTP responses (no Docker required for CI)
+
+**Optional Integration Testing (Manual):**
+
+If you want to verify with real Ollama (not required for CI):
+
+```powershell
+# 1. Start Ollama container
+docker run -d --name ollama-test -p 11434:11434 ollama/ollama
+
+# 2. Pull a model
+docker exec ollama-test ollama pull codellama:7b
+
+# 3. Set environment variable
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
+$env:OLLAMA_MODEL = "codellama:7b"
+
+# 4. Run tests or create a test PR
+# The agent will connect to your local Ollama instance
+```
+
+**Configuration:**
+
+```yaml
+# .ai-review.yml
+passes:
+  - name: local-ai
+    enabled: true
+    agents: [local_llm]
+
+# Environment variables
+OLLAMA_BASE_URL=http://ollama-sidecar:11434  # Default for OSCR
+OLLAMA_MODEL=codellama:7b                     # Default model
 ```
 
 ---
+
+## Future Features
 
 ## ADO Reporter
 
@@ -132,7 +172,7 @@ on:
 
 ## Priority Order
 
-1. 🔴 Local LLM (enables offline/private use)
+1. ✅ **Local LLM** (completed in Phase 3 - enables offline/private use)
 2. 🔴 E2E Pilot Deployment (validates production readiness)
 3. 🟡 ADO Reporter (enterprise customers)
 4. 🟡 Azure OpenAI API Version (stability)
