@@ -78,6 +78,17 @@ const ROUTER_ENV_ALLOWLIST = [
   'LC_ALL',
   'TERM',
   'NODE_ENV',
+  // AI API keys - must be in router allowlist to pass through to agents
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AZURE_OPENAI_API_KEY',
+  'AZURE_OPENAI_ENDPOINT',
+  'AZURE_OPENAI_DEPLOYMENT',
+  'OLLAMA_BASE_URL',
+  'OLLAMA_MODEL',
+  'MODEL',
+  'OPENAI_MODEL',
+  'PR_AGENT_API_KEY',
 ];
 
 /**
