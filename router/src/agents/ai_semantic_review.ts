@@ -9,7 +9,8 @@
  */
 
 import OpenAI from 'openai';
-// NOTE: Anthropic SDK will be imported when full Anthropic path is implemented
+import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -56,6 +57,117 @@ interface SemanticFinding {
   category: string;
 }
 
+/**
+ * Zod schema for validating Anthropic JSON response
+ */
+const SemanticResponseSchema = z.object({
+  summary: z.string(),
+  findings: z.array(
+    z.object({
+      severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
+      file: z.string(),
+      line: z.number().optional(),
+      message: z.string(),
+      suggestion: z.string().optional(),
+      category: z.string(),
+    })
+  ),
+});
+
+/**
+ * Run semantic review using Anthropic Claude API
+ */
+async function runWithAnthropic(
+  context: AgentContext,
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  supportedFiles: DiffFile[],
+  estimatedInputTokens: number
+): Promise<AgentResult> {
+  const agentId = 'ai_semantic_review';
+  const startTime = Date.now();
+
+  console.log(`[ai_semantic_review] Calling Anthropic API with model: ${model}`);
+
+  const client = new Anthropic({ apiKey });
+
+  try {
+    const response = await withRetry(() =>
+      client.messages.create({
+        model,
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      })
+    );
+
+    // Extract text content
+    const textContent = response.content.find((c) => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text content in Anthropic response');
+    }
+
+    // Parse and validate JSON
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textContent.text);
+    } catch {
+      throw new Error(`Invalid JSON from Anthropic: ${textContent.text.slice(0, 200)}`);
+    }
+
+    const result = SemanticResponseSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(`Schema validation failed: ${result.error.message}`);
+    }
+
+    const findings: Finding[] = result.data.findings.map((f) => ({
+      severity: mapSeverity(f.severity),
+      file: f.file,
+      line: f.line,
+      message: f.message,
+      suggestion: f.suggestion,
+      ruleId: `semantic/${f.category}`,
+      sourceAgent: agentId,
+    }));
+
+    if (result.data.summary) {
+      console.log(`[ai_semantic_review] Summary: ${result.data.summary}`);
+    }
+
+    const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+    const estimatedCostUsd =
+      response.usage.input_tokens * 0.000015 + response.usage.output_tokens * 0.000075;
+
+    return {
+      agentId,
+      success: true,
+      findings,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: supportedFiles.length,
+        tokensUsed,
+        estimatedCostUsd,
+      },
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return {
+      agentId,
+      success: false,
+      findings: [],
+      error: errorMessage,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: 0,
+        tokensUsed: estimatedInputTokens,
+      },
+    };
+  }
+}
+
 export const aiSemanticReviewAgent: ReviewAgent = {
   id: 'ai_semantic_review',
   name: 'AI Semantic Review',
@@ -75,37 +187,7 @@ export const aiSemanticReviewAgent: ReviewAgent = {
     const { provider, effectiveModel } = context;
     console.log(`[ai_semantic_review] Provider: ${provider}, Model: ${effectiveModel}`);
 
-    // Anthropic path (TODO: full implementation)
-    if (provider === 'anthropic') {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error:
-          'Anthropic support for ai_semantic_review not yet implemented (use OPENAI_API_KEY or Azure for now)',
-        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-      };
-    }
-
-    // Get API keys from agent env (canonical keys only)
-    const apiKey = agentEnv['OPENAI_API_KEY'];
-    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
-    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
-    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
-
-    if (!apiKey && !azureApiKey) {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: 'No API key configured (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
+    // Get files that this agent supports (shared by all providers)
     const supportedFiles = context.files.filter((f) => this.supports(f));
     if (supportedFiles.length === 0) {
       return {
@@ -116,20 +198,7 @@ export const aiSemanticReviewAgent: ReviewAgent = {
       };
     }
 
-    // Initialize OpenAI client
-    let openai: OpenAI;
-    if (azureEndpoint && azureApiKey) {
-      openai = new OpenAI({
-        apiKey: azureApiKey,
-        baseURL: `${azureEndpoint}/openai/deployments/${azureDeployment}`,
-        defaultQuery: { 'api-version': '2024-02-15-preview' },
-        defaultHeaders: { 'api-key': azureApiKey },
-      });
-    } else {
-      openai = new OpenAI({ apiKey });
-    }
-
-    // Load prompt template
+    // Load prompt template (shared by all providers)
     let systemPrompt = `You are a senior code reviewer focused on semantic analysis.
 Analyze the provided diff for:
 - Logic errors and edge cases
@@ -176,6 +245,61 @@ Analyze this code and return JSON:
 }`;
 
     const estimatedInputTokens = estimateTokens(systemPrompt + userPrompt);
+
+    // Switch on provider
+    if (provider === 'anthropic') {
+      const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
+      if (!anthropicKey) {
+        return {
+          agentId: this.id,
+          success: false,
+          findings: [],
+          error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+          metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+        };
+      }
+      return runWithAnthropic(
+        context,
+        anthropicKey,
+        effectiveModel,
+        systemPrompt,
+        userPrompt,
+        supportedFiles,
+        estimatedInputTokens
+      );
+    }
+
+    // OpenAI / Azure OpenAI path
+    const apiKey = agentEnv['OPENAI_API_KEY'];
+    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
+    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
+    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+
+    if (!apiKey && !azureApiKey) {
+      return {
+        agentId: this.id,
+        success: false,
+        findings: [],
+        error: 'No API key configured (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
+        metrics: {
+          durationMs: Date.now() - startTime,
+          filesProcessed: 0,
+        },
+      };
+    }
+
+    // Initialize OpenAI client
+    let openai: OpenAI;
+    if (azureEndpoint && azureApiKey) {
+      openai = new OpenAI({
+        apiKey: azureApiKey,
+        baseURL: `${azureEndpoint}/openai/deployments/${azureDeployment}`,
+        defaultQuery: { 'api-version': '2024-02-15-preview' },
+        defaultHeaders: { 'api-key': azureApiKey },
+      });
+    } else {
+      openai = new OpenAI({ apiKey });
+    }
 
     try {
       const response = await withRetry(() =>
