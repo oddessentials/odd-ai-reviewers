@@ -228,7 +228,9 @@ async function runReview(options: ReviewOptions): Promise<void> {
   }
 
   // Model-provider match validation: fail if model requires unavailable provider
+  // Only runs when cloud AI agents (opencode, pr_agent, ai_semantic_review) are enabled
   const modelProviderCheck = validateModelProviderMatch(
+    config,
     agentContext.effectiveModel,
     process.env as Record<string, string | undefined>
   );

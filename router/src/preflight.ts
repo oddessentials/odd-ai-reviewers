@@ -174,16 +174,36 @@ export function validateModelConfig(
 }
 
 /**
+ * Agents that use MODEL for cloud LLM providers (OpenAI/Anthropic).
+ * local_llm uses OLLAMA_MODEL instead, so it's excluded from model-provider validation.
+ */
+const CLOUD_AI_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semantic_review'];
+
+/**
  * Validate model-provider match based on model name heuristic.
  * Fails if model looks like it requires a specific provider but key is missing.
+ *
+ * ONLY validates when cloud AI agents (opencode, pr_agent, ai_semantic_review) are enabled.
+ * local_llm uses OLLAMA_MODEL, not MODEL, so it's excluded.
  *
  * This is a heuristic, not a contract. Error messages are explicit about the inference.
  */
 export function validateModelProviderMatch(
+  config: Config,
   model: string,
   env: Record<string, string | undefined>
 ): PreflightResult {
   const errors: string[] = [];
+
+  // Only validate if cloud AI agents are enabled
+  const hasCloudAiAgent = config.passes.some(
+    (pass) => pass.enabled && pass.agents.some((a) => CLOUD_AI_AGENTS.includes(a))
+  );
+
+  if (!hasCloudAiAgent) {
+    // No cloud AI agents enabled, skip model-provider validation
+    return { valid: true, errors: [] };
+  }
 
   // Heuristic: infer provider from model prefix
   if (model.startsWith('claude-')) {
@@ -207,27 +227,22 @@ export function validateModelProviderMatch(
 }
 
 /**
- * Validate Ollama configuration when local_llm is enabled AND required.
- * Only fails if local_llm is required but OLLAMA_BASE_URL is not configured.
+ * Validate Ollama configuration when local_llm is enabled.
+ *
+ * NOTE: OLLAMA_BASE_URL is NOT required because local_llm defaults to
+ * http://ollama-sidecar:11434 when unset (see router/src/agents/local_llm.ts).
  * Model availability is a runtime concern, not preflight.
+ *
+ * This function now just validates configuration, not connectivity.
+ * Connectivity failures are handled at runtime by the local_llm agent.
  */
 export function validateOllamaConfig(
-  config: Config,
-  env: Record<string, string | undefined>
+  _config: Config,
+  _env: Record<string, string | undefined>
 ): PreflightResult {
-  const errors: string[] = [];
-
-  // Find passes that include local_llm and are both enabled and required
-  const requiresOllama = config.passes.some(
-    (pass) => pass.enabled && pass.required && pass.agents.includes('local_llm' as AgentId)
-  );
-
-  if (requiresOllama && !env['OLLAMA_BASE_URL']) {
-    errors.push('local_llm agent is enabled and required but OLLAMA_BASE_URL is not configured');
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  // No preflight validation required for Ollama:
+  // - OLLAMA_BASE_URL defaults to http://ollama-sidecar:11434
+  // - OLLAMA_MODEL defaults to codellama:7b
+  // - Connectivity is validated at runtime (fail-closed behavior)
+  return { valid: true, errors: [] };
 }

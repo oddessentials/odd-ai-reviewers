@@ -264,9 +264,32 @@ describe('Model Config Validation', () => {
 });
 
 describe('validateModelProviderMatch', () => {
+  // Helper to create config with cloud AI agents enabled
+  function createCloudAiConfig(): Config {
+    return {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [{ name: 'cloud', agents: ['opencode'], enabled: true, required: true }],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+      },
+      models: {},
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error' },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+  }
+
   describe('Claude models (Anthropic)', () => {
     it('should pass when claude model and ANTHROPIC_API_KEY present', () => {
-      const result = validateModelProviderMatch('claude-sonnet-4-20250514', {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'claude-sonnet-4-20250514', {
         ANTHROPIC_API_KEY: 'sk-ant-test',
       });
       expect(result.valid).toBe(true);
@@ -274,14 +297,18 @@ describe('validateModelProviderMatch', () => {
     });
 
     it('should fail when claude model but ANTHROPIC_API_KEY missing', () => {
-      const result = validateModelProviderMatch('claude-sonnet-4-20250514', {});
+      const result = validateModelProviderMatch(
+        createCloudAiConfig(),
+        'claude-sonnet-4-20250514',
+        {}
+      );
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('claude-');
       expect(result.errors[0]).toContain('ANTHROPIC_API_KEY');
     });
 
     it('should fail when claude-3 model but no Anthropic key', () => {
-      const result = validateModelProviderMatch('claude-3-opus', {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'claude-3-opus', {
         OPENAI_API_KEY: 'sk-openai',
       });
       expect(result.valid).toBe(false);
@@ -291,28 +318,28 @@ describe('validateModelProviderMatch', () => {
 
   describe('GPT models (OpenAI)', () => {
     it('should pass when gpt model and OPENAI_API_KEY present', () => {
-      const result = validateModelProviderMatch('gpt-4o-mini', {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
         OPENAI_API_KEY: 'sk-openai',
       });
       expect(result.valid).toBe(true);
     });
 
     it('should pass when gpt model and AZURE_OPENAI_API_KEY present', () => {
-      const result = validateModelProviderMatch('gpt-4o', {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o', {
         AZURE_OPENAI_API_KEY: 'azure-key',
       });
       expect(result.valid).toBe(true);
     });
 
     it('should fail when gpt model but no OpenAI key', () => {
-      const result = validateModelProviderMatch('gpt-4o-mini', {});
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {});
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('gpt-');
       expect(result.errors[0]).toContain('OPENAI_API_KEY');
     });
 
     it('should fail when o1 model but no OpenAI key', () => {
-      const result = validateModelProviderMatch('o1-preview', {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'o1-preview', {
         ANTHROPIC_API_KEY: 'sk-ant',
       });
       expect(result.valid).toBe(false);
@@ -322,12 +349,12 @@ describe('validateModelProviderMatch', () => {
 
   describe('Unknown models', () => {
     it('should pass for unknown model prefix (no validation)', () => {
-      const result = validateModelProviderMatch('custom-model-v1', {});
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'custom-model-v1', {});
       expect(result.valid).toBe(true);
     });
 
     it('should pass for Ollama-style models (no validation)', () => {
-      const result = validateModelProviderMatch('codellama:7b', {});
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'codellama:7b', {});
       expect(result.valid).toBe(true);
     });
   });
@@ -363,18 +390,18 @@ describe('validateOllamaConfig', () => {
     };
   }
 
+  // NOTE: OLLAMA_BASE_URL is NOT required because local_llm defaults to http://ollama-sidecar:11434
+
   it('should pass when local_llm is required and OLLAMA_BASE_URL is set', () => {
     const config = createOllamaConfig(true, true);
     const result = validateOllamaConfig(config, { OLLAMA_BASE_URL: 'http://ollama:11434' });
     expect(result.valid).toBe(true);
   });
 
-  it('should fail when local_llm is required but OLLAMA_BASE_URL is missing', () => {
+  it('should pass when local_llm is required but OLLAMA_BASE_URL is missing (uses default)', () => {
     const config = createOllamaConfig(true, true);
     const result = validateOllamaConfig(config, {});
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain('local_llm');
-    expect(result.errors[0]).toContain('OLLAMA_BASE_URL');
+    expect(result.valid).toBe(true); // Defaults to http://ollama-sidecar:11434
   });
 
   it('should pass when local_llm is optional (not required) and OLLAMA_BASE_URL is missing', () => {
