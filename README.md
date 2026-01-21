@@ -38,7 +38,7 @@ jobs:
     secrets: inherit
 ```
 
-### 2. Add your configuration (optional)
+### 2. Add your configuration
 
 Create `.ai-review.yml` at your repository root:
 
@@ -51,6 +51,11 @@ passes:
     agents: [semgrep]
   - name: semantic
     agents: [opencode]
+
+# Model configuration (REQUIRED)
+# Must specify either here or via MODEL env var
+models:
+  default: claude-sonnet-4-20250514 # or gpt-4o-mini for OpenAI
 
 limits:
   max_usd_per_pr: 1.00
@@ -66,11 +71,14 @@ reporting:
 
 Add these secrets to your repository or organization:
 
-| Secret              | Required              | Description       |
-| ------------------- | --------------------- | ----------------- |
-| `OPENAI_API_KEY`    | For OpenCode/PR-Agent | OpenAI API key    |
-| `ANTHROPIC_API_KEY` | For OpenCode (Claude) | Anthropic API key |
-| `OLLAMA_BASE_URL`   | For local LLM         | Ollama server URL |
+| Secret              | When Required                       | Description                                   |
+| ------------------- | ----------------------------------- | --------------------------------------------- |
+| `MODEL`             | Always (or set `models.default`)    | Model name (e.g., `claude-sonnet-4-20250514`) |
+| `ANTHROPIC_API_KEY` | When using `claude-*` models        | Anthropic API key                             |
+| `OPENAI_API_KEY`    | When using `gpt-*` or `o1-*` models | OpenAI API key                                |
+| `OLLAMA_BASE_URL`   | When `local_llm` is required        | Ollama server URL                             |
+
+> **⚠️ Model-Provider Match**: The router validates that your model matches your API key. Using a `claude-*` model without `ANTHROPIC_API_KEY` will fail preflight.
 
 ## How It Works
 
@@ -78,19 +86,21 @@ Add these secrets to your repository or organization:
 graph LR
     A[PR Opened] --> B[AI Review Workflow]
     B --> C[Trust Check]
-    C --> D[Budget Check]
-    D --> E[Static Pass]
-    E --> F[Semantic Pass]
-    F --> G[Report Findings]
-    G --> H[PR Comments & Checks]
+    C --> D[Preflight Validation]
+    D --> E[Budget Check]
+    E --> F[Static Pass]
+    F --> G[Semantic Pass]
+    G --> H[Report Findings]
+    H --> I[PR Comments & Checks]
 ```
 
 1. **Trigger**: PR is opened or updated
 2. **Trust Check**: Fork PRs are blocked by default
-3. **Budget Check**: Limits on files, lines, tokens, and cost
-4. **Static Pass**: Free tools like Semgrep run first
-5. **Semantic Pass**: AI agents analyze the diff (if within budget)
-6. **Report**: Findings posted as comments and check annotations
+3. **Preflight**: Validates model config and API keys match
+4. **Budget Check**: Limits on files, lines, tokens, and cost
+5. **Static Pass**: Free tools like Semgrep run first
+6. **Semantic Pass**: AI agents analyze the diff (if within budget)
+7. **Report**: Findings posted as comments and check annotations
 
 ## Available Agents
 
