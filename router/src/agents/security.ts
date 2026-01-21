@@ -36,27 +36,26 @@ const COMMON_AGENT_ENV_ALLOWLIST = [
 const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
   semgrep: [],
   reviewdog: [],
-  opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENCODE_MODEL', 'MODEL'],
+  opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'MODEL'],
   pr_agent: [
     'OPENAI_API_KEY',
-    'PR_AGENT_API_KEY',
-    'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT',
-    'OPENAI_MODEL',
+    'MODEL',
   ],
   ai_semantic_review: [
     'OPENAI_API_KEY',
-    'AI_SEMANTIC_REVIEW_API_KEY',
-    'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT',
-    'OPENAI_MODEL',
+    'MODEL',
   ],
   local_llm: ['OLLAMA_BASE_URL', 'OLLAMA_MODEL', 'LOCAL_LLM_OPTIONAL'],
 };
 
 const ROUTER_ENV_ALLOWLIST = [
+  // GitHub CI context (router-only, NOT passed to agents)
   'GITHUB_TOKEN',
   'GITHUB_ACTOR',
   'GITHUB_HEAD_REPO',
@@ -69,6 +68,7 @@ const ROUTER_ENV_ALLOWLIST = [
   'GITHUB_WORKSPACE',
   'GITHUB_ACTIONS',
   'CI',
+  // System
   'PATH',
   'HOME',
   'TMPDIR',
@@ -78,6 +78,16 @@ const ROUTER_ENV_ALLOWLIST = [
   'LC_ALL',
   'TERM',
   'NODE_ENV',
+  // AI Provider Keys (canonical only)
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AZURE_OPENAI_API_KEY',
+  'AZURE_OPENAI_ENDPOINT',
+  'AZURE_OPENAI_DEPLOYMENT',
+  'OLLAMA_BASE_URL',
+  'OLLAMA_MODEL',
+  // Model selection (canonical)
+  'MODEL',
 ];
 
 /**

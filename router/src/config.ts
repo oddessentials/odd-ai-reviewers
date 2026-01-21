@@ -59,6 +59,15 @@ const PathFiltersSchema = z.object({
   exclude: z.array(z.string()).optional(),
 });
 
+/**
+ * Model configuration.
+ * Centralized model defaults to avoid hardcoded magic strings in agents.
+ */
+const ModelsSchema = z.object({
+  /** Default model for AI agents when MODEL env var is not set */
+  default: z.string().default('gpt-4o-mini'),
+});
+
 export const ConfigSchema = z.object({
   version: z.number().default(1),
   trusted_only: z.boolean().default(true),
@@ -70,6 +79,7 @@ export const ConfigSchema = z.object({
     { name: 'static', agents: ['semgrep'], enabled: true, required: true },
   ]),
   limits: LimitsSchema.default({}),
+  models: ModelsSchema.default({}),
   reporting: ReportingSchema.default({}),
   gating: GatingSchema.default({}),
   path_filters: PathFiltersSchema.optional(),
@@ -78,7 +88,35 @@ export const ConfigSchema = z.object({
 export type Config = z.infer<typeof ConfigSchema>;
 export type Pass = z.infer<typeof PassSchema>;
 export type Limits = z.infer<typeof LimitsSchema>;
+export type Models = z.infer<typeof ModelsSchema>;
 export type AgentId = z.infer<typeof AgentSchema>;
+
+/**
+ * Resolve effective model using precedence order:
+ * 1. MODEL env var (user override)
+ * 2. config.models.default (repo config)
+ * 3. Hardcoded fallback ('gpt-4o-mini')
+ *
+ * INVARIANT: Router owns model resolution. Agents receive the resolved model.
+ */
+export function resolveEffectiveModel(
+  config: Config,
+  env: Record<string, string | undefined>
+): string {
+  // 1. MODEL env var takes precedence (explicit user override)
+  const envModel = env['MODEL'];
+  if (envModel && envModel.trim() !== '') {
+    return envModel;
+  }
+
+  // 2. Config default (repo-level setting)
+  if (config.models.default) {
+    return config.models.default;
+  }
+
+  // 3. Final fallback (should never reach here due to zod defaults)
+  return 'gpt-4o-mini';
+}
 
 const CONFIG_FILENAME = '.ai-review.yml';
 const DEFAULTS_PATH = join(import.meta.dirname, '../../config/defaults.ai-review.yml');

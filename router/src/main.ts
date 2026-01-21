@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { loadConfig } from './config.js';
+import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
 import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
@@ -194,6 +194,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     diffContent,
     prNumber: options.pr,
     env: routerEnv,
+    effectiveModel: resolveEffectiveModel(config, routerEnv),
   };
 
   // Preflight validation: ensure required secrets are configured for enabled agents

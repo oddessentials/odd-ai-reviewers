@@ -18,6 +18,7 @@ const baseConfig: Config = {
     max_usd_per_pr: 1.0,
     monthly_budget_usd: 100,
   },
+  models: { default: 'gpt-4o-mini' },
   reporting: {},
   gating: { enabled: false, fail_on_severity: 'error' },
 };

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ConfigSchema, getEnabledAgents, type Config } from '../config.js';
+import { ConfigSchema, getEnabledAgents, resolveEffectiveModel, type Config } from '../config.js';
 
 describe('ConfigSchema', () => {
   it('should parse valid config with all fields', () => {
@@ -161,6 +161,7 @@ describe('getEnabledAgents', () => {
       max_usd_per_pr: 1.0,
       monthly_budget_usd: 100,
     },
+    models: { default: 'gpt-4o-mini' },
     reporting: {},
     gating: { enabled: false, fail_on_severity: 'error' },
   };
@@ -176,5 +177,63 @@ describe('getEnabledAgents', () => {
 
   it('should return empty array for non-existent pass', () => {
     expect(getEnabledAgents(config, 'nonexistent')).toEqual([]);
+  });
+});
+
+describe('Model Configuration', () => {
+  it('should have models.default in parsed config', () => {
+    const input = {};
+    const result = ConfigSchema.safeParse(input);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.models).toBeDefined();
+      expect(result.data.models.default).toBe('gpt-4o-mini');
+    }
+  });
+
+  it('should allow custom models.default', () => {
+    const input = {
+      models: { default: 'gpt-4-turbo' },
+    };
+    const result = ConfigSchema.safeParse(input);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.models.default).toBe('gpt-4-turbo');
+    }
+  });
+});
+
+describe('resolveEffectiveModel', () => {
+  const baseConfig = ConfigSchema.parse({});
+
+  it('uses config.models.default when MODEL env not set', () => {
+    const config = ConfigSchema.parse({ models: { default: 'custom-model' } });
+    const env = {};
+    expect(resolveEffectiveModel(config, env)).toBe('custom-model');
+  });
+
+  it('MODEL env var overrides config.models.default', () => {
+    const config = ConfigSchema.parse({ models: { default: 'config-model' } });
+    const env = { MODEL: 'env-override-model' };
+    expect(resolveEffectiveModel(config, env)).toBe('env-override-model');
+  });
+
+  it('returns hardcoded fallback when neither env nor config set', () => {
+    // With zod defaults, config.models.default is always 'gpt-4o-mini'
+    expect(resolveEffectiveModel(baseConfig, {})).toBe('gpt-4o-mini');
+  });
+
+  it('ignores empty string MODEL env var', () => {
+    const config = ConfigSchema.parse({ models: { default: 'config-model' } });
+    const env = { MODEL: '' };
+    expect(resolveEffectiveModel(config, env)).toBe('config-model');
+  });
+
+  it('ignores whitespace-only MODEL env var', () => {
+    const config = ConfigSchema.parse({ models: { default: 'config-model' } });
+    const env = { MODEL: '   ' };
+    expect(resolveEffectiveModel(config, env)).toBe('config-model');
   });
 });

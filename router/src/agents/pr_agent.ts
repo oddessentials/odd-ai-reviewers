@@ -71,7 +71,7 @@ export const prAgentAgent: ReviewAgent = {
     const agentEnv = buildAgentEnv('pr_agent', context.env);
 
     // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = agentEnv['OPENAI_API_KEY'] || agentEnv['PR_AGENT_API_KEY'];
+    const apiKey = agentEnv['OPENAI_API_KEY'];
     const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
     const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
     const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
@@ -81,8 +81,7 @@ export const prAgentAgent: ReviewAgent = {
         agentId: this.id,
         success: false,
         findings: [],
-        error:
-          'No API key configured for PR-Agent (set OPENAI_API_KEY, PR_AGENT_API_KEY, or AZURE_OPENAI_API_KEY)',
+        error: 'No API key configured for PR-Agent (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
@@ -164,7 +163,7 @@ Analyze this pull request and provide your review as a JSON object with the foll
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: agentEnv['OPENAI_MODEL'] || 'gpt-4o-mini',
+          model: context.effectiveModel || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
