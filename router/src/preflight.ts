@@ -47,12 +47,12 @@ const AGENT_SECRET_REQUIREMENTS: Record<string, { oneOf?: string[]; required?: s
     oneOf: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
   },
   pr_agent: {
-    // PR-Agent requires OpenAI or Azure OpenAI
-    oneOf: ['OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY'],
+    // PR-Agent requires OpenAI, Azure OpenAI, or Anthropic
+    oneOf: ['OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
   },
   ai_semantic_review: {
-    // Similar to PR-Agent
-    oneOf: ['OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY'],
+    // Requires OpenAI, Azure OpenAI, or Anthropic
+    oneOf: ['OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
   },
   local_llm: {
     // local_llm uses OLLAMA_BASE_URL but it's a URL, not a secret
@@ -137,6 +137,33 @@ export function validateAgentSecrets(
           `Agent '${agentId}' is enabled but missing required secret(s): ${missing.join(', ')}`
         );
       }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate model configuration.
+ * Fails if effectiveModel is empty (no MODEL env var and no config.models.default).
+ *
+ * INVARIANT: Router owns model resolution. No hardcoded fallbacks.
+ */
+export function validateModelConfig(
+  effectiveModel: string,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  if (!effectiveModel || effectiveModel.trim() === '') {
+    const hasModelEnv = env['MODEL'] && env['MODEL'].trim() !== '';
+    if (!hasModelEnv) {
+      errors.push(
+        'No model configured. Set the MODEL environment variable or configure models.default in .ai-review.yml'
+      );
     }
   }
 

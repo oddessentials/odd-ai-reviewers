@@ -95,10 +95,16 @@ export interface AgentContext {
   env: Record<string, string | undefined>;
   /**
    * Effective model resolved by router.
-   * Precedence: MODEL env > config.models.default > fallback
-   * INVARIANT: Agents should use this, not resolve model themselves.
+   * Precedence: MODEL env > config.models.default
+   * INVARIANT: Agents MUST use this. No per-agent defaults.
    */
-  effectiveModel?: string;
+  effectiveModel: string;
+  /**
+   * Provider resolved by router.
+   * INVARIANT: Anthropic wins if key present and agent supports it.
+   * Agents switch on this, never guess provider themselves.
+   */
+  provider: 'anthropic' | 'openai' | 'azure-openai' | 'ollama' | null;
 }
 
 /**

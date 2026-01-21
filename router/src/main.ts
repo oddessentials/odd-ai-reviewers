@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { loadConfig, resolveEffectiveModel } from './config.js';
+import { loadConfig, resolveEffectiveModel, resolveProvider } from './config.js';
 import { checkTrust, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
 import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
@@ -24,7 +24,7 @@ import {
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 import { getCached, setCache } from './cache/store.js';
 import { generateCacheKey, hashConfig } from './cache/key.js';
-import { validateAgentSecrets } from './preflight.js';
+import { validateAgentSecrets, validateModelConfig } from './preflight.js';
 import { isMainBranchPush, isAgentForbiddenOnMain } from './policy.js';
 
 const program = new Command();
@@ -195,6 +195,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     prNumber: options.pr,
     env: routerEnv,
     effectiveModel: resolveEffectiveModel(config, routerEnv),
+    provider: null, // Resolved per-agent below
   };
 
   // Preflight validation: ensure required secrets are configured for enabled agents
@@ -203,6 +204,19 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (!preflight.valid) {
     console.error('[router] ❌ Preflight validation failed:');
     for (const error of preflight.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Model config validation: fail if no model is configured
+  const modelValidation = validateModelConfig(
+    agentContext.effectiveModel,
+    process.env as Record<string, string | undefined>
+  );
+  if (!modelValidation.valid) {
+    console.error('[router] ❌ Model configuration validation failed:');
+    for (const error of modelValidation.errors) {
       console.error(`[router]   - ${error}`);
     }
     process.exit(1);
@@ -257,6 +271,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
         const scopedContext: AgentContext = {
           ...agentContext,
           env: buildAgentEnv(agent.id, routerEnv),
+          provider: resolveProvider(agent.id as Parameters<typeof resolveProvider>[0], routerEnv),
         };
 
         let result: AgentResult | null = null;

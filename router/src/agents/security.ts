@@ -39,6 +39,7 @@ const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
   opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'MODEL'],
   pr_agent: [
     'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
     'AZURE_OPENAI_API_KEY',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT',
@@ -46,6 +47,7 @@ const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
   ],
   ai_semantic_review: [
     'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
     'AZURE_OPENAI_API_KEY',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT',

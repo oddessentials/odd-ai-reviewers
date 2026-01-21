@@ -2,6 +2,9 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+// NOTE: Anthropic SDK will be imported when full Anthropic path is implemented
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
@@ -38,7 +41,7 @@ const SUPPORTED_EXTENSIONS = [
 const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/pr_agent_review.md');
 
 /**
- * Response structure from OpenAI
+ * Response structure from LLM
  */
 interface PRAgentResponse {
   summary: string;
@@ -53,6 +56,119 @@ interface PRAgentFinding {
   line?: number;
   message: string;
   suggestion?: string;
+}
+
+/**
+ * Zod schema for validating Anthropic JSON response
+ */
+const PRAgentResponseSchema = z.object({
+  summary: z.string(),
+  type: z.enum(['feature', 'bugfix', 'refactor', 'docs', 'test', 'chore']),
+  findings: z.array(
+    z.object({
+      severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
+      file: z.string(),
+      line: z.number().optional(),
+      message: z.string(),
+      suggestion: z.string().optional(),
+    })
+  ),
+  overall_assessment: z.enum(['approve', 'comment', 'request_changes']),
+});
+
+/**
+ * Run PR review using Anthropic Claude API
+ */
+async function runWithAnthropic(
+  context: AgentContext,
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  supportedFiles: DiffFile[],
+  estimatedInputTokens: number
+): Promise<AgentResult> {
+  const agentId = 'pr_agent';
+  const startTime = Date.now();
+
+  console.log(`[pr_agent] Calling Anthropic API with model: ${model}`);
+
+  const client = new Anthropic({ apiKey });
+
+  try {
+    const response = await withRetry(() =>
+      client.messages.create({
+        model,
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      })
+    );
+
+    // Extract text content
+    const textContent = response.content.find((c) => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text content in Anthropic response');
+    }
+
+    // Parse and validate JSON
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textContent.text);
+    } catch {
+      throw new Error(`Invalid JSON from Anthropic: ${textContent.text.slice(0, 200)}`);
+    }
+
+    const result = PRAgentResponseSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(`Schema validation failed: ${result.error.message}`);
+    }
+
+    const findings: Finding[] = result.data.findings.map((f) => ({
+      severity: mapSeverity(f.severity),
+      file: f.file,
+      line: f.line,
+      message: f.message,
+      suggestion: f.suggestion,
+      ruleId: `pr_agent/${result.data.type}`,
+      sourceAgent: agentId,
+    }));
+
+    if (result.data.summary) {
+      console.log(`[pr_agent] Summary: ${result.data.summary}`);
+      console.log(`[pr_agent] Assessment: ${result.data.overall_assessment}`);
+    }
+
+    const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+    const estimatedCostUsd =
+      response.usage.input_tokens * 0.000015 + response.usage.output_tokens * 0.000075;
+
+    return {
+      agentId,
+      success: true,
+      findings,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: supportedFiles.length,
+        tokensUsed,
+        estimatedCostUsd,
+      },
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return {
+      agentId,
+      success: false,
+      findings: [],
+      error: errorMessage,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: 0,
+        tokensUsed: estimatedInputTokens,
+      },
+    };
+  }
 }
 
 export const prAgentAgent: ReviewAgent = {
@@ -70,26 +186,11 @@ export const prAgentAgent: ReviewAgent = {
 
     const agentEnv = buildAgentEnv('pr_agent', context.env);
 
-    // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = agentEnv['OPENAI_API_KEY'];
-    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
-    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
-    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+    // Use router-resolved provider and model
+    const { provider, effectiveModel } = context;
+    console.log(`[pr_agent] Provider: ${provider}, Model: ${effectiveModel}`);
 
-    if (!apiKey && !azureApiKey) {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: 'No API key configured for PR-Agent (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
-        metrics: {
-          durationMs: Date.now() - startTime,
-          filesProcessed: 0,
-        },
-      };
-    }
-
-    // Get files that PR-Agent supports
+    // Get files that PR-Agent supports (shared by all providers)
     const supportedFiles = context.files.filter((f) => this.supports(f));
 
     if (supportedFiles.length === 0) {
@@ -104,22 +205,7 @@ export const prAgentAgent: ReviewAgent = {
       };
     }
 
-    // Initialize OpenAI client
-    let openai: OpenAI;
-    if (azureEndpoint && azureApiKey) {
-      // Azure OpenAI
-      openai = new OpenAI({
-        apiKey: azureApiKey,
-        baseURL: `${azureEndpoint}/openai/deployments/${azureDeployment}`,
-        defaultQuery: { 'api-version': '2024-02-15-preview' },
-        defaultHeaders: { 'api-key': azureApiKey },
-      });
-    } else {
-      // Standard OpenAI
-      openai = new OpenAI({ apiKey });
-    }
-
-    // Load prompt template
+    // Load prompt template (shared by all providers)
     let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response.`;
     if (existsSync(PROMPT_PATH)) {
       try {
@@ -160,10 +246,65 @@ Analyze this pull request and provide your review as a JSON object with the foll
 
     const estimatedInputTokens = estimateTokens(systemPrompt + userPrompt);
 
+    // Switch on provider
+    if (provider === 'anthropic') {
+      const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
+      if (!anthropicKey) {
+        return {
+          agentId: this.id,
+          success: false,
+          findings: [],
+          error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+          metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+        };
+      }
+      return runWithAnthropic(
+        context,
+        anthropicKey,
+        effectiveModel,
+        systemPrompt,
+        userPrompt,
+        supportedFiles,
+        estimatedInputTokens
+      );
+    }
+
+    // OpenAI / Azure OpenAI path
+    const apiKey = agentEnv['OPENAI_API_KEY'];
+    const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
+    const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
+    const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
+
+    if (!apiKey && !azureApiKey) {
+      return {
+        agentId: this.id,
+        success: false,
+        findings: [],
+        error: 'No API key configured for PR-Agent (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
+        metrics: {
+          durationMs: Date.now() - startTime,
+          filesProcessed: 0,
+        },
+      };
+    }
+
+    // Initialize OpenAI client
+    let openai: OpenAI;
+    if (azureEndpoint && azureApiKey) {
+      openai = new OpenAI({
+        apiKey: azureApiKey,
+        baseURL: `${azureEndpoint}/openai/deployments/${azureDeployment}`,
+        defaultQuery: { 'api-version': '2024-02-15-preview' },
+        defaultHeaders: { 'api-key': azureApiKey },
+      });
+    } else {
+      openai = new OpenAI({ apiKey });
+    }
+
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: context.effectiveModel || 'gpt-4o-mini',
+          model: effectiveModel,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
