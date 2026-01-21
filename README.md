@@ -94,6 +94,8 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 
 ## Documentation
 
+📖 **[Browse Documentation Online](https://oddessentials.github.io/odd-ai-reviewers/)**
+
 ### Using with GitHub
 
 - [GitHub Setup Guide](docs/GITHUB-SETUP.md) — Complete setup instructions
