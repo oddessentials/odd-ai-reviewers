@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import OpenAI from 'openai';
+// NOTE: Anthropic SDK will be imported when full Anthropic path is implemented
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
@@ -70,12 +71,29 @@ export const prAgentAgent: ReviewAgent = {
 
     const agentEnv = buildAgentEnv('pr_agent', context.env);
 
-    // Check for API key (support both OpenAI and Azure OpenAI)
+    // Use router-resolved provider and model
+    const { provider, effectiveModel } = context;
+    console.log(`[pr_agent] Provider: ${provider}, Model: ${effectiveModel}`);
+
+    // Anthropic path (TODO: full implementation)
+    if (provider === 'anthropic') {
+      return {
+        agentId: this.id,
+        success: false,
+        findings: [],
+        error:
+          'Anthropic support for pr_agent not yet implemented (use OPENAI_API_KEY or Azure for now)',
+        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+      };
+    }
+
+    // Get API keys from agent env
     const apiKey = agentEnv['OPENAI_API_KEY'];
     const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
     const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
     const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
+    // Should not reach here if preflight is working correctly
     if (!apiKey && !azureApiKey) {
       return {
         agentId: this.id,

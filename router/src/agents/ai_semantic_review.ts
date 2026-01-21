@@ -1,13 +1,15 @@
 /**
  * AI Semantic Review Agent
- * Direct OpenAI SDK integration for semantic code review
+ * Multi-provider AI semantic code review
  *
- * This agent uses the OpenAI API directly (like pr_agent) rather than
- * a fictional third-party API. It's designed for semantic analysis
- * of code changes beyond what static analyzers can detect.
+ * INVARIANTS:
+ * - Router owns provider/model resolution
+ * - Agent receives context.provider and context.effectiveModel
+ * - No per-agent defaults, no legacy key references
  */
 
 import OpenAI from 'openai';
+// NOTE: Anthropic SDK will be imported when full Anthropic path is implemented
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -69,8 +71,24 @@ export const aiSemanticReviewAgent: ReviewAgent = {
 
     const agentEnv = buildAgentEnv('ai_semantic_review', context.env);
 
-    // Check for API key (support both OpenAI and Azure OpenAI)
-    const apiKey = agentEnv['OPENAI_API_KEY'] || agentEnv['AI_SEMANTIC_REVIEW_API_KEY'];
+    // Use router-resolved provider and model
+    const { provider, effectiveModel } = context;
+    console.log(`[ai_semantic_review] Provider: ${provider}, Model: ${effectiveModel}`);
+
+    // Anthropic path (TODO: full implementation)
+    if (provider === 'anthropic') {
+      return {
+        agentId: this.id,
+        success: false,
+        findings: [],
+        error:
+          'Anthropic support for ai_semantic_review not yet implemented (use OPENAI_API_KEY or Azure for now)',
+        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+      };
+    }
+
+    // Get API keys from agent env (canonical keys only)
+    const apiKey = agentEnv['OPENAI_API_KEY'];
     const azureEndpoint = agentEnv['AZURE_OPENAI_ENDPOINT'];
     const azureApiKey = agentEnv['AZURE_OPENAI_API_KEY'];
     const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
@@ -162,7 +180,7 @@ Analyze this code and return JSON:
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: context.effectiveModel || 'gpt-4o-mini',
+          model: effectiveModel,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
