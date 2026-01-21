@@ -37,9 +37,38 @@ jobs:
         run: npm run build
 
       - name: Test
-        run: npm run test
+        run: npm run test:ci
         env:
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
+
+      - name: Generate test badge data
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          PASSED=$(jq '.numPassedTests' router/test-results.json)
+          SKIPPED=$(jq '.numPendingTests' router/test-results.json)
+          FAILED=$(jq '.numFailedTests' router/test-results.json)
+
+          if [ "$FAILED" -gt 0 ]; then
+            COLOR="red"
+            MESSAGE="${PASSED} passed, ${FAILED} failed"
+          elif [ "$SKIPPED" -gt 0 ]; then
+            COLOR="green"
+            MESSAGE="${PASSED} passed, ${SKIPPED} skipped"
+          else
+            COLOR="brightgreen"
+            MESSAGE="${PASSED} passed"
+          fi
+
+          echo "{\"schemaVersion\":1,\"label\":\"tests\",\"message\":\"$MESSAGE\",\"color\":\"$COLOR\"}" > .github/badges/tests.json
+
+      - name: Update badge Gist
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.GIST_TOKEN }}
+          gist_id: ${{ vars.TEST_BADGE_GIST_ID }}
+          file_path: .github/badges/tests.json
+          file_type: text
 
   container-security:
     name: Container Security Scan

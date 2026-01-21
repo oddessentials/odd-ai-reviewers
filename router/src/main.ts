@@ -24,7 +24,12 @@ import {
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 import { getCached, setCache } from './cache/store.js';
 import { generateCacheKey, hashConfig } from './cache/key.js';
-import { validateAgentSecrets, validateModelConfig } from './preflight.js';
+import {
+  validateAgentSecrets,
+  validateModelConfig,
+  validateModelProviderMatch,
+  validateOllamaConfig,
+} from './preflight.js';
 import { isMainBranchPush, isAgentForbiddenOnMain } from './policy.js';
 
 const program = new Command();
@@ -217,6 +222,34 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (!modelValidation.valid) {
     console.error('[router] ❌ Model configuration validation failed:');
     for (const error of modelValidation.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Model-provider match validation: fail if model requires unavailable provider
+  // Only runs when cloud AI agents (opencode, pr_agent, ai_semantic_review) are enabled
+  const modelProviderCheck = validateModelProviderMatch(
+    config,
+    agentContext.effectiveModel,
+    process.env as Record<string, string | undefined>
+  );
+  if (!modelProviderCheck.valid) {
+    console.error('[router] ❌ Model-provider mismatch:');
+    for (const error of modelProviderCheck.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Ollama config validation: fail if local_llm required but OLLAMA_BASE_URL missing
+  const ollamaCheck = validateOllamaConfig(
+    config,
+    process.env as Record<string, string | undefined>
+  );
+  if (!ollamaCheck.valid) {
+    console.error('[router] ❌ Ollama configuration missing:');
+    for (const error of ollamaCheck.errors) {
       console.error(`[router]   - ${error}`);
     }
     process.exit(1);

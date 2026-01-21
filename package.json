@@ -10,6 +10,7 @@
   "scripts": {
     "build": "npm run build --workspace=router",
     "test": "npm run test --workspace=router",
+    "test:ci": "npm run test:ci --workspace=router",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

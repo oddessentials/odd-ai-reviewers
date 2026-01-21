@@ -6,11 +6,11 @@ The `local_llm` agent uses Ollama for air-gapped, local AI code review. This gui
 
 ## Configuration
 
-### Required Environment Variables
+### Environment Variables
 
 | Variable             | Required | Default                       | Description                 |
 | -------------------- | -------- | ----------------------------- | --------------------------- |
-| `OLLAMA_BASE_URL`    | Yes      | `http://ollama-sidecar:11434` | Ollama API endpoint         |
+| `OLLAMA_BASE_URL`    | No       | `http://ollama-sidecar:11434` | Ollama API endpoint         |
 | `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use for review     |
 | `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation |
 

@@ -27,5 +27,8 @@ npm-debug.log*
 # Test coverage
 coverage/
 
+# Test results (CI artifact)
+test-results.json
+
 # Docker
 .docker/

@@ -19,16 +19,64 @@ flowchart TD
     D --> E[Filter Files]
     E --> F[Budget Check]
     F --> G[Preflight Validation]
-    G -->|Missing Secrets| Y[Fail Fast]
-    G -->|Valid| H[Start GitHub Check 'in_progress']
-    H --> I[Execute Passes]
-    I --> J[Collect All Findings]
-    J --> K[Deduplicate by fingerprint + file + line]
-    K --> L[Sort by Severity]
-    L --> M[Generate Summary Markdown]
-    M --> N[Report to GitHub]
-    N --> O[Update Check to 'completed']
+    G -->|Missing Secrets| Y1[Fail Fast]
+    G --> H[Model Config Validation]
+    H -->|No Model| Y2[Fail: MODEL env or config.models.default required]
+    H --> I[Model-Provider Match]
+    I -->|claude-* without ANTHROPIC_KEY| Y3[Fail: Key Missing]
+    I -->|gpt-* without OPENAI_KEY| Y3
+    I -->|Valid| J[Ollama Config Check]
+    J -->|local_llm required, no OLLAMA_BASE_URL| Y4[Fail: OLLAMA_BASE_URL required]
+    J -->|Valid| K[Start GitHub Check 'in_progress']
+    K --> L[Execute Passes]
+    L --> M[Collect All Findings]
+    M --> N[Deduplicate by fingerprint + file + line]
+    N --> O[Sort by Severity]
+    O --> P[Generate Summary Markdown]
+    P --> Q[Report to GitHub]
+    Q --> R[Update Check to 'completed']
 ```
+
+---
+
+## Preflight Validation Detail
+
+Preflight validation runs **before any agent execution**, catching misconfigurations early.
+
+```mermaid
+flowchart TD
+    subgraph Preflight Checks
+        A[Agent Secrets] -->|"opencode needs OPENAI or ANTHROPIC"| Check1{Keys Present?}
+        Check1 -->|No| Fail1[❌ Missing required secrets]
+        Check1 -->|Yes| B[Model Config]
+
+        B -->|"MODEL env or config.models.default"| Check2{Model Set?}
+        Check2 -->|No| Fail2[❌ No model configured]
+        Check2 -->|Yes| C[Model-Provider Match]
+
+        C -->|"Only if cloud AI agents enabled"| Check3{Key Matches Model?}
+        Check3 -->|"claude-* without ANTHROPIC_KEY"| Fail3[❌ Model-provider mismatch]
+        Check3 -->|"gpt-* without OPENAI_KEY"| Fail3
+        Check3 -->|local_llm only| Skip[⏭️ Skip - uses OLLAMA_MODEL]
+        Check3 -->|Valid| Pass[✅ Preflight passed]
+    end
+```
+
+### Model-Provider Heuristic
+
+The router infers provider from model name **as a heuristic** (not a contract).
+
+**Scoping**: This validation only runs when cloud AI agents (`opencode`, `pr_agent`, `ai_semantic_review`) are enabled. If only `local_llm` is enabled, it's skipped entirely because `local_llm` uses `OLLAMA_MODEL`, not `MODEL`.
+
+| Model Prefix    | Inferred Provider | Required Key                               |
+| --------------- | ----------------- | ------------------------------------------ |
+| `claude-*`      | Anthropic         | `ANTHROPIC_API_KEY`                        |
+| `gpt-*`, `o1-*` | OpenAI            | `OPENAI_API_KEY` or `AZURE_OPENAI_API_KEY` |
+| Unknown         | No validation     | Any available key                          |
+
+### Ollama Configuration
+
+`OLLAMA_BASE_URL` is **not required** at preflight. The `local_llm` agent defaults to `http://ollama-sidecar:11434` when unset. Connectivity failures are handled at runtime (fail-closed by default, or graceful if `LOCAL_LLM_OPTIONAL=true`).
 
 ---
 

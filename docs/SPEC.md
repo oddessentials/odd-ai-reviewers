@@ -434,7 +434,7 @@ Current state: Stub only.
 
 1. **Ollama integration**:
 
-   - Use `OLLAMA_BASE_URL` environment variable (default: `http://localhost:11434`)
+   - Use `OLLAMA_BASE_URL` environment variable (default: `http://ollama-sidecar:11434`)
    - Call `/api/generate` endpoint
    - Model selection via config (e.g., `codellama:7b`)
 
