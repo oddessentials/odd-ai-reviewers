@@ -76,7 +76,7 @@ Add these secrets to your repository or organization:
 | `MODEL`             | Always (or set `models.default`)    | Model name (e.g., `claude-sonnet-4-20250514`) |
 | `ANTHROPIC_API_KEY` | When using `claude-*` models        | Anthropic API key                             |
 | `OPENAI_API_KEY`    | When using `gpt-*` or `o1-*` models | OpenAI API key                                |
-| `OLLAMA_BASE_URL`   | When `local_llm` is required        | Ollama server URL                             |
+| `OLLAMA_BASE_URL`   | Optional (defaults to sidecar)      | Ollama server URL                             |
 
 > **⚠️ Model-Provider Match**: The router validates that your model matches your API key. Using a `claude-*` model without `ANTHROPIC_API_KEY` will fail preflight.
 

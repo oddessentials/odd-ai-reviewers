@@ -54,26 +54,29 @@ flowchart TD
         Check2 -->|No| Fail2[❌ No model configured]
         Check2 -->|Yes| C[Model-Provider Match]
 
-        C -->|"claude-* = Anthropic, gpt-* = OpenAI"| Check3{Key Matches Model?}
+        C -->|"Only if cloud AI agents enabled"| Check3{Key Matches Model?}
         Check3 -->|"claude-* without ANTHROPIC_KEY"| Fail3[❌ Model-provider mismatch]
         Check3 -->|"gpt-* without OPENAI_KEY"| Fail3
-        Check3 -->|Valid| D[Ollama Config]
-
-        D -->|"local_llm required?"| Check4{OLLAMA_BASE_URL?}
-        Check4 -->|Required but missing| Fail4[❌ OLLAMA_BASE_URL required]
-        Check4 -->|Optional or present| Pass[✅ Preflight passed]
+        Check3 -->|local_llm only| Skip[⏭️ Skip - uses OLLAMA_MODEL]
+        Check3 -->|Valid| Pass[✅ Preflight passed]
     end
 ```
 
 ### Model-Provider Heuristic
 
-The router infers provider from model name **as a heuristic** (not a contract):
+The router infers provider from model name **as a heuristic** (not a contract).
+
+**Scoping**: This validation only runs when cloud AI agents (`opencode`, `pr_agent`, `ai_semantic_review`) are enabled. If only `local_llm` is enabled, it's skipped entirely because `local_llm` uses `OLLAMA_MODEL`, not `MODEL`.
 
 | Model Prefix    | Inferred Provider | Required Key                               |
 | --------------- | ----------------- | ------------------------------------------ |
 | `claude-*`      | Anthropic         | `ANTHROPIC_API_KEY`                        |
 | `gpt-*`, `o1-*` | OpenAI            | `OPENAI_API_KEY` or `AZURE_OPENAI_API_KEY` |
 | Unknown         | No validation     | Any available key                          |
+
+### Ollama Configuration
+
+`OLLAMA_BASE_URL` is **not required** at preflight. The `local_llm` agent defaults to `http://ollama-sidecar:11434` when unset. Connectivity failures are handled at runtime (fail-closed by default, or graceful if `LOCAL_LLM_OPTIONAL=true`).
 
 ---
 
