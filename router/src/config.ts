@@ -111,6 +111,12 @@ export type LlmProvider = 'anthropic' | 'openai' | 'azure-openai' | 'ollama';
 const ANTHROPIC_CAPABLE_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semantic_review'];
 
 /**
+ * Agents that support Azure OpenAI provider.
+ * OpenCode does NOT support Azure yet (only OpenAI and Anthropic).
+ */
+const AZURE_CAPABLE_AGENTS: AgentId[] = ['pr_agent', 'ai_semantic_review'];
+
+/**
  * Resolve effective model using precedence order:
  * 1. MODEL env var (user override)
  * 2. config.models.default (repo config)
@@ -142,6 +148,7 @@ export function resolveEffectiveModel(
  * Resolve the effective LLM provider for an agent.
  *
  * INVARIANT: Anthropic wins if agent supports it and key is present.
+ * INVARIANT: Azure only for Azure-capable agents.
  * INVARIANT: No silent fallback. Missing keys = preflight failure.
  *
  * @returns Provider to use, or null if no valid provider available
@@ -175,8 +182,8 @@ export function resolveProvider(
     return 'anthropic';
   }
 
-  // Azure OpenAI next (complete bundle required)
-  if (hasAzure) {
+  // Azure OpenAI next (only for Azure-capable agents, complete bundle required)
+  if (AZURE_CAPABLE_AGENTS.includes(agentId) && hasAzure) {
     return 'azure-openai';
   }
 
