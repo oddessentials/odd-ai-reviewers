@@ -194,6 +194,25 @@ const DocsViewer = {
         img.src = `${this.basePath}${src}`;
       }
     });
+
+    // 6. Mermaid Diagrams: Render code blocks with language-mermaid
+    if (typeof mermaid !== 'undefined') {
+      container.querySelectorAll('pre code.language-mermaid').forEach((codeBlock) => {
+        const pre = codeBlock.parentElement;
+        const diagramSource = codeBlock.textContent;
+
+        // Create a container for the rendered diagram
+        const diagramDiv = document.createElement('div');
+        diagramDiv.className = 'mermaid';
+        diagramDiv.textContent = diagramSource;
+
+        // Replace the pre/code with the mermaid div
+        pre.parentElement.replaceChild(diagramDiv, pre);
+      });
+
+      // Re-run mermaid to render the new diagrams
+      mermaid.run();
+    }
   },
 
   // Highlight active file in tree
@@ -302,6 +321,15 @@ const DocsViewer = {
       marked.setOptions({
         headerIds: false,
         mangle: false,
+      });
+    }
+
+    // Initialize Mermaid with dark theme
+    if (typeof mermaid !== 'undefined') {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'strict',
       });
     }
 
