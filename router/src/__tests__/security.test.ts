@@ -453,13 +453,13 @@ describe('Agent Environment Isolation (Canonical Keys)', () => {
   });
 
   describe('pr_agent isolation', () => {
-    it('pr_agent does not receive ANTHROPIC_API_KEY', () => {
+    it('pr_agent receives ANTHROPIC_API_KEY (Anthropic support)', () => {
       const env = {
         ANTHROPIC_API_KEY: 'sk-ant-xxx',
         OPENAI_API_KEY: 'sk-xxx',
       };
       const agentEnv = buildAgentEnv('pr_agent', env);
-      expect(agentEnv['ANTHROPIC_API_KEY']).toBeUndefined();
+      expect(agentEnv['ANTHROPIC_API_KEY']).toBe('sk-ant-xxx');
       expect(agentEnv['OPENAI_API_KEY']).toBe('sk-xxx');
     });
 
