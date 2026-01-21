@@ -24,7 +24,7 @@ import {
 import { buildRouterEnv, buildAgentEnv, isKnownAgentId } from './agents/security.js';
 import { getCached, setCache } from './cache/store.js';
 import { generateCacheKey, hashConfig } from './cache/key.js';
-import { validateAgentSecrets } from './preflight.js';
+import { validateAgentSecrets, validateModelConfig } from './preflight.js';
 import { isMainBranchPush, isAgentForbiddenOnMain } from './policy.js';
 
 const program = new Command();
@@ -204,6 +204,19 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (!preflight.valid) {
     console.error('[router] ❌ Preflight validation failed:');
     for (const error of preflight.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Model config validation: fail if no model is configured
+  const modelValidation = validateModelConfig(
+    agentContext.effectiveModel,
+    process.env as Record<string, string | undefined>
+  );
+  if (!modelValidation.valid) {
+    console.error('[router] ❌ Model configuration validation failed:');
+    for (const error of modelValidation.errors) {
       console.error(`[router]   - ${error}`);
     }
     process.exit(1);

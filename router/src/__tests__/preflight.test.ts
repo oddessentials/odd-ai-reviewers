@@ -1,11 +1,11 @@
 /**
  * Preflight Validation Tests
  *
- * Tests for legacy key rejection and Azure bundle validation.
+ * Tests for legacy key rejection, Azure bundle validation, and model config validation.
  */
 
 import { describe, it, expect } from 'vitest';
-import { validateAgentSecrets } from '../preflight.js';
+import { validateAgentSecrets, validateModelConfig } from '../preflight.js';
 import type { Config } from '../config.js';
 
 function createTestConfig(agents: string[]): Config {
@@ -223,5 +223,36 @@ describe('Preflight Validation', () => {
 
       expect(result.valid).toBe(true);
     });
+  });
+});
+
+describe('Model Config Validation', () => {
+  it('should fail when effectiveModel is empty and MODEL env is not set', () => {
+    const result = validateModelConfig('', {});
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBe(1);
+    expect(result.errors[0]).toContain('No model configured');
+  });
+
+  it('should fail when effectiveModel is whitespace only', () => {
+    const result = validateModelConfig('   ', {});
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBe(1);
+  });
+
+  it('should pass when effectiveModel is provided', () => {
+    const result = validateModelConfig('gpt-4o-mini', {});
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('should pass when effectiveModel is claude model', () => {
+    const result = validateModelConfig('claude-sonnet-4-20250514', {});
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
   });
 });
