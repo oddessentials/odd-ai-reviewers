@@ -68,11 +68,11 @@ const PathFiltersSchema = z.object({
 
 /**
  * Model configuration.
- * Centralized model defaults to avoid hardcoded magic strings in agents.
+ * No default - must be explicitly configured via MODEL env or config.models.default
  */
 const ModelsSchema = z.object({
   /** Default model for AI agents when MODEL env var is not set */
-  default: z.string().default('gpt-4o-mini'),
+  default: z.string().optional(),
 });
 
 export const ConfigSchema = z.object({
@@ -115,6 +115,19 @@ const ANTHROPIC_CAPABLE_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semanti
  * OpenCode does NOT support Azure yet (only OpenAI and Anthropic).
  */
 const AZURE_CAPABLE_AGENTS: AgentId[] = ['pr_agent', 'ai_semantic_review'];
+
+/**
+ * Infer provider from model name (heuristic, not contract).
+ * Used for preflight validation to catch provider/model mismatches early.
+ *
+ * @param model - Model name to classify
+ * @returns Inferred provider or 'unknown' if can't determine
+ */
+export function inferProviderFromModel(model: string): 'anthropic' | 'openai' | 'unknown' {
+  if (model.startsWith('claude-')) return 'anthropic';
+  if (model.startsWith('gpt-') || model.startsWith('o1-')) return 'openai';
+  return 'unknown';
+}
 
 /**
  * Resolve effective model using precedence order:

@@ -181,14 +181,15 @@ describe('getEnabledAgents', () => {
 });
 
 describe('Model Configuration', () => {
-  it('should have models.default in parsed config', () => {
+  it('should have models object in parsed config (no default)', () => {
     const input = {};
     const result = ConfigSchema.safeParse(input);
 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.models).toBeDefined();
-      expect(result.data.models.default).toBe('gpt-4o-mini');
+      // No default anymore - preflight validation will catch missing model
+      expect(result.data.models.default).toBeUndefined();
     }
   });
 
@@ -220,9 +221,9 @@ describe('resolveEffectiveModel', () => {
     expect(resolveEffectiveModel(config, env)).toBe('env-override-model');
   });
 
-  it('returns hardcoded fallback when neither env nor config set', () => {
-    // With zod defaults, config.models.default is always 'gpt-4o-mini'
-    expect(resolveEffectiveModel(baseConfig, {})).toBe('gpt-4o-mini');
+  it('returns empty string when neither env nor config set (preflight catches this)', () => {
+    // No default anymore - preflight validation will catch this
+    expect(resolveEffectiveModel(baseConfig, {})).toBe('');
   });
 
   it('ignores empty string MODEL env var', () => {

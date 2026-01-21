@@ -172,3 +172,62 @@ export function validateModelConfig(
     errors,
   };
 }
+
+/**
+ * Validate model-provider match based on model name heuristic.
+ * Fails if model looks like it requires a specific provider but key is missing.
+ *
+ * This is a heuristic, not a contract. Error messages are explicit about the inference.
+ */
+export function validateModelProviderMatch(
+  model: string,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Heuristic: infer provider from model prefix
+  if (model.startsWith('claude-')) {
+    if (!env['ANTHROPIC_API_KEY']) {
+      errors.push(
+        `MODEL '${model}' looks like Anthropic (claude-*) but ANTHROPIC_API_KEY is missing`
+      );
+    }
+  } else if (model.startsWith('gpt-') || model.startsWith('o1-')) {
+    const hasOpenAI = env['OPENAI_API_KEY'] || env['AZURE_OPENAI_API_KEY'];
+    if (!hasOpenAI) {
+      errors.push(`MODEL '${model}' looks like OpenAI (gpt-*/o1-*) but OPENAI_API_KEY is missing`);
+    }
+  }
+  // Unknown model prefix - no validation, allow it to proceed
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate Ollama configuration when local_llm is enabled AND required.
+ * Only fails if local_llm is required but OLLAMA_BASE_URL is not configured.
+ * Model availability is a runtime concern, not preflight.
+ */
+export function validateOllamaConfig(
+  config: Config,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Find passes that include local_llm and are both enabled and required
+  const requiresOllama = config.passes.some(
+    (pass) => pass.enabled && pass.required && pass.agents.includes('local_llm' as AgentId)
+  );
+
+  if (requiresOllama && !env['OLLAMA_BASE_URL']) {
+    errors.push('local_llm agent is enabled and required but OLLAMA_BASE_URL is not configured');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
