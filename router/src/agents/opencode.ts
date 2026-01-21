@@ -249,7 +249,7 @@ export const opencodeAgent: ReviewAgent = {
 
     // OpenAI takes precedence
     if (openaiKey) {
-      const model = agentEnv['OPENAI_MODEL'] || agentEnv['MODEL'] || 'gpt-4o-mini';
+      const model = agentEnv['MODEL'] || 'gpt-4o-mini';
       console.log(`[opencode] Using OpenAI with model: ${model}`);
       return runWithOpenAI(context, openaiKey, model);
     }
