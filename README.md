@@ -1,6 +1,7 @@
 # 🐝 odd-ai-reviewers
 
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/TEST_BADGE_GIST_ID/raw/tests.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENCE.md)
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents, all without modifying your CI runtime.
