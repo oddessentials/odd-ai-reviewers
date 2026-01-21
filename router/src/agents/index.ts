@@ -93,6 +93,12 @@ export interface AgentContext {
   prNumber?: number;
   /** Environment variables (for API keys, etc.) */
   env: Record<string, string | undefined>;
+  /**
+   * Effective model resolved by router.
+   * Precedence: MODEL env > config.models.default > fallback
+   * INVARIANT: Agents should use this, not resolve model themselves.
+   */
+  effectiveModel?: string;
 }
 
 /**

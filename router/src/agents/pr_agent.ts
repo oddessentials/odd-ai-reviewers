@@ -163,7 +163,7 @@ Analyze this pull request and provide your review as a JSON object with the foll
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: agentEnv['MODEL'] || 'gpt-4o-mini',
+          model: context.effectiveModel || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

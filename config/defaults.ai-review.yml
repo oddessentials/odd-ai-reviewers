@@ -34,6 +34,11 @@ limits:
   max_usd_per_pr: 1.00
   monthly_budget_usd: 100
 
+# Model configuration
+# Precedence: MODEL env var > models.default > hardcoded fallback
+models:
+  default: gpt-4o-mini
+
 reporting:
   github:
     mode: checks_and_comments

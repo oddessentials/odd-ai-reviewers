@@ -162,7 +162,7 @@ Analyze this code and return JSON:
     try {
       const response = await withRetry(() =>
         openai.chat.completions.create({
-          model: agentEnv['OPENAI_MODEL'] || 'gpt-4o-mini',
+          model: context.effectiveModel || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
