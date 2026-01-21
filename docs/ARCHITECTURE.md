@@ -219,3 +219,12 @@ flowchart TD
 3. **Deduplication**: Router removes duplicates before reporting
 4. **Single report**: One unified GitHub check run and/or PR comment
 5. **Scoped security**: Each agent sees only its allowed environment variables
+
+---
+
+## Related Documentation
+
+- [Configuration Schema](./config-schema.md) — All YAML options
+- [Security Model](./SECURITY.md) — Trust boundaries and threat model
+- [Invariants](./INVARIANTS.md) — Non-negotiable design constraints
+- [Scope](./SCOPE.md) — What this project does and doesn't do

@@ -174,3 +174,11 @@ Check spending at your LLM provider:
 3. **Filter paths** - Skip generated code
 4. **Review configuration** - Disable unused agents
 5. **Monitor spending** - Check dashboards weekly
+
+---
+
+## Related Documentation
+
+- [Configuration Schema](./config-schema.md) — All limits and options
+- [Local LLM Setup](./LOCAL-LLM-SETUP.md) — Compute-only alternative
+- [Security Model](./SECURITY.md) — Trust boundaries

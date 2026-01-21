@@ -6,18 +6,22 @@
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents, all without modifying your CI runtime.
 
+---
+
 ## Features
 
-- 🔍 **Multi-Pass Review**: Static analysis first (free), then AI semantic review
-- 🔌 **Pluggable Agents**: Semgrep, OpenCode.ai, PR-Agent, local LLMs (Ollama)
-- 💰 **Cost Controls**: Per-PR and monthly budget limits with automatic enforcement
-- 🔒 **Secure by Default**: Fork PRs blocked, secrets never logged
-- 📝 **Rich Reporting**: PR comments, inline annotations, check summaries
-- ⚙️ **Zero CI Changes**: Works via reusable workflows — just add one file
+- 🔍 **Multi-Pass Review** — Static analysis first (free), then AI semantic review
+- 🔌 **Pluggable Agents** — Semgrep, OpenCode, PR-Agent, local LLMs (Ollama)
+- 💰 **Cost Controls** — Per-PR and monthly budget limits with automatic enforcement
+- 🔒 **Secure by Default** — Fork PRs blocked, secrets never logged, agents sandboxed
+- 📝 **Rich Reporting** — PR comments, inline annotations, check summaries
+- ⚙️ **Zero CI Changes** — Works via reusable workflows
 
-## Quick Start
+---
 
-### 1. Add the workflow to your repository
+## Quick Start (GitHub)
+
+### 1. Add the workflow
 
 Create `.github/workflows/ai-review.yml`:
 
@@ -53,134 +57,116 @@ passes:
   - name: semantic
     agents: [opencode]
 
-# Model configuration (REQUIRED)
-# Must specify either here or via MODEL env var
 models:
-  default: claude-sonnet-4-20250514 # or gpt-4o-mini for OpenAI
+  default: claude-sonnet-4-20250514
 
 limits:
   max_usd_per_pr: 1.00
   monthly_budget_usd: 100
-
-reporting:
-  github:
-    mode: checks_and_comments
-    max_inline_comments: 20
 ```
 
 ### 3. Configure secrets
 
-Add these secrets to your repository or organization:
+| Secret              | When Required | Description       |
+| ------------------- | ------------- | ----------------- |
+| `ANTHROPIC_API_KEY` | Claude models | Anthropic API key |
+| `OPENAI_API_KEY`    | GPT/O1 models | OpenAI API key    |
+| `OLLAMA_BASE_URL`   | Local LLM     | Ollama endpoint   |
 
-| Secret              | When Required                       | Description                                   |
-| ------------------- | ----------------------------------- | --------------------------------------------- |
-| `MODEL`             | Always (or set `models.default`)    | Model name (e.g., `claude-sonnet-4-20250514`) |
-| `ANTHROPIC_API_KEY` | When using `claude-*` models        | Anthropic API key                             |
-| `OPENAI_API_KEY`    | When using `gpt-*` or `o1-*` models | OpenAI API key                                |
-| `OLLAMA_BASE_URL`   | Optional (defaults to sidecar)      | Ollama server URL                             |
+> **⚠️ Model-Provider Match**: The router validates that your model matches your API key.
 
-> **⚠️ Model-Provider Match**: The router validates that your model matches your API key. Using a `claude-*` model without `ANTHROPIC_API_KEY` will fail preflight.
+---
+
+## Available Agents
+
+| Agent                | Type   | Deterministic | Network | Cost    |
+| -------------------- | ------ | ------------- | ------- | ------- |
+| `semgrep`            | Static | ✅            | ❌      | Free    |
+| `reviewdog`          | Static | ✅            | ❌      | Free    |
+| `opencode`           | AI     | ❌            | ✅      | Medium  |
+| `pr_agent`           | AI     | ❌            | ✅      | Low     |
+| `local_llm`          | AI     | ❌            | ❌      | Compute |
+| `ai_semantic_review` | AI     | ❌            | ✅      | Medium  |
+
+See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matrix.
+
+---
+
+## Documentation
+
+### Using with GitHub
+
+- [GitHub Setup Guide](docs/GITHUB-SETUP.md) — Complete setup instructions
+- [Configuration Schema](docs/config-schema.md) — All YAML options
+
+### Using with Azure DevOps _(Roadmap — reporter & pipeline not yet implemented)_
+
+- [Roadmap](docs/ROADMAP.md) — ADO reporter and pipeline template plans
+
+### Using with OSCR (Self-Hosted CI)
+
+- [OSCR Integration](docs/OSCR-INTEGRATION.md) — Conceptual overview
+- [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) — Ollama configuration
+- [Model Provisioning](docs/MODEL-PROVISIONING.md) — Air-gap deployment
+
+### Controlling Which Agents Run
+
+- [Configuration Schema](docs/config-schema.md) — Passes, agents, limits
+- [Cost Controls](docs/COST-CONTROLS.md) — Budget management
+
+### Architecture & Security
+
+- [Architecture](docs/ARCHITECTURE.md) — Execution flow diagrams
+- [Security Model](docs/SECURITY.md) — Trust model and threat mitigation
+- [Invariants](docs/INVARIANTS.md) — Non-negotiable design constraints
+- [Scope](docs/SCOPE.md) — What this project does and doesn't do
+
+---
 
 ## How It Works
 
 ```mermaid
 graph LR
-    A[PR Opened] --> B[AI Review Workflow]
-    B --> C[Trust Check]
-    C --> D[Preflight Validation]
-    D --> E[Budget Check]
-    E --> F[Static Pass]
-    F --> G[Semantic Pass]
-    G --> H[Report Findings]
-    H --> I[PR Comments & Checks]
+    A[PR Opened] --> B[Trust Check]
+    B --> C[Preflight Validation]
+    C --> D[Budget Check]
+    D --> E[Static Pass]
+    E --> F[Semantic Pass]
+    F --> G[Deduplicate Findings]
+    G --> H[Post to GitHub]
 ```
 
-1. **Trigger**: PR is opened or updated
-2. **Trust Check**: Fork PRs are blocked by default
-3. **Preflight**: Validates model config and API keys match
-4. **Budget Check**: Limits on files, lines, tokens, and cost
-5. **Static Pass**: Free tools like Semgrep run first
-6. **Semantic Pass**: AI agents analyze the diff (if within budget)
-7. **Report**: Findings posted as comments and check annotations
+1. **Trigger** — PR is opened or updated
+2. **Trust Check** — Fork PRs blocked by default
+3. **Preflight** — Validates model config and API keys
+4. **Budget Check** — Enforces file, line, token, and cost limits
+5. **Static Pass** — Free tools like Semgrep run first
+6. **Semantic Pass** — AI agents analyze the diff
+7. **Report** — Findings posted as comments and annotations
 
-## Available Agents
-
-| Agent       | Type   | Description                          |
-| ----------- | ------ | ------------------------------------ |
-| `semgrep`   | Static | Security and bug patterns (free)     |
-| `reviewdog` | Static | Annotation converter (Phase 2)       |
-| `opencode`  | AI     | OpenCode.ai semantic review          |
-| `pr_agent`  | AI     | PR summarizer and reviewer (Phase 2) |
-| `local_llm` | AI     | Ollama/llama.cpp (Phase 3)           |
-
-## Configuration Reference
-
-See [docs/config-schema.md](docs/config-schema.md) for the full configuration reference.
-
-## Using Local LLM (Ollama)
-
-The `local_llm` agent provides air-gapped, local AI code review using Ollama.
-
-### Configuration
-
-Set these environment variables in your CI:
-
-| Variable             | Required | Default                       | Description                 |
-| -------------------- | -------- | ----------------------------- | --------------------------- |
-| `OLLAMA_BASE_URL`    | Yes      | `http://ollama-sidecar:11434` | Ollama API endpoint         |
-| `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use                |
-| `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation |
-
-### Fail-Closed Behavior (Default)
-
-By default, CI **fails** if Ollama is unavailable. This ensures code review is never silently skipped.
-
-Set `LOCAL_LLM_OPTIONAL=true` to continue when Ollama is unavailable (use with caution).
-
-### Running with OSCR
-
-When running inside [OSCR](https://github.com/oddessentials/odd-self-hosted-ci-runtime) runner containers, configure `OLLAMA_BASE_URL` to point to your Ollama service.
-
-See [OSCR Integration Guide](docs/OSCR-INTEGRATION.md) for conceptual overview and [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) for configuration details.
-
-## Documentation
-
-### Core Documentation
-
-- [System Specification](docs/SPEC.md) - Architecture and design specification
-- [GitHub Setup Guide](docs/github-setup.md)
-- [Configuration Schema](docs/config-schema.md)
-- [Security Model](docs/security.md)
-- [Cost Controls](docs/cost-controls.md)
-
-### Local LLM (Ollama)
-
-- [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) - Configuration and behavior
-- [OSCR Integration](docs/OSCR-INTEGRATION.md) - Running with self-hosted CI
-- [Model Provisioning](docs/MODEL-PROVISIONING.md) - Air-gapped model deployment
+---
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the router
-npm run build
-
-# Run locally
-node router/dist/main.js review \
-  --repo /path/to/repo \
-  --base main \
-  --head feature-branch \
-  --dry-run
+npm install        # Install dependencies
+npm run build      # Build the router
+npm test           # Run 297 tests
+npm run lint       # Check linting
+npm run format     # Format code
 ```
+
+---
 
 ## Roadmap
 
-- **Phase 1** ✅: Core router, Semgrep, OpenCode.ai, GitHub workflows
-- **Phase 2**: PR-Agent, caching, comment throttling
-- **Phase 3**: Azure DevOps, GitLab, Gitea, local LLMs
+See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features:
+
+- 🔴 **Azure DevOps** — Reporter and pipeline template
+- 🟢 **GitLab** — Future consideration
+- 🟢 **Gitea** — Future consideration
+
+---
 
 ## License
 

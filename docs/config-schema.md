@@ -73,11 +73,23 @@ Array of review passes executed in order. Each pass has:
 
 Available agents:
 
-- `semgrep` - Static security analysis (free)
-- `reviewdog` - Output formatter (stub)
-- `opencode` - OpenCode.ai semantic review
-- `pr_agent` - PR-Agent AI review (stub)
-- `local_llm` - Local Ollama/llama.cpp (stub)
+- `semgrep` — Static security analysis (free)
+- `reviewdog` — Annotation formatter
+- `opencode` — OpenCode.ai semantic review
+- `pr_agent` — PR-Agent AI review
+- `local_llm` — Local Ollama-based review
+- `ai_semantic_review` — Direct OpenAI/Anthropic SDK integration
+
+### Agent Capability Matrix
+
+| Agent                | Deterministic | LLM-backed | Network Access | Cost Impact  |
+| -------------------- | ------------- | ---------- | -------------- | ------------ |
+| `semgrep`            | ✅            | ❌         | ❌             | Free         |
+| `reviewdog`          | ✅            | ❌         | ❌             | Free         |
+| `opencode`           | ❌            | ✅         | ✅             | Medium       |
+| `pr_agent`           | ❌            | ✅         | ✅             | Low          |
+| `local_llm`          | ❌            | ✅         | ❌             | Compute-only |
+| `ai_semantic_review` | ❌            | ✅         | ✅             | Medium       |
 
 ### `limits`
 
