@@ -429,3 +429,127 @@ describe('Router Monopoly Rule Enforcement', () => {
     });
   });
 });
+
+describe('Agent Environment Isolation (Canonical Keys)', () => {
+  const allAgentIds = [
+    'semgrep',
+    'reviewdog',
+    'opencode',
+    'pr_agent',
+    'ai_semantic_review',
+    'local_llm',
+  ] as const;
+
+  describe('GITHUB_TOKEN isolation', () => {
+    it.each(allAgentIds)('GITHUB_TOKEN never passed to %s agent', (agentId) => {
+      const env = {
+        GITHUB_TOKEN: 'gho_secret_token',
+        OPENAI_API_KEY: 'sk-xxx',
+        OLLAMA_BASE_URL: 'http://localhost:11434',
+      };
+      const agentEnv = buildAgentEnv(agentId, env);
+      expect(agentEnv['GITHUB_TOKEN']).toBeUndefined();
+    });
+  });
+
+  describe('pr_agent isolation', () => {
+    it('pr_agent does not receive ANTHROPIC_API_KEY', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const agentEnv = buildAgentEnv('pr_agent', env);
+      expect(agentEnv['ANTHROPIC_API_KEY']).toBeUndefined();
+      expect(agentEnv['OPENAI_API_KEY']).toBe('sk-xxx');
+    });
+
+    it('pr_agent does not receive OLLAMA_BASE_URL', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        OLLAMA_BASE_URL: 'http://localhost:11434',
+      };
+      const agentEnv = buildAgentEnv('pr_agent', env);
+      expect(agentEnv['OLLAMA_BASE_URL']).toBeUndefined();
+    });
+  });
+
+  describe('opencode isolation', () => {
+    it('opencode does not receive Azure OpenAI keys', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+      };
+      const agentEnv = buildAgentEnv('opencode', env);
+      expect(agentEnv['AZURE_OPENAI_API_KEY']).toBeUndefined();
+      expect(agentEnv['AZURE_OPENAI_ENDPOINT']).toBeUndefined();
+      expect(agentEnv['AZURE_OPENAI_DEPLOYMENT']).toBeUndefined();
+      expect(agentEnv['OPENAI_API_KEY']).toBe('sk-xxx');
+    });
+
+    it('opencode does not receive OLLAMA keys', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        OLLAMA_BASE_URL: 'http://localhost:11434',
+        OLLAMA_MODEL: 'codellama:7b',
+      };
+      const agentEnv = buildAgentEnv('opencode', env);
+      expect(agentEnv['OLLAMA_BASE_URL']).toBeUndefined();
+      expect(agentEnv['OLLAMA_MODEL']).toBeUndefined();
+    });
+  });
+
+  describe('local_llm isolation', () => {
+    it('local_llm receives no AI provider keys', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+        GITHUB_TOKEN: 'gho_xxx',
+        OLLAMA_BASE_URL: 'http://localhost:11434',
+        OLLAMA_MODEL: 'codellama:7b',
+      };
+      const agentEnv = buildAgentEnv('local_llm', env);
+
+      // Should NOT have any AI provider keys
+      expect(agentEnv['OPENAI_API_KEY']).toBeUndefined();
+      expect(agentEnv['ANTHROPIC_API_KEY']).toBeUndefined();
+      expect(agentEnv['AZURE_OPENAI_API_KEY']).toBeUndefined();
+      expect(agentEnv['AZURE_OPENAI_ENDPOINT']).toBeUndefined();
+      expect(agentEnv['GITHUB_TOKEN']).toBeUndefined();
+
+      // Should have Ollama keys
+      expect(agentEnv['OLLAMA_BASE_URL']).toBe('http://localhost:11434');
+      expect(agentEnv['OLLAMA_MODEL']).toBe('codellama:7b');
+    });
+  });
+
+  describe('static analysis agents isolation', () => {
+    it('semgrep receives no AI keys', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        GITHUB_TOKEN: 'gho_xxx',
+      };
+      const agentEnv = buildAgentEnv('semgrep', env);
+      expect(agentEnv['OPENAI_API_KEY']).toBeUndefined();
+      expect(agentEnv['ANTHROPIC_API_KEY']).toBeUndefined();
+      expect(agentEnv['GITHUB_TOKEN']).toBeUndefined();
+    });
+
+    it('reviewdog receives no AI keys', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        GITHUB_TOKEN: 'gho_xxx',
+      };
+      const agentEnv = buildAgentEnv('reviewdog', env);
+      expect(agentEnv['OPENAI_API_KEY']).toBeUndefined();
+      expect(agentEnv['ANTHROPIC_API_KEY']).toBeUndefined();
+      expect(agentEnv['GITHUB_TOKEN']).toBeUndefined();
+    });
+  });
+});
