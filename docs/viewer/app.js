@@ -172,16 +172,20 @@ const DocsViewer = {
 
   // Attach listeners for link/image rewriting
   attachContentListeners(container, paneId) {
-    // 4. Link Rewriting: Intercept internal .md links
+    // 4. Link Rewriting: Intercept internal .md links (case-insensitive)
     container.querySelectorAll('a').forEach((link) => {
       const href = link.getAttribute('href');
       if (href && href.endsWith('.md') && !href.startsWith('http')) {
         // Simplify link (remove ./ or ../ prefix if present for matching)
         const cleanHref = href.split('/').pop();
-        if (this.getAllowedPaths().includes(cleanHref)) {
+        // Case-insensitive lookup: find the matching file in allowlist
+        const matchedFile = this.getAllowedPaths().find(
+          (allowed) => allowed.toLowerCase() === cleanHref.toLowerCase()
+        );
+        if (matchedFile) {
           link.onclick = (e) => {
             e.preventDefault();
-            this.loadFile(cleanHref, paneId);
+            this.loadFile(matchedFile, paneId);
           };
         }
       }
