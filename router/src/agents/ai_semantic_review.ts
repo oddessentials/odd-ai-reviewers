@@ -18,6 +18,7 @@ import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from '
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
+import { parseJsonResponse } from './json-utils.js';
 import { withRetry } from './retry.js';
 
 const SUPPORTED_EXTENSIONS = [
@@ -109,13 +110,8 @@ async function runWithAnthropic(
       throw new Error('No text content in Anthropic response');
     }
 
-    // Parse and validate JSON
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(textContent.text);
-    } catch {
-      throw new Error(`Invalid JSON from Anthropic: ${textContent.text.slice(0, 200)}`);
-    }
+    // Parse and validate JSON (handles Claude's code fence wrapping)
+    const parsed = parseJsonResponse(textContent.text, 'Anthropic');
 
     const result = SemanticResponseSchema.safeParse(parsed);
     if (!result.success) {

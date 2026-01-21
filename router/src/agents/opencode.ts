@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import { parseJsonResponse } from './json-utils.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
@@ -300,13 +301,8 @@ async function runWithAnthropic(
       throw new Error('No text content in Anthropic response');
     }
 
-    // Parse and validate JSON response
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(textContent.text);
-    } catch {
-      throw new Error(`Invalid JSON from Anthropic: ${textContent.text.slice(0, 200)}`);
-    }
+    // Parse and validate JSON response (handles Claude's code fence wrapping)
+    const parsed = parseJsonResponse(textContent.text, 'Anthropic');
 
     const result = AnthropicResponseSchema.safeParse(parsed);
     if (!result.success) {
