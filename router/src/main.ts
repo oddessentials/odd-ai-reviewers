@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { loadConfig, resolveEffectiveModel } from './config.js';
+import { loadConfig, resolveEffectiveModel, resolveProvider } from './config.js';
 import { checkTrust, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
 import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
@@ -195,6 +195,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     prNumber: options.pr,
     env: routerEnv,
     effectiveModel: resolveEffectiveModel(config, routerEnv),
+    provider: null, // Resolved per-agent below
   };
 
   // Preflight validation: ensure required secrets are configured for enabled agents
@@ -257,6 +258,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
         const scopedContext: AgentContext = {
           ...agentContext,
           env: buildAgentEnv(agent.id, routerEnv),
+          provider: resolveProvider(agent.id as Parameters<typeof resolveProvider>[0], routerEnv),
         };
 
         let result: AgentResult | null = null;

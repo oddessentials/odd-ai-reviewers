@@ -205,6 +205,8 @@ describe('localLlmAgent', () => {
         ),
         diffContent: 'test diff',
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -240,6 +242,8 @@ describe('localLlmAgent', () => {
         env: {
           LOCAL_LLM_OPTIONAL: 'true', // Opt-in to graceful degradation
         },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -269,6 +273,8 @@ describe('localLlmAgent', () => {
         ),
         diffContent: 'test',
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -303,6 +309,8 @@ describe('localLlmAgent', () => {
             `line ${i} with lots of additional content to make this line very long and exceed the token limit easily`
         ).join('\n'),
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -359,6 +367,8 @@ describe('localLlmAgent', () => {
         ),
         diffContent: '+  const x = null;',
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -399,6 +409,8 @@ describe('localLlmAgent', () => {
         ),
         diffContent: 'test',
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -434,6 +446,8 @@ describe('localLlmAgent', () => {
         ),
         diffContent: 'test',
         env: {},
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       const result = await localLlmAgent.run(context);
@@ -471,6 +485,8 @@ describe('localLlmAgent', () => {
           GITHUB_TOKEN: 'ghp_secret_should_never_reach_ollama',
           OLLAMA_BASE_URL: 'http://test:11434',
         },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
       };
 
       await localLlmAgent.run(context);

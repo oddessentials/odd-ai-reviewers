@@ -6,14 +6,17 @@
  * - Router owns posting: Agent returns structured findings only
  * - Agents return structured findings: Output must conform to Finding schema
  * - Preflight validates API keys before execution
+ * - Router resolves provider and model: Agent never guesses
  *
- * This is the "Path B" implementation per the agent hardening plan:
- * - No CLI detection required
- * - Direct API calls to OpenAI/Anthropic
- * - Optional agent (skip if no API key configured)
+ * Per implementation plan:
+ * - Switch on context.provider (Anthropic wins when key present)
+ * - Use context.effectiveModel (no hardcoded defaults)
+ * - Fail if misconfigured (no silent fallback)
  */
 
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
@@ -229,6 +232,137 @@ async function runWithOpenAI(
   }
 }
 
+/**
+ * Zod schema for validating Anthropic JSON response
+ */
+const AnthropicResponseSchema = z.object({
+  summary: z.string(),
+  findings: z.array(
+    z.object({
+      severity: z.enum(['error', 'warning', 'info']),
+      file: z.string(),
+      line: z.number().optional(),
+      end_line: z.number().optional(),
+      message: z.string(),
+      suggestion: z.string().optional(),
+      rule_id: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Run code review using Anthropic Claude API
+ */
+async function runWithAnthropic(
+  context: AgentContext,
+  apiKey: string,
+  model: string
+): Promise<AgentResult> {
+  const agentId = 'opencode';
+  const startTime = Date.now();
+
+  // Get supported files
+  const supportedFiles = context.files.filter((f) => {
+    if (f.status === 'deleted') return false;
+    return SUPPORTED_EXTENSIONS.some((ext) => f.path.endsWith(ext));
+  });
+
+  if (supportedFiles.length === 0) {
+    return {
+      agentId,
+      success: true,
+      findings: [],
+      metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+    };
+  }
+
+  const { system, user } = buildReviewPrompt(context);
+  const estimatedInputTokens = estimateTokens(system + user);
+
+  console.log(`[opencode] Calling Anthropic API with model: ${model}`);
+  console.log(`[opencode] Estimated input tokens: ${estimatedInputTokens}`);
+
+  const client = new Anthropic({ apiKey });
+
+  try {
+    const response = await withRetry(() =>
+      client.messages.create({
+        model,
+        max_tokens: 4000,
+        system,
+        messages: [{ role: 'user', content: user }],
+      })
+    );
+
+    // Extract text content from response
+    const textContent = response.content.find((c) => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text content in Anthropic response');
+    }
+
+    // Parse and validate JSON response
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textContent.text);
+    } catch {
+      throw new Error(`Invalid JSON from Anthropic: ${textContent.text.slice(0, 200)}`);
+    }
+
+    const result = AnthropicResponseSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(`Schema validation failed: ${result.error.message}`);
+    }
+
+    const findings: Finding[] = result.data.findings.map((raw) => ({
+      severity: mapSeverity(raw.severity),
+      file: raw.file,
+      line: raw.line,
+      endLine: raw.end_line,
+      message: raw.message,
+      suggestion: raw.suggestion,
+      ruleId: raw.rule_id || 'opencode/anthropic-review',
+      sourceAgent: agentId,
+    }));
+
+    if (result.data.summary) {
+      console.log(`[opencode] Summary: ${result.data.summary}`);
+    }
+
+    const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+    // Anthropic pricing: ~$15/1M input, ~$75/1M output for claude-3.5-sonnet
+    const estimatedCostUsd =
+      response.usage.input_tokens * 0.000015 + response.usage.output_tokens * 0.000075;
+
+    console.log(`[opencode] Completed. Tokens: ${tokensUsed}, Findings: ${findings.length}`);
+
+    return {
+      agentId,
+      success: true,
+      findings,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: supportedFiles.length,
+        tokensUsed,
+        estimatedCostUsd,
+      },
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return {
+      agentId,
+      success: false,
+      findings: [],
+      error: errorMessage,
+      metrics: {
+        durationMs: Date.now() - startTime,
+        filesProcessed: 0,
+        tokensUsed: estimatedInputTokens,
+      },
+    };
+  }
+}
+
 export const opencodeAgent: ReviewAgent = {
   id: 'opencode',
   name: 'OpenCode',
@@ -243,37 +377,61 @@ export const opencodeAgent: ReviewAgent = {
     const startTime = Date.now();
     const agentEnv = buildAgentEnv('opencode', context.env);
 
-    // Check for API key (OpenAI or Anthropic)
-    const openaiKey = agentEnv['OPENAI_API_KEY'];
-    const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
+    // Router resolves provider and model. Agent trusts context.
+    const { provider, effectiveModel } = context;
 
-    // OpenAI takes precedence
-    if (openaiKey) {
-      const model = context.effectiveModel || 'gpt-4o-mini';
-      console.log(`[opencode] Using OpenAI with model: ${model}`);
-      return runWithOpenAI(context, openaiKey, model);
+    console.log(`[opencode] Provider: ${provider}, Model: ${effectiveModel}`);
+
+    // Switch on router-resolved provider
+    switch (provider) {
+      case 'anthropic': {
+        const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
+        if (!anthropicKey) {
+          // This should never happen due to preflight, but fail-closed
+          return {
+            agentId: this.id,
+            success: false,
+            findings: [],
+            error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+            metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+          };
+        }
+        return runWithAnthropic(context, anthropicKey, effectiveModel);
+      }
+
+      case 'openai': {
+        const openaiKey = agentEnv['OPENAI_API_KEY'];
+        if (!openaiKey) {
+          return {
+            agentId: this.id,
+            success: false,
+            findings: [],
+            error: 'OPENAI_API_KEY not found despite provider=openai',
+            metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+          };
+        }
+        return runWithOpenAI(context, openaiKey, effectiveModel);
+      }
+
+      case 'azure-openai':
+        // TODO: Implement Azure OpenAI path
+        return {
+          agentId: this.id,
+          success: false,
+          findings: [],
+          error: 'Azure OpenAI support not yet implemented for opencode',
+          metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+        };
+
+      default:
+        // No valid provider resolved - this is a preflight failure
+        return {
+          agentId: this.id,
+          success: false,
+          findings: [],
+          error: `No valid provider configured. Provider resolved to: ${provider}`,
+          metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+        };
     }
-
-    // Anthropic support (future implementation)
-    if (anthropicKey) {
-      // TODO: Implement Anthropic Claude support
-      // For now, return a clear error message
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: 'Anthropic support not yet implemented. Please use OPENAI_API_KEY.',
-        metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-      };
-    }
-
-    // No API key configured
-    return {
-      agentId: this.id,
-      success: false,
-      findings: [],
-      error: 'No API key configured (set OPENAI_API_KEY or ANTHROPIC_API_KEY)',
-      metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-    };
   },
 };
