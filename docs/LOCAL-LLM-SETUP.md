@@ -139,3 +139,12 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 - **Router Monopoly:** Agent cannot post directly to GitHub
 - **Input Sanitization:** Secrets redacted from diff content before sending to Ollama
 - **Deterministic:** All requests use `temperature=0`, `seed=42` for reproducibility
+
+---
+
+## Related Documentation
+
+- [OSCR Integration](./OSCR-INTEGRATION.md) — Self-hosted CI overview
+- [Model Provisioning](./MODEL-PROVISIONING.md) — Air-gap deployment
+- [Configuration Schema](./config-schema.md) — All YAML options
+- [Security Model](./SECURITY.md) — Trust boundaries

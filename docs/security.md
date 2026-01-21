@@ -2,6 +2,37 @@
 
 This document describes the security architecture and best practices for odd-ai-reviewers.
 
+---
+
+## Trust Model
+
+odd-ai-reviewers operates with a clear trust boundary:
+
+- **odd-ai-reviewers executes in CI jobs** and must be treated as untrusted by the host
+- **Agent processes do not receive GitHub / ADO tokens** unless explicitly required
+- **Only the router/reporting layer** interacts with provider APIs
+- **Fork PRs are not supported by default** on self-hosted runners
+- **Secrets use provider-native injection only** — no custom secret management
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ CI Runtime (GitHub Actions / Azure Pipelines / OSCR)    │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ Router (has GITHUB_TOKEN / SYSTEM_ACCESSTOKEN)  │   │
+│  │  ├── Posts findings to PR                       │   │
+│  │  └── Creates check runs                         │   │
+│  └─────────────────────────────────────────────────┘   │
+│       │                                                 │
+│       ▼ (stripped tokens)                               │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ Agents (semgrep, opencode, local_llm, etc.)     │   │
+│  │  └── No access to posting credentials           │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Threat Model
 
 ### Untrusted Code Execution

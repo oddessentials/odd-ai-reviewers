@@ -139,8 +139,9 @@ To enable AI review for all repositories in an organization:
 2. Use organization-level secrets
 3. Each repository can override with its own `.ai-review.yml`
 
-## Next Steps
+## Related Documentation
 
-- [Configuration Reference](config-schema.md)
-- [Security Model](security.md)
-- [Cost Controls](cost-controls.md)
+- [Configuration Reference](./config-schema.md)
+- [Security Model](./SECURITY.md)
+- [Cost Controls](./COST-CONTROLS.md)
+- [Architecture](./ARCHITECTURE.md)
