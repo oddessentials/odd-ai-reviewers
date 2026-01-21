@@ -1,4 +1,4 @@
-# MIT Licence
+# MIT License
 
 Copyright (c) 2026 OddEssentials
 
