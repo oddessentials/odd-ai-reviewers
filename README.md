@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENCE.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents, all without modifying your CI runtime.
 
@@ -182,6 +182,6 @@ node router/dist/main.js review \
 - **Phase 2**: PR-Agent, caching, comment throttling
 - **Phase 3**: Azure DevOps, GitLab, Gitea, local LLMs
 
-## Licence
+## License
 
-This project is licenced under the MIT Licence - see the [LICENCE.md](LICENCE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
