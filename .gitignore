@@ -32,3 +32,8 @@ test-results.json
 
 # Docker
 .docker/
+
+# Docs viewer test artifacts
+docs/viewer/node_modules/
+docs/viewer/test-results/
+docs/viewer/playwright-report/
