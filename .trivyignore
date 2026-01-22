@@ -56,6 +56,11 @@ CVE-2024-34156
 # Risk: LOW - Only used during Docker build, not at runtime
 CVE-2026-23745
 
+# node-tar - Arbitrary file overwrite via Unicode path collision race condition
+# This is bundled with npm in the node:22-slim base image
+# Risk: LOW - Only used during npm ci in Docker build, not at runtime
+CVE-2026-23950
+
 # golang.org/x/crypto/ssh - Authorization bypass in SSH handshake
 # Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
 # Risk: LOW - OpenCode doesn't use SSH for LLM API calls
