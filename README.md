@@ -4,7 +4,7 @@
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 
-**Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents, all without modifying your CI runtime.
+**Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
 
 ---
 
@@ -15,6 +15,7 @@
 - 💰 **Cost Controls** — Per-PR and monthly budget limits with automatic enforcement
 - 🔒 **Secure by Default** — Fork PRs blocked, secrets never logged, agents sandboxed
 - 📝 **Rich Reporting** — PR comments, inline annotations, check summaries
+- 🌐 **Multi-Platform** — GitHub Actions and Azure DevOps Pipelines
 - ⚙️ **Zero CI Changes** — Works via reusable workflows
 
 ---
@@ -101,9 +102,11 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 - [GitHub Setup Guide](docs/GITHUB-SETUP.md) — Complete setup instructions
 - [Configuration Schema](docs/config-schema.md) — All YAML options
 
-### Using with Azure DevOps _(Roadmap — reporter & pipeline not yet implemented)_
+### Using with Azure DevOps
 
-- [Roadmap](docs/ROADMAP.md) — ADO reporter and pipeline template plans
+- [Azure DevOps Setup Guide](docs/ADO-SETUP.md) — Complete setup instructions
+- [ADO + OSCR Free Example](examples/ado-oscr-free.md) — Free tier with Ollama
+- [Roadmap](docs/ROADMAP.md) — Platform support status
 
 ### Using with OSCR (Self-Hosted CI)
 
@@ -135,7 +138,9 @@ graph LR
     D --> E[Static Pass]
     E --> F[Semantic Pass]
     F --> G[Deduplicate Findings]
-    G --> H[Post to GitHub]
+    G --> H{Platform?}
+    H -->|GitHub| I[Post to GitHub]
+    H -->|ADO| J[Post to ADO]
 ```
 
 1. **Trigger** — PR is opened or updated
@@ -160,13 +165,14 @@ npm run format     # Format code
 
 ---
 
-## Roadmap
+## Platform Support
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features:
-
-- 🔴 **Azure DevOps** — Reporter and pipeline template
-- 🟢 **GitLab** — Future consideration
-- 🟢 **Gitea** — Future consideration
+| Platform       | Status      | Documentation                        |
+| -------------- | ----------- | ------------------------------------ |
+| GitHub Actions | ✅ Complete | [GitHub Setup](docs/GITHUB-SETUP.md) |
+| Azure DevOps   | ✅ Complete | [ADO Setup](docs/ADO-SETUP.md)       |
+| GitLab CI      | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
+| Gitea Actions  | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
 
 ---
 

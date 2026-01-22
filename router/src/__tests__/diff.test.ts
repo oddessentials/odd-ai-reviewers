@@ -2,8 +2,15 @@
  * Diff Module Tests
  */
 
-import { describe, it, expect } from 'vitest';
-import { filterFiles, buildCombinedDiff, type DiffFile, type PathFilter } from '../diff.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  filterFiles,
+  buildCombinedDiff,
+  normalizeGitRef,
+  type DiffFile,
+  type PathFilter,
+} from '../diff.js';
+import { execSync } from 'child_process';
 
 const testFiles: DiffFile[] = [
   { path: 'src/index.ts', status: 'modified', additions: 10, deletions: 5, patch: '+ added' },
@@ -116,5 +123,88 @@ describe('buildCombinedDiff', () => {
     const result = buildCombinedDiff(files, 1000);
     expect(result).not.toContain('file1.ts');
     expect(result).toContain('file2.ts');
+  });
+});
+
+// Mock child_process for normalizeGitRef tests
+vi.mock('child_process', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    execSync: vi.fn(),
+  };
+});
+
+describe('normalizeGitRef', () => {
+  const mockExecSync = vi.mocked(execSync);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should return SHA directly if it resolves', () => {
+    // SHA resolves successfully on first try
+    mockExecSync.mockReturnValue('abc123def456789\n');
+
+    const result = normalizeGitRef('/repo', 'abc123def456');
+    expect(result).toBe('abc123def456789');
+    expect(mockExecSync).toHaveBeenCalledWith(
+      expect.stringContaining('git rev-parse --verify'),
+      expect.any(Object)
+    );
+  });
+
+  it('should resolve refs/heads/main to origin/main SHA', () => {
+    // First call (direct ref) fails
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd.includes('refs/heads/main')) {
+        throw new Error('unknown revision');
+      }
+      if (cmd.includes('origin/main')) {
+        return 'resolved-sha-12345\n';
+      }
+      throw new Error('unexpected call');
+    });
+
+    const result = normalizeGitRef('/repo', 'refs/heads/main');
+    expect(result).toBe('resolved-sha-12345');
+  });
+
+  it('should try origin/* as fallback for branch names', () => {
+    // Direct ref fails, origin/* succeeds
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd.includes('"feature-branch"')) {
+        throw new Error('unknown revision');
+      }
+      if (cmd.includes('origin/feature-branch')) {
+        return 'feature-sha-67890\n';
+      }
+      throw new Error('unexpected call');
+    });
+
+    const result = normalizeGitRef('/repo', 'feature-branch');
+    expect(result).toBe('feature-sha-67890');
+  });
+
+  it('should return original ref if all resolutions fail', () => {
+    // All attempts fail
+    mockExecSync.mockImplementation(() => {
+      throw new Error('unknown revision');
+    });
+
+    const result = normalizeGitRef('/repo', 'nonexistent-ref');
+    expect(result).toBe('nonexistent-ref');
+  });
+
+  it('should handle GitHub-style SHAs unchanged', () => {
+    // Standard SHA resolves directly
+    mockExecSync.mockReturnValue('7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b\n');
+
+    const result = normalizeGitRef('/repo', '7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
+    expect(result).toBe('7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
   });
 });
