@@ -112,6 +112,7 @@ stages:
 
           - script: |
               cd /tmp/odd-ai-reviewers
+              # Router auto-resolves refs/heads/* to origin/* internally
               node router/dist/main.js review \
                 --repo $(Build.SourcesDirectory) \
                 --base $(System.PullRequest.TargetBranch) \
