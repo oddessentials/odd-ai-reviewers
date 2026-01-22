@@ -16,9 +16,11 @@ passes:
   - name: static # Pass name
     agents: [semgrep] # Agents to run
     enabled: true # Enable/disable pass
+    required: true # Fail fast when prerequisites are missing
   - name: semantic
     agents: [opencode, pr_agent]
     enabled: true
+    required: false
 
 limits:
   max_files: 50 # Max files per PR
@@ -70,6 +72,7 @@ Array of review passes executed in order. Each pass has:
 - `name`: Identifier for the pass
 - `agents`: Array of agent IDs to run
 - `enabled`: Whether the pass runs
+- `required`: When `true`, missing prerequisites (like API keys) fail fast
 
 Available agents:
 
@@ -139,7 +142,7 @@ Glob patterns to include/exclude files:
 version: 1
 ```
 
-Uses all defaults: Semgrep + OpenCode.ai, trusted PRs only.
+Uses defaults: Semgrep-only static analysis, trusted PRs only. AI agents run only when configured.
 
 ### Static Analysis Only (Free)
 
