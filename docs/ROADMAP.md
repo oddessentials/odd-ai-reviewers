@@ -2,16 +2,23 @@
 
 > Items below are **future work** focused on Azure DevOps integration. For completed features, see individual documentation files.
 
+> **Implementation Plan Available:** See [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) for the comprehensive, enterprise-grade implementation plan with full GitHub feature parity.
+
 ---
 
 ## Current Platform Support
 
-| Feature            | GitHub      | Azure DevOps |
-| ------------------ | ----------- | ------------ |
-| PR Commenting      | ✅ Complete | 🔴 Planned   |
-| Check Runs         | ✅ Complete | 🔴 Planned   |
-| Inline Annotations | ✅ Complete | 🔴 Planned   |
-| Reusable Pipeline  | ✅ Complete | ⚠️ Stub only |
+| Feature                    | GitHub      | Azure DevOps |
+| -------------------------- | ----------- | ------------ |
+| PR Commenting              | ✅ Complete | 🔴 Planned   |
+| Check Runs / Build Status  | ✅ Complete | 🔴 Planned   |
+| Inline Annotations         | ✅ Complete | 🔴 Planned   |
+| Comment Deduplication      | ✅ Complete | 🔴 Planned   |
+| Draft PR Detection         | ✅ Complete | 🔴 Planned   |
+| Fork PR Blocking           | ✅ Complete | 🔴 Planned   |
+| Trust Validation           | ✅ Complete | 🔴 Planned   |
+| Rate Limiting              | ✅ Complete | 🔴 Planned   |
+| Reusable Pipeline/Workflow | ✅ Complete | ⚠️ Stub only |
 
 ---
 
@@ -115,8 +122,32 @@ The following are explicitly **not planned** for odd-ai-reviewers:
 
 ---
 
+## Implementation Plan
+
+A comprehensive implementation plan has been created to ensure enterprise-grade Azure DevOps support with full GitHub feature parity:
+
+**[ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md)** covers:
+
+- Phase 1: ADO Reporter Module (`ado.ts`) with thread comments, inline annotations, build status
+- Phase 2: Trust & Environment Detection for ADO-specific context
+- Phase 3: Configuration Schema Extensions for ADO reporting modes
+- Phase 4: Security Module Updates (token stripping already partially implemented)
+- Phase 5: Complete Pipeline Template with variable groups and secret handling
+- Phase 6: Comprehensive Testing Strategy matching GitHub test coverage
+- Phase 7: Documentation Updates
+
+The plan ensures compliance with all invariants defined in [INVARIANTS.md](./INVARIANTS.md), particularly:
+
+- Router Monopoly Rule (only router posts to ADO)
+- No Direct Secrets to Agents (ADO tokens stripped)
+- Provider-Neutral Core (isolated `ado.ts` module)
+- Provider Parity Roadmap Discipline
+
+---
+
 ## Related Documentation
 
+- [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) — Comprehensive Azure DevOps implementation plan
 - [SCOPE.md](./SCOPE.md) — What odd-ai-reviewers does and doesn't do
 - [config-schema.md](./config-schema.md) — Configuration reference
 - [INVARIANTS.md](./INVARIANTS.md) — Design constraints
