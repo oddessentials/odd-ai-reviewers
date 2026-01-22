@@ -10,21 +10,22 @@ This document outlines the comprehensive implementation plan to add Azure DevOps
 
 ### Current State
 
-| Capability | GitHub | Azure DevOps |
-|------------|--------|--------------|
-| PR Commenting | ✅ Complete | 🔴 Not implemented |
-| Check Runs / Build Status | ✅ Complete | 🔴 Not implemented |
-| Inline Annotations | ✅ Complete | 🔴 Not implemented |
-| Reusable Pipeline | ✅ Complete | ⚠️ Stub only |
-| Trust Validation | ✅ Complete | 🔴 Not implemented |
-| Environment Detection | ✅ Complete | 🔴 Not implemented |
-| Deduplication | ✅ Complete | ⏳ Will reuse |
-| Cost Controls | ✅ Complete | ⏳ Will reuse |
+| Capability                 | GitHub      | Azure DevOps       |
+| -------------------------- | ----------- | ------------------ |
+| PR Commenting              | ✅ Complete | 🔴 Not implemented |
+| Check Runs / Build Status  | ✅ Complete | 🔴 Not implemented |
+| Inline Annotations         | ✅ Complete | 🔴 Not implemented |
+| Reusable Pipeline          | ✅ Complete | ⚠️ Stub only       |
+| Trust Validation           | ✅ Complete | 🔴 Not implemented |
+| Environment Detection      | ✅ Complete | 🔴 Not implemented |
+| Deduplication              | ✅ Complete | ⏳ Will reuse      |
+| Cost Controls              | ✅ Complete | ⏳ Will reuse      |
 | Security (Token Stripping) | ✅ Complete | ⏳ Partially ready |
 
 ### Target State
 
 Full feature parity with GitHub integration, including:
+
 - PR thread comments with inline code annotations
 - Build/pipeline status reporting
 - Draft PR detection and skipping
@@ -56,14 +57,14 @@ router/src/
 
 ### Component Responsibilities
 
-| Component | Responsibility |
-|-----------|----------------|
-| `main.ts` | Detect platform, build context, dispatch to correct reporter |
-| `config.ts` | Parse ADO reporting config, validate schema |
-| `trust.ts` | Build ADO PR context, validate fork/draft status |
-| `report/ado.ts` | ADO REST API calls for threads, status, comments |
-| `report/formats.ts` | Shared markdown/fingerprint generation (no changes) |
-| `agents/security.ts` | Strip ADO tokens from agent environments |
+| Component            | Responsibility                                               |
+| -------------------- | ------------------------------------------------------------ |
+| `main.ts`            | Detect platform, build context, dispatch to correct reporter |
+| `config.ts`          | Parse ADO reporting config, validate schema                  |
+| `trust.ts`           | Build ADO PR context, validate fork/draft status             |
+| `report/ado.ts`      | ADO REST API calls for threads, status, comments             |
+| `report/formats.ts`  | Shared markdown/fingerprint generation (no changes)          |
+| `agents/security.ts` | Strip ADO tokens from agent environments                     |
 
 ---
 
@@ -98,18 +99,19 @@ export interface ADOContext {
 
 #### Core Functions to Implement
 
-| Function | GitHub Equivalent | ADO API Endpoint |
-|----------|-------------------|------------------|
-| `startBuildStatus()` | `startCheckRun()` | Pipeline status via build API |
-| `reportToADO()` | `reportToGitHub()` | Orchestrates all reporting |
-| `createPRThread()` | `postPRComment()` | `POST /_apis/git/pullRequests/{prId}/threads` |
-| `updatePRThread()` | `updateComment()` | `PATCH /_apis/git/pullRequests/{prId}/threads/{threadId}` |
-| `createInlineComment()` | `createReviewComment()` | Thread with `threadContext` position |
-| `updateBuildStatus()` | `createCheckRun()` (completed) | Build status genre |
+| Function                | GitHub Equivalent              | ADO API Endpoint                                          |
+| ----------------------- | ------------------------------ | --------------------------------------------------------- |
+| `startBuildStatus()`    | `startCheckRun()`              | Pipeline status via build API                             |
+| `reportToADO()`         | `reportToGitHub()`             | Orchestrates all reporting                                |
+| `createPRThread()`      | `postPRComment()`              | `POST /_apis/git/pullRequests/{prId}/threads`             |
+| `updatePRThread()`      | `updateComment()`              | `PATCH /_apis/git/pullRequests/{prId}/threads/{threadId}` |
+| `createInlineComment()` | `createReviewComment()`        | Thread with `threadContext` position                      |
+| `updateBuildStatus()`   | `createCheckRun()` (completed) | Build status genre                                        |
 
 #### ADO REST API Reference
 
 **Base URL Pattern:**
+
 ```
 https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repositoryId}/pullRequests/{pullRequestId}
 ```
@@ -117,6 +119,7 @@ https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repositor
 **Key Endpoints:**
 
 1. **PR Threads (Comments)**
+
    ```
    POST /threads?api-version=7.1
    {
@@ -131,11 +134,13 @@ https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repositor
    ```
 
 2. **Build Status (equivalent to Check Runs)**
+
    ```
    POST /{project}/_apis/build/builds/{buildId}/status?api-version=7.1
    ```
 
    Or use **Statuses API** for commit status:
+
    ```
    POST /statuses/{commitId}?api-version=7.1
    {
@@ -149,13 +154,14 @@ https://dev.azure.com/{organization}/{project}/_apis/git/repositories/{repositor
 
 **Supported Authentication Methods:**
 
-| Method | Environment Variable | Use Case |
-|--------|---------------------|----------|
-| System.AccessToken | `SYSTEM_ACCESSTOKEN` | Azure Pipelines jobs |
-| Personal Access Token | `AZURE_DEVOPS_PAT` | Local testing, cross-org |
-| Managed Identity | N/A (auto) | Azure-hosted resources |
+| Method                | Environment Variable | Use Case                 |
+| --------------------- | -------------------- | ------------------------ |
+| System.AccessToken    | `SYSTEM_ACCESSTOKEN` | Azure Pipelines jobs     |
+| Personal Access Token | `AZURE_DEVOPS_PAT`   | Local testing, cross-org |
+| Managed Identity      | N/A (auto)           | Azure-hosted resources   |
 
 **Token Resolution Logic:**
+
 ```typescript
 function resolveADOToken(env: Record<string, string | undefined>): string | null {
   // 1. System.AccessToken (Azure Pipelines native)
@@ -175,18 +181,18 @@ Extend config schema to support ADO reporting modes:
 ```yaml
 reporting:
   ado:
-    mode: threads_and_status  # threads_only | status_only | threads_and_status
+    mode: threads_and_status # threads_only | status_only | threads_and_status
     max_inline_comments: 20
     summary: true
 ```
 
 **Mode Mapping:**
 
-| ADO Mode | GitHub Equivalent | Behavior |
-|----------|-------------------|----------|
-| `threads_only` | `comments_only` | PR threads + inline, no status |
-| `status_only` | `checks_only` | Build status only, no comments |
-| `threads_and_status` | `checks_and_comments` | Both (default) |
+| ADO Mode             | GitHub Equivalent     | Behavior                       |
+| -------------------- | --------------------- | ------------------------------ |
+| `threads_only`       | `comments_only`       | PR threads + inline, no status |
+| `status_only`        | `checks_only`         | Build status only, no comments |
+| `threads_and_status` | `checks_and_comments` | Both (default)                 |
 
 ### 1.4 Comment Deduplication
 
@@ -199,6 +205,7 @@ const marker = buildFingerprintMarker(finding);
 ```
 
 **Deduplication Flow:**
+
 1. Fetch existing PR threads via `GET /threads`
 2. Extract fingerprint markers from thread comments
 3. Skip posting findings already present
@@ -210,14 +217,14 @@ ADO uses `threadContext` for inline comments. Map Finding to ADO format:
 
 ```typescript
 interface ADOThreadContext {
-  filePath: string;        // From finding.file (prepend '/' if needed)
+  filePath: string; // From finding.file (prepend '/' if needed)
   rightFileStart: {
-    line: number;          // From finding.line
-    offset: number;        // Always 1 (start of line)
+    line: number; // From finding.line
+    offset: number; // Always 1 (start of line)
   };
   rightFileEnd: {
-    line: number;          // From finding.endLine ?? finding.line
-    offset: number;        // Always 1
+    line: number; // From finding.endLine ?? finding.line
+    offset: number; // Always 1
   };
 }
 
@@ -242,19 +249,19 @@ function toADOThreadContext(finding: Finding): ADOThreadContext | null {
 
 Azure Pipelines provides these predefined variables:
 
-| Variable | Purpose | Required |
-|----------|---------|----------|
-| `SYSTEM_ACCESSTOKEN` | Pipeline auth token | Yes (for posting) |
-| `BUILD_REPOSITORY_URI` | Repository URL | Yes (org/project extraction) |
-| `SYSTEM_PULLREQUEST_PULLREQUESTID` | PR number | Yes (for PR context) |
-| `SYSTEM_PULLREQUEST_SOURCEBRANCH` | Source branch ref | Yes |
-| `SYSTEM_PULLREQUEST_TARGETBRANCH` | Target branch ref | Yes |
-| `SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI` | Fork source URL | Yes (fork detection) |
-| `BUILD_SOURCEVERSION` | Head commit SHA | Yes |
-| `BUILD_REASON` | Trigger reason | Yes (PR vs push) |
-| `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI` | ADO base URL | Yes |
-| `SYSTEM_TEAMPROJECT` | Project name | Yes |
-| `BUILD_REPOSITORY_NAME` | Repository name | Yes |
+| Variable                                 | Purpose             | Required                     |
+| ---------------------------------------- | ------------------- | ---------------------------- |
+| `SYSTEM_ACCESSTOKEN`                     | Pipeline auth token | Yes (for posting)            |
+| `BUILD_REPOSITORY_URI`                   | Repository URL      | Yes (org/project extraction) |
+| `SYSTEM_PULLREQUEST_PULLREQUESTID`       | PR number           | Yes (for PR context)         |
+| `SYSTEM_PULLREQUEST_SOURCEBRANCH`        | Source branch ref   | Yes                          |
+| `SYSTEM_PULLREQUEST_TARGETBRANCH`        | Target branch ref   | Yes                          |
+| `SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI` | Fork source URL     | Yes (fork detection)         |
+| `BUILD_SOURCEVERSION`                    | Head commit SHA     | Yes                          |
+| `BUILD_REASON`                           | Trigger reason      | Yes (PR vs push)             |
+| `SYSTEM_TEAMFOUNDATIONCOLLECTIONURI`     | ADO base URL        | Yes                          |
+| `SYSTEM_TEAMPROJECT`                     | Project name        | Yes                          |
+| `BUILD_REPOSITORY_NAME`                  | Repository name     | Yes                          |
 
 ### 2.2 Platform Detection in `main.ts`
 
@@ -283,16 +290,16 @@ export interface ADOPullRequestContext {
   targetRepoUri: string;
   sourceBranch: string;
   targetBranch: string;
-  author: string;  // Not directly available - may need API call
+  author: string; // Not directly available - may need API call
   isFork: boolean;
-  isDraft: boolean;  // Requires API call to PR details
+  isDraft: boolean; // Requires API call to PR details
 }
 
 export function buildADOPRContext(
   env: Record<string, string | undefined>
 ): ADOPullRequestContext | null {
   const prId = env['SYSTEM_PULLREQUEST_PULLREQUESTID'];
-  if (!prId) return null;  // Not a PR build
+  if (!prId) return null; // Not a PR build
 
   const sourceRepoUri = env['SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI'] ?? '';
   const targetRepoUri = env['BUILD_REPOSITORY_URI'] ?? '';
@@ -305,7 +312,7 @@ export function buildADOPRContext(
     targetBranch: env['SYSTEM_PULLREQUEST_TARGETBRANCH'] ?? '',
     author: env['BUILD_REQUESTEDFOR'] ?? 'unknown',
     isFork: sourceRepoUri !== '' && sourceRepoUri !== targetRepoUri,
-    isDraft: false,  // Default - needs API enrichment
+    isDraft: false, // Default - needs API enrichment
   };
 }
 ```
@@ -337,9 +344,7 @@ Extend `config.ts` with ADO-specific reporting options:
 
 ```typescript
 const ADOReportingSchema = z.object({
-  mode: z
-    .enum(['threads_only', 'status_only', 'threads_and_status'])
-    .default('threads_and_status'),
+  mode: z.enum(['threads_only', 'status_only', 'threads_and_status']).default('threads_and_status'),
   max_inline_comments: z.number().default(20),
   summary: z.boolean().default(true),
   /** Thread status for new findings: Active (1), Pending (6) */
@@ -348,7 +353,7 @@ const ADOReportingSchema = z.object({
 
 const ReportingSchema = z.object({
   github: GithubReportingSchema.optional(),
-  ado: ADOReportingSchema.optional(),  // NEW
+  ado: ADOReportingSchema.optional(), // NEW
 });
 ```
 
@@ -410,7 +415,7 @@ const ROUTER_ENV_ALLOWLIST = [
   // Existing GitHub vars...
 
   // Azure DevOps CI context (router-only)
-  'SYSTEM_ACCESSTOKEN',       // ADO pipeline token
+  'SYSTEM_ACCESSTOKEN', // ADO pipeline token
   'SYSTEM_TEAMFOUNDATIONCOLLECTIONURI',
   'SYSTEM_TEAMPROJECT',
   'BUILD_REPOSITORY_URI',
@@ -475,7 +480,7 @@ stages:
           vmImage: ${{ parameters.agentPool }}
 
         variables:
-          - group: ai-review-secrets  # Contains OPENAI_API_KEY, ANTHROPIC_API_KEY
+          - group: ai-review-secrets # Contains OPENAI_API_KEY, ANTHROPIC_API_KEY
 
         steps:
           # Checkout the router repository
@@ -585,14 +590,14 @@ extends:
 
 Following the established testing patterns:
 
-| Test File | Purpose | GitHub Equivalent |
-|-----------|---------|-------------------|
-| `ado.test.ts` | ADO reporter unit tests | `check_run_lifecycle.test.ts` |
-| `ado_threads.test.ts` | Thread creation/update tests | Part of `check_run_lifecycle.test.ts` |
-| `ado_deduplication.test.ts` | Fingerprint extraction from threads | `deduplication.test.ts` |
-| `ado_trust.test.ts` | ADO PR context validation | `trust.test.ts` |
-| `ado_security.test.ts` | ADO token stripping | `security.test.ts` |
-| `ado_integration.test.ts` | End-to-end ADO flow | `integration/router.test.ts` |
+| Test File                   | Purpose                             | GitHub Equivalent                     |
+| --------------------------- | ----------------------------------- | ------------------------------------- |
+| `ado.test.ts`               | ADO reporter unit tests             | `check_run_lifecycle.test.ts`         |
+| `ado_threads.test.ts`       | Thread creation/update tests        | Part of `check_run_lifecycle.test.ts` |
+| `ado_deduplication.test.ts` | Fingerprint extraction from threads | `deduplication.test.ts`               |
+| `ado_trust.test.ts`         | ADO PR context validation           | `trust.test.ts`                       |
+| `ado_security.test.ts`      | ADO token stripping                 | `security.test.ts`                    |
+| `ado_integration.test.ts`   | End-to-end ADO flow                 | `integration/router.test.ts`          |
 
 ### 6.2 Test Structure for `ado.test.ts`
 
@@ -744,19 +749,19 @@ describe('ADO Trust Validation', () => {
 
 ### 7.1 New Documentation Files
 
-| File | Purpose |
-|------|---------|
-| `docs/ADO-SETUP.md` | Azure DevOps integration guide |
-| `docs/ADO-VARIABLE-GROUPS.md` | Secret configuration for ADO |
+| File                          | Purpose                        |
+| ----------------------------- | ------------------------------ |
+| `docs/ADO-SETUP.md`           | Azure DevOps integration guide |
+| `docs/ADO-VARIABLE-GROUPS.md` | Secret configuration for ADO   |
 
 ### 7.2 Updates to Existing Documentation
 
-| File | Changes |
-|------|---------|
-| `docs/ROADMAP.md` | Mark Phase 1 & 2 as complete |
-| `docs/config-schema.md` | Add ADO reporting schema |
-| `docs/ARCHITECTURE.md` | Add ADO flow diagram |
-| `README.md` | Add ADO quick start section |
+| File                    | Changes                      |
+| ----------------------- | ---------------------------- |
+| `docs/ROADMAP.md`       | Mark Phase 1 & 2 as complete |
+| `docs/config-schema.md` | Add ADO reporting schema     |
+| `docs/ARCHITECTURE.md`  | Add ADO flow diagram         |
+| `README.md`             | Add ADO quick start section  |
 
 ### 7.3 ADO-SETUP.md Outline
 
@@ -764,6 +769,7 @@ describe('ADO Trust Validation', () => {
 # Azure DevOps Setup Guide
 
 ## Prerequisites
+
 - Azure DevOps organization with Git repositories
 - Azure Pipelines enabled
 - Variable group for secrets
@@ -771,22 +777,33 @@ describe('ADO Trust Validation', () => {
 ## Quick Start
 
 ### 1. Create Variable Group
+
 ### 2. Configure Pipeline Permissions
+
 ### 3. Add Pipeline YAML
+
 ### 4. Test with a PR
 
 ## Authentication Options
+
 ### System.AccessToken (Recommended)
+
 ### Personal Access Token
+
 ### Managed Identity
 
 ## Configuration Reference
+
 ### Environment Variables
+
 ### Reporting Modes
+
 ### Trust Configuration
 
 ## Troubleshooting
+
 ### Common Issues
+
 ### Debug Logging
 ```
 
@@ -842,30 +859,30 @@ Phase 4 + Phase 5 ────────────────────�
 
 Each implementation phase must verify compliance with INVARIANTS.md:
 
-| # | Invariant | Verification |
-|---|-----------|--------------|
-| 1 | Router Owns Posting | ADO reporter in router only; agents have no ADO token access |
-| 2 | Agents Return Structured Findings | No changes to agent output format |
-| 3 | Single Source of Truth for Deduplication | Reuse `formats.ts` deduplication logic |
-| 4 | Provider-Neutral Core | `ado.ts` isolated; core logic unchanged |
-| 5 | Deterministic Outputs | Same fingerprint algorithm; stable ordering |
-| 7 | No Direct Secrets to Agents | `SYSTEM_ACCESSTOKEN` stripped from agent env |
-| 9 | No Fork PR Execution by Default | ADO fork detection via source URI comparison |
-| 15 | Bounded Output | Respect `max_inline_comments` config |
-| 19 | Provider Parity Roadmap Discipline | This plan maintains parity |
-| 23 | Tests Enforce Invariants | ADO-specific tests for all invariants |
+| #   | Invariant                                | Verification                                                 |
+| --- | ---------------------------------------- | ------------------------------------------------------------ |
+| 1   | Router Owns Posting                      | ADO reporter in router only; agents have no ADO token access |
+| 2   | Agents Return Structured Findings        | No changes to agent output format                            |
+| 3   | Single Source of Truth for Deduplication | Reuse `formats.ts` deduplication logic                       |
+| 4   | Provider-Neutral Core                    | `ado.ts` isolated; core logic unchanged                      |
+| 5   | Deterministic Outputs                    | Same fingerprint algorithm; stable ordering                  |
+| 7   | No Direct Secrets to Agents              | `SYSTEM_ACCESSTOKEN` stripped from agent env                 |
+| 9   | No Fork PR Execution by Default          | ADO fork detection via source URI comparison                 |
+| 15  | Bounded Output                           | Respect `max_inline_comments` config                         |
+| 19  | Provider Parity Roadmap Discipline       | This plan maintains parity                                   |
+| 23  | Tests Enforce Invariants                 | ADO-specific tests for all invariants                        |
 
 ---
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| ADO API rate limiting | Medium | Medium | Implement retry with exponential backoff |
-| Thread context position mismatch | Medium | Low | Robust error handling; skip failed inline comments |
-| Draft PR detection requires API call | High | Low | Cache draft status; accept false negatives |
-| Cross-org authentication complexity | Low | Medium | Document PAT setup clearly |
-| Azure Pipelines variable scoping | Medium | Medium | Test in real pipeline before release |
+| Risk                                 | Likelihood | Impact | Mitigation                                         |
+| ------------------------------------ | ---------- | ------ | -------------------------------------------------- |
+| ADO API rate limiting                | Medium     | Medium | Implement retry with exponential backoff           |
+| Thread context position mismatch     | Medium     | Low    | Robust error handling; skip failed inline comments |
+| Draft PR detection requires API call | High       | Low    | Cache draft status; accept false negatives         |
+| Cross-org authentication complexity  | Low        | Medium | Document PAT setup clearly                         |
+| Azure Pipelines variable scoping     | Medium     | Medium | Test in real pipeline before release               |
 
 ---
 
@@ -883,21 +900,24 @@ Each implementation phase must verify compliance with INVARIANTS.md:
 ## Appendix A: ADO API Quick Reference
 
 ### Authentication Header
+
 ```
 Authorization: Bearer {token}
 ```
 
 ### Common Status Codes
-| Code | Meaning | Action |
-|------|---------|--------|
-| 200 | Success | Continue |
-| 201 | Created | Success for POST |
-| 401 | Unauthorized | Check token permissions |
-| 403 | Forbidden | Token lacks scope |
-| 404 | Not Found | Verify PR/repo IDs |
-| 429 | Rate Limited | Retry with backoff |
+
+| Code | Meaning      | Action                  |
+| ---- | ------------ | ----------------------- |
+| 200  | Success      | Continue                |
+| 201  | Created      | Success for POST        |
+| 401  | Unauthorized | Check token permissions |
+| 403  | Forbidden    | Token lacks scope       |
+| 404  | Not Found    | Verify PR/repo IDs      |
+| 429  | Rate Limited | Retry with backoff      |
 
 ### Required Token Scopes
+
 - `Code (Read & Write)` - For PR threads
 - `Build (Read & Execute)` - For status updates
 
@@ -905,21 +925,22 @@ Authorization: Bearer {token}
 
 ## Appendix B: Environment Variable Mapping
 
-| GitHub | Azure DevOps | Purpose |
-|--------|--------------|---------|
-| `GITHUB_TOKEN` | `SYSTEM_ACCESSTOKEN` | Auth token |
-| `GITHUB_REPOSITORY` | `BUILD_REPOSITORY_URI` | Repo identifier |
-| `GITHUB_SHA` | `BUILD_SOURCEVERSION` | Commit SHA |
-| `GITHUB_REF` | `BUILD_SOURCEBRANCH` | Branch ref |
-| `GITHUB_EVENT_NAME` | `BUILD_REASON` | Trigger type |
-| `GITHUB_ACTOR` | `BUILD_REQUESTEDFOR` | User who triggered |
-| `GITHUB_HEAD_REPO` | `SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI` | Fork source |
+| GitHub              | Azure DevOps                             | Purpose            |
+| ------------------- | ---------------------------------------- | ------------------ |
+| `GITHUB_TOKEN`      | `SYSTEM_ACCESSTOKEN`                     | Auth token         |
+| `GITHUB_REPOSITORY` | `BUILD_REPOSITORY_URI`                   | Repo identifier    |
+| `GITHUB_SHA`        | `BUILD_SOURCEVERSION`                    | Commit SHA         |
+| `GITHUB_REF`        | `BUILD_SOURCEBRANCH`                     | Branch ref         |
+| `GITHUB_EVENT_NAME` | `BUILD_REASON`                           | Trigger type       |
+| `GITHUB_ACTOR`      | `BUILD_REQUESTEDFOR`                     | User who triggered |
+| `GITHUB_HEAD_REPO`  | `SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI` | Fork source        |
 
 ---
 
 ## Appendix C: File Changes Summary
 
 ### New Files
+
 - `router/src/report/ado.ts`
 - `router/src/__tests__/ado.test.ts`
 - `router/src/__tests__/ado_trust.test.ts`
@@ -927,6 +948,7 @@ Authorization: Bearer {token}
 - `docs/ADO-VARIABLE-GROUPS.md`
 
 ### Modified Files
+
 - `router/src/main.ts` - Platform detection, ADO dispatch
 - `router/src/config.ts` - ADO reporting schema
 - `router/src/trust.ts` - ADO context builder
@@ -941,6 +963,6 @@ Authorization: Bearer {token}
 
 ---
 
-*Document Version: 1.0*
-*Created: 2026-01-22*
-*Status: Ready for Implementation Review*
+_Document Version: 1.0_
+_Created: 2026-01-22_
+_Status: Ready for Implementation Review_

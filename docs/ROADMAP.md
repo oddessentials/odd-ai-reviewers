@@ -137,6 +137,7 @@ A comprehensive implementation plan has been created to ensure enterprise-grade 
 - Phase 7: Documentation Updates
 
 The plan ensures compliance with all invariants defined in [INVARIANTS.md](./INVARIANTS.md), particularly:
+
 - Router Monopoly Rule (only router posts to ADO)
 - No Direct Secrets to Agents (ADO tokens stripped)
 - Provider-Neutral Core (isolated `ado.ts` module)
