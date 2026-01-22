@@ -1,7 +1,5 @@
-# Azure DevOps AI Review Template (Stub)
-# To be fully implemented in Phase 3
-
-# This template can be extended by pipelines in target repositories
+# Azure DevOps AI Review Template
+# Extend this template in your azure-pipelines.yml
 
 parameters:
   - name: targetRepo
@@ -13,11 +11,19 @@ parameters:
   - name: baseRef
     type: string
     default: 'main'
-    displayName: 'Base Git Ref'
+    displayName: 'Base Git Ref for diff'
   - name: prNumber
     type: number
     default: 0
     displayName: 'PR Number (0 if not a PR)'
+  - name: agentPool
+    type: string
+    default: 'ubuntu-latest'
+    displayName: 'Agent pool (vmImage or pool name)'
+  - name: nodeVersion
+    type: string
+    default: '22.x'
+    displayName: 'Node.js version'
 
 stages:
   - stage: AIReview
@@ -26,28 +32,82 @@ stages:
       - job: Review
         displayName: 'Run AI Review'
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ${{ parameters.agentPool }}
+
+        variables:
+          - group: ai-review-secrets # Contains OPENAI_API_KEY, ANTHROPIC_API_KEY
+
         steps:
+          # Checkout the router repository
           - checkout: self
             displayName: 'Checkout AI Review Router'
+            path: router
 
+          # Checkout target repository
+          - checkout: git://${{ parameters.targetRepo }}@${{ parameters.targetRef }}
+            displayName: 'Checkout Target Repository'
+            path: target
+            fetchDepth: 0
+
+          # Setup Node.js
           - task: NodeTool@0
             displayName: 'Setup Node.js'
             inputs:
-              versionSpec: '22.x'
+              versionSpec: ${{ parameters.nodeVersion }}
 
+          # Install dependencies
+          - script: npm ci
+            displayName: 'Install Router Dependencies'
+            workingDirectory: $(Pipeline.Workspace)/router
+
+          # Build the router
+          - script: npm run build
+            displayName: 'Build Router'
+            workingDirectory: $(Pipeline.Workspace)/router
+
+          # Install Semgrep
+          - script: pip3 install semgrep==1.148.0
+            displayName: 'Install Semgrep'
+
+          # Determine base SHA
           - script: |
-              echo "Azure DevOps AI Review Template"
-              echo "This is a stub for Phase 3 implementation"
-              echo ""
-              echo "Target Repo: ${{ parameters.targetRepo }}"
-              echo "Target Ref: ${{ parameters.targetRef }}"
-              echo "Base Ref: ${{ parameters.baseRef }}"
-              echo "PR Number: ${{ parameters.prNumber }}"
-            displayName: 'Placeholder'
+              cd $(Pipeline.Workspace)/target
+              if [ -n "$(System.PullRequest.TargetBranch)" ]; then
+                BASE_SHA=$(git rev-parse origin/$(System.PullRequest.TargetBranch))
+              else
+                BASE_SHA=$(git rev-parse origin/${{ parameters.baseRef }})
+              fi
+              echo "##vso[task.setvariable variable=BASE_SHA]$BASE_SHA"
+            displayName: 'Determine Base SHA'
 
-          # TODO: Implement full ADO pipeline in Phase 3
-          # - Checkout target repository
-          # - Install dependencies
-          # - Run router with ADO-specific reporter
-          # - Post comments via ADO API
+          # Run AI Review
+          - script: |
+              node $(Pipeline.Workspace)/router/dist/main.js review \
+                --repo $(Pipeline.Workspace)/target \
+                --base $(BASE_SHA) \
+                --head ${{ parameters.targetRef }} \
+                --pr ${{ parameters.prNumber }}
+            displayName: 'Run AI Review'
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              OPENAI_API_KEY: $(OPENAI_API_KEY)
+              ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)
+              TF_BUILD: $(TF_BUILD)
+              SYSTEM_TEAMFOUNDATIONCOLLECTIONURI: $(System.TeamFoundationCollectionUri)
+              SYSTEM_TEAMPROJECT: $(System.TeamProject)
+              BUILD_REPOSITORY_URI: $(Build.Repository.Uri)
+              BUILD_REPOSITORY_NAME: $(Build.Repository.Name)
+              BUILD_SOURCEVERSION: $(Build.SourceVersion)
+              SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+              SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
+              SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+              SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI: $(System.PullRequest.SourceRepositoryUri)
+              BUILD_REQUESTEDFOR: $(Build.RequestedFor)
+
+          # Upload artifacts
+          - task: PublishPipelineArtifact@1
+            displayName: 'Upload Review Results'
+            condition: always()
+            inputs:
+              targetPath: $(Pipeline.Workspace)/router/review-*.json
+              artifact: ai-review-results

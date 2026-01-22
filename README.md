@@ -153,7 +153,7 @@ graph LR
 ```bash
 npm install        # Install dependencies
 npm run build      # Build the router
-npm test           # Run 297 tests
+npm test           # Run tests
 npm run lint       # Check linting
 npm run format     # Format code
 ```

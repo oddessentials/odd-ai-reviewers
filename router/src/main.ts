@@ -6,7 +6,7 @@
 
 import { Command } from 'commander';
 import { loadConfig, resolveEffectiveModel, resolveProvider } from './config.js';
-import { checkTrust, type PullRequestContext } from './trust.js';
+import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
 import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
 import {
@@ -16,6 +16,7 @@ import {
   type Finding,
 } from './agents/index.js';
 import { reportToGitHub, startCheckRun, type GitHubContext } from './report/github.js';
+import { reportToADO, type ADOContext } from './report/ado.js';
 import {
   deduplicateFindings,
   sortFindings,
@@ -91,6 +92,21 @@ interface ReviewOptions {
   dryRun?: boolean;
 }
 
+type Platform = 'github' | 'ado' | 'unknown';
+
+/**
+ * Detect the CI platform from environment variables
+ */
+function detectPlatform(env: Record<string, string | undefined>): Platform {
+  // GitHub Actions
+  if (env['GITHUB_ACTIONS'] === 'true') return 'github';
+
+  // Azure Pipelines
+  if (env['TF_BUILD'] === 'True' || env['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI']) return 'ado';
+
+  return 'unknown';
+}
+
 async function runReview(options: ReviewOptions): Promise<void> {
   console.log('[router] Starting AI Review');
   console.log(`[router] Repository: ${options.repo}`);
@@ -103,23 +119,37 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
   const configHash = hashConfig(config);
 
-  // Build PR context for trust check
-  // Note: GITHUB_HEAD_REPO is only set for fork PRs by some CI systems.
-  // If not set, assume same repo (not a fork) to avoid false positives.
-  const headRepo = routerEnv['GITHUB_HEAD_REPO'];
-  const baseRepo = routerEnv['GITHUB_REPOSITORY'];
-  const isFork = headRepo !== undefined && headRepo !== '' && headRepo !== baseRepo;
+  // Detect platform and build PR context
+  const platform = detectPlatform(routerEnv);
+  console.log(`[router] Detected platform: ${platform}`);
 
-  const prContext: PullRequestContext = {
-    number: options.pr ?? 0,
-    headRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
-    baseRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
-    author: routerEnv['GITHUB_ACTOR'] ?? 'unknown',
-    isFork,
-    isDraft:
-      routerEnv['GITHUB_EVENT_NAME'] === 'pull_request' &&
-      routerEnv['GITHUB_EVENT_PULL_REQUEST_DRAFT'] === 'true',
-  };
+  let prContext: PullRequestContext;
+
+  if (platform === 'ado') {
+    // Build ADO PR context from environment
+    const adoContext = buildADOPRContext(routerEnv);
+    if (!adoContext) {
+      console.log('[router] Not running in ADO PR context - skipping review');
+      return;
+    }
+    prContext = adoContext;
+  } else {
+    // Build GitHub PR context (existing logic)
+    const headRepo = routerEnv['GITHUB_HEAD_REPO'];
+    const baseRepo = routerEnv['GITHUB_REPOSITORY'];
+    const isFork = headRepo !== undefined && headRepo !== '' && headRepo !== baseRepo;
+
+    prContext = {
+      number: options.pr ?? 0,
+      headRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
+      baseRepo: options.owner && options.repoName ? `${options.owner}/${options.repoName}` : '',
+      author: routerEnv['GITHUB_ACTOR'] ?? 'unknown',
+      isFork,
+      isDraft:
+        routerEnv['GITHUB_EVENT_NAME'] === 'pull_request' &&
+        routerEnv['GITHUB_EVENT_PULL_REQUEST_DRAFT'] === 'true',
+    };
+  }
 
   // Check trust
   const trustResult = checkTrust(prContext, config);
@@ -389,27 +419,60 @@ async function runReview(options: ReviewOptions): Promise<void> {
   const summary = generateFullSummaryMarkdown(sorted, allResults, skippedAgents);
   console.log('\n' + summary);
 
-  // Report to GitHub (unless dry run)
-  if (!options.dryRun && options.owner && options.repoName && routerEnv['GITHUB_TOKEN']) {
-    const githubContext: GitHubContext = {
-      owner: options.owner,
-      repo: options.repoName,
-      prNumber: options.pr,
-      headSha: options.head,
-      token: routerEnv['GITHUB_TOKEN'],
-      checkRunId, // Pass check run ID for proper lifecycle (update vs create)
-    };
+  // Report based on platform (unless dry run)
+  if (!options.dryRun) {
+    if (platform === 'github' && options.owner && options.repoName && routerEnv['GITHUB_TOKEN']) {
+      const githubContext: GitHubContext = {
+        owner: options.owner,
+        repo: options.repoName,
+        prNumber: options.pr,
+        headSha: options.head,
+        token: routerEnv['GITHUB_TOKEN'],
+        checkRunId, // Pass check run ID for proper lifecycle (update vs create)
+      };
 
-    console.log('[router] Reporting to GitHub...');
-    const reportResult = await reportToGitHub(sorted, githubContext, config);
+      console.log('[router] Reporting to GitHub...');
+      const reportResult = await reportToGitHub(sorted, githubContext, config);
 
-    if (reportResult.success) {
-      console.log('[router] Successfully reported to GitHub');
-    } else {
-      console.error('[router] Failed to report to GitHub:', reportResult.error);
+      if (reportResult.success) {
+        console.log('[router] Successfully reported to GitHub');
+      } else {
+        console.error('[router] Failed to report to GitHub:', reportResult.error);
+      }
+    } else if (platform === 'ado') {
+      // Extract ADO context from environment
+      // SYSTEM_TEAMFOUNDATIONCOLLECTIONURI is like 'https://dev.azure.com/orgname/'
+      const collectionUri = routerEnv['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'] ?? '';
+      const organization = collectionUri.split('/').filter(Boolean).pop() ?? '';
+      const project = routerEnv['SYSTEM_TEAMPROJECT'] ?? '';
+      const repositoryId = routerEnv['BUILD_REPOSITORY_NAME'] ?? '';
+      // Token resolution: prefer System.AccessToken, fallback to PAT
+      const token = routerEnv['SYSTEM_ACCESSTOKEN'] || routerEnv['AZURE_DEVOPS_PAT'] || '';
+
+      if (!organization || !project || !repositoryId || !token || !prContext.number) {
+        console.warn('[router] Missing ADO context - skipping reporting');
+      } else {
+        const adoContext: ADOContext = {
+          organization,
+          project,
+          repositoryId,
+          pullRequestId: prContext.number,
+          sourceRefCommit: options.head,
+          token,
+        };
+
+        console.log('[router] Reporting to Azure DevOps...');
+        const reportResult = await reportToADO(sorted, adoContext, config);
+
+        if (reportResult.success) {
+          console.log('[router] Successfully reported to Azure DevOps');
+        } else {
+          console.error('[router] Failed to report to Azure DevOps:', reportResult.error);
+        }
+      }
     }
-  } else if (options.dryRun) {
-    console.log('[router] Dry run - skipping GitHub reporting');
+  } else {
+    console.log('[router] Dry run - skipping reporting');
   }
 
   // Check gating

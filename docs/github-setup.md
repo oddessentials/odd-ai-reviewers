@@ -74,7 +74,7 @@ limits:
   monthly_budget_usd: 100
 ```
 
-If you don't add this file, sensible defaults are used.
+If you don't add this file, the router runs a static-only Semgrep pass by default.
 
 ## Step 4: Test the Setup
 

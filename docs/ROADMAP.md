@@ -1,8 +1,8 @@
 # Roadmap: Azure DevOps Support
 
-> Items below are **future work** focused on Azure DevOps integration. For completed features, see individual documentation files.
+> Azure DevOps support has been implemented. For setup instructions, see [ADO-SETUP.md](./ADO-SETUP.md).
 
-> **Implementation Plan Available:** See [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) for the comprehensive, enterprise-grade implementation plan with full GitHub feature parity.
+> **Implementation Plan:** See [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) for the comprehensive implementation details.
 
 ---
 
@@ -10,15 +10,15 @@
 
 | Feature                    | GitHub      | Azure DevOps |
 | -------------------------- | ----------- | ------------ |
-| PR Commenting              | ✅ Complete | 🔴 Planned   |
-| Check Runs / Build Status  | ✅ Complete | 🔴 Planned   |
-| Inline Annotations         | ✅ Complete | 🔴 Planned   |
-| Comment Deduplication      | ✅ Complete | 🔴 Planned   |
-| Draft PR Detection         | ✅ Complete | 🔴 Planned   |
-| Fork PR Blocking           | ✅ Complete | 🔴 Planned   |
-| Trust Validation           | ✅ Complete | 🔴 Planned   |
-| Rate Limiting              | ✅ Complete | 🔴 Planned   |
-| Reusable Pipeline/Workflow | ✅ Complete | ⚠️ Stub only |
+| PR Commenting              | ✅ Complete | ✅ Complete  |
+| Check Runs / Build Status  | ✅ Complete | ✅ Complete  |
+| Inline Annotations         | ✅ Complete | ✅ Complete  |
+| Comment Deduplication      | ✅ Complete | ✅ Complete  |
+| Draft PR Detection         | ✅ Complete | ✅ Complete  |
+| Fork PR Blocking           | ✅ Complete | ✅ Complete  |
+| Trust Validation           | ✅ Complete | ✅ Complete  |
+| Rate Limiting              | ✅ Complete | ✅ Complete  |
+| Reusable Pipeline/Workflow | ✅ Complete | ✅ Complete  |
 
 ---
 
