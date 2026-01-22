@@ -34,6 +34,11 @@ reporting:
     mode: checks_and_comments # checks_only | comments_only | checks_and_comments
     max_inline_comments: 20 # Max inline comments
     summary: true # Post summary comment
+  ado:
+    mode: threads_and_status # threads_only | status_only | threads_and_status
+    max_inline_comments: 20 # Max inline comments
+    summary: true # Post summary thread
+    thread_status: active # active | pending
 
 gating:
   enabled: false # Block merge on findings

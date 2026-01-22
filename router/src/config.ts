@@ -47,8 +47,17 @@ const GithubReportingSchema = z.object({
   summary: z.boolean().default(true),
 });
 
+const ADOReportingSchema = z.object({
+  mode: z.enum(['threads_only', 'status_only', 'threads_and_status']).default('threads_and_status'),
+  max_inline_comments: z.number().default(20),
+  summary: z.boolean().default(true),
+  /** Thread status for new findings: Active (1), Pending (6) */
+  thread_status: z.enum(['active', 'pending']).default('active'),
+});
+
 const ReportingSchema = z.object({
   github: GithubReportingSchema.optional(),
+  ado: ADOReportingSchema.optional(),
 });
 
 const GatingSchema = z.object({
