@@ -118,11 +118,13 @@ Each repository using the AI Review workflow needs these secrets:
 ### Manual Verification Steps
 
 1. **After creating the GitHub App:**
+
    - Verify the app appears in GitHub Settings → Developer settings → GitHub Apps
    - Confirm the name displays as "Odd AI Reviewer" (or your chosen name)
    - Confirm the logo displays correctly on the app page
 
 2. **After installing the app on a test repository:**
+
    - Create a test PR with some code changes
    - Trigger the AI review workflow
    - Verify the comment appears with:

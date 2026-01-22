@@ -17,6 +17,7 @@ odd-ai-reviewers is designed to run on cloud-hosted runners or **OSCR self-hoste
 ## 1. Architectural Invariants
 
 1. **Router Owns Posting**
+
    - The router is the **only** component allowed to call provider APIs (GitHub/ADO) to post:
      - PR comments
      - review threads / annotations
@@ -25,14 +26,17 @@ odd-ai-reviewers is designed to run on cloud-hosted runners or **OSCR self-hoste
    - Agents MUST NOT post directly under any circumstances.
 
 2. **Agents Return Structured Findings**
+
    - Every agent MUST return **structured findings** that conform to the canonical finding schema.
    - “Free-form” agent output is not a first-class output and MUST NOT be used for reporting without normalization.
 
 3. **Single Source of Truth for Deduplication and Ordering**
+
    - Deduplication, sorting, prioritization, and output formatting MUST happen centrally in the router.
    - No agent may independently decide how many comments to post or which ones to suppress.
 
 4. **Provider-Neutral Core**
+
    - Core review logic (routing, finding schema, dedupe, budgets, policies) MUST remain provider-agnostic.
    - Provider-specific integrations (GitHub reporter, ADO reporter) MUST be isolated behind explicit interfaces/modules.
 
@@ -48,18 +52,22 @@ odd-ai-reviewers is designed to run on cloud-hosted runners or **OSCR self-hoste
 ## 2. Security Invariants
 
 6. **Untrusted Input Model**
+
    - PR code, diffs, repo contents, and filenames MUST be treated as **hostile**.
    - Never execute repo-provided code unless explicitly required and sandboxed.
 
 7. **No Direct Secrets to Agents**
+
    - Provider tokens (e.g., `GITHUB_TOKEN`), PATs, and any posting credentials MUST NOT be accessible to agent subprocesses.
    - Router MUST strip tokens from subprocess environments and enforce this with tests.
 
 8. **Provider-Native Secret Injection Only**
+
    - Secrets MUST be provided only through GitHub/ADO secret mechanisms.
    - odd-ai-reviewers MUST NOT invent its own secret distribution or storage mechanism.
 
 9. **No Fork PR Execution by Default**
+
    - odd-ai-reviewers MUST default to blocking forks / untrusted PR sources.
    - Any allowlisting (e.g., trusted authors) MUST be explicit, documented, and off by default.
 
