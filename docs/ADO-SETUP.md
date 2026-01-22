@@ -59,11 +59,22 @@ extends:
 
 ### 4. Configure Repository Permissions
 
+> [!IMPORTANT]
+> This step is **required** for PR commenting. Unlike GitHub Actions where `GITHUB_TOKEN` automatically has PR write access, Azure DevOps requires explicit permission grants.
+
 For the pipeline to post PR comments:
 
-1. Go to **Project Settings** → **Repositories** → **Security**
-2. Find your **Build Service** account
-3. Grant **Contribute to pull requests** permission
+1. Go to **Project Settings** → **Repositories** → **[Your Repository Name]**
+2. Click the **Security** tab
+3. Find the **Build Service** account:
+   - Format: `[Project Name] Build Service ([Organization Name])`
+   - Example: `MyProject Build Service (myorg)`
+4. Set **"Contribute to pull requests"** to **Allow**
+
+![ADO Permission Setting](https://learn.microsoft.com/azure/devops/repos/git/media/pull-requests/pr-policies.png?view=azure-devops)
+
+> [!TIP]
+> If you can't find the Build Service, click **"Add"** and search for "Build Service". There may be two entries - grant permission to the project-scoped one.
 
 ## Configuration Options
 
@@ -127,9 +138,25 @@ The router uses these ADO environment variables (automatically set by Azure Pipe
 
 ### Comments not appearing
 
-1. Verify `System.AccessToken` is available
-2. Check Build Service has **Contribute to pull requests** permission
+1. Verify `System.AccessToken` is available in the pipeline
+2. Check Build Service has **Contribute to pull requests** permission (see [Configure Repository Permissions](#4-configure-repository-permissions))
 3. Review pipeline logs for `[ado]` entries
+
+### 403 PullRequestContribute Error
+
+```
+Failed to create summary thread: 403 TF401027: You need the Git 'PullRequestContribute' permission
+```
+
+This means the Build Service identity doesn't have permission to comment on PRs:
+
+1. Go to **Project Settings** → **Repositories** → **[Your Repo]** → **Security**
+2. Find `[Project] Build Service ([Org])`
+3. Set **"Contribute to pull requests"** to **Allow**
+4. Re-run the pipeline
+
+> [!NOTE]
+> Commit status updates may still work even when PR comments fail, because they require different permissions.
 
 ### Authentication errors
 

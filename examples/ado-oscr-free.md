@@ -2,6 +2,14 @@
 
 > Complete example using Semgrep (static analysis), Reviewdog (annotations), and Ollama (local LLM) — **100% free, no cloud API costs**.
 
+## Prerequisites
+
+Before using this example, ensure:
+
+1. **Build Service has PR permissions** — Grant "Contribute to pull requests" to your Build Service. See [ADO Setup Guide](../docs/ADO-SETUP.md#4-configure-repository-permissions).
+2. **OSCR agent with `ai-review` capability** — Your self-hosted agent needs the Ollama sidecar.
+3. **`fetchDepth: 0`** — Required for git diff to work correctly.
+
 ## Repository Configuration
 
 Create `.ai-review.yml` in your repository root:
