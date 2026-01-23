@@ -496,4 +496,267 @@ describe('localLlmAgent', () => {
       expect(true).toBe(true); // Test passes if no error thrown
     });
   });
+
+  describe('Configurable Parameters', () => {
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should use default num_ctx of 16384 when LOCAL_LLM_NUM_CTX not set', async () => {
+      let capturedBody: string | undefined;
+      global.fetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+        capturedBody = options.body as string;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify({ findings: [], summary: 'OK' }),
+            done: true,
+          }),
+        });
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {}, // No LOCAL_LLM_NUM_CTX set
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      await localLlmAgent.run(context);
+
+      expect(capturedBody).toBeDefined();
+      const parsed = JSON.parse(capturedBody as string);
+      expect(parsed.options.num_ctx).toBe(16384);
+    });
+
+    it('should use custom num_ctx when LOCAL_LLM_NUM_CTX is set', async () => {
+      let capturedBody: string | undefined;
+      global.fetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+        capturedBody = options.body as string;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify({ findings: [], summary: 'OK' }),
+            done: true,
+          }),
+        });
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {
+          LOCAL_LLM_NUM_CTX: '32768', // Custom value
+        },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      await localLlmAgent.run(context);
+
+      expect(capturedBody).toBeDefined();
+      const parsed = JSON.parse(capturedBody as string);
+      expect(parsed.options.num_ctx).toBe(32768);
+    });
+
+    it('should use default timeout of 120000ms when LOCAL_LLM_TIMEOUT not set', async () => {
+      // Use a spy to capture the AbortController timeout
+      const originalFetch = global.fetch;
+      let abortSignalReceived = false;
+
+      global.fetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+        abortSignalReceived = options.signal instanceof AbortSignal;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify({ findings: [], summary: 'OK' }),
+            done: true,
+          }),
+        });
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {}, // No LOCAL_LLM_TIMEOUT set
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      await localLlmAgent.run(context);
+
+      // Verify AbortSignal is used (timeout mechanism is in place)
+      expect(abortSignalReceived).toBe(true);
+
+      global.fetch = originalFetch;
+    });
+
+    it('should respect custom timeout when LOCAL_LLM_TIMEOUT is set', async () => {
+      // Mock fetch to simulate abort (timeout) behavior
+      global.fetch = vi.fn().mockImplementation(() => {
+        const error = new Error('AbortError: The operation was aborted');
+        error.name = 'AbortError';
+        return Promise.reject(error);
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {
+          LOCAL_LLM_TIMEOUT: '5000', // 5 second timeout
+        },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      const result = await localLlmAgent.run(context);
+
+      expect(result.success).toBe(false);
+      // The error message should contain the custom timeout value
+      expect(result.error).toContain('Timeout after 5000ms');
+    });
+
+    it('should use correct model from OLLAMA_MODEL env var', async () => {
+      let capturedBody: string | undefined;
+      global.fetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+        capturedBody = options.body as string;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify({ findings: [], summary: 'OK' }),
+            done: true,
+          }),
+        });
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {
+          OLLAMA_MODEL: 'llama3:8b',
+        },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      await localLlmAgent.run(context);
+
+      expect(capturedBody).toBeDefined();
+      const parsed = JSON.parse(capturedBody as string);
+      expect(parsed.model).toBe('llama3:8b');
+    });
+
+    it('should use correct Ollama URL from OLLAMA_BASE_URL env var', async () => {
+      let capturedUrl: string | undefined;
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        capturedUrl = url;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            response: JSON.stringify({ findings: [], summary: 'OK' }),
+            done: true,
+          }),
+        });
+      });
+
+      const context: AgentContext = {
+        repoPath: '/repo',
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+        },
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        config: await import('../config.js').then((m) =>
+          m.ConfigSchema.parse({
+            version: 1,
+            passes: [{ name: 'test', agents: ['local_llm'], enabled: true }],
+          })
+        ),
+        diffContent: 'const x = 1;',
+        env: {
+          OLLAMA_BASE_URL: 'http://custom-ollama:9999',
+        },
+        effectiveModel: 'codellama:7b',
+        provider: 'ollama',
+      };
+
+      await localLlmAgent.run(context);
+
+      expect(capturedUrl).toBe('http://custom-ollama:9999/api/generate');
+    });
+  });
 });

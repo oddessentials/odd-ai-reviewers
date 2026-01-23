@@ -53,7 +53,13 @@ const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
     'AZURE_OPENAI_DEPLOYMENT',
     'MODEL',
   ],
-  local_llm: ['OLLAMA_BASE_URL', 'OLLAMA_MODEL', 'LOCAL_LLM_OPTIONAL'],
+  local_llm: [
+    'OLLAMA_BASE_URL',
+    'OLLAMA_MODEL',
+    'LOCAL_LLM_OPTIONAL',
+    'LOCAL_LLM_NUM_CTX',
+    'LOCAL_LLM_TIMEOUT',
+  ],
 };
 
 const ROUTER_ENV_ALLOWLIST = [
