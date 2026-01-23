@@ -41,8 +41,10 @@ const MAX_FILES = 50;
 const MAX_DIFF_LINES = 2000;
 /** Max tokens allowed (abort if exceeded) */
 const MAX_TOKENS = 8192;
-/** Timeout for Ollama requests (120 seconds) */
-const TIMEOUT_MS = 120000;
+/** Default timeout for Ollama requests (120 seconds) */
+const DEFAULT_TIMEOUT_MS = 120000;
+/** Default context window size (16k tokens) */
+const DEFAULT_NUM_CTX = 16384;
 /** Default Ollama model */
 const DEFAULT_MODEL = 'codellama:7b';
 
@@ -357,7 +359,9 @@ export const localLlmAgent: ReviewAgent = {
 
     const agentEnv = buildAgentEnv('local_llm', context.env);
     const ollamaUrl = agentEnv['OLLAMA_BASE_URL'] || 'http://ollama-sidecar:11434';
-    const model = agentEnv['OLLAMA_MODEL'] || 'codellama:7b';
+    const model = agentEnv['OLLAMA_MODEL'] || DEFAULT_MODEL;
+    const numCtx = parseInt(agentEnv['LOCAL_LLM_NUM_CTX'] || String(DEFAULT_NUM_CTX), 10);
+    const timeoutMs = parseInt(agentEnv['LOCAL_LLM_TIMEOUT'] || String(DEFAULT_TIMEOUT_MS), 10);
 
     // Get supported files
     const supportedFiles = context.files.filter((f) => this.supports(f));
@@ -404,23 +408,23 @@ export const localLlmAgent: ReviewAgent = {
 
     // Build Ollama request (prompt already built above for token estimation)
     const request: OllamaRequest = {
-      model: agentEnv['OLLAMA_MODEL'] || DEFAULT_MODEL,
+      model,
       prompt,
       stream: false,
       format: 'json',
       options: {
         temperature: 0.0,
         seed: 42,
-        num_ctx: 4096,
+        num_ctx: numCtx,
       },
     };
 
     console.log(
-      `[local_llm] Calling Ollama at ${ollamaUrl} with model ${model} (${estimatedTokens} tokens)`
+      `[local_llm] Calling Ollama at ${ollamaUrl} with model ${model} (${estimatedTokens} tokens, ctx=${numCtx}, timeout=${timeoutMs}ms)`
     );
 
     // Call Ollama with timeout
-    const result = await callOllama(ollamaUrl, request, TIMEOUT_MS);
+    const result = await callOllama(ollamaUrl, request, timeoutMs);
 
     if (!result.ok) {
       // Check if connection failure should be graceful or fail-closed
