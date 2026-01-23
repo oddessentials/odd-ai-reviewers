@@ -360,14 +360,25 @@ describe('localLlmAgent', () => {
         summary: 'Found 1 issue',
       };
 
-      // Simulate streaming: Ollama sends chunks with partial response tokens
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(
+      // Mock both warmup and main request
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // Warmup call
+          return Promise.resolve(
+            createStreamingResponse([
+              JSON.stringify({ response: '{"ping":"ok"}', done: true }) + '\n',
+            ])
+          );
+        }
+        // Main call
+        return Promise.resolve(
           createStreamingResponse([
             JSON.stringify({ response: JSON.stringify(mockResponse), done: true }) + '\n',
           ])
         );
+      });
 
       const context: AgentContext = {
         repoPath: '/repo',
@@ -403,14 +414,25 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail on invalid JSON response', async () => {
-      // Streaming response that accumulates to invalid JSON
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(
+      // Mock both warmup and main request - main returns invalid JSON
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // Warmup call
+          return Promise.resolve(
+            createStreamingResponse([
+              JSON.stringify({ response: '{"ping":"ok"}', done: true }) + '\n',
+            ])
+          );
+        }
+        // Main call - invalid JSON
+        return Promise.resolve(
           createStreamingResponse([
             JSON.stringify({ response: 'This is not JSON at all', done: true }) + '\n',
           ])
         );
+      });
 
       const context: AgentContext = {
         repoPath: '/repo',
@@ -441,15 +463,28 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail on mixed stdout (JSON + extra text)', async () => {
-      // Streaming response that looks like mixed stdout
-      global.fetch = vi.fn().mockResolvedValue(
-        createStreamingResponse([
-          JSON.stringify({
-            response: 'Here is my analysis: {"findings": [], "summary": "OK"} - done!',
-            done: true,
-          }) + '\n',
-        ])
-      );
+      // Mock both warmup and main request - main returns mixed stdout
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // Warmup call
+          return Promise.resolve(
+            createStreamingResponse([
+              JSON.stringify({ response: '{"ping":"ok"}', done: true }) + '\n',
+            ])
+          );
+        }
+        // Main call - mixed stdout
+        return Promise.resolve(
+          createStreamingResponse([
+            JSON.stringify({
+              response: 'Here is my analysis: {"findings": [], "summary": "OK"} - done!',
+              done: true,
+            }) + '\n',
+          ])
+        );
+      });
 
       const context: AgentContext = {
         repoPath: '/repo',

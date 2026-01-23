@@ -8,13 +8,14 @@ The `local_llm` agent uses Ollama for air-gapped, local AI code review. This gui
 
 ### Environment Variables
 
-| Variable             | Required | Default                       | Description                  |
-| -------------------- | -------- | ----------------------------- | ---------------------------- |
-| `OLLAMA_BASE_URL`    | No       | `http://ollama-sidecar:11434` | Ollama API endpoint          |
-| `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use for review      |
-| `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation  |
-| `LOCAL_LLM_NUM_CTX`  | No       | `8192`                        | Context window size (tokens) |
-| `LOCAL_LLM_TIMEOUT`  | No       | `300000`                      | Request timeout (ms)         |
+| Variable                | Required | Default                       | Description                         |
+| ----------------------- | -------- | ----------------------------- | ----------------------------------- |
+| `OLLAMA_BASE_URL`       | No       | `http://ollama-sidecar:11434` | Ollama API endpoint                 |
+| `OLLAMA_MODEL`          | No       | `codellama:7b`                | Model to use for review             |
+| `LOCAL_LLM_OPTIONAL`    | No       | `false`                       | Enable graceful degradation         |
+| `LOCAL_LLM_NUM_CTX`     | No       | `8192`                        | Context window size (tokens)        |
+| `LOCAL_LLM_NUM_PREDICT` | No       | `8192`                        | Max output tokens (circuit breaker) |
+| `LOCAL_LLM_TIMEOUT`     | No       | `600000`                      | Request timeout (ms) - 10 min       |
 
 ### Example Configuration
 
