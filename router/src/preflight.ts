@@ -205,6 +205,19 @@ export function validateModelProviderMatch(
     return { valid: true, errors: [] };
   }
 
+  // INVARIANT: Ollama-style models (containing ':') are ONLY for local_llm
+  // Cloud agents (opencode, pr_agent, ai_semantic_review) cannot use them
+  if (model.includes(':')) {
+    errors.push(
+      `MODEL '${model}' is an Ollama model but cloud AI agents are enabled.\n` +
+        `Fix: Either set a cloud model or disable cloud agents:\n` +
+        `  MODEL=claude-sonnet-4-20250514  # Anthropic\n` +
+        `  MODEL=gpt-4o-mini               # OpenAI\n` +
+        `Or in .ai-review.yml, disable cloud agents and keep only local_llm.`
+    );
+    return { valid: false, errors };
+  }
+
   // Heuristic: infer provider from model prefix
   if (model.startsWith('claude-')) {
     if (!env['ANTHROPIC_API_KEY']) {
