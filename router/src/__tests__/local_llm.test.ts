@@ -611,7 +611,7 @@ describe('localLlmAgent', () => {
       expect(parsed.options.num_ctx).toBe(32768);
     });
 
-    it('should use default timeout of 180000ms when LOCAL_LLM_TIMEOUT not set', async () => {
+    it('should use default timeout of 300000ms when LOCAL_LLM_TIMEOUT not set', async () => {
       // Use a spy to capture the AbortController timeout
       const originalFetch = global.fetch;
       let abortSignalReceived = false;

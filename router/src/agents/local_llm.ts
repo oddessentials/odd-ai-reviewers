@@ -41,8 +41,8 @@ const MAX_FILES = 50;
 const MAX_DIFF_LINES = 2000;
 /** Max tokens allowed (abort if exceeded) */
 const MAX_TOKENS = 8192;
-/** Default timeout for Ollama requests (180 seconds - codellama:7b can take up to 2 min) */
-const DEFAULT_TIMEOUT_MS = 180000;
+/** Default timeout for Ollama requests (300 seconds - allows for slow inference plus overhead) */
+const DEFAULT_TIMEOUT_MS = 300000;
 /** Default context window size (8k tokens - balances capability vs VRAM usage) */
 const DEFAULT_NUM_CTX = 8192;
 /** Default Ollama model */
@@ -71,6 +71,7 @@ interface OllamaRequest {
     temperature: number;
     seed: number;
     num_ctx: number;
+    num_predict: number;
   };
 }
 
@@ -454,6 +455,7 @@ export const localLlmAgent: ReviewAgent = {
         temperature: 0.0,
         seed: 42,
         num_ctx: numCtx,
+        num_predict: 2048, // Limit output tokens to reduce inference time
       },
     };
 

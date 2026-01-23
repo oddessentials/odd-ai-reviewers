@@ -14,7 +14,7 @@ The `local_llm` agent uses Ollama for air-gapped, local AI code review. This gui
 | `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use for review      |
 | `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation  |
 | `LOCAL_LLM_NUM_CTX`  | No       | `8192`                        | Context window size (tokens) |
-| `LOCAL_LLM_TIMEOUT`  | No       | `180000`                      | Request timeout (ms)         |
+| `LOCAL_LLM_TIMEOUT`  | No       | `300000`                      | Request timeout (ms)         |
 
 ### Example Configuration
 
@@ -90,7 +90,7 @@ The agent enforces these limits to prevent timeouts:
 - **Max diff lines:** 2000
 - **Max tokens:** 8192 (pre-flight check)
 - **Context window:** 8192 (configurable via `LOCAL_LLM_NUM_CTX`)
-- **Timeout:** 180 seconds (configurable via `LOCAL_LLM_TIMEOUT`)
+- **Timeout:** 300 seconds (configurable via `LOCAL_LLM_TIMEOUT`)
 
 ## Running with OSCR
 
@@ -129,7 +129,7 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 
 ### Timeout Errors
 
-**Problem:** Reviews exceed timeout (default 180s)
+**Problem:** Reviews exceed timeout (default 300s)
 
 **Solutions:**
 
