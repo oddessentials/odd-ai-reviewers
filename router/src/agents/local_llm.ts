@@ -43,8 +43,8 @@ const MAX_DIFF_LINES = 2000;
 const MAX_TOKENS = 8192;
 /** Default timeout for Ollama requests (180 seconds - codellama:7b can take up to 2 min) */
 const DEFAULT_TIMEOUT_MS = 180000;
-/** Default context window size (16k tokens) */
-const DEFAULT_NUM_CTX = 16384;
+/** Default context window size (8k tokens - balances capability vs VRAM usage) */
+const DEFAULT_NUM_CTX = 8192;
 /** Default Ollama model */
 const DEFAULT_MODEL = 'codellama:7b';
 

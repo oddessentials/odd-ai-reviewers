@@ -13,8 +13,8 @@ The `local_llm` agent uses Ollama for air-gapped, local AI code review. This gui
 | `OLLAMA_BASE_URL`    | No       | `http://ollama-sidecar:11434` | Ollama API endpoint          |
 | `OLLAMA_MODEL`       | No       | `codellama:7b`                | Model to use for review      |
 | `LOCAL_LLM_OPTIONAL` | No       | `false`                       | Enable graceful degradation  |
-| `LOCAL_LLM_NUM_CTX`  | No       | `16384`                       | Context window size (tokens) |
-| `LOCAL_LLM_TIMEOUT`  | No       | `120000`                      | Request timeout (ms)         |
+| `LOCAL_LLM_NUM_CTX`  | No       | `8192`                        | Context window size (tokens) |
+| `LOCAL_LLM_TIMEOUT`  | No       | `180000`                      | Request timeout (ms)         |
 
 ### Example Configuration
 
@@ -23,7 +23,7 @@ The `local_llm` agent uses Ollama for air-gapped, local AI code review. This gui
 env:
   OLLAMA_BASE_URL: http://ollama:11434
   OLLAMA_MODEL: codellama:7b
-  LOCAL_LLM_NUM_CTX: 16384 # Context window (increase for larger diffs)
+  LOCAL_LLM_NUM_CTX: 8192 # Context window (default; increase for larger diffs if VRAM allows)
   LOCAL_LLM_TIMEOUT: 180000 # 3 minutes (for slower models)
   # LOCAL_LLM_OPTIONAL: true     # Uncomment for graceful degradation
 ```
@@ -89,8 +89,8 @@ The agent enforces these limits to prevent timeouts:
 - **Max files:** 50 (alphabetically sorted)
 - **Max diff lines:** 2000
 - **Max tokens:** 8192 (pre-flight check)
-- **Context window:** 16384 (configurable via `LOCAL_LLM_NUM_CTX`)
-- **Timeout:** 120 seconds (configurable via `LOCAL_LLM_TIMEOUT`)
+- **Context window:** 8192 (configurable via `LOCAL_LLM_NUM_CTX`)
+- **Timeout:** 180 seconds (configurable via `LOCAL_LLM_TIMEOUT`)
 
 ## Running with OSCR
 
@@ -129,7 +129,7 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 
 ### Timeout Errors
 
-**Problem:** Reviews exceed timeout (default 120s)
+**Problem:** Reviews exceed timeout (default 180s)
 
 **Solutions:**
 
@@ -147,7 +147,7 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 
 **Solutions:**
 
-1. Increase context window: `LOCAL_LLM_NUM_CTX=16384` (or higher if RAM allows)
+1. Increase context window: `LOCAL_LLM_NUM_CTX=16384` (if VRAM allows; default is 8192)
 2. Reduce diff size via path filters in config
 3. Check Ollama logs for exact token counts: `docker logs <ollama-container>`
 

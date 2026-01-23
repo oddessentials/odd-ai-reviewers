@@ -525,7 +525,7 @@ describe('localLlmAgent', () => {
       vi.restoreAllMocks();
     });
 
-    it('should use default num_ctx of 16384 when LOCAL_LLM_NUM_CTX not set', async () => {
+    it('should use default num_ctx of 8192 when LOCAL_LLM_NUM_CTX not set', async () => {
       let capturedBody: string | undefined;
       global.fetch = vi.fn().mockImplementation((_url: string, options: RequestInit) => {
         capturedBody = options.body as string;
@@ -564,7 +564,7 @@ describe('localLlmAgent', () => {
 
       expect(capturedBody).toBeDefined();
       const parsed = JSON.parse(capturedBody as string);
-      expect(parsed.options.num_ctx).toBe(16384);
+      expect(parsed.options.num_ctx).toBe(8192);
     });
 
     it('should use custom num_ctx when LOCAL_LLM_NUM_CTX is set', async () => {
@@ -611,7 +611,7 @@ describe('localLlmAgent', () => {
       expect(parsed.options.num_ctx).toBe(32768);
     });
 
-    it('should use default timeout of 120000ms when LOCAL_LLM_TIMEOUT not set', async () => {
+    it('should use default timeout of 180000ms when LOCAL_LLM_TIMEOUT not set', async () => {
       // Use a spy to capture the AbortController timeout
       const originalFetch = global.fetch;
       let abortSignalReceived = false;
