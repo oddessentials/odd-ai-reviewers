@@ -58,6 +58,7 @@ const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
     'OLLAMA_MODEL',
     'LOCAL_LLM_OPTIONAL',
     'LOCAL_LLM_NUM_CTX',
+    'LOCAL_LLM_NUM_PREDICT',
     'LOCAL_LLM_TIMEOUT',
   ],
 };
@@ -113,6 +114,7 @@ const ROUTER_ENV_ALLOWLIST = [
   // Local LLM tuning
   'LOCAL_LLM_OPTIONAL',
   'LOCAL_LLM_NUM_CTX',
+  'LOCAL_LLM_NUM_PREDICT',
   'LOCAL_LLM_TIMEOUT',
   // Model selection (canonical)
   'MODEL',

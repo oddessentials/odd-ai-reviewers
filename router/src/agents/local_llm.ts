@@ -41,10 +41,14 @@ const MAX_FILES = 50;
 const MAX_DIFF_LINES = 2000;
 /** Max tokens allowed (abort if exceeded) */
 const MAX_TOKENS = 8192;
-/** Default timeout for Ollama requests (300 seconds - allows for slow inference plus overhead) */
-const DEFAULT_TIMEOUT_MS = 300000;
+/** Max findings to return (cap output for determinism) */
+const MAX_FINDINGS = 200;
+/** Default timeout for Ollama requests (10 minutes - allows for slow inference) */
+const DEFAULT_TIMEOUT_MS = 600000;
 /** Default context window size (8k tokens - balances capability vs VRAM usage) */
 const DEFAULT_NUM_CTX = 8192;
+/** Default max output tokens (circuit breaker, not truncation) */
+const DEFAULT_NUM_PREDICT = 8192;
 /** Default Ollama model */
 const DEFAULT_MODEL = 'codellama:7b';
 
@@ -292,6 +296,139 @@ function mapSeverity(severity?: string): Severity {
 }
 
 /**
+ * Severity ordering for deterministic sorting (error > warning > info)
+ */
+const SEVERITY_ORDER: Record<Severity, number> = {
+  error: 0,
+  warning: 1,
+  info: 2,
+};
+
+/**
+ * Bound and dedupe findings for deterministic output
+ */
+function boundFindings(findings: Finding[]): {
+  bounded: Finding[];
+  total: number;
+  included: number;
+} {
+  // Sort by severity (error first), then by file, then by line, then by ruleId for stability
+  const sorted = [...findings].sort((a, b) => {
+    const severityDiff = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+    if (severityDiff !== 0) return severityDiff;
+    const fileDiff = a.file.localeCompare(b.file);
+    if (fileDiff !== 0) return fileDiff;
+    const lineDiff = (a.line ?? 0) - (b.line ?? 0);
+    if (lineDiff !== 0) return lineDiff;
+    return (a.ruleId ?? '').localeCompare(b.ruleId ?? '');
+  });
+
+  // Dedupe by file+line+message
+  const seen = new Set<string>();
+  const deduped = sorted.filter((f) => {
+    const key = `${f.file}:${f.line}:${f.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Cap at MAX_FINDINGS
+  const bounded = deduped.slice(0, MAX_FINDINGS);
+  return { bounded, total: findings.length, included: bounded.length };
+}
+
+/**
+ * Warm up model to ensure consistent first-run behavior
+ */
+async function warmUpModel(
+  ollamaUrl: string,
+  model: string
+): Promise<{ ok: boolean; error?: string }> {
+  const warmupRequest: OllamaRequest = {
+    model,
+    prompt: 'ping',
+    stream: false,
+    format: 'json',
+    options: {
+      temperature: 0,
+      seed: 42,
+      num_ctx: 512,
+      num_predict: 10,
+    },
+  };
+
+  try {
+    const result = await callOllama(ollamaUrl, warmupRequest, 30000);
+    if (result.ok) {
+      console.log('[local_llm] Model warmed up successfully');
+    }
+    return result;
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'warmup failed' };
+  }
+}
+
+/**
+ * Attempt single JSON repair pass when initial parse fails
+ */
+async function attemptJsonRepair(
+  rawResponse: string,
+  ollamaUrl: string,
+  model: string,
+  numCtx: number,
+  timeoutMs: number
+): Promise<{ ok: boolean; findings: Finding[]; error?: string }> {
+  console.log('[local_llm] Initial JSON parse failed, attempting repair pass');
+
+  const repairPrompt = `The following text should be a JSON object but has errors.
+Extract or fix ONLY the JSON object matching this exact schema:
+{"findings": [{"severity": "error|warning|info", "file": "path", "line": number, "message": "text"}], "summary": "text"}
+
+Original text (may be truncated):
+${rawResponse.slice(0, 2000)}
+
+Return ONLY valid JSON, no explanation or other text.`;
+
+  const repairRequest: OllamaRequest = {
+    model,
+    prompt: repairPrompt,
+    stream: false,
+    format: 'json',
+    options: {
+      temperature: 0,
+      seed: 42,
+      num_ctx: numCtx,
+      num_predict: DEFAULT_NUM_PREDICT,
+    },
+  };
+
+  // Use half the remaining timeout for repair
+  const repairResult = await callOllama(ollamaUrl, repairRequest, Math.min(timeoutMs / 2, 120000));
+
+  if (!repairResult.ok) {
+    return {
+      ok: false,
+      findings: [],
+      error: `JSON repair failed: ${repairResult.error}`,
+    };
+  }
+
+  // Try parsing repair result
+  const parseResult = parseOllamaResponse(repairResult.response ?? '');
+
+  if (!parseResult.ok) {
+    return {
+      ok: false,
+      findings: [],
+      error: `JSON parsing failed after repair attempt: ${parseResult.error}`,
+    };
+  }
+
+  console.log('[local_llm] JSON repair successful');
+  return parseResult;
+}
+
+/**
  * Call Ollama API with streaming to prevent server-side timeouts.
  * Ollama has an internal ~2 minute timeout for non-streaming requests.
  * Streaming keeps the connection alive during generation.
@@ -400,7 +537,22 @@ export const localLlmAgent: ReviewAgent = {
     const ollamaUrl = agentEnv['OLLAMA_BASE_URL'] || 'http://ollama-sidecar:11434';
     const model = agentEnv['OLLAMA_MODEL'] || DEFAULT_MODEL;
     const numCtx = parseInt(agentEnv['LOCAL_LLM_NUM_CTX'] || String(DEFAULT_NUM_CTX), 10);
+    const numPredict = parseInt(
+      agentEnv['LOCAL_LLM_NUM_PREDICT'] || String(DEFAULT_NUM_PREDICT),
+      10
+    );
     const timeoutMs = parseInt(agentEnv['LOCAL_LLM_TIMEOUT'] || String(DEFAULT_TIMEOUT_MS), 10);
+
+    // Log runtime configuration for reproducibility (requirement 4)
+    console.log('[local_llm] Configuration:', {
+      model,
+      ollamaUrl,
+      numCtx,
+      numPredict,
+      timeoutMs,
+      streaming: true,
+      filesCount: context.files.length,
+    });
 
     // Get supported files
     const supportedFiles = context.files.filter((f) => this.supports(f));
@@ -415,6 +567,45 @@ export const localLlmAgent: ReviewAgent = {
           filesProcessed: 0,
         },
       };
+    }
+
+    // Warm up model for consistent first-run behavior (requirement 7)
+    const warmupResult = await warmUpModel(ollamaUrl, model);
+    if (!warmupResult.ok) {
+      // Check if this is a connection failure
+      const isConnectionFailure =
+        warmupResult.error?.includes('ECONNREFUSED') ||
+        warmupResult.error?.includes('fetch failed') ||
+        warmupResult.error?.includes('ENOTFOUND');
+
+      if (isConnectionFailure) {
+        const optionalMode = agentEnv['LOCAL_LLM_OPTIONAL'] === 'true';
+        if (optionalMode) {
+          console.log(
+            `[local_llm] Ollama unavailable at ${ollamaUrl}, skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
+          );
+          return {
+            agentId: this.id,
+            success: true,
+            findings: [],
+            metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+          };
+        } else {
+          console.error(
+            `[local_llm] Cannot connect to Ollama at ${ollamaUrl}. ` +
+              `Verify: (1) Ollama container is running, (2) OLLAMA_BASE_URL is set correctly.`
+          );
+          return {
+            agentId: this.id,
+            success: false,
+            findings: [],
+            error: `Ollama unavailable: ${warmupResult.error}`,
+            metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
+          };
+        }
+      }
+      // Non-connection warmup failures are warnings, continue anyway
+      console.warn(`[local_llm] Warmup failed (continuing): ${warmupResult.error}`);
     }
 
     // Sanitize and bound input
@@ -445,7 +636,7 @@ export const localLlmAgent: ReviewAgent = {
       };
     }
 
-    // Build Ollama request (prompt already built above for token estimation)
+    // Build Ollama request
     const request: OllamaRequest = {
       model,
       prompt,
@@ -455,62 +646,19 @@ export const localLlmAgent: ReviewAgent = {
         temperature: 0.0,
         seed: 42,
         num_ctx: numCtx,
-        num_predict: 2048, // Limit output tokens to reduce inference time
+        num_predict: numPredict,
       },
     };
 
     console.log(
-      `[local_llm] Calling Ollama at ${ollamaUrl} with model ${model} (${estimatedTokens} tokens, ctx=${numCtx}, timeout=${timeoutMs}ms)`
+      `[local_llm] Calling Ollama (${estimatedTokens} tokens, ctx=${numCtx}, num_predict=${numPredict}, timeout=${timeoutMs}ms)`
     );
 
     // Call Ollama with timeout
     const result = await callOllama(ollamaUrl, request, timeoutMs);
 
     if (!result.ok) {
-      // Check if connection failure should be graceful or fail-closed
-      const isConnectionFailure =
-        result.error?.includes('ECONNREFUSED') ||
-        result.error?.includes('fetch failed') ||
-        result.error?.includes('ENOTFOUND');
-
-      if (isConnectionFailure) {
-        // Default behavior: fail-closed (success: false)
-        // Only graceful if LOCAL_LLM_OPTIONAL=true
-        const optionalMode = agentEnv['LOCAL_LLM_OPTIONAL'] === 'true';
-
-        if (optionalMode) {
-          console.log(
-            `[local_llm] Ollama unavailable at ${ollamaUrl} (${result.error}), skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
-          );
-          return {
-            agentId: this.id,
-            success: true,
-            findings: [],
-            metrics: {
-              durationMs: Date.now() - startTime,
-              filesProcessed: 0,
-            },
-          };
-        } else {
-          console.error(
-            `[local_llm] Cannot connect to Ollama at ${ollamaUrl}. ` +
-              `Verify: (1) Ollama container is running, (2) OLLAMA_BASE_URL is set correctly. ` +
-              `Error: ${result.error}`
-          );
-          return {
-            agentId: this.id,
-            success: false,
-            findings: [],
-            error: `Ollama unavailable: ${result.error}`,
-            metrics: {
-              durationMs: Date.now() - startTime,
-              filesProcessed: 0,
-            },
-          };
-        }
-      }
-
-      // Other errors are real failures
+      // Other errors are real failures (connection failures handled in warmup)
       return {
         agentId: this.id,
         success: false,
@@ -524,7 +672,22 @@ export const localLlmAgent: ReviewAgent = {
     }
 
     // Parse response
-    const parseResult = parseOllamaResponse(result.response ?? '');
+    let parseResult = parseOllamaResponse(result.response ?? '');
+
+    // If parsing failed, attempt single JSON repair pass (requirement 3)
+    if (!parseResult.ok && result.response) {
+      const remainingTime = timeoutMs - (Date.now() - startTime);
+      if (remainingTime > 30000) {
+        // Only attempt repair if we have at least 30s left
+        parseResult = await attemptJsonRepair(
+          result.response,
+          ollamaUrl,
+          model,
+          numCtx,
+          remainingTime
+        );
+      }
+    }
 
     if (!parseResult.ok) {
       return {
@@ -539,12 +702,21 @@ export const localLlmAgent: ReviewAgent = {
       };
     }
 
-    console.log(`[local_llm] Found ${parseResult.findings.length} findings`);
+    // Bound and dedupe findings for deterministic output (requirement 6)
+    const { bounded: boundedFindings, total, included } = boundFindings(parseResult.findings);
+
+    if (total !== included) {
+      console.log(
+        `[local_llm] Findings bounded: total=${total} included=${included} (dropped=${total - included})`
+      );
+    }
+
+    console.log(`[local_llm] Found ${included} findings`);
 
     return {
       agentId: this.id,
       success: true,
-      findings: parseResult.findings,
+      findings: boundedFindings,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: supportedFiles.length,
