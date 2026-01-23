@@ -353,8 +353,95 @@ describe('validateModelProviderMatch', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should pass for Ollama-style models (no validation)', () => {
+    it('should FAIL for Ollama-style models when cloud agents enabled', () => {
       const result = validateModelProviderMatch(createCloudAiConfig(), 'codellama:7b', {});
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Ollama model');
+      expect(result.errors[0]).toContain('local_llm');
+    });
+
+    it('should FAIL for any model with colon when cloud agents enabled', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'llama3:8b', {});
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Ollama model');
+    });
+
+    it('should FAIL for deepseek-coder:6.7b when cloud agents enabled', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'deepseek-coder:6.7b', {});
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('cloud AI agents');
+    });
+
+    it('error message includes copy-pastable fixes', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'codellama:7b', {});
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
+      expect(result.errors[0]).toContain('MODEL=gpt-4o-mini');
+    });
+  });
+
+  describe('Ollama model isolation (local_llm only)', () => {
+    function createLocalOnlyConfig(): Config {
+      return {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [{ name: 'local', agents: ['local_llm'], enabled: true, required: false }],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+    }
+
+    it('should PASS for Ollama model when ONLY local_llm is enabled', () => {
+      const result = validateModelProviderMatch(createLocalOnlyConfig(), 'codellama:7b', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should PASS for Ollama model when cloud agents are disabled', () => {
+      const config = createCloudAiConfig();
+      const firstPass = config.passes[0];
+      if (firstPass) {
+        firstPass.enabled = false;
+      }
+      const result = validateModelProviderMatch(config, 'codellama:7b', {});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should PASS for Ollama model with static analysis + local_llm combo', () => {
+      const config: Config = {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [
+          { name: 'static', agents: ['semgrep', 'reviewdog'], enabled: true, required: true },
+          { name: 'local', agents: ['local_llm'], enabled: true, required: false },
+        ],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+      const result = validateModelProviderMatch(config, 'codellama:7b', {});
       expect(result.valid).toBe(true);
     });
   });
