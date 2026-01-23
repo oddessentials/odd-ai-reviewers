@@ -380,31 +380,25 @@ describe('validateModelProviderMatch', () => {
     });
   });
 
-  describe('Provider precedence mismatch', () => {
-    it('should FAIL when gpt model + both OPENAI_API_KEY and ANTHROPIC_API_KEY set', () => {
-      // This is the critical bug fix: Anthropic wins due to precedence,
-      // so gpt-4o-mini would be sent to Anthropic API and get 404
+  describe('Both keys present (model-based provider selection)', () => {
+    it('should PASS when gpt model + both OPENAI_API_KEY and ANTHROPIC_API_KEY set', () => {
+      // When both keys are present, resolveProvider uses model to select correct provider
       const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
         OPENAI_API_KEY: 'sk-openai',
         ANTHROPIC_API_KEY: 'sk-ant-test',
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('OpenAI model');
-      expect(result.errors[0]).toContain('Anthropic provider');
-      expect(result.errors[0]).toContain('takes precedence');
+      expect(result.valid).toBe(true);
     });
 
-    it('should FAIL when o1 model + both keys set (Anthropic wins)', () => {
+    it('should PASS when o1 model + both keys set', () => {
       const result = validateModelProviderMatch(createCloudAiConfig(), 'o1-preview', {
         OPENAI_API_KEY: 'sk-openai',
         ANTHROPIC_API_KEY: 'sk-ant-test',
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('OpenAI model');
-      expect(result.errors[0]).toContain('Anthropic provider');
+      expect(result.valid).toBe(true);
     });
 
-    it('should PASS when claude model + both keys set (Anthropic expected and selected)', () => {
+    it('should PASS when claude model + both keys set', () => {
       const result = validateModelProviderMatch(createCloudAiConfig(), 'claude-sonnet-4-20250514', {
         OPENAI_API_KEY: 'sk-openai',
         ANTHROPIC_API_KEY: 'sk-ant-test',
@@ -412,21 +406,18 @@ describe('validateModelProviderMatch', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should PASS when gpt model + only OPENAI_API_KEY set (no precedence issue)', () => {
+    it('should PASS when gpt model + only OPENAI_API_KEY set', () => {
       const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
         OPENAI_API_KEY: 'sk-openai',
       });
       expect(result.valid).toBe(true);
     });
 
-    it('error message includes actionable fix suggestions', () => {
-      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
-        OPENAI_API_KEY: 'sk-openai',
+    it('should PASS when claude model + only ANTHROPIC_API_KEY set', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'claude-sonnet-4-20250514', {
         ANTHROPIC_API_KEY: 'sk-ant-test',
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
-      expect(result.errors[0]).toContain('unset ANTHROPIC_API_KEY');
+      expect(result.valid).toBe(true);
     });
   });
 

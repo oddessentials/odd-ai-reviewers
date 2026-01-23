@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ConfigSchema, getEnabledAgents, resolveEffectiveModel, type Config } from '../config.js';
+import {
+  ConfigSchema,
+  getEnabledAgents,
+  resolveEffectiveModel,
+  resolveProvider,
+  type Config,
+} from '../config.js';
 
 describe('ConfigSchema', () => {
   it('should parse valid config with all fields', () => {
@@ -236,5 +242,87 @@ describe('resolveEffectiveModel', () => {
     const config = ConfigSchema.parse({ models: { default: 'config-model' } });
     const env = { MODEL: '   ' };
     expect(resolveEffectiveModel(config, env)).toBe('config-model');
+  });
+});
+
+describe('resolveProvider', () => {
+  describe('model-based provider selection (both keys present)', () => {
+    it('should select OpenAI for gpt model when both keys present', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      };
+      expect(resolveProvider('opencode', env, 'gpt-4o-mini')).toBe('openai');
+      expect(resolveProvider('pr_agent', env, 'gpt-4o-mini')).toBe('openai');
+    });
+
+    it('should select OpenAI for o1 model when both keys present', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      };
+      expect(resolveProvider('opencode', env, 'o1-preview')).toBe('openai');
+    });
+
+    it('should select Anthropic for claude model when both keys present', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      };
+      expect(resolveProvider('opencode', env, 'claude-sonnet-4-20250514')).toBe('anthropic');
+      expect(resolveProvider('pr_agent', env, 'claude-3-opus')).toBe('anthropic');
+    });
+  });
+
+  describe('single key present', () => {
+    it('should select OpenAI when only OpenAI key present', () => {
+      const env = { OPENAI_API_KEY: 'sk-openai' };
+      expect(resolveProvider('opencode', env, 'gpt-4o-mini')).toBe('openai');
+      expect(resolveProvider('opencode', env)).toBe('openai');
+    });
+
+    it('should select Anthropic when only Anthropic key present', () => {
+      const env = { ANTHROPIC_API_KEY: 'sk-ant-test' };
+      expect(resolveProvider('opencode', env, 'claude-sonnet-4-20250514')).toBe('anthropic');
+      expect(resolveProvider('opencode', env)).toBe('anthropic');
+    });
+  });
+
+  describe('fallback precedence (unknown model or no model)', () => {
+    it('should fallback to Anthropic precedence for unknown model when both keys present', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      };
+      // Unknown model prefix falls back to precedence-based selection (Anthropic wins)
+      expect(resolveProvider('opencode', env, 'custom-model')).toBe('anthropic');
+    });
+
+    it('should fallback to Anthropic precedence when no model specified', () => {
+      const env = {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      };
+      expect(resolveProvider('opencode', env)).toBe('anthropic');
+    });
+  });
+
+  describe('special agents', () => {
+    it('should return ollama for local_llm agent', () => {
+      expect(resolveProvider('local_llm', {})).toBe('ollama');
+      expect(resolveProvider('local_llm', {}, 'gpt-4o-mini')).toBe('ollama');
+    });
+
+    it('should return null for static analysis agents', () => {
+      expect(resolveProvider('semgrep', {})).toBeNull();
+      expect(resolveProvider('reviewdog', {})).toBeNull();
+    });
+  });
+
+  describe('no valid provider', () => {
+    it('should return null when no keys present', () => {
+      expect(resolveProvider('opencode', {})).toBeNull();
+      expect(resolveProvider('pr_agent', {}, 'gpt-4o-mini')).toBeNull();
+    });
   });
 });

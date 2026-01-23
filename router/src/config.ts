@@ -169,15 +169,21 @@ export function resolveEffectiveModel(
 /**
  * Resolve the effective LLM provider for an agent.
  *
- * INVARIANT: Anthropic wins if agent supports it and key is present.
+ * INVARIANT: Model takes precedence when both keys are present.
+ * INVARIANT: If model is gpt-* or o1-* and OpenAI key exists, use OpenAI.
+ * INVARIANT: If model is claude-* and Anthropic key exists, use Anthropic.
  * INVARIANT: Azure only for Azure-capable agents.
  * INVARIANT: No silent fallback. Missing keys = preflight failure.
  *
+ * @param agentId - Agent to resolve provider for
+ * @param env - Environment variables
+ * @param model - Optional model name to consider for provider selection
  * @returns Provider to use, or null if no valid provider available
  */
 export function resolveProvider(
   agentId: AgentId,
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  model?: string
 ): LlmProvider | null {
   // Ollama agents use Ollama provider
   if (agentId === 'local_llm') {
@@ -199,6 +205,27 @@ export function resolveProvider(
     env['AZURE_OPENAI_DEPLOYMENT'] &&
     env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
 
+  // When model is specified and both keys are present, use the provider that matches the model
+  if (model) {
+    const inferredProvider = inferProviderFromModel(model);
+
+    // Model-based selection when both keys are present
+    if (inferredProvider === 'openai' && hasOpenAI) {
+      return 'openai';
+    }
+    if (inferredProvider === 'openai' && hasAzure && AZURE_CAPABLE_AGENTS.includes(agentId)) {
+      return 'azure-openai';
+    }
+    if (
+      inferredProvider === 'anthropic' &&
+      hasAnthropic &&
+      ANTHROPIC_CAPABLE_AGENTS.includes(agentId)
+    ) {
+      return 'anthropic';
+    }
+  }
+
+  // Fallback to precedence-based selection (when model is unknown or not specified)
   // Anthropic wins if agent supports it and key is present
   if (ANTHROPIC_CAPABLE_AGENTS.includes(agentId) && hasAnthropic) {
     return 'anthropic';
