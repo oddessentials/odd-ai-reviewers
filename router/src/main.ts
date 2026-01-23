@@ -30,6 +30,8 @@ import {
   validateModelConfig,
   validateModelProviderMatch,
   validateOllamaConfig,
+  validateProviderModelCompatibility,
+  validateAzureDeployment,
 } from './preflight.js';
 import { isMainBranchPush, isAgentForbiddenOnMain } from './policy.js';
 
@@ -267,6 +269,31 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (!modelProviderCheck.valid) {
     console.error('[router] ❌ Model-provider mismatch:');
     for (const error of modelProviderCheck.errors) {
+      console.error(`[router]   - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Provider-model compatibility: fail if resolved provider doesn't match model
+  // This catches the 404 bug: both keys present, Anthropic wins, but model is GPT
+  const providerCompatCheck = validateProviderModelCompatibility(
+    config,
+    agentContext.effectiveModel,
+    process.env as Record<string, string | undefined>
+  );
+  if (!providerCompatCheck.valid) {
+    console.error('[router] ❌ Provider-model compatibility error:');
+    for (const error of providerCompatCheck.errors) {
+      console.error(`[router]   ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // Azure deployment validation: fail if Azure configured but deployment invalid
+  const azureCheck = validateAzureDeployment(process.env as Record<string, string | undefined>);
+  if (!azureCheck.valid) {
+    console.error('[router] ❌ Azure OpenAI configuration error:');
+    for (const error of azureCheck.errors) {
       console.error(`[router]   - ${error}`);
     }
     process.exit(1);

@@ -3,7 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ConfigSchema, getEnabledAgents, resolveEffectiveModel, type Config } from '../config.js';
+import {
+  ConfigSchema,
+  getEnabledAgents,
+  resolveEffectiveModel,
+  inferProviderFromModel,
+  resolveProvider,
+  type Config,
+} from '../config.js';
 
 describe('ConfigSchema', () => {
   it('should parse valid config with all fields', () => {
@@ -236,5 +243,157 @@ describe('resolveEffectiveModel', () => {
     const config = ConfigSchema.parse({ models: { default: 'config-model' } });
     const env = { MODEL: '   ' };
     expect(resolveEffectiveModel(config, env)).toBe('config-model');
+  });
+});
+
+describe('inferProviderFromModel', () => {
+  describe('Anthropic models (claude-*)', () => {
+    it('identifies claude-sonnet-4-20250514 as anthropic', () => {
+      expect(inferProviderFromModel('claude-sonnet-4-20250514')).toBe('anthropic');
+    });
+
+    it('identifies claude-3-opus as anthropic', () => {
+      expect(inferProviderFromModel('claude-3-opus')).toBe('anthropic');
+    });
+
+    it('identifies claude-3.5-sonnet as anthropic', () => {
+      expect(inferProviderFromModel('claude-3.5-sonnet')).toBe('anthropic');
+    });
+
+    it('identifies claude-instant as anthropic', () => {
+      expect(inferProviderFromModel('claude-instant')).toBe('anthropic');
+    });
+  });
+
+  describe('OpenAI models (gpt-* and o1-*)', () => {
+    it('identifies gpt-4o-mini as openai', () => {
+      expect(inferProviderFromModel('gpt-4o-mini')).toBe('openai');
+    });
+
+    it('identifies gpt-4-turbo as openai', () => {
+      expect(inferProviderFromModel('gpt-4-turbo')).toBe('openai');
+    });
+
+    it('identifies gpt-3.5-turbo as openai', () => {
+      expect(inferProviderFromModel('gpt-3.5-turbo')).toBe('openai');
+    });
+
+    it('identifies o1-preview as openai', () => {
+      expect(inferProviderFromModel('o1-preview')).toBe('openai');
+    });
+
+    it('identifies o1-mini as openai', () => {
+      expect(inferProviderFromModel('o1-mini')).toBe('openai');
+    });
+  });
+
+  describe('Unknown models', () => {
+    it('returns unknown for custom model names', () => {
+      expect(inferProviderFromModel('custom-model-v1')).toBe('unknown');
+    });
+
+    it('returns unknown for Ollama models', () => {
+      expect(inferProviderFromModel('codellama:7b')).toBe('unknown');
+    });
+
+    it('returns unknown for empty string', () => {
+      expect(inferProviderFromModel('')).toBe('unknown');
+    });
+  });
+});
+
+describe('resolveProvider', () => {
+  describe('Provider precedence (Anthropic wins)', () => {
+    it('returns anthropic when both keys present for anthropic-capable agent', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      expect(resolveProvider('opencode', env)).toBe('anthropic');
+    });
+
+    it('returns anthropic when both keys present for pr_agent', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      expect(resolveProvider('pr_agent', env)).toBe('anthropic');
+    });
+
+    it('returns anthropic when both keys present for ai_semantic_review', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      expect(resolveProvider('ai_semantic_review', env)).toBe('anthropic');
+    });
+  });
+
+  describe('Single key scenarios', () => {
+    it('returns openai when only OPENAI_API_KEY present', () => {
+      const env = { OPENAI_API_KEY: 'sk-xxx' };
+      expect(resolveProvider('opencode', env)).toBe('openai');
+    });
+
+    it('returns anthropic when only ANTHROPIC_API_KEY present', () => {
+      const env = { ANTHROPIC_API_KEY: 'sk-ant-xxx' };
+      expect(resolveProvider('opencode', env)).toBe('anthropic');
+    });
+  });
+
+  describe('Azure OpenAI', () => {
+    it('returns azure-openai when all Azure keys present for azure-capable agent', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+      };
+      expect(resolveProvider('pr_agent', env)).toBe('azure-openai');
+    });
+
+    it('returns null for opencode with only Azure keys (opencode not Azure-capable)', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+      };
+      expect(resolveProvider('opencode', env)).toBe(null);
+    });
+
+    it('Anthropic takes precedence over Azure', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+      };
+      expect(resolveProvider('pr_agent', env)).toBe('anthropic');
+    });
+  });
+
+  describe('Special agents', () => {
+    it('returns ollama for local_llm regardless of keys', () => {
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      expect(resolveProvider('local_llm', env)).toBe('ollama');
+    });
+
+    it('returns null for semgrep (static analysis)', () => {
+      const env = { OPENAI_API_KEY: 'sk-xxx' };
+      expect(resolveProvider('semgrep', env)).toBe(null);
+    });
+
+    it('returns null for reviewdog (static analysis)', () => {
+      const env = { OPENAI_API_KEY: 'sk-xxx' };
+      expect(resolveProvider('reviewdog', env)).toBe(null);
+    });
+  });
+
+  describe('No keys', () => {
+    it('returns null when no keys present', () => {
+      expect(resolveProvider('opencode', {})).toBe(null);
+    });
   });
 });

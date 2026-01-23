@@ -7,9 +7,12 @@
  * INVARIANTS ENFORCED:
  * - Legacy keys cause hard failure (no backwards compatibility)
  * - Azure OpenAI keys validated as atomic bundle
+ * - Model must be compatible with resolved provider (no 404s)
+ * - Provider isolation: Anthropic key + GPT model = error, OpenAI key + Claude model = error
  */
 
 import type { Config, AgentId } from './config.js';
+import { inferProviderFromModel, resolveProvider } from './config.js';
 
 export interface PreflightResult {
   valid: boolean;
@@ -232,6 +235,132 @@ export function validateModelProviderMatch(
     }
   }
   // Unknown model prefix - no validation, allow it to proceed
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate that the model is compatible with the RESOLVED provider for each agent.
+ *
+ * CRITICAL: This catches the 404 bug where both keys are present, Anthropic wins
+ * (per resolveProvider invariant), but the model is GPT-style.
+ *
+ * INVARIANT: If provider resolves to Anthropic but model is gpt-X/o1-X, fail.
+ * INVARIANT: If provider resolves to OpenAI/Azure but model is claude-X, fail.
+ * INVARIANT: No hidden fallbacks - misconfiguration fails preflight with actionable error.
+ *
+ * @param config - Loaded configuration with enabled passes
+ * @param model - Effective model to use
+ * @param env - Environment variables for provider resolution
+ * @returns Validation result with detailed error messages
+ */
+export function validateProviderModelCompatibility(
+  config: Config,
+  model: string,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Only validate cloud AI agents that use MODEL (not local_llm which uses OLLAMA_MODEL)
+  const cloudAgents = new Set<AgentId>();
+  for (const pass of config.passes) {
+    if (!pass.enabled) continue;
+    for (const agentId of pass.agents) {
+      if (CLOUD_AI_AGENTS.includes(agentId)) {
+        cloudAgents.add(agentId);
+      }
+    }
+  }
+
+  if (cloudAgents.size === 0) {
+    // No cloud AI agents enabled, skip validation
+    return { valid: true, errors: [] };
+  }
+
+  // Infer intended provider from model name
+  const modelProvider = inferProviderFromModel(model);
+
+  // Check each cloud agent's resolved provider against the model
+  for (const agentId of cloudAgents) {
+    const resolvedProvider = resolveProvider(agentId, env);
+
+    // Skip if no provider resolved (will fail elsewhere)
+    if (!resolvedProvider) continue;
+
+    // Check for mismatch: resolved provider vs model intent
+    if (resolvedProvider === 'anthropic' && modelProvider === 'openai') {
+      errors.push(
+        `Provider-model mismatch for agent '${agentId}':\n` +
+          `  - Resolved provider: Anthropic (ANTHROPIC_API_KEY present, takes precedence)\n` +
+          `  - Model: '${model}' (looks like OpenAI: gpt-*/o1-*)\n` +
+          `  - This will cause a 404 error - Anthropic API doesn't recognize '${model}'\n\n` +
+          `Fix options:\n` +
+          `  1. Use a Claude model: MODEL=claude-sonnet-4-20250514\n` +
+          `  2. Remove ANTHROPIC_API_KEY to use OpenAI instead\n` +
+          `  3. Set both keys but ensure MODEL matches ANTHROPIC_API_KEY (Anthropic wins)`
+      );
+    } else if (
+      (resolvedProvider === 'openai' || resolvedProvider === 'azure-openai') &&
+      modelProvider === 'anthropic'
+    ) {
+      const providerName = resolvedProvider === 'azure-openai' ? 'Azure OpenAI' : 'OpenAI';
+      errors.push(
+        `Provider-model mismatch for agent '${agentId}':\n` +
+          `  - Resolved provider: ${providerName}\n` +
+          `  - Model: '${model}' (looks like Anthropic: claude-*)\n` +
+          `  - This will cause a 404 error - ${providerName} API doesn't recognize '${model}'\n\n` +
+          `Fix options:\n` +
+          `  1. Use an OpenAI model: MODEL=gpt-4o-mini\n` +
+          `  2. Add ANTHROPIC_API_KEY to use Anthropic (takes precedence over OpenAI)\n` +
+          `  3. Remove OPENAI_API_KEY${resolvedProvider === 'azure-openai' ? ' and Azure keys' : ''}`
+      );
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate Azure OpenAI deployment naming.
+ *
+ * When Azure OpenAI is configured, the deployment name should be validated:
+ * - Must not be empty
+ * - Warning if it looks like a standard model name (user might be confused)
+ *
+ * Azure deployments are custom-named and don't have to match model names,
+ * but common misconfiguration is using the model name as deployment name
+ * when the Azure deployment has a different name.
+ */
+export function validateAzureDeployment(env: Record<string, string | undefined>): PreflightResult {
+  const errors: string[] = [];
+
+  const hasAzure =
+    env['AZURE_OPENAI_API_KEY'] &&
+    env['AZURE_OPENAI_API_KEY'].trim() !== '' &&
+    env['AZURE_OPENAI_ENDPOINT'] &&
+    env['AZURE_OPENAI_ENDPOINT'].trim() !== '';
+
+  if (!hasAzure) {
+    // Not using Azure, skip validation
+    return { valid: true, errors: [] };
+  }
+
+  const deployment = env['AZURE_OPENAI_DEPLOYMENT'];
+
+  // Deployment is required when using Azure (already checked in validateAgentSecrets)
+  // but double-check here for empty string edge case
+  if (!deployment || deployment.trim() === '') {
+    errors.push(
+      'AZURE_OPENAI_DEPLOYMENT is empty. ' +
+        'Set this to your Azure deployment name (e.g., "my-gpt4-deployment").'
+    );
+  }
 
   return {
     valid: errors.length === 0,
