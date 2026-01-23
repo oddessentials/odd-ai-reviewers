@@ -41,8 +41,8 @@ const MAX_FILES = 50;
 const MAX_DIFF_LINES = 2000;
 /** Max tokens allowed (abort if exceeded) */
 const MAX_TOKENS = 8192;
-/** Default timeout for Ollama requests (120 seconds) */
-const DEFAULT_TIMEOUT_MS = 120000;
+/** Default timeout for Ollama requests (180 seconds - codellama:7b can take up to 2 min) */
+const DEFAULT_TIMEOUT_MS = 180000;
 /** Default context window size (16k tokens) */
 const DEFAULT_NUM_CTX = 16384;
 /** Default Ollama model */
