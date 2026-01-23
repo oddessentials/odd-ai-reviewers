@@ -380,6 +380,56 @@ describe('validateModelProviderMatch', () => {
     });
   });
 
+  describe('Provider precedence mismatch', () => {
+    it('should FAIL when gpt model + both OPENAI_API_KEY and ANTHROPIC_API_KEY set', () => {
+      // This is the critical bug fix: Anthropic wins due to precedence,
+      // so gpt-4o-mini would be sent to Anthropic API and get 404
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OpenAI model');
+      expect(result.errors[0]).toContain('Anthropic provider');
+      expect(result.errors[0]).toContain('takes precedence');
+    });
+
+    it('should FAIL when o1 model + both keys set (Anthropic wins)', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'o1-preview', {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OpenAI model');
+      expect(result.errors[0]).toContain('Anthropic provider');
+    });
+
+    it('should PASS when claude model + both keys set (Anthropic expected and selected)', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'claude-sonnet-4-20250514', {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should PASS when gpt model + only OPENAI_API_KEY set (no precedence issue)', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
+        OPENAI_API_KEY: 'sk-openai',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('error message includes actionable fix suggestions', () => {
+      const result = validateModelProviderMatch(createCloudAiConfig(), 'gpt-4o-mini', {
+        OPENAI_API_KEY: 'sk-openai',
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
+      expect(result.errors[0]).toContain('unset ANTHROPIC_API_KEY');
+    });
+  });
+
   describe('Ollama model isolation (local_llm only)', () => {
     function createLocalOnlyConfig(): Config {
       return {

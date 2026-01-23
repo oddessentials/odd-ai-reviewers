@@ -10,6 +10,7 @@
  */
 
 import type { Config, AgentId } from './config.js';
+import { resolveProvider, inferProviderFromModel } from './config.js';
 
 export interface PreflightResult {
   valid: boolean;
@@ -180,8 +181,10 @@ export function validateModelConfig(
 const CLOUD_AI_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semantic_review'];
 
 /**
- * Validate model-provider match based on model name heuristic.
- * Fails if model looks like it requires a specific provider but key is missing.
+ * Validate model-provider match based on model name heuristic AND provider resolution.
+ * Fails if:
+ * 1. Model looks like it requires a specific provider but key is missing
+ * 2. Model requires one provider but a different provider will be selected due to precedence
  *
  * ONLY validates when cloud AI agents (opencode, pr_agent, ai_semantic_review) are enabled.
  * local_llm uses OLLAMA_MODEL, not MODEL, so it's excluded.
@@ -195,12 +198,18 @@ export function validateModelProviderMatch(
 ): PreflightResult {
   const errors: string[] = [];
 
-  // Only validate if cloud AI agents are enabled
-  const hasCloudAiAgent = config.passes.some(
-    (pass) => pass.enabled && pass.agents.some((a) => CLOUD_AI_AGENTS.includes(a))
-  );
+  // Collect enabled cloud AI agents
+  const enabledCloudAgents: AgentId[] = [];
+  for (const pass of config.passes) {
+    if (!pass.enabled) continue;
+    for (const agentId of pass.agents) {
+      if (CLOUD_AI_AGENTS.includes(agentId) && !enabledCloudAgents.includes(agentId)) {
+        enabledCloudAgents.push(agentId);
+      }
+    }
+  }
 
-  if (!hasCloudAiAgent) {
+  if (enabledCloudAgents.length === 0) {
     // No cloud AI agents enabled, skip model-provider validation
     return { valid: true, errors: [] };
   }
@@ -218,20 +227,41 @@ export function validateModelProviderMatch(
     return { valid: false, errors };
   }
 
-  // Heuristic: infer provider from model prefix
-  if (model.startsWith('claude-')) {
+  // Infer which provider the model requires
+  const inferredProvider = inferProviderFromModel(model);
+
+  // Basic validation: check if the inferred provider's key exists
+  if (inferredProvider === 'anthropic') {
     if (!env['ANTHROPIC_API_KEY']) {
       errors.push(
         `MODEL '${model}' looks like Anthropic (claude-*) but ANTHROPIC_API_KEY is missing`
       );
     }
-  } else if (model.startsWith('gpt-') || model.startsWith('o1-')) {
+  } else if (inferredProvider === 'openai') {
     const hasOpenAI = env['OPENAI_API_KEY'] || env['AZURE_OPENAI_API_KEY'];
     if (!hasOpenAI) {
       errors.push(`MODEL '${model}' looks like OpenAI (gpt-*/o1-*) but OPENAI_API_KEY is missing`);
     }
   }
-  // Unknown model prefix - no validation, allow it to proceed
+
+  // CRITICAL: Check for provider precedence mismatch
+  // When both keys are present, Anthropic wins due to precedence rules.
+  // If model requires OpenAI but Anthropic will be selected, fail fast.
+  if (inferredProvider === 'openai') {
+    for (const agentId of enabledCloudAgents) {
+      const resolvedProvider = resolveProvider(agentId, env);
+      if (resolvedProvider === 'anthropic') {
+        errors.push(
+          `MODEL '${model}' is an OpenAI model but agent '${agentId}' will use Anthropic provider ` +
+            `(ANTHROPIC_API_KEY is set and takes precedence).\n` +
+            `Fix: Either:\n` +
+            `  - Use an Anthropic model: MODEL=claude-sonnet-4-20250514\n` +
+            `  - Or unset ANTHROPIC_API_KEY to use OpenAI provider`
+        );
+        break; // One error is enough
+      }
+    }
+  }
 
   return {
     valid: errors.length === 0,
