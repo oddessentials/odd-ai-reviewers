@@ -104,6 +104,10 @@ const ROUTER_ENV_ALLOWLIST = [
   'AZURE_OPENAI_DEPLOYMENT',
   'OLLAMA_BASE_URL',
   'OLLAMA_MODEL',
+  // Local LLM tuning
+  'LOCAL_LLM_OPTIONAL',
+  'LOCAL_LLM_NUM_CTX',
+  'LOCAL_LLM_TIMEOUT',
   // Model selection (canonical)
   'MODEL',
 ];
