@@ -334,7 +334,11 @@ async function runReview(options: ReviewOptions): Promise<void> {
         const scopedContext: AgentContext = {
           ...agentContext,
           env: buildAgentEnv(agent.id, routerEnv),
-          provider: resolveProvider(agent.id as Parameters<typeof resolveProvider>[0], routerEnv),
+          provider: resolveProvider(
+            agent.id as Parameters<typeof resolveProvider>[0],
+            routerEnv,
+            agentContext.effectiveModel
+          ),
         };
 
         let result: AgentResult | null = null;

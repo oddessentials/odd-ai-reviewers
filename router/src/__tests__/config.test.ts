@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ConfigSchema, getEnabledAgents, resolveEffectiveModel, type Config } from '../config.js';
+import {
+  ConfigSchema,
+  getEnabledAgents,
+  resolveEffectiveModel,
+  resolveProvider,
+  type Config,
+} from '../config.js';
 
 describe('ConfigSchema', () => {
   it('should parse valid config with all fields', () => {
@@ -236,5 +242,40 @@ describe('resolveEffectiveModel', () => {
     const config = ConfigSchema.parse({ models: { default: 'config-model' } });
     const env = { MODEL: '   ' };
     expect(resolveEffectiveModel(config, env)).toBe('config-model');
+  });
+});
+
+describe('resolveProvider', () => {
+  it('prefers OpenAI when model is gpt-* and both keys are present', () => {
+    const env = { ANTHROPIC_API_KEY: 'anthropic', OPENAI_API_KEY: 'openai' };
+    expect(resolveProvider('opencode', env, 'gpt-4o-mini')).toBe('openai');
+  });
+
+  it('prefers Anthropic when model is claude-* and both keys are present', () => {
+    const env = { ANTHROPIC_API_KEY: 'anthropic', OPENAI_API_KEY: 'openai' };
+    expect(resolveProvider('opencode', env, 'claude-sonnet-4-20250514')).toBe('anthropic');
+  });
+
+  it('falls back to Anthropic priority when model prefix is unknown', () => {
+    const env = { ANTHROPIC_API_KEY: 'anthropic', OPENAI_API_KEY: 'openai' };
+    expect(resolveProvider('opencode', env, 'custom-model')).toBe('anthropic');
+  });
+
+  it('uses Azure OpenAI when model is gpt-* and only Azure keys are present', () => {
+    const env = {
+      AZURE_OPENAI_API_KEY: 'azure-key',
+      AZURE_OPENAI_ENDPOINT: 'https://example.openai.azure.com',
+      AZURE_OPENAI_DEPLOYMENT: 'deployment',
+    };
+    expect(resolveProvider('pr_agent', env, 'gpt-4o-mini')).toBe('azure-openai');
+  });
+
+  it('returns null when model is gpt-* but only Azure keys exist for non-azure agents', () => {
+    const env = {
+      AZURE_OPENAI_API_KEY: 'azure-key',
+      AZURE_OPENAI_ENDPOINT: 'https://example.openai.azure.com',
+      AZURE_OPENAI_DEPLOYMENT: 'deployment',
+    };
+    expect(resolveProvider('opencode', env, 'gpt-4o-mini')).toBeNull();
   });
 });

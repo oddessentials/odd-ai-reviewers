@@ -115,7 +115,6 @@ export type LlmProvider = 'anthropic' | 'openai' | 'azure-openai' | 'ollama';
 
 /**
  * Agents that support Anthropic provider.
- * If Anthropic key is present and agent supports it, Anthropic wins.
  */
 const ANTHROPIC_CAPABLE_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semantic_review'];
 
@@ -169,7 +168,7 @@ export function resolveEffectiveModel(
 /**
  * Resolve the effective LLM provider for an agent.
  *
- * INVARIANT: Anthropic wins if agent supports it and key is present.
+ * INVARIANT: Prefer provider inferred from model when known.
  * INVARIANT: Azure only for Azure-capable agents.
  * INVARIANT: No silent fallback. Missing keys = preflight failure.
  *
@@ -177,7 +176,8 @@ export function resolveEffectiveModel(
  */
 export function resolveProvider(
   agentId: AgentId,
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  model?: string
 ): LlmProvider | null {
   // Ollama agents use Ollama provider
   if (agentId === 'local_llm') {
@@ -199,17 +199,34 @@ export function resolveProvider(
     env['AZURE_OPENAI_DEPLOYMENT'] &&
     env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
 
-  // Anthropic wins if agent supports it and key is present
+  const inferredProvider = model ? inferProviderFromModel(model) : 'unknown';
+
+  if (inferredProvider === 'anthropic') {
+    if (ANTHROPIC_CAPABLE_AGENTS.includes(agentId) && hasAnthropic) {
+      return 'anthropic';
+    }
+    return null;
+  }
+
+  if (inferredProvider === 'openai') {
+    if (hasOpenAI) {
+      return 'openai';
+    }
+    if (AZURE_CAPABLE_AGENTS.includes(agentId) && hasAzure) {
+      return 'azure-openai';
+    }
+    return null;
+  }
+
+  // Unknown model: fall back to key availability
   if (ANTHROPIC_CAPABLE_AGENTS.includes(agentId) && hasAnthropic) {
     return 'anthropic';
   }
 
-  // Azure OpenAI next (only for Azure-capable agents, complete bundle required)
   if (AZURE_CAPABLE_AGENTS.includes(agentId) && hasAzure) {
     return 'azure-openai';
   }
 
-  // OpenAI last
   if (hasOpenAI) {
     return 'openai';
   }

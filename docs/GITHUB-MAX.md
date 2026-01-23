@@ -206,7 +206,12 @@ Required secrets:
 
 ### Mixed Providers
 
-You can set multiple API keys. The router selects providers with this priority:
+You can set multiple API keys. The router selects providers based on the configured model when it can infer a match:
+
+- **claude-\*** models use **Anthropic** (requires `ANTHROPIC_API_KEY`).
+- **gpt-\***/**o1-\*** models use **OpenAI** (requires `OPENAI_API_KEY` or Azure bundle).
+
+If the model prefix is unknown, the router falls back to this priority:
 
 1. **Anthropic** (if `ANTHROPIC_API_KEY` set and agent supports it)
 2. **Azure OpenAI** (if all three Azure vars set and agent supports it)
