@@ -74,7 +74,58 @@ limits:
 | `OPENAI_API_KEY`    | GPT/O1 models | OpenAI API key    |
 | `OLLAMA_BASE_URL`   | Local LLM     | Ollama endpoint   |
 
-> **⚠️ Model-Provider Match**: The router validates that your model matches your API key.
+> **⚠️ Model-Provider Match**: The router validates that your model matches your API key. See [Model-Provider Matching](#model-provider-matching) below.
+
+---
+
+## Model-Provider Matching
+
+The router **does not auto-switch providers**. Your `MODEL` setting must match the API key you provide.
+
+### Provider Precedence
+
+When multiple API keys are configured:
+
+1. **Anthropic wins** — If `ANTHROPIC_API_KEY` is set, Anthropic is used (for supported agents)
+2. **Azure OpenAI** — If all Azure keys are set (API key, endpoint, deployment)
+3. **OpenAI** — If only `OPENAI_API_KEY` is set
+
+### Common Mistakes
+
+| Configuration                                                | Result                                                           | Fix                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + `MODEL=gpt-4o-mini` | ❌ **404 Error** — Anthropic wins but doesn't know `gpt-4o-mini` | Use `MODEL=claude-sonnet-4-20250514` or remove `ANTHROPIC_API_KEY` |
+| `OPENAI_API_KEY` + `MODEL=claude-3-opus`                     | ❌ **404 Error** — OpenAI doesn't know `claude-3-opus`           | Add `ANTHROPIC_API_KEY` or use `MODEL=gpt-4o-mini`                 |
+
+### Valid Configurations
+
+```bash
+# ✅ Anthropic only
+ANTHROPIC_API_KEY=sk-ant-xxx
+MODEL=claude-sonnet-4-20250514
+
+# ✅ OpenAI only
+OPENAI_API_KEY=sk-xxx
+MODEL=gpt-4o-mini
+
+# ✅ Both keys, Claude model (Anthropic wins, model matches)
+ANTHROPIC_API_KEY=sk-ant-xxx
+OPENAI_API_KEY=sk-xxx
+MODEL=claude-sonnet-4-20250514
+
+# ❌ Both keys, GPT model (Anthropic wins, model MISMATCHES → 404)
+ANTHROPIC_API_KEY=sk-ant-xxx
+OPENAI_API_KEY=sk-xxx
+MODEL=gpt-4o-mini  # Will fail preflight!
+```
+
+### Troubleshooting 404 Errors
+
+If you see a 404 error during AI code review:
+
+1. **Check your MODEL setting** — Does it match your provider?
+2. **Check which keys are set** — Remember: Anthropic takes precedence
+3. **Run preflight validation** — The router will tell you exactly what's wrong
 
 ---
 

@@ -11,6 +11,8 @@ import {
   validateModelConfig,
   validateModelProviderMatch,
   validateOllamaConfig,
+  validateProviderModelCompatibility,
+  validateAzureDeployment,
 } from '../preflight.js';
 import type { Config } from '../config.js';
 
@@ -525,5 +527,277 @@ describe('validateOllamaConfig', () => {
     };
     const result = validateOllamaConfig(config, {});
     expect(result.valid).toBe(true);
+  });
+});
+
+describe('validateProviderModelCompatibility', () => {
+  // Helper to create config with cloud AI agents enabled
+  function createCloudAiConfig(agents: string[] = ['opencode']): Config {
+    return {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'cloud',
+          agents: agents as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+      },
+      models: {},
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error' },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+  }
+
+  describe('THE 404 BUG: Both keys present, Anthropic wins, but model is GPT', () => {
+    it('FAILS when both keys present and MODEL=gpt-4o-mini (Anthropic wins but model is GPT)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain('Provider-model mismatch');
+      expect(result.errors[0]).toContain('Anthropic');
+      expect(result.errors[0]).toContain('gpt-4o-mini');
+      expect(result.errors[0]).toContain('404');
+    });
+
+    it('FAILS when both keys present and MODEL=o1-preview (Anthropic wins but model is OpenAI)', () => {
+      const config = createCloudAiConfig(['pr_agent']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'o1-preview', env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('o1-');
+    });
+
+    it('error message includes actionable fix options', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', env);
+
+      expect(result.errors[0]).toContain('Fix options');
+      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
+      expect(result.errors[0]).toContain('Remove ANTHROPIC_API_KEY');
+    });
+  });
+
+  describe('Reverse mismatch: OpenAI key only but Claude model', () => {
+    it('FAILS when only OpenAI key present but model is claude-*', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'claude-sonnet-4-20250514', env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Provider-model mismatch');
+      expect(result.errors[0]).toContain('OpenAI');
+      expect(result.errors[0]).toContain('claude-');
+    });
+
+    it('FAILS when Azure OpenAI configured but model is claude-*', () => {
+      const config = createCloudAiConfig(['pr_agent']); // Azure-capable
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'gpt-4',
+      };
+      const result = validateProviderModelCompatibility(config, 'claude-3-opus', env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Azure OpenAI');
+      expect(result.errors[0]).toContain('claude-');
+    });
+  });
+
+  describe('Valid configurations (no mismatch)', () => {
+    it('PASSES when Anthropic key only with Claude model', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'claude-sonnet-4-20250514', env);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('PASSES when OpenAI key only with GPT model', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', env);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES when both keys present with Claude model (Anthropic wins, model matches)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'claude-sonnet-4-20250514', env);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES for unknown model (no validation applied)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'custom-model-v1', env);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('Multiple agents with same mismatch', () => {
+    it('reports error for each affected agent', () => {
+      const config = createCloudAiConfig(['opencode', 'pr_agent', 'ai_semantic_review']);
+      const env = {
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        OPENAI_API_KEY: 'sk-xxx',
+      };
+      const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(3);
+      expect(result.errors[0]).toContain('opencode');
+      expect(result.errors[1]).toContain('pr_agent');
+      expect(result.errors[2]).toContain('ai_semantic_review');
+    });
+  });
+
+  describe('Non-cloud agents (skipped)', () => {
+    it('PASSES when only static agents enabled', () => {
+      const config: Config = {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [
+          { name: 'static', agents: ['semgrep', 'reviewdog'], enabled: true, required: true },
+        ],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+      // Any model should pass since no cloud agents
+      const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', {});
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES when only local_llm enabled (uses OLLAMA_MODEL, not MODEL)', () => {
+      const config: Config = {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [{ name: 'local', agents: ['local_llm'], enabled: true, required: false }],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+      const result = validateProviderModelCompatibility(config, 'codellama:7b', {});
+
+      expect(result.valid).toBe(true);
+    });
+  });
+});
+
+describe('validateAzureDeployment', () => {
+  describe('Azure not configured', () => {
+    it('PASSES when no Azure keys present', () => {
+      const result = validateAzureDeployment({});
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES when only AZURE_OPENAI_API_KEY present (incomplete bundle)', () => {
+      const result = validateAzureDeployment({ AZURE_OPENAI_API_KEY: 'azure-xxx' });
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('Azure configured', () => {
+    it('FAILS when Azure configured but AZURE_OPENAI_DEPLOYMENT is empty', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: '',
+      };
+      const result = validateAzureDeployment(env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('AZURE_OPENAI_DEPLOYMENT');
+      expect(result.errors[0]).toContain('empty');
+    });
+
+    it('FAILS when Azure configured but AZURE_OPENAI_DEPLOYMENT is whitespace', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: '   ',
+      };
+      const result = validateAzureDeployment(env);
+
+      expect(result.valid).toBe(false);
+    });
+
+    it('PASSES when Azure fully configured with valid deployment', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'my-gpt4-deployment',
+      };
+      const result = validateAzureDeployment(env);
+
+      expect(result.valid).toBe(true);
+    });
   });
 });
