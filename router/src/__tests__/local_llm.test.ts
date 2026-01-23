@@ -326,6 +326,25 @@ describe('localLlmAgent', () => {
       vi.restoreAllMocks();
     });
 
+    // Helper to create a mock streaming response
+    function createStreamingResponse(chunks: string[]) {
+      let index = 0;
+      return {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (index < chunks.length) {
+                const chunk = chunks[index++];
+                return { done: false, value: new TextEncoder().encode(chunk) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      };
+    }
+
     it('should parse valid JSON response with findings', async () => {
       const mockResponse = {
         findings: [
@@ -341,13 +360,14 @@ describe('localLlmAgent', () => {
         summary: 'Found 1 issue',
       };
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          response: JSON.stringify(mockResponse),
-          done: true,
-        }),
-      });
+      // Simulate streaming: Ollama sends chunks with partial response tokens
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createStreamingResponse([
+            JSON.stringify({ response: JSON.stringify(mockResponse), done: true }) + '\n',
+          ])
+        );
 
       const context: AgentContext = {
         repoPath: '/repo',
@@ -383,13 +403,14 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail on invalid JSON response', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          response: 'This is not JSON at all',
-          done: true,
-        }),
-      });
+      // Streaming response that accumulates to invalid JSON
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createStreamingResponse([
+            JSON.stringify({ response: 'This is not JSON at all', done: true }) + '\n',
+          ])
+        );
 
       const context: AgentContext = {
         repoPath: '/repo',
@@ -420,13 +441,15 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail on mixed stdout (JSON + extra text)', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          response: 'Here is my analysis: {"findings": [], "summary": "OK"} - done!',
-          done: true,
-        }),
-      });
+      // Streaming response that looks like mixed stdout
+      global.fetch = vi.fn().mockResolvedValue(
+        createStreamingResponse([
+          JSON.stringify({
+            response: 'Here is my analysis: {"findings": [], "summary": "OK"} - done!',
+            done: true,
+          }) + '\n',
+        ])
+      );
 
       const context: AgentContext = {
         repoPath: '/repo',

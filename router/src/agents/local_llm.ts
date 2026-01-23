@@ -291,7 +291,9 @@ function mapSeverity(severity?: string): Severity {
 }
 
 /**
- * Call Ollama API with timeout
+ * Call Ollama API with streaming to prevent server-side timeouts.
+ * Ollama has an internal ~2 minute timeout for non-streaming requests.
+ * Streaming keeps the connection alive during generation.
  */
 async function callOllama(
   url: string,
@@ -301,34 +303,70 @@ async function callOllama(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Force streaming mode to prevent Ollama server-side timeout
+  const streamingRequest = { ...request, stream: true };
+
   try {
     const response = await fetch(`${url}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      body: JSON.stringify(streamingRequest),
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
-
     if (!response.ok) {
+      clearTimeout(timeout);
       return {
         ok: false,
         error: `Ollama HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
-    const data = (await response.json()) as OllamaResponse;
-
-    if (data.error) {
-      return { ok: false, error: `Ollama error: ${data.error}` };
+    // Read streaming response and accumulate chunks
+    const reader = response.body?.getReader();
+    if (!reader) {
+      clearTimeout(timeout);
+      return { ok: false, error: 'No response body from Ollama' };
     }
 
-    if (!data.response) {
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+    let lastError: string | undefined;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      // Each chunk is a JSON line
+      const lines = chunk.split('\n').filter((line) => line.trim());
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line) as OllamaResponse;
+          if (parsed.error) {
+            lastError = parsed.error;
+          }
+          if (parsed.response) {
+            fullResponse += parsed.response;
+          }
+        } catch {
+          // Ignore JSON parse errors on partial chunks
+        }
+      }
+    }
+
+    clearTimeout(timeout);
+
+    if (lastError) {
+      return { ok: false, error: `Ollama error: ${lastError}` };
+    }
+
+    if (!fullResponse) {
       return { ok: false, error: 'Empty response from Ollama' };
     }
 
-    return { ok: true, response: data.response };
+    return { ok: true, response: fullResponse };
   } catch (error) {
     clearTimeout(timeout);
 
