@@ -215,6 +215,19 @@ export function normalizePath(path: string): string {
 }
 
 /**
+ * Canonicalize all path fields in DiffFile array
+ * Ensures all paths are normalized at ingestion boundary (belt-and-suspenders)
+ * EXPORTED for use at diff ingestion boundaries
+ */
+export function canonicalizeDiffFiles(files: DiffFile[]): DiffFile[] {
+  return files.map((file) => ({
+    ...file,
+    path: normalizePath(file.path),
+    oldPath: file.oldPath ? normalizePath(file.oldPath) : undefined,
+  }));
+}
+
+/**
  * Parse git diff --name-status output
  */
 function parseNameStatus(output: string): {

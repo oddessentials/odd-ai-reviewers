@@ -7,6 +7,8 @@ import {
   filterFiles,
   buildCombinedDiff,
   normalizeGitRef,
+  normalizePath,
+  canonicalizeDiffFiles,
   type DiffFile,
   type PathFilter,
 } from '../diff.js';
@@ -206,5 +208,91 @@ describe('normalizeGitRef', () => {
 
     const result = normalizeGitRef('/repo', '7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
     expect(result).toBe('7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
+  });
+});
+
+describe('normalizePath', () => {
+  it('should remove a/ prefix', () => {
+    expect(normalizePath('a/src/file.ts')).toBe('src/file.ts');
+  });
+
+  it('should remove b/ prefix', () => {
+    expect(normalizePath('b/src/file.ts')).toBe('src/file.ts');
+  });
+
+  it('should remove ./ prefix', () => {
+    expect(normalizePath('./src/file.ts')).toBe('src/file.ts');
+  });
+
+  it('should remove leading slash', () => {
+    expect(normalizePath('/src/file.ts')).toBe('src/file.ts');
+  });
+
+  it('should handle already-normalized paths', () => {
+    expect(normalizePath('src/file.ts')).toBe('src/file.ts');
+  });
+
+  it('should not modify internal slashes', () => {
+    expect(normalizePath('a/src/utils/helper.ts')).toBe('src/utils/helper.ts');
+  });
+});
+
+describe('canonicalizeDiffFiles', () => {
+  it('should normalize all path and oldPath fields', () => {
+    const nonCanonicalFiles: DiffFile[] = [
+      { path: 'a/src/file.ts', status: 'modified', additions: 5, deletions: 2 },
+      {
+        path: 'b/src/renamed.ts',
+        oldPath: 'a/src/original.ts',
+        status: 'renamed',
+        additions: 3,
+        deletions: 1,
+      },
+      { path: './relative/file.ts', status: 'added', additions: 10, deletions: 0 },
+      { path: '/absolute/file.ts', status: 'deleted', additions: 0, deletions: 5 },
+    ];
+
+    const result = canonicalizeDiffFiles(nonCanonicalFiles);
+
+    expect(result[0].path).toBe('src/file.ts');
+    expect(result[1].path).toBe('src/renamed.ts');
+    expect(result[1].oldPath).toBe('src/original.ts');
+    expect(result[2].path).toBe('relative/file.ts');
+    expect(result[3].path).toBe('absolute/file.ts');
+  });
+
+  it('should handle undefined oldPath', () => {
+    const files: DiffFile[] = [
+      { path: 'a/file.ts', status: 'modified', additions: 1, deletions: 0 },
+    ];
+
+    const result = canonicalizeDiffFiles(files);
+    expect(result[0].oldPath).toBeUndefined();
+  });
+
+  it('should preserve all other file properties', () => {
+    const files: DiffFile[] = [
+      {
+        path: 'a/file.ts',
+        status: 'modified',
+        additions: 10,
+        deletions: 5,
+        patch: '+ new content',
+      },
+    ];
+
+    const result = canonicalizeDiffFiles(files);
+    expect(result[0]).toEqual({
+      path: 'file.ts',
+      status: 'modified',
+      additions: 10,
+      deletions: 5,
+      patch: '+ new content',
+      oldPath: undefined,
+    });
+  });
+
+  it('should return empty array for empty input', () => {
+    expect(canonicalizeDiffFiles([])).toEqual([]);
   });
 });
