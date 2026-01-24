@@ -16,21 +16,21 @@ const mockCreateReviewComment = vi.fn(async () => ({ data: { id: 789 } }));
 
 // Mock Octokit
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn(() => ({
-    checks: {
+  Octokit: class MockOctokit {
+    checks = {
       create: vi.fn(async () => ({ data: { id: 123 } })),
       update: vi.fn(async () => ({ data: { id: 123 } })),
-    },
-    issues: {
+    };
+    issues = {
       createComment: vi.fn(async () => ({ data: { id: 456 } })),
       updateComment: vi.fn(async () => ({ data: { id: 456 } })),
       listComments: vi.fn(async () => ({ data: [] })),
-    },
-    pulls: {
+    };
+    pulls = {
       createReviewComment: mockCreateReviewComment,
       listReviewComments: vi.fn(async () => ({ data: [] })),
-    },
-  })),
+    };
+  },
 }));
 
 describe('GitHub Multi-line Payload Verification', () => {

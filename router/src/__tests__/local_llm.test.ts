@@ -291,6 +291,21 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail when input exceeds token limit', async () => {
+      // Mock fetch to let warmup pass - token limit is checked after warmup
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => ({
+              done: true,
+              value: new TextEncoder().encode(
+                JSON.stringify({ response: '{"ping":"ok"}', done: true }) + '\n'
+              ),
+            }),
+          }),
+        },
+      });
+
       const context: AgentContext = {
         repoPath: '/repo',
         diff: {
