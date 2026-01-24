@@ -11,8 +11,10 @@ const BASE_DELAY_MS = 1000;
  */
 export function getRetryDelayMs(error: unknown, attempt: number): number | null {
   if (error instanceof OpenAI.RateLimitError) {
-    const headers = (error as { headers?: Record<string, string> }).headers;
-    const retryAfter = headers?.['retry-after'];
+    // OpenAI 6 uses native Headers object with .get() method
+    const headers = (error as { headers?: Headers | Record<string, string> }).headers;
+    const retryAfter =
+      headers instanceof Headers ? headers.get('retry-after') : headers?.['retry-after'];
     if (retryAfter) {
       return parseInt(retryAfter, 10) * 1000;
     }
