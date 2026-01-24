@@ -633,3 +633,111 @@ export function normalizeFindingsForDiff(
     invalidDetails,
   };
 }
+
+/**
+ * Drift signal result - indicates overall health of line validation
+ */
+export interface DriftSignal {
+  /** Signal level: ok (< warn threshold), warn (< fail threshold), fail (>= fail threshold) */
+  level: 'ok' | 'warn' | 'fail';
+  /** Degradation percentage (dropped + downgraded) / total */
+  degradationPercent: number;
+  /** Auto-fix percentage (normalized) / total */
+  autoFixPercent: number;
+  /** Human-readable message explaining the signal */
+  message: string;
+  /** Top invalid samples for debugging (up to maxSamples) */
+  samples: InvalidLineDetail[];
+}
+
+/**
+ * Configuration for drift signal thresholds
+ */
+export interface DriftConfig {
+  /** Warn threshold for degradation percentage (default: 20) */
+  warnThresholdPercent: number;
+  /** Fail threshold for degradation percentage (default: 50) */
+  failThresholdPercent: number;
+  /** Maximum samples to include in signal (default: 5) */
+  maxSamples: number;
+}
+
+/** Default drift configuration */
+export const DEFAULT_DRIFT_CONFIG: DriftConfig = {
+  warnThresholdPercent: 20,
+  failThresholdPercent: 50,
+  maxSamples: 5,
+};
+
+/**
+ * Compute drift signal from validation stats and invalid details
+ *
+ * This provides an enterprise-grade health check for line validation:
+ * - ok: Everything is fine, degradation is within acceptable limits
+ * - warn: Degradation is concerning, should investigate
+ * - fail: Degradation is too high, likely indicates a systemic issue
+ *
+ * @param stats - Validation statistics from normalizeFindingsForDiff
+ * @param invalidDetails - Details about invalid lines
+ * @param config - Optional configuration for thresholds
+ * @returns DriftSignal indicating health and samples for debugging
+ */
+export function computeDriftSignal(
+  stats: ValidationStats,
+  invalidDetails: InvalidLineDetail[],
+  config: Partial<DriftConfig> = {}
+): DriftSignal {
+  const mergedConfig = { ...DEFAULT_DRIFT_CONFIG, ...config };
+
+  // Avoid divide-by-zero
+  if (stats.total === 0) {
+    return {
+      level: 'ok',
+      degradationPercent: 0,
+      autoFixPercent: 0,
+      message: 'No findings to validate',
+      samples: [],
+    };
+  }
+
+  // Calculate percentages
+  const degraded = stats.dropped + stats.downgraded;
+  const degradationPercent = (degraded / stats.total) * 100;
+  const autoFixPercent = (stats.normalized / stats.total) * 100;
+
+  // Determine level
+  let level: 'ok' | 'warn' | 'fail' = 'ok';
+  if (degradationPercent >= mergedConfig.failThresholdPercent) {
+    level = 'fail';
+  } else if (degradationPercent >= mergedConfig.warnThresholdPercent) {
+    level = 'warn';
+  }
+
+  // Build message
+  let message: string;
+  if (level === 'ok') {
+    message =
+      degradationPercent > 0
+        ? `Line validation healthy: ${degradationPercent.toFixed(1)}% degraded (${degraded}/${stats.total})`
+        : `Line validation perfect: all ${stats.total} findings valid`;
+  } else if (level === 'warn') {
+    message =
+      `⚠️ Line validation warning: ${degradationPercent.toFixed(1)}% degraded ` +
+      `(${degraded}/${stats.total} findings) - exceeds ${mergedConfig.warnThresholdPercent}% threshold`;
+  } else {
+    message =
+      `❌ Line validation failed: ${degradationPercent.toFixed(1)}% degraded ` +
+      `(${degraded}/${stats.total} findings) - exceeds ${mergedConfig.failThresholdPercent}% threshold`;
+  }
+
+  // Collect top samples (prioritize by reason diversity)
+  const samples = invalidDetails.slice(0, mergedConfig.maxSamples);
+
+  return {
+    level,
+    degradationPercent: Math.round(degradationPercent * 10) / 10, // 1 decimal place
+    autoFixPercent: Math.round(autoFixPercent * 10) / 10,
+    message,
+    samples,
+  };
+}

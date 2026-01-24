@@ -5,6 +5,9 @@ import {
   parseDiffHunks,
   buildLineResolver,
   normalizeFindingsForDiff,
+  computeDriftSignal,
+  type ValidationStats,
+  type InvalidLineDetail,
 } from '../report/line-resolver.js';
 
 describe('Line Resolver', () => {
@@ -841,6 +844,185 @@ index 1234567..89abcde 100644
         expect(result.stats.remappedPaths).toBe(1);
         expect(result.stats.valid).toBe(2);
       });
+    });
+  });
+
+  describe('computeDriftSignal', () => {
+    it('should return ok signal when no degradation', () => {
+      const stats: ValidationStats = {
+        total: 10,
+        valid: 10,
+        normalized: 0,
+        downgraded: 0,
+        dropped: 0,
+        deletedFiles: 0,
+        ambiguousRenames: 0,
+        remappedPaths: 0,
+      };
+
+      const signal = computeDriftSignal(stats, []);
+
+      expect(signal.level).toBe('ok');
+      expect(signal.degradationPercent).toBe(0);
+      expect(signal.message).toContain('perfect');
+    });
+
+    it('should return ok signal when degradation is below warn threshold', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 85,
+        normalized: 5,
+        downgraded: 10, // 10% degradation (< 20% warn threshold)
+        dropped: 0,
+        deletedFiles: 2,
+        ambiguousRenames: 1,
+        remappedPaths: 0,
+      };
+
+      const signal = computeDriftSignal(stats, []);
+
+      expect(signal.level).toBe('ok');
+      expect(signal.degradationPercent).toBe(10);
+      expect(signal.message).toContain('healthy');
+    });
+
+    it('should return warn signal when degradation exceeds warn threshold', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 55,
+        normalized: 20,
+        downgraded: 25, // 25% degradation (>= 20% warn threshold)
+        dropped: 0,
+        deletedFiles: 5,
+        ambiguousRenames: 2,
+        remappedPaths: 0,
+      };
+
+      const invalidDetails: InvalidLineDetail[] = [
+        { file: 'file1.ts', line: 10, reason: 'not in diff' },
+        { file: 'file2.ts', line: 20, reason: 'deleted-file' },
+      ];
+
+      const signal = computeDriftSignal(stats, invalidDetails);
+
+      expect(signal.level).toBe('warn');
+      expect(signal.degradationPercent).toBe(25);
+      expect(signal.message).toContain('⚠️');
+      expect(signal.message).toContain('20%');
+      expect(signal.samples).toHaveLength(2);
+    });
+
+    it('should return fail signal when degradation exceeds fail threshold', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 30,
+        normalized: 10,
+        downgraded: 40, // 60% degradation (>= 50% fail threshold)
+        dropped: 20,
+        deletedFiles: 10,
+        ambiguousRenames: 5,
+        remappedPaths: 0,
+      };
+
+      const invalidDetails: InvalidLineDetail[] = [
+        { file: 'file1.ts', line: 10, reason: 'not in diff' },
+        { file: 'file2.ts', line: 20, reason: 'deleted-file' },
+        { file: 'file3.ts', line: 30, reason: 'ambiguous-rename' },
+      ];
+
+      const signal = computeDriftSignal(stats, invalidDetails);
+
+      expect(signal.level).toBe('fail');
+      expect(signal.degradationPercent).toBe(60);
+      expect(signal.message).toContain('❌');
+      expect(signal.message).toContain('50%');
+      expect(signal.samples).toHaveLength(3);
+    });
+
+    it('should handle zero findings', () => {
+      const stats: ValidationStats = {
+        total: 0,
+        valid: 0,
+        normalized: 0,
+        downgraded: 0,
+        dropped: 0,
+        deletedFiles: 0,
+        ambiguousRenames: 0,
+        remappedPaths: 0,
+      };
+
+      const signal = computeDriftSignal(stats, []);
+
+      expect(signal.level).toBe('ok');
+      expect(signal.degradationPercent).toBe(0);
+      expect(signal.message).toContain('No findings');
+    });
+
+    it('should respect custom thresholds', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 70,
+        normalized: 15,
+        downgraded: 15, // 15% degradation
+        dropped: 0,
+        deletedFiles: 3,
+        ambiguousRenames: 0,
+        remappedPaths: 0,
+      };
+
+      // With default thresholds (20% warn), 15% should be ok
+      const defaultSignal = computeDriftSignal(stats, []);
+      expect(defaultSignal.level).toBe('ok');
+
+      // With stricter threshold (10% warn), 15% should be warn
+      const strictSignal = computeDriftSignal(stats, [], {
+        warnThresholdPercent: 10,
+      });
+      expect(strictSignal.level).toBe('warn');
+    });
+
+    it('should limit samples to maxSamples', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 40,
+        normalized: 0,
+        downgraded: 60,
+        dropped: 0,
+        deletedFiles: 10,
+        ambiguousRenames: 0,
+        remappedPaths: 0,
+      };
+
+      const invalidDetails: InvalidLineDetail[] = Array.from({ length: 20 }, (_, i) => ({
+        file: `file${i}.ts`,
+        line: i * 10,
+        reason: 'not in diff',
+      }));
+
+      // Default maxSamples is 5
+      const signal = computeDriftSignal(stats, invalidDetails);
+      expect(signal.samples).toHaveLength(5);
+
+      // Custom maxSamples
+      const customSignal = computeDriftSignal(stats, invalidDetails, { maxSamples: 3 });
+      expect(customSignal.samples).toHaveLength(3);
+    });
+
+    it('should calculate autoFixPercent correctly', () => {
+      const stats: ValidationStats = {
+        total: 100,
+        valid: 70,
+        normalized: 20, // 20% auto-fixed
+        downgraded: 10,
+        dropped: 0,
+        deletedFiles: 2,
+        ambiguousRenames: 0,
+        remappedPaths: 0,
+      };
+
+      const signal = computeDriftSignal(stats, []);
+
+      expect(signal.autoFixPercent).toBe(20);
     });
   });
 });
