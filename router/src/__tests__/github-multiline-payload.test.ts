@@ -191,4 +191,89 @@ describe('GitHub Multi-line Payload Verification', () => {
     expect(callArgs).not.toHaveProperty('start_line');
     expect(callArgs).not.toHaveProperty('start_side');
   });
+
+  /**
+   * CRITICAL: Right-side enforcement test
+   * This test prevents any future refactor from accidentally using left-side fields
+   * which would cause comments to appear on the wrong side of the diff
+   */
+  describe('Right-side Enforcement (prevents misplaced comments)', () => {
+    it('should ONLY use RIGHT side, never LEFT side (single-line)', async () => {
+      const diffFiles: DiffFile[] = [
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 1,
+          deletions: 1,
+          patch: `@@ -1,2 +1,2 @@
+ const a = 1;
+-const old = 2;
++const new = 2;`,
+        },
+      ];
+
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/test.ts',
+          line: 2,
+          message: 'Check this line',
+          sourceAgent: 'test',
+        },
+      ];
+
+      await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+
+      const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+
+      // ASSERTION: Must use RIGHT side
+      expect(callArgs.side).toBe('RIGHT');
+
+      // CRITICAL NEGATIVE ASSERTION: Must NOT have any left-side values
+      // This prevents the original bug where comments appeared on wrong side
+      expect(callArgs.side).not.toBe('LEFT');
+      if (callArgs.start_side !== undefined) {
+        expect(callArgs.start_side).not.toBe('LEFT');
+      }
+    });
+
+    it('should ONLY use RIGHT side, never LEFT side (multi-line)', async () => {
+      const diffFiles: DiffFile[] = [
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 3,
+          deletions: 0,
+          patch: `@@ -1,1 +1,4 @@
+ const a = 1;
++const b = 2;
++const c = 3;
++const d = 4;`,
+        },
+      ];
+
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/test.ts',
+          line: 2,
+          endLine: 4,
+          message: 'Multi-line issue',
+          sourceAgent: 'test',
+        },
+      ];
+
+      await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+
+      const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+
+      // ASSERTION: Both start_side and side must be RIGHT
+      expect(callArgs.start_side).toBe('RIGHT');
+      expect(callArgs.side).toBe('RIGHT');
+
+      // CRITICAL NEGATIVE ASSERTION: Neither field should be LEFT
+      expect(callArgs.start_side).not.toBe('LEFT');
+      expect(callArgs.side).not.toBe('LEFT');
+    });
+  });
 });

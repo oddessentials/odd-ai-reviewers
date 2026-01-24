@@ -761,12 +761,14 @@ index 1234567..89abcde 100644
         const result = normalizeFindingsForDiff(findings, resolver);
 
         expect(result.findings).toHaveLength(1);
-        // File should be remapped to new path
-        expect(result.findings[0]?.file).toBe('src/merged.ts');
-        // Line should be undefined (file-level)
+        // CRITICAL: Ambiguous renames keep original path (NEVER guess which new path)
+        expect(result.findings[0]?.file).toBe('src/fileA.ts');
+        // Line should be undefined (file-level only)
         expect(result.findings[0]?.line).toBeUndefined();
         expect(result.stats.ambiguousRenames).toBe(1);
         expect(result.stats.downgraded).toBe(1);
+        // NOT counted as remapped (we kept original path)
+        expect(result.stats.remappedPaths).toBe(0);
 
         // Should have invalid detail with ambiguous-rename reason
         expect(result.invalidDetails).toHaveLength(1);
@@ -1223,9 +1225,16 @@ index 1234567..89abcde 100644
    * PHASE 11: Bidirectional Ambiguity Tests
    * Validates detection of edge cases where one old path maps to multiple new paths
    * (e.g., during rebase/squash scenarios)
+   *
+   * CRITICAL: Ambiguous renames must NEVER guess which new path to use.
+   * Instead, they must:
+   * 1. Keep the original path (no remapping)
+   * 2. Downgrade to file-level (line: undefined)
+   * 3. Emit 'ambiguous-rename' reason in invalidDetails
+   * 4. Increment ambiguousRenames stat
    */
   describe('Bidirectional Ambiguity (Phase 11)', () => {
-    it('should track ambiguous renames in validation stats', () => {
+    it('should downgrade ambiguous renames to file-level without guessing path', () => {
       // Scenario: Same oldPath referenced by multiple renamed files
       // This can happen in messy rebases or squash scenarios
       const files: DiffFile[] = canonicalizeDiffFiles([
@@ -1257,25 +1266,111 @@ index 1234567..89abcde 100644
 
       const resolver = buildLineResolver(files);
 
-      // Findings targeting the ambiguous old path should trigger detection
+      // Findings targeting the ambiguous old path
       const findings: Finding[] = [
         {
           severity: 'warning',
           file: 'src/original.ts', // OLD path - ambiguous mapping
-          line: 1,
+          line: 5, // Specific line that should be cleared
           message: 'Issue in ambiguous source',
-          sourceAgent: 'test',
+          sourceAgent: 'test-agent',
         },
       ];
 
       const result = normalizeFindingsForDiff(findings, resolver);
 
-      // The finding should still be processed (one of the new paths selected)
-      // but ambiguousRenames stat should track the ambiguity
-      expect(result.stats.ambiguousRenames).toBeGreaterThanOrEqual(0);
+      // ASSERTION 1: Finding is NOT dropped
       expect(result.findings).toHaveLength(1);
-      // Either remapped or retained, but not dropped
       expect(result.stats.dropped).toBe(0);
+
+      // ASSERTION 2: Original path is kept (NO remapping/guessing)
+      const normalizedFinding = result.findings[0];
+      expect(normalizedFinding?.file).toBe('src/original.ts');
+      // MUST NOT be split-a.ts or split-b.ts (that would be guessing)
+      expect(normalizedFinding?.file).not.toBe('src/split-a.ts');
+      expect(normalizedFinding?.file).not.toBe('src/split-b.ts');
+
+      // ASSERTION 3: Line is cleared (file-level only)
+      expect(normalizedFinding?.line).toBeUndefined();
+      expect(normalizedFinding?.endLine).toBeUndefined();
+
+      // ASSERTION 4: Stats reflect ambiguous rename
+      expect(result.stats.ambiguousRenames).toBe(1);
+      expect(result.stats.downgraded).toBe(1);
+      // NOT counted as remapped (we kept original path)
+      expect(result.stats.remappedPaths).toBe(0);
+
+      // ASSERTION 5: InvalidDetails contains 'ambiguous-rename' reason
+      expect(result.invalidDetails).toHaveLength(1);
+      const invalidDetail = result.invalidDetails[0];
+      expect(invalidDetail?.reason).toBe('ambiguous-rename');
+      expect(invalidDetail?.file).toBe('src/original.ts');
+      expect(invalidDetail?.line).toBe(5);
+      expect(invalidDetail?.sourceAgent).toBe('test-agent');
+    });
+
+    it('should handle multiple findings on same ambiguous path', () => {
+      const files: DiffFile[] = canonicalizeDiffFiles([
+        {
+          path: 'lib/new-a.ts',
+          oldPath: 'lib/shared.ts',
+          status: 'renamed',
+          additions: 2,
+          deletions: 0,
+          patch: `@@ -1,1 +1,3 @@
+ const shared = 1;
++const a = 2;`,
+        },
+        {
+          path: 'lib/new-b.ts',
+          oldPath: 'lib/shared.ts', // Same old path - ambiguous
+          status: 'renamed',
+          additions: 2,
+          deletions: 0,
+          patch: `@@ -1,1 +1,3 @@
+ const shared = 1;
++const b = 2;`,
+        },
+      ]);
+
+      const resolver = buildLineResolver(files);
+
+      // Multiple findings on the ambiguous path
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'lib/shared.ts',
+          line: 1,
+          message: 'Error on line 1',
+          sourceAgent: 'agent-1',
+        },
+        {
+          severity: 'warning',
+          file: 'lib/shared.ts',
+          line: 10,
+          message: 'Warning on line 10',
+          sourceAgent: 'agent-2',
+        },
+      ];
+
+      const result = normalizeFindingsForDiff(findings, resolver);
+
+      // Both findings processed, both downgraded
+      expect(result.findings).toHaveLength(2);
+      expect(result.stats.ambiguousRenames).toBe(2);
+      expect(result.stats.downgraded).toBe(2);
+      expect(result.stats.dropped).toBe(0);
+      expect(result.stats.remappedPaths).toBe(0);
+
+      // Both keep original path, both have line cleared
+      for (const finding of result.findings) {
+        expect(finding.file).toBe('lib/shared.ts');
+        expect(finding.line).toBeUndefined();
+      }
+
+      // Both marked as ambiguous-rename in details
+      expect(result.invalidDetails).toHaveLength(2);
+      expect(result.invalidDetails.every((d) => d.reason === 'ambiguous-rename')).toBe(true);
     });
   });
 

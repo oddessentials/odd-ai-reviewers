@@ -225,8 +225,9 @@ export function buildLineResolver(files: CanonicalDiffFile[]): LineResolver {
   const deletedFiles = new Set<string>();
 
   // Build rename maps: oldToNew for remapping, detect ambiguity
-  // Ambiguous = multiple old paths mapping to the same new path
-  const oldToNew = new Map<string, string>();
+  // Ambiguity case 1: multiple old paths mapping to the SAME new path (merge)
+  // Ambiguity case 2: SAME old path referenced by multiple new paths (split)
+  const oldToNew = new Map<string, string[]>(); // oldPath -> [newPath1, newPath2, ...]
   const newPathCounts = new Map<string, number>();
   const ambiguousPaths = new Set<string>();
 
@@ -234,23 +235,38 @@ export function buildLineResolver(files: CanonicalDiffFile[]): LineResolver {
     if (file.oldPath && file.status === 'renamed') {
       const normalizedOld = normalizePath(file.oldPath);
       const normalizedNew = normalizePath(file.path);
-      oldToNew.set(normalizedOld, normalizedNew);
 
-      // Track how many old paths map to each new path
+      // Track all new paths for each old path (for split detection)
+      const existingNewPaths = oldToNew.get(normalizedOld) || [];
+      existingNewPaths.push(normalizedNew);
+      oldToNew.set(normalizedOld, existingNewPaths);
+
+      // Track how many old paths map to each new path (for merge detection)
       const currentCount = newPathCounts.get(normalizedNew) || 0;
       newPathCounts.set(normalizedNew, currentCount + 1);
     }
   }
 
-  // Mark paths as ambiguous if multiple old paths map to same new path
+  // Case 1: Mark paths as ambiguous if multiple old paths map to same new path (merge)
   for (const [newPath, count] of newPathCounts.entries()) {
     if (count > 1) {
       ambiguousPaths.add(newPath);
       // Also mark all old paths that map to this new path as ambiguous
-      for (const [oldPath, targetNewPath] of oldToNew.entries()) {
-        if (targetNewPath === newPath) {
+      for (const [oldPath, newPaths] of oldToNew.entries()) {
+        if (newPaths.includes(newPath)) {
           ambiguousPaths.add(oldPath);
         }
+      }
+    }
+  }
+
+  // Case 2: Mark paths as ambiguous if same old path maps to multiple new paths (split)
+  for (const [oldPath, newPaths] of oldToNew.entries()) {
+    if (newPaths.length > 1) {
+      // One old path was split into multiple new files
+      ambiguousPaths.add(oldPath);
+      for (const newPath of newPaths) {
+        ambiguousPaths.add(newPath);
       }
     }
   }
@@ -393,10 +409,14 @@ export function buildLineResolver(files: CanonicalDiffFile[]): LineResolver {
 
     remapPath(filePath: string): string {
       const normalizedPath = normalizePath(filePath);
-      // If this is an old path that maps to a new path, return the new path
+      // If this is an old path that maps to a new path, return the first new path
+      // (For non-ambiguous renames, there's exactly one; for ambiguous, isAmbiguousRename
+      // is checked first so we never actually use this remapped value)
       const remapped = oldToNew.get(normalizedPath);
-      if (remapped) {
-        return remapped;
+      if (remapped && remapped.length > 0) {
+        // Safe: checked length > 0 above
+        const first = remapped[0];
+        if (first) return first;
       }
       // Otherwise return the original path (normalized)
       return normalizedPath;
@@ -514,10 +534,12 @@ export function normalizeFindingsForDiff(
     if (wasRemapped) {
       // Check for ambiguous renames before remapping
       if (resolver.isAmbiguousRename(normalizedFilePath)) {
-        // Ambiguous rename: downgrade to file-level comment
+        // Ambiguous rename: DO NOT GUESS which new path to use
+        // Keep original path and downgrade to file-level comment only
+        // This prevents wrong-file placement when one oldPath maps to multiple newPaths
         normalized.push({
           ...finding,
-          file: remappedPath,
+          file: normalizedFilePath, // Keep original path, don't remap
           line: undefined,
           endLine: undefined,
         });
