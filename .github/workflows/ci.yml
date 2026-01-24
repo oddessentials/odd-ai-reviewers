@@ -36,6 +36,11 @@ jobs:
       - name: Check circular dependencies
         run: npm run depcruise
 
+      - name: Verify docs manifest
+        run: |
+          npm run docs:manifest
+          git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'npm run docs:manifest' and commit." && exit 1)
+
       - name: Build
         run: npm run build
 

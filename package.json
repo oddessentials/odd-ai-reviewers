@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm run lint && npm run format:check && npm run typecheck && npm run depcruise && npm run build",
     "depcruise": "depcruise router/src --config .dependency-cruiser.cjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docs:manifest": "node scripts/generate-docs-manifest.cjs"
   },
   "keywords": [
     "code-review",
