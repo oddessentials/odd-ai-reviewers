@@ -20,6 +20,14 @@ function _canonicalize(files: DiffFile[]) {
 }
 
 /**
+ * Test-only helper: buildLineResolver that accepts raw DiffFile[]
+ * Auto-canonicalizes for test convenience
+ */
+function _buildResolver(files: DiffFile[]) {
+  return buildLineResolver(_canonicalize(files));
+}
+
+/**
  * COMPILE-TIME TEST: Proves raw DiffFile[] cannot be passed to buildLineResolver
  * If this ever compiles without error, the branded type enforcement is broken
  */
@@ -179,7 +187,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       expect(resolver.hasFile('src/test.ts')).toBe(true);
       expect(resolver.hasFile('nonexistent.ts')).toBe(false);
@@ -196,7 +204,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
       expect(resolver.hasFile('deleted.ts')).toBe(false);
     });
 
@@ -211,7 +219,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
       expect(resolver.hasFile('binary.png')).toBe(false);
     });
 
@@ -228,7 +236,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       expect(resolver.hasFile('src/test.ts')).toBe(true);
       expect(resolver.hasFile('/src/test.ts')).toBe(true);
@@ -250,7 +258,7 @@ index 1234567..89abcde 100644
       },
     ];
 
-    const resolver = buildLineResolver(files);
+    const resolver = _buildResolver(files);
 
     it('should validate valid added line', () => {
       const result = resolver.validateLine('src/test.ts', 2);
@@ -336,7 +344,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
       const summary = resolver.getFileSummary('src/test.ts');
 
       expect(summary).toContain('File: src/test.ts');
@@ -367,7 +375,7 @@ index 1234567..89abcde 100644
       },
     ];
 
-    const resolver = buildLineResolver(files);
+    const resolver = _buildResolver(files);
 
     it('should pass through valid findings', () => {
       const findings: Finding[] = [
@@ -508,7 +516,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       expect(resolver.hasFile('new_name.ts')).toBe(true);
       const result = resolver.validateLine('new_name.ts', 2);
@@ -534,7 +542,7 @@ index 1234567..89abcde 100644
         },
       ];
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // Lines in first hunk should be valid
       expect(resolver.validateLine('large_file.ts', 1).valid).toBe(true);
@@ -591,7 +599,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         // Old path should remap to new path
         expect(resolver.remapPath('src/old_name.ts')).toBe('src/new_name.ts');
@@ -616,7 +624,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         expect(resolver.remapPath('src/modified.ts')).toBe('src/modified.ts');
         expect(resolver.remapPath('src/nonexistent.ts')).toBe('src/nonexistent.ts');
@@ -651,7 +659,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         // Both old paths should be ambiguous
         expect(resolver.isAmbiguousRename('src/fileA.ts')).toBe(true);
@@ -678,7 +686,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         expect(resolver.isAmbiguousRename('src/old_name.ts')).toBe(false);
         expect(resolver.isAmbiguousRename('src/new_name.ts')).toBe(false);
@@ -701,7 +709,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         const findings: Finding[] = [
           {
@@ -746,7 +754,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         const findings: Finding[] = [
           {
@@ -790,7 +798,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         const findings: Finding[] = [
           {
@@ -836,7 +844,7 @@ index 1234567..89abcde 100644
           },
         ];
 
-        const resolver = buildLineResolver(files);
+        const resolver = _buildResolver(files);
 
         const findings: Finding[] = [
           {
@@ -891,7 +899,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // Findings reference paths with different prefix variants
       const findings: Finding[] = [
@@ -945,7 +953,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // Findings reference old paths with various prefix variants
       const findings: Finding[] = [
@@ -1005,7 +1013,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       const findings: Finding[] = [
         {
@@ -1264,7 +1272,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // Findings targeting the ambiguous old path
       const findings: Finding[] = [
@@ -1333,7 +1341,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // Multiple findings on the ambiguous path
       const findings: Finding[] = [
@@ -1409,7 +1417,7 @@ index 1234567..89abcde 100644
         },
       ]);
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // STRUCTURAL ASSERTION: Verify Map-based indexes exist
       // This tests that we're using O(1) lookups, not O(n) linear scans
@@ -1436,7 +1444,7 @@ index 1234567..89abcde 100644
         }))
       );
 
-      const resolver = buildLineResolver(files);
+      const resolver = _buildResolver(files);
 
       // All 100 files should be accessible via O(1) lookup
       for (let i = 0; i < 100; i++) {

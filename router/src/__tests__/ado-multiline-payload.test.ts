@@ -30,7 +30,8 @@ describe('ADO Multi-line Payload Verification', () => {
     fetchCalls.length = 0;
   });
 
-  const baseConfig = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseConfig: any = {
     passes: [],
     path_filters: {},
     limits: {

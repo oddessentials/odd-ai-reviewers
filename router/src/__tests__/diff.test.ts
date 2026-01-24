@@ -254,11 +254,11 @@ describe('canonicalizeDiffFiles', () => {
 
     const result = canonicalizeDiffFiles(nonCanonicalFiles);
 
-    expect(result[0].path).toBe('src/file.ts');
-    expect(result[1].path).toBe('src/renamed.ts');
-    expect(result[1].oldPath).toBe('src/original.ts');
-    expect(result[2].path).toBe('relative/file.ts');
-    expect(result[3].path).toBe('absolute/file.ts');
+    expect(result[0]?.path).toBe('src/file.ts');
+    expect(result[1]?.path).toBe('src/renamed.ts');
+    expect(result[1]?.oldPath).toBe('src/original.ts');
+    expect(result[2]?.path).toBe('relative/file.ts');
+    expect(result[3]?.path).toBe('absolute/file.ts');
   });
 
   it('should handle undefined oldPath', () => {
@@ -267,7 +267,7 @@ describe('canonicalizeDiffFiles', () => {
     ];
 
     const result = canonicalizeDiffFiles(files);
-    expect(result[0].oldPath).toBeUndefined();
+    expect(result[0]?.oldPath).toBeUndefined();
   });
 
   it('should preserve all other file properties', () => {

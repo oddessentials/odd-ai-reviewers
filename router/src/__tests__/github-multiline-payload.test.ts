@@ -33,7 +33,8 @@ vi.mock('@octokit/rest', () => ({
 }));
 
 describe('GitHub Multi-line Payload Verification', () => {
-  const baseConfig = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseConfig: any = {
     passes: [],
     path_filters: {},
     limits: {
@@ -97,7 +98,8 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
 
     // Verify exact payload shape for single-line
     expect(callArgs).toHaveProperty('line', 2);
@@ -142,7 +144,8 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
 
     // Verify exact payload shape for multi-line
     expect(callArgs).toHaveProperty('start_line', 2);
@@ -183,7 +186,8 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
 
     // Should treat as single-line: no start_line/start_side
     expect(callArgs).toHaveProperty('line', 2);
@@ -224,16 +228,20 @@ describe('GitHub Multi-line Payload Verification', () => {
 
       await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
 
-      const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<
+        string,
+        unknown
+      >;
 
       // ASSERTION: Must use RIGHT side
-      expect(callArgs.side).toBe('RIGHT');
+      expect(callArgs['side']).toBe('RIGHT');
 
       // CRITICAL NEGATIVE ASSERTION: Must NOT have any left-side values
       // This prevents the original bug where comments appeared on wrong side
-      expect(callArgs.side).not.toBe('LEFT');
-      if (callArgs.start_side !== undefined) {
-        expect(callArgs.start_side).not.toBe('LEFT');
+      expect(callArgs['side']).not.toBe('LEFT');
+      if (callArgs['start_side'] !== undefined) {
+        expect(callArgs['start_side']).not.toBe('LEFT');
       }
     });
 
@@ -265,15 +273,19 @@ describe('GitHub Multi-line Payload Verification', () => {
 
       await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
 
-      const callArgs = mockCreateReviewComment.mock.calls[0]?.[0] as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<
+        string,
+        unknown
+      >;
 
       // ASSERTION: Both start_side and side must be RIGHT
-      expect(callArgs.start_side).toBe('RIGHT');
-      expect(callArgs.side).toBe('RIGHT');
+      expect(callArgs['start_side']).toBe('RIGHT');
+      expect(callArgs['side']).toBe('RIGHT');
 
       // CRITICAL NEGATIVE ASSERTION: Neither field should be LEFT
-      expect(callArgs.start_side).not.toBe('LEFT');
-      expect(callArgs.side).not.toBe('LEFT');
+      expect(callArgs['start_side']).not.toBe('LEFT');
+      expect(callArgs['side']).not.toBe('LEFT');
     });
   });
 });

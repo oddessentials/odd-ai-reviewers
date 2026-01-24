@@ -35,7 +35,8 @@ describe('ADO Line Validation Integration', () => {
     },
   ];
 
-  const baseConfig: Config = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseConfig: any = {
     passes: [],
     path_filters: {},
     limits: {

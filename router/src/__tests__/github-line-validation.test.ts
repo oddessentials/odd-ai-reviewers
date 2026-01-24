@@ -38,7 +38,8 @@ describe('GitHub Line Validation Integration', () => {
     },
   ];
 
-  const baseConfig: Config = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseConfig: any = {
     passes: [],
     path_filters: {},
     limits: {
@@ -46,6 +47,7 @@ describe('GitHub Line Validation Integration', () => {
       max_diff_lines: 10000,
       max_tokens_per_pr: 100000,
       max_usd_per_pr: 1.0,
+      monthly_budget_usd: 100.0,
     },
     gating: {
       enabled: false,
