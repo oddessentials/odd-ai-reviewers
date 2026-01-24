@@ -147,11 +147,16 @@ export async function reportToADO(
 
     // Post PR threads if enabled
     if (reportingConfig.mode === 'threads_only' || reportingConfig.mode === 'threads_and_status') {
+      // Build set of deleted files for belt-and-suspenders guard in postPRThreads
+      const deletedFiles = new Set(
+        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+      );
       const result = await postPRThreads(
         context,
         sorted,
         reportingConfig.max_inline_comments,
-        reportingConfig.thread_status === 'pending' ? 6 : 1
+        reportingConfig.thread_status === 'pending' ? 6 : 1,
+        deletedFiles
       );
       threadId = result.threadId;
       skippedDuplicates = result.skippedDuplicates;
@@ -244,7 +249,8 @@ async function postPRThreads(
   context: ADOContext,
   findings: Finding[],
   maxInlineComments: number,
-  threadStatus: number
+  threadStatus: number,
+  deletedFiles: Set<string> = new Set<string>()
 ): Promise<{ threadId: number; skippedDuplicates: number }> {
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
 
@@ -347,8 +353,11 @@ async function postPRThreads(
   }
 
   // Filter findings for inline comments
+  // Belt-and-suspenders: also filter out deleted files (should already be file-level)
   const inlineFindings = findings
-    .filter((f): f is Finding & { line: number } => f.line !== undefined)
+    .filter(
+      (f): f is Finding & { line: number } => f.line !== undefined && !deletedFiles.has(f.file)
+    )
     .sort((a, b) => {
       // Sort by severity (error > warning > info)
       const severityOrder = { error: 0, warning: 1, info: 2 };

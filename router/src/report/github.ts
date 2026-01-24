@@ -129,11 +129,16 @@ export async function reportToGitHub(
       context.prNumber &&
       (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
     ) {
+      // Build set of deleted files for belt-and-suspenders guard in postPRComment
+      const deletedFiles = new Set(
+        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+      );
       const result = await postPRComment(
         octokit,
         context,
         sorted,
-        reportingConfig.max_inline_comments
+        reportingConfig.max_inline_comments,
+        deletedFiles
       );
       commentId = result.commentId;
       skippedDuplicates = result.skippedDuplicates;
@@ -241,7 +246,8 @@ async function postPRComment(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
-  maxInlineComments: number
+  maxInlineComments: number,
+  deletedFiles: Set<string> = new Set<string>()
 ): Promise<{ commentId: number; skippedDuplicates: number }> {
   if (!context.prNumber) {
     throw new Error('PR number required for comments');
@@ -303,8 +309,11 @@ async function postPRComment(
   }
 
   // Filter findings for inline comments
+  // Belt-and-suspenders: also filter out deleted files (should already be file-level)
   const inlineFindings = findings
-    .filter((f): f is Finding & { line: number } => f.line !== undefined)
+    .filter(
+      (f): f is Finding & { line: number } => f.line !== undefined && !deletedFiles.has(f.file)
+    )
     .sort((a, b) => {
       // Sort by severity (error > warning > info)
       const severityOrder = { error: 0, warning: 1, info: 2 };
