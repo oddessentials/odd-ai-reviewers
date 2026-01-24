@@ -17,6 +17,17 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import type { DiffFile } from '../diff.js';
+import { canonicalizeDiffFiles } from '../diff.js';
+import {
+  buildLineResolver,
+  normalizeFindingsForDiff,
+  computeDriftSignal,
+  generateDriftMarkdown,
+  type ValidationStats,
+  type InvalidLineDetail,
+  type DriftSignal,
+} from './line-resolver.js';
 
 export interface GitHubContext {
   owner: string;
@@ -35,6 +46,10 @@ export interface ReportResult {
   error?: string;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
+  /** Statistics from line validation */
+  validationStats?: ValidationStats;
+  /** Details about findings with invalid lines */
+  invalidLineDetails?: InvalidLineDetail[];
 }
 
 /** Delay between inline comments to avoid spam (ms) */
@@ -77,7 +92,8 @@ export async function startCheckRun(context: GitHubContext): Promise<number> {
 export async function reportToGitHub(
   findings: Finding[],
   context: GitHubContext,
-  config: Config
+  config: Config,
+  diffFiles: DiffFile[]
 ): Promise<ReportResult> {
   const octokit = new Octokit({ auth: context.token });
   const reportingConfig = config.reporting.github ?? {
@@ -86,8 +102,29 @@ export async function reportToGitHub(
     summary: true,
   };
 
-  // Process findings
-  const deduplicated = deduplicateFindings(findings);
+  // CANONICAL ENTRYPOINT: Ensure all diff paths are normalized FIRST
+  // This must happen before buildLineResolver, deleted set, or rename maps
+  const canonicalFiles = canonicalizeDiffFiles(diffFiles);
+
+  // Build line resolver and normalize findings from canonical files
+  const lineResolver = buildLineResolver(canonicalFiles);
+  const normalizationResult = normalizeFindingsForDiff(findings, lineResolver);
+
+  if (normalizationResult.stats.dropped > 0 || normalizationResult.stats.normalized > 0) {
+    console.log(
+      `[github] Line validation: ${normalizationResult.stats.valid} valid, ` +
+        `${normalizationResult.stats.normalized} normalized, ${normalizationResult.stats.dropped} dropped`
+    );
+  }
+
+  // Compute drift signal for visibility in check summary
+  const driftSignal = computeDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
+  // Process normalized findings
+  const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
@@ -98,7 +135,7 @@ export async function reportToGitHub(
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
-      checkRunId = await createCheckRun(octokit, context, sorted, counts, config);
+      checkRunId = await createCheckRun(octokit, context, sorted, counts, config, driftSignal);
     }
 
     // Post PR comment if enabled and we have a PR number
@@ -106,11 +143,16 @@ export async function reportToGitHub(
       context.prNumber &&
       (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
     ) {
+      // Build set of deleted files for belt-and-suspenders guard in postPRComment
+      const deletedFiles = new Set(
+        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+      );
       const result = await postPRComment(
         octokit,
         context,
         sorted,
-        reportingConfig.max_inline_comments
+        reportingConfig.max_inline_comments,
+        deletedFiles
       );
       commentId = result.commentId;
       skippedDuplicates = result.skippedDuplicates;
@@ -121,6 +163,11 @@ export async function reportToGitHub(
       checkRunId,
       commentId,
       skippedDuplicates,
+      validationStats: normalizationResult.stats,
+      invalidLineDetails:
+        normalizationResult.invalidDetails.length > 0
+          ? normalizationResult.invalidDetails
+          : undefined,
     };
   } catch (error) {
     return {
@@ -140,7 +187,8 @@ async function createCheckRun(
   context: GitHubContext,
   findings: Finding[],
   counts: Record<Severity, number>,
-  config: Config
+  config: Config,
+  driftSignal: DriftSignal
 ): Promise<number> {
   // Determine conclusion based on gating config
   let conclusion: 'success' | 'failure' | 'neutral' = 'success';
@@ -169,9 +217,13 @@ async function createCheckRun(
 
   const summary = generateSummaryMarkdown(findings);
 
+  // Append drift signal to summary (only shows when warn/fail threshold exceeded)
+  const driftMarkdown = generateDriftMarkdown(driftSignal);
+  const fullSummary = summary + driftMarkdown;
+
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
-    summary,
+    summary: fullSummary,
     annotations,
   };
 
@@ -213,7 +265,8 @@ async function postPRComment(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
-  maxInlineComments: number
+  maxInlineComments: number,
+  deletedFiles: Set<string> = new Set<string>()
 ): Promise<{ commentId: number; skippedDuplicates: number }> {
   if (!context.prNumber) {
     throw new Error('PR number required for comments');
@@ -275,8 +328,11 @@ async function postPRComment(
   }
 
   // Filter findings for inline comments
+  // Belt-and-suspenders: also filter out deleted files (should already be file-level)
   const inlineFindings = findings
-    .filter((f): f is Finding & { line: number } => f.line !== undefined)
+    .filter(
+      (f): f is Finding & { line: number } => f.line !== undefined && !deletedFiles.has(f.file)
+    )
     .sort((a, b) => {
       // Sort by severity (error > warning > info)
       const severityOrder = { error: 0, warning: 1, info: 2 };
@@ -310,7 +366,18 @@ async function postPRComment(
       : formatInlineComment(finding);
 
     try {
-      await octokit.pulls.createReviewComment({
+      const commentParams: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+        body: string;
+        commit_id: string;
+        path: string;
+        line: number;
+        side: 'RIGHT';
+        start_line?: number;
+        start_side?: 'RIGHT';
+      } = {
         owner: context.owner,
         repo: context.repo,
         pull_number: context.prNumber,
@@ -318,7 +385,17 @@ async function postPRComment(
         commit_id: context.headSha,
         path: finding.file,
         line: finding.line,
-      });
+        side: 'RIGHT', // Always comment on new file (right side of diff)
+      };
+
+      // Add multi-line comment support if endLine is present
+      if (finding.endLine && finding.endLine !== finding.line) {
+        commentParams.start_line = finding.line;
+        commentParams.start_side = 'RIGHT';
+        commentParams.line = finding.endLine;
+      }
+
+      await octokit.pulls.createReviewComment(commentParams);
       postedCount++;
       for (const fingerprint of fingerprints) {
         existingFingerprints.add(fingerprint);

@@ -15,6 +15,17 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import type { DiffFile } from '../diff.js';
+import { canonicalizeDiffFiles } from '../diff.js';
+import {
+  buildLineResolver,
+  normalizeFindingsForDiff,
+  computeDriftSignal,
+  generateDriftMarkdown,
+  type ValidationStats,
+  type InvalidLineDetail,
+  type DriftSignal,
+} from './line-resolver.js';
 
 export interface ADOContext {
   /** Azure DevOps organization name */
@@ -42,6 +53,10 @@ export interface ReportResult {
   error?: string;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
+  /** Statistics from line validation */
+  validationStats?: ValidationStats;
+  /** Details about findings with invalid lines */
+  invalidLineDetails?: InvalidLineDetail[];
 }
 
 /** Delay between inline comments to avoid spam (ms) */
@@ -98,7 +113,8 @@ export async function startBuildStatus(context: ADOContext): Promise<number> {
 export async function reportToADO(
   findings: Finding[],
   context: ADOContext,
-  config: Config
+  config: Config,
+  diffFiles: DiffFile[]
 ): Promise<ReportResult> {
   const reportingConfig = config.reporting.ado ?? {
     mode: 'threads_and_status',
@@ -107,8 +123,29 @@ export async function reportToADO(
     thread_status: 'active',
   };
 
-  // Process findings
-  const deduplicated = deduplicateFindings(findings);
+  // CANONICAL ENTRYPOINT: Ensure all diff paths are normalized FIRST
+  // This must happen before buildLineResolver, deleted set, or rename maps
+  const canonicalFiles = canonicalizeDiffFiles(diffFiles);
+
+  // Build line resolver and normalize findings from canonical files
+  const lineResolver = buildLineResolver(canonicalFiles);
+  const normalizationResult = normalizeFindingsForDiff(findings, lineResolver);
+
+  if (normalizationResult.stats.dropped > 0 || normalizationResult.stats.normalized > 0) {
+    console.log(
+      `[ado] Line validation: ${normalizationResult.stats.valid} valid, ` +
+        `${normalizationResult.stats.normalized} normalized, ${normalizationResult.stats.dropped} dropped`
+    );
+  }
+
+  // Compute drift signal for visibility in PR thread summary
+  const driftSignal = computeDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
+  // Process normalized findings
+  const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
@@ -124,11 +161,17 @@ export async function reportToADO(
 
     // Post PR threads if enabled
     if (reportingConfig.mode === 'threads_only' || reportingConfig.mode === 'threads_and_status') {
+      // Build set of deleted files for belt-and-suspenders guard in postPRThreads
+      const deletedFiles = new Set(
+        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+      );
       const result = await postPRThreads(
         context,
         sorted,
         reportingConfig.max_inline_comments,
-        reportingConfig.thread_status === 'pending' ? 6 : 1
+        reportingConfig.thread_status === 'pending' ? 6 : 1,
+        deletedFiles,
+        driftSignal
       );
       threadId = result.threadId;
       skippedDuplicates = result.skippedDuplicates;
@@ -139,6 +182,11 @@ export async function reportToADO(
       statusId,
       threadId,
       skippedDuplicates,
+      validationStats: normalizationResult.stats,
+      invalidLineDetails:
+        normalizationResult.invalidDetails.length > 0
+          ? normalizationResult.invalidDetails
+          : undefined,
     };
   } catch (error) {
     return {
@@ -216,11 +264,16 @@ async function postPRThreads(
   context: ADOContext,
   findings: Finding[],
   maxInlineComments: number,
-  threadStatus: number
+  threadStatus: number,
+  deletedFiles: Set<string> = new Set<string>(),
+  driftSignal?: DriftSignal
 ): Promise<{ threadId: number; skippedDuplicates: number }> {
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
 
-  const summary = generateSummaryMarkdown(findings);
+  // Generate summary with drift visibility when thresholds exceeded
+  const baseSummary = generateSummaryMarkdown(findings);
+  const driftMarkdown = driftSignal ? generateDriftMarkdown(driftSignal) : '';
+  const summary = baseSummary + driftMarkdown;
 
   // Get existing threads for deduplication
   const existingThreadsResponse = await fetch(`${baseUrl}/threads?api-version=7.1`, {
@@ -319,8 +372,11 @@ async function postPRThreads(
   }
 
   // Filter findings for inline comments
+  // Belt-and-suspenders: also filter out deleted files (should already be file-level)
   const inlineFindings = findings
-    .filter((f): f is Finding & { line: number } => f.line !== undefined)
+    .filter(
+      (f): f is Finding & { line: number } => f.line !== undefined && !deletedFiles.has(f.file)
+    )
     .sort((a, b) => {
       // Sort by severity (error > warning > info)
       const severityOrder = { error: 0, warning: 1, info: 2 };

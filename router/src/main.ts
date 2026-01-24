@@ -459,7 +459,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
       };
 
       console.log('[router] Reporting to GitHub...');
-      const reportResult = await reportToGitHub(sorted, githubContext, config);
+      const reportResult = await reportToGitHub(sorted, githubContext, config, diff.files);
 
       if (reportResult.success) {
         console.log('[router] Successfully reported to GitHub');
@@ -489,7 +489,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
         };
 
         console.log('[router] Reporting to Azure DevOps...');
-        const reportResult = await reportToADO(sorted, adoContext, config);
+        const reportResult = await reportToADO(sorted, adoContext, config, diff.files);
 
         if (reportResult.success) {
           console.log('[router] Successfully reported to Azure DevOps');

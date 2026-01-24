@@ -13,7 +13,7 @@ jobs:
   ai-review:
     # Only run on PRs from the same repo (not forks)
     if: github.event.pull_request.head.repo.full_name == github.repository
-    uses: oddessentials/odd-ai-reviewers/.github/workflows/ai-review.yml@main
+    uses: oddessentials/odd-ai-reviewers/.github/workflows/ai-review.yml@fix/line-mapping-analysis
     with:
       target_repo: ${{ github.repository }}
       target_ref: ${{ github.sha }}
