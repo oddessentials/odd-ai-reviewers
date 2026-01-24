@@ -20,8 +20,11 @@ import { canonicalizeDiffFiles } from '../diff.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
+  computeDriftSignal,
+  generateDriftMarkdown,
   type ValidationStats,
   type InvalidLineDetail,
+  type DriftSignal,
 } from './line-resolver.js';
 
 export interface ADOContext {
@@ -135,6 +138,12 @@ export async function reportToADO(
     );
   }
 
+  // Compute drift signal for visibility in PR thread summary
+  const driftSignal = computeDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
   // Process normalized findings
   const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
@@ -161,7 +170,8 @@ export async function reportToADO(
         sorted,
         reportingConfig.max_inline_comments,
         reportingConfig.thread_status === 'pending' ? 6 : 1,
-        deletedFiles
+        deletedFiles,
+        driftSignal
       );
       threadId = result.threadId;
       skippedDuplicates = result.skippedDuplicates;
@@ -255,11 +265,15 @@ async function postPRThreads(
   findings: Finding[],
   maxInlineComments: number,
   threadStatus: number,
-  deletedFiles: Set<string> = new Set<string>()
+  deletedFiles: Set<string> = new Set<string>(),
+  driftSignal?: DriftSignal
 ): Promise<{ threadId: number; skippedDuplicates: number }> {
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
 
-  const summary = generateSummaryMarkdown(findings);
+  // Generate summary with drift visibility when thresholds exceeded
+  const baseSummary = generateSummaryMarkdown(findings);
+  const driftMarkdown = driftSignal ? generateDriftMarkdown(driftSignal) : '';
+  const summary = baseSummary + driftMarkdown;
 
   // Get existing threads for deduplication
   const existingThreadsResponse = await fetch(`${baseUrl}/threads?api-version=7.1`, {

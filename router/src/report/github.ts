@@ -22,8 +22,11 @@ import { canonicalizeDiffFiles } from '../diff.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
+  computeDriftSignal,
+  generateDriftMarkdown,
   type ValidationStats,
   type InvalidLineDetail,
+  type DriftSignal,
 } from './line-resolver.js';
 
 export interface GitHubContext {
@@ -114,6 +117,12 @@ export async function reportToGitHub(
     );
   }
 
+  // Compute drift signal for visibility in check summary
+  const driftSignal = computeDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
   // Process normalized findings
   const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
@@ -126,7 +135,7 @@ export async function reportToGitHub(
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
-      checkRunId = await createCheckRun(octokit, context, sorted, counts, config);
+      checkRunId = await createCheckRun(octokit, context, sorted, counts, config, driftSignal);
     }
 
     // Post PR comment if enabled and we have a PR number
@@ -178,7 +187,8 @@ async function createCheckRun(
   context: GitHubContext,
   findings: Finding[],
   counts: Record<Severity, number>,
-  config: Config
+  config: Config,
+  driftSignal: DriftSignal
 ): Promise<number> {
   // Determine conclusion based on gating config
   let conclusion: 'success' | 'failure' | 'neutral' = 'success';
@@ -207,9 +217,13 @@ async function createCheckRun(
 
   const summary = generateSummaryMarkdown(findings);
 
+  // Append drift signal to summary (only shows when warn/fail threshold exceeded)
+  const driftMarkdown = generateDriftMarkdown(driftSignal);
+  const fullSummary = summary + driftMarkdown;
+
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
-    summary,
+    summary: fullSummary,
     annotations,
   };
 

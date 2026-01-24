@@ -741,3 +741,43 @@ export function computeDriftSignal(
     samples,
   };
 }
+
+/**
+ * Generate markdown section for drift signal to include in check summaries
+ * Only generates content when drift level is warn or fail
+ *
+ * @param drift - Computed drift signal
+ * @returns Markdown string (empty if level is 'ok')
+ */
+export function generateDriftMarkdown(drift: DriftSignal): string {
+  if (drift.level === 'ok') {
+    return ''; // Don't clutter summary when healthy
+  }
+
+  const lines: string[] = [];
+  const emoji = drift.level === 'warn' ? '⚠️' : '❌';
+  const title = drift.level === 'warn' ? 'Line Validation Warning' : 'Line Validation Failed';
+
+  lines.push('');
+  lines.push(`## ${emoji} ${title}`);
+  lines.push('');
+  lines.push(drift.message);
+  lines.push('');
+
+  if (drift.samples.length > 0) {
+    lines.push('### Sample Issues');
+    lines.push('');
+    lines.push('| File | Line | Reason | Agent |');
+    lines.push('|------|------|--------|-------|');
+
+    for (const sample of drift.samples) {
+      const line = sample.line?.toString() ?? 'N/A';
+      const reason = sample.reason ?? 'unknown';
+      const agent = sample.sourceAgent ?? 'unknown';
+      lines.push(`| \`${sample.file}\` | ${line} | ${reason} | ${agent} |`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
