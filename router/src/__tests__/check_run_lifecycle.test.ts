@@ -120,7 +120,7 @@ describe('Check Run Lifecycle', () => {
         checkRunId: 12345,
       };
 
-      await reportToGitHub([], contextWithCheckRun, baseConfig);
+      await reportToGitHub([], contextWithCheckRun, baseConfig, []);
 
       // Should call update, not create for the check run
       expect(mockChecksUpdate).toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('Check Run Lifecycle', () => {
         checkRunId: 12345,
       };
 
-      await reportToGitHub([], contextWithCheckRun, baseConfig);
+      await reportToGitHub([], contextWithCheckRun, baseConfig, []);
 
       expect(mockChecksUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -154,7 +154,7 @@ describe('Check Run Lifecycle', () => {
         checkRunId: 12345,
       };
 
-      const result = await reportToGitHub([], contextWithCheckRun, baseConfig);
+      const result = await reportToGitHub([], contextWithCheckRun, baseConfig, []);
 
       expect(result.checkRunId).toBe(12345);
     });
@@ -166,7 +166,7 @@ describe('Check Run Lifecycle', () => {
       mockChecksCreate.mockClear();
       mockChecksUpdate.mockClear();
 
-      await reportToGitHub([], baseContext, baseConfig);
+      await reportToGitHub([], baseContext, baseConfig, []);
 
       // Should call create (for new check run), not update
       expect(mockChecksCreate).toHaveBeenCalled();
@@ -198,7 +198,7 @@ describe('Check Run Lifecycle', () => {
       mockChecksUpdate.mockClear();
 
       // When mode is comments_only, reportToGitHub should skip check run creation
-      await reportToGitHub([], baseContext, commentsOnlyConfig);
+      await reportToGitHub([], baseContext, commentsOnlyConfig, []);
 
       // No check run should be created or updated
       expect(mockChecksCreate).not.toHaveBeenCalled();
@@ -214,7 +214,7 @@ describe('Check Run Lifecycle', () => {
         checkRunId: 12345,
       };
 
-      await reportToGitHub([], contextWithCheckRun, commentsOnlyConfig);
+      await reportToGitHub([], contextWithCheckRun, commentsOnlyConfig, []);
 
       // Even with checkRunId, should not touch checks when mode is comments_only
       expect(mockChecksCreate).not.toHaveBeenCalled();

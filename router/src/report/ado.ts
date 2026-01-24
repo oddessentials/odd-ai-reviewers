@@ -15,6 +15,13 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import type { DiffFile } from '../diff.js';
+import {
+  buildLineResolver,
+  normalizeFindingsForDiff,
+  type ValidationStats,
+  type InvalidLineDetail,
+} from './line-resolver.js';
 
 export interface ADOContext {
   /** Azure DevOps organization name */
@@ -42,6 +49,10 @@ export interface ReportResult {
   error?: string;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
+  /** Statistics from line validation */
+  validationStats?: ValidationStats;
+  /** Details about findings with invalid lines */
+  invalidLineDetails?: InvalidLineDetail[];
 }
 
 /** Delay between inline comments to avoid spam (ms) */
@@ -98,7 +109,8 @@ export async function startBuildStatus(context: ADOContext): Promise<number> {
 export async function reportToADO(
   findings: Finding[],
   context: ADOContext,
-  config: Config
+  config: Config,
+  diffFiles: DiffFile[]
 ): Promise<ReportResult> {
   const reportingConfig = config.reporting.ado ?? {
     mode: 'threads_and_status',
@@ -107,8 +119,19 @@ export async function reportToADO(
     thread_status: 'active',
   };
 
-  // Process findings
-  const deduplicated = deduplicateFindings(findings);
+  // Build line resolver and normalize findings
+  const lineResolver = buildLineResolver(diffFiles);
+  const normalizationResult = normalizeFindingsForDiff(findings, lineResolver);
+
+  if (normalizationResult.stats.dropped > 0 || normalizationResult.stats.normalized > 0) {
+    console.log(
+      `[ado] Line validation: ${normalizationResult.stats.valid} valid, ` +
+        `${normalizationResult.stats.normalized} normalized, ${normalizationResult.stats.dropped} dropped`
+    );
+  }
+
+  // Process normalized findings
+  const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
@@ -139,6 +162,11 @@ export async function reportToADO(
       statusId,
       threadId,
       skippedDuplicates,
+      validationStats: normalizationResult.stats,
+      invalidLineDetails:
+        normalizationResult.invalidDetails.length > 0
+          ? normalizationResult.invalidDetails
+          : undefined,
     };
   } catch (error) {
     return {
