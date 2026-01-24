@@ -286,4 +286,129 @@ describe('ADO Line Validation Integration', () => {
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(1);
   });
+
+  /**
+   * PHASE 7: E2E test validating ADO threadContext always uses right-side fields.
+   * This protects the end-to-end contract: ADO threads must target the "new/right" side
+   * of the diff, never the "left/original" side.
+   */
+  describe('Right-Side Enforcement (E2E Payload Validation)', () => {
+    it('should never emit left-side fields in threadContext', async () => {
+      // Clear mocks and capture ALL fetch calls with payloads
+      vi.clearAllMocks();
+      const capturedPayloads: unknown[] = [];
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        async (url: string, options?: RequestInit) => {
+          if (options?.body) {
+            capturedPayloads.push(JSON.parse(options.body as string));
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 123, value: [] }),
+            text: async () => '',
+          } as Response;
+        }
+      );
+
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/service.ts',
+          line: 11, // Valid line in diff
+          message: 'Issue on added line',
+          sourceAgent: 'semgrep',
+        },
+      ];
+
+      const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+      expect(result.success).toBe(true);
+
+      // Find thread creation calls (POST to /threads endpoint)
+      const threadCalls = capturedPayloads.filter((payload: unknown) => {
+        const p = payload as { threadContext?: unknown; comments?: unknown };
+        return p.threadContext !== undefined || p.comments !== undefined;
+      });
+
+      // Assert we have at least one thread call
+      expect(threadCalls.length).toBeGreaterThan(0);
+
+      // CRITICAL: Validate EVERY thread call uses right-side fields only
+      for (const payload of threadCalls) {
+        const threadContext = (payload as { threadContext?: unknown }).threadContext as
+          | {
+              rightFileStart?: unknown;
+              rightFileEnd?: unknown;
+              leftFileStart?: unknown;
+              leftFileEnd?: unknown;
+            }
+          | undefined;
+
+        if (threadContext) {
+          // MUST have right-side fields
+          expect(threadContext.rightFileStart).toBeDefined();
+          expect(threadContext.rightFileEnd).toBeDefined();
+
+          // MUST NOT have left-side fields (this is the critical assertion)
+          expect(threadContext.leftFileStart).toBeUndefined();
+          expect(threadContext.leftFileEnd).toBeUndefined();
+
+          // Validate right-side structure
+          const rightStart = threadContext.rightFileStart as { line: number; offset: number };
+          const rightEnd = threadContext.rightFileEnd as { line: number; offset: number };
+          expect(typeof rightStart.line).toBe('number');
+          expect(typeof rightStart.offset).toBe('number');
+          expect(typeof rightEnd.line).toBe('number');
+          expect(typeof rightEnd.offset).toBe('number');
+        }
+      }
+    });
+
+    it('should emit canonical paths in threadContext filePath', async () => {
+      vi.clearAllMocks();
+      const capturedPayloads: unknown[] = [];
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        async (url: string, options?: RequestInit) => {
+          if (options?.body) {
+            capturedPayloads.push(JSON.parse(options.body as string));
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ id: 123, value: [] }),
+            text: async () => '',
+          } as Response;
+        }
+      );
+
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/service.ts',
+          line: 12,
+          message: 'Another issue',
+          sourceAgent: 'test',
+        },
+      ];
+
+      await reportToADO(findings, baseContext, baseConfig, diffFiles);
+
+      // Find thread calls
+      const threadCalls = capturedPayloads.filter((payload: unknown) => {
+        return (payload as { threadContext?: unknown }).threadContext !== undefined;
+      });
+
+      for (const payload of threadCalls) {
+        const threadContext = (payload as { threadContext?: { filePath?: string } }).threadContext;
+        if (threadContext?.filePath) {
+          // Path should be canonical (no a/, b/, ./ prefixes - may have leading /)
+          expect(threadContext.filePath).not.toMatch(/^a\//);
+          expect(threadContext.filePath).not.toMatch(/^b\//);
+          expect(threadContext.filePath).not.toMatch(/^\.\//);
+        }
+      }
+    });
+  });
 });
