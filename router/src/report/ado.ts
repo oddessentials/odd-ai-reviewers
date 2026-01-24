@@ -16,6 +16,7 @@ import {
   getDedupeKey,
 } from './formats.js';
 import type { DiffFile } from '../diff.js';
+import { canonicalizeDiffFiles } from '../diff.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -119,8 +120,12 @@ export async function reportToADO(
     thread_status: 'active',
   };
 
-  // Build line resolver and normalize findings
-  const lineResolver = buildLineResolver(diffFiles);
+  // CANONICAL ENTRYPOINT: Ensure all diff paths are normalized FIRST
+  // This must happen before buildLineResolver, deleted set, or rename maps
+  const canonicalFiles = canonicalizeDiffFiles(diffFiles);
+
+  // Build line resolver and normalize findings from canonical files
+  const lineResolver = buildLineResolver(canonicalFiles);
   const normalizationResult = normalizeFindingsForDiff(findings, lineResolver);
 
   if (normalizationResult.stats.dropped > 0 || normalizationResult.stats.normalized > 0) {

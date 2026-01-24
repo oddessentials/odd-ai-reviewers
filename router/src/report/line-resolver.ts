@@ -11,7 +11,7 @@
  * - Graceful degradation (drop unresolvable lines to file-level comments)
  */
 
-import type { DiffFile } from '../diff.js';
+import type { CanonicalDiffFile } from '../diff.js';
 import { normalizePath } from '../diff.js';
 import type { Finding } from '../agents/index.js';
 
@@ -220,7 +220,7 @@ export function parseDiffHunks(patch: string): DiffHunk[] {
  * @param files - Array of DiffFile objects with patches
  * @returns LineResolver instance for validation and normalization
  */
-export function buildLineResolver(files: DiffFile[]): LineResolver {
+export function buildLineResolver(files: CanonicalDiffFile[]): LineResolver {
   const mappings = new Map<string, FileLineMapping>();
   const deletedFiles = new Set<string>();
 

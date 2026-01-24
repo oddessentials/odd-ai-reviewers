@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DiffFile } from '../diff.js';
+import { canonicalizeDiffFiles } from '../diff.js';
 import type { Finding } from '../agents/index.js';
 import {
   parseDiffHunks,
@@ -9,6 +10,24 @@ import {
   type ValidationStats,
   type InvalidLineDetail,
 } from '../report/line-resolver.js';
+
+/**
+ * Helper: Wraps DiffFile[] in canonicalization for tests
+ * Tests must go through this to match production behavior
+ */
+function _canonicalize(files: DiffFile[]) {
+  return canonicalizeDiffFiles(files);
+}
+
+/**
+ * COMPILE-TIME TEST: Proves raw DiffFile[] cannot be passed to buildLineResolver
+ * If this ever compiles without error, the branded type enforcement is broken
+ */
+function _compileTimeTest() {
+  const rawFiles: DiffFile[] = [];
+  // @ts-expect-error - Raw DiffFile[] must not be assignable to CanonicalDiffFile[]
+  buildLineResolver(rawFiles);
+}
 
 describe('Line Resolver', () => {
   describe('parseDiffHunks', () => {

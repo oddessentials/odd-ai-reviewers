@@ -21,6 +21,18 @@ export interface DiffFile {
   patch?: string;
 }
 
+/**
+ * Branded symbol for canonical diff files - CANNOT be constructed directly
+ * Only canonicalizeDiffFiles() can produce this type
+ */
+declare const __canonical: unique symbol;
+
+/**
+ * Canonical DiffFile with guaranteed normalized paths
+ * ONLY constructable via canonicalizeDiffFiles() - enforced at type level
+ */
+export type CanonicalDiffFile = DiffFile & { readonly [__canonical]: true };
+
 export interface DiffSummary {
   /** All changed files */
   files: DiffFile[];
@@ -216,15 +228,17 @@ export function normalizePath(path: string): string {
 
 /**
  * Canonicalize all path fields in DiffFile array
- * Ensures all paths are normalized at ingestion boundary (belt-and-suspenders)
- * EXPORTED for use at diff ingestion boundaries
+ * Ensures all paths are normalized at ingestion boundary
+ *
+ * IMPORTANT: This is the ONLY way to construct CanonicalDiffFile[]
+ * Reporters and buildLineResolver must accept only CanonicalDiffFile[]
  */
-export function canonicalizeDiffFiles(files: DiffFile[]): DiffFile[] {
+export function canonicalizeDiffFiles(files: DiffFile[]): CanonicalDiffFile[] {
   return files.map((file) => ({
     ...file,
     path: normalizePath(file.path),
     oldPath: file.oldPath ? normalizePath(file.oldPath) : undefined,
-  }));
+  })) as CanonicalDiffFile[];
 }
 
 /**
