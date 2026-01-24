@@ -46,7 +46,6 @@ function generateManifest() {
   const files = scanDocsDirectory();
 
   const manifest = {
-    generated: new Date().toISOString(),
     version: 1,
     files: files,
   };
