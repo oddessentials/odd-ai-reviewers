@@ -13,12 +13,18 @@ import {
   generateSummaryMarkdown,
   toGitHubAnnotation,
   countBySeverity,
-  buildFingerprintMarker,
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
+import {
+  delay,
+  INLINE_COMMENT_DELAY_MS,
+  formatInlineComment,
+  formatGroupedInlineComment,
+} from './base.js';
+
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -50,16 +56,6 @@ export interface ReportResult {
   validationStats?: ValidationStats;
   /** Details about findings with invalid lines */
   invalidLineDetails?: InvalidLineDetail[];
-}
-
-/** Delay between inline comments to avoid spam (ms) */
-const INLINE_COMMENT_DELAY_MS = 100;
-
-/**
- * Delay helper for rate limiting
- */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -456,48 +452,4 @@ function groupAdjacentFindings(
   }
 
   return result;
-}
-
-/**
- * Format a finding as an inline comment
- */
-function formatInlineComment(finding: Finding): string {
-  const emoji = finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
-  const lines = [`${emoji} **${finding.sourceAgent}**: ${finding.message}`];
-
-  if (finding.ruleId) {
-    lines.push(`\n*Rule: \`${finding.ruleId}\`*`);
-  }
-
-  if (finding.suggestion) {
-    lines.push(`\n💡 **Suggestion**: ${finding.suggestion}`);
-  }
-
-  lines.push(`\n\n${buildFingerprintMarker(finding)}`);
-
-  return lines.join('');
-}
-
-/**
- * Format grouped findings as a single inline comment
- */
-function formatGroupedInlineComment(findings: (Finding & { line: number })[]): string {
-  const lines: string[] = [`**Multiple issues found in this area (${findings.length}):**\n`];
-
-  for (const finding of findings) {
-    const emoji =
-      finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
-    lines.push(`${emoji} **Line ${finding.line}** (${finding.sourceAgent}): ${finding.message}`);
-
-    if (finding.suggestion) {
-      lines.push(`   💡 ${finding.suggestion}`);
-    }
-    lines.push('');
-  }
-
-  for (const finding of findings) {
-    lines.push(buildFingerprintMarker(finding));
-  }
-
-  return lines.join('\n').trim();
 }
