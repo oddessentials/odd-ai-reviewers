@@ -363,7 +363,7 @@ index 1234567..89abcde 100644
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0]?.line).toBe(2);
       expect(result.stats.valid).toBe(1);
-      expect(result.stats.dropped).toBe(0);
+      expect(result.stats.downgraded).toBe(0);
     });
 
     it('should drop invalid line numbers', () => {
@@ -381,7 +381,7 @@ index 1234567..89abcde 100644
 
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0]?.line).toBeUndefined();
-      expect(result.stats.dropped).toBe(1);
+      expect(result.stats.downgraded).toBe(1);
       expect(result.invalidDetails).toHaveLength(1);
     });
 
@@ -400,7 +400,7 @@ index 1234567..89abcde 100644
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0]?.line).toBeUndefined();
       expect(result.stats.valid).toBe(1);
-      expect(result.stats.dropped).toBe(0);
+      expect(result.stats.downgraded).toBe(0);
     });
 
     it('should auto-fix invalid lines when enabled', () => {
@@ -446,7 +446,7 @@ index 1234567..89abcde 100644
 
       expect(result.findings).toHaveLength(2);
       expect(result.stats.valid).toBe(1);
-      expect(result.stats.dropped).toBe(1);
+      expect(result.stats.downgraded).toBe(1);
     });
 
     it('should collect invalid line details', () => {
@@ -548,7 +548,7 @@ index 1234567..89abcde 100644
       const result = normalizeFindingsForDiff(findings, resolver);
 
       expect(result.findings[0]?.line).toBeUndefined();
-      expect(result.stats.dropped).toBe(1);
+      expect(result.stats.downgraded).toBe(1);
     });
   });
 });

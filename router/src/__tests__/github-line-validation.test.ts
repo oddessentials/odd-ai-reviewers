@@ -92,7 +92,7 @@ describe('GitHub Line Validation Integration', () => {
     expect(result.success).toBe(true);
     expect(result.validationStats).toBeDefined();
     expect(result.validationStats?.valid).toBe(1);
-    expect(result.validationStats?.dropped).toBe(1);
+    expect(result.validationStats?.downgraded).toBe(1);
   });
 
   it('should include invalid line details', async () => {
@@ -137,7 +137,7 @@ describe('GitHub Line Validation Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2);
-    expect(result.validationStats?.dropped).toBe(0);
+    expect(result.validationStats?.downgraded).toBe(0);
     expect(result.invalidLineDetails).toBeUndefined();
   });
 
@@ -172,7 +172,7 @@ describe('GitHub Line Validation Integration', () => {
     const result = await reportToGitHub(findings, baseContext, baseConfig, []);
 
     expect(result.success).toBe(true);
-    expect(result.validationStats?.dropped).toBe(1);
+    expect(result.validationStats?.downgraded).toBe(1);
   });
 
   it('should normalize findings before deduplication', async () => {
@@ -198,7 +198,7 @@ describe('GitHub Line Validation Integration', () => {
     const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
-    expect(result.validationStats?.dropped).toBeGreaterThan(0);
+    expect(result.validationStats?.downgraded).toBeGreaterThan(0);
     // After normalization, both should have line undefined
     // Deduplication should then reduce to 1
   });
@@ -249,7 +249,7 @@ describe('GitHub Line Validation Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2); // Lines 1 and 52
-    expect(result.validationStats?.dropped).toBe(1); // Line 25
+    expect(result.validationStats?.downgraded).toBe(1); // Line 25
   });
 
   it('should handle checks_only mode', async () => {

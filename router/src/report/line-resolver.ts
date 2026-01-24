@@ -12,6 +12,7 @@
  */
 
 import type { DiffFile } from '../diff.js';
+import { normalizePath } from '../diff.js';
 import type { Finding } from '../agents/index.js';
 
 /**
@@ -59,17 +60,21 @@ export interface LineValidationResult {
 }
 
 /**
- * Statistics from finding normalization
+ * Statistics from finding normalization (fine-grained accounting)
  */
 export interface ValidationStats {
   /** Total findings processed */
   total: number;
   /** Findings with valid lines (no changes needed) */
   valid: number;
-  /** Findings normalized to nearest valid line */
+  /** Findings auto-fixed to nearest valid line */
   normalized: number;
-  /** Findings dropped (line removed) */
+  /** Findings downgraded to file-level (invalid line or deleted file) */
+  downgraded: number;
+  /** Findings dropped entirely (removed) */
   dropped: number;
+  /** Subset of downgraded: findings on deleted files */
+  deletedFiles: number;
 }
 
 /**
@@ -99,6 +104,9 @@ export interface LineResolver {
 
   /** Check if a file exists in the diff */
   hasFile(filePath: string): boolean;
+
+  /** Check if a file is deleted (no inline comments allowed) */
+  isDeleted(filePath: string): boolean;
 }
 
 export interface LineValidationOptions {
@@ -198,11 +206,21 @@ export function parseDiffHunks(patch: string): DiffHunk[] {
  */
 export function buildLineResolver(files: DiffFile[]): LineResolver {
   const mappings = new Map<string, FileLineMapping>();
+  const deletedFiles = new Set<string>();
 
   // Build mapping for each file
   for (const file of files) {
-    if (!file.patch || file.status === 'deleted') {
-      // Deleted files have no lines to comment on in the new version
+    // Normalize path (remove leading slash if present)
+    const normalizedPath = file.path.startsWith('/') ? file.path.slice(1) : file.path;
+
+    if (file.status === 'deleted') {
+      // Track deleted files - they should not have inline comments
+      deletedFiles.add(normalizedPath);
+      continue;
+    }
+
+    if (!file.patch) {
+      // No patch available (binary files, etc.)
       continue;
     }
 
@@ -224,7 +242,7 @@ export function buildLineResolver(files: DiffFile[]): LineResolver {
     }
 
     // Normalize path (remove leading slash if present)
-    const normalizedPath = file.path.startsWith('/') ? file.path.slice(1) : file.path;
+    // const normalizedPath already declared above
 
     mappings.set(normalizedPath, {
       allLines,
@@ -320,6 +338,11 @@ export function buildLineResolver(files: DiffFile[]): LineResolver {
       const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
       return mappings.has(normalizedPath);
     },
+
+    isDeleted(filePath: string): boolean {
+      const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+      return deletedFiles.has(normalizedPath);
+    },
   };
 }
 
@@ -411,53 +434,86 @@ export function normalizeFindingsForDiff(
 
   let validCount = 0;
   let normalizedCount = 0;
-  let droppedCount = 0;
+  let downgradedCount = 0;
+  const droppedCount = 0; // Currently unused, reserved for future use
+  let deletedFilesCount = 0;
 
   for (const finding of findings) {
+    // Normalize finding file path at normalization boundary
+    const normalizedFilePath = normalizePath(finding.file);
+
+    // Check if file is deleted first - enforce file-level only
+    if (resolver.isDeleted(normalizedFilePath)) {
+      normalized.push({
+        ...finding,
+        file: normalizedFilePath,
+        line: undefined,
+        endLine: undefined,
+      });
+      downgradedCount++;
+      deletedFilesCount++;
+
+      invalidDetails.push({
+        file: normalizedFilePath,
+        line: finding.line,
+        reason: 'deleted-file',
+        sourceAgent: finding.sourceAgent,
+      });
+      continue;
+    }
+
     if (!finding.line) {
-      // File-level finding, pass through
-      normalized.push(finding);
+      // File-level finding, pass through with normalized path
+      normalized.push({
+        ...finding,
+        file: normalizedFilePath,
+      });
       validCount++;
       continue;
     }
 
-    const validation = resolver.validateLine(finding.file, finding.line, {
+    const validation = resolver.validateLine(normalizedFilePath, finding.line, {
       additionsOnly: options.additionsOnly,
       suggestNearest: options.autoFix,
       sourceAgent: finding.sourceAgent,
     });
 
     if (validation.valid) {
-      // Valid line, pass through
-      normalized.push(finding);
+      // Valid line, pass through with normalized path
+      normalized.push({
+        ...finding,
+        file: normalizedFilePath,
+      });
       validCount++;
     } else if (options.autoFix && validation.nearestValidLine !== undefined) {
       // Auto-fix: use nearest valid line
       normalized.push({
         ...finding,
+        file: normalizedFilePath,
         line: validation.nearestValidLine,
         endLine: finding.endLine ? validation.nearestValidLine : undefined,
       });
       normalizedCount++;
 
       invalidDetails.push({
-        file: finding.file,
+        file: normalizedFilePath,
         line: finding.line,
         reason: `Auto-fixed to nearest line ${validation.nearestValidLine}`,
         nearestValidLine: validation.nearestValidLine,
         sourceAgent: finding.sourceAgent,
       });
     } else {
-      // Drop line, convert to file-level comment
+      // Downgrade to file-level comment (invalid line)
       normalized.push({
         ...finding,
+        file: normalizedFilePath,
         line: undefined,
         endLine: undefined,
       });
-      droppedCount++;
+      downgradedCount++;
 
       invalidDetails.push({
-        file: finding.file,
+        file: normalizedFilePath,
         line: finding.line,
         reason: validation.reason ?? 'Line not in diff',
         nearestValidLine: validation.nearestValidLine,
@@ -472,7 +528,9 @@ export function normalizeFindingsForDiff(
       total: findings.length,
       valid: validCount,
       normalized: normalizedCount,
+      downgraded: downgradedCount,
       dropped: droppedCount,
+      deletedFiles: deletedFilesCount,
     },
     invalidDetails,
   };

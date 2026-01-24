@@ -7,8 +7,10 @@ import { execSync } from 'child_process';
 import { minimatch } from 'minimatch';
 
 export interface DiffFile {
-  /** File path relative to repo root */
+  /** File path relative to repo root (normalized - no a/, b/, ./, / prefixes) */
   path: string;
+  /** Original path before rename (for bidirectional mapping) */
+  oldPath?: string;
   /** File status: added, modified, deleted, renamed */
   status: 'added' | 'modified' | 'deleted' | 'renamed';
   /** Number of lines added */
@@ -30,12 +32,22 @@ export interface DiffSummary {
   baseSha: string;
   /** Head commit SHA */
   headSha: string;
+  /** Unified context lines used (locked to prevent drift) */
+  contextLines: number;
+  /** Diff source identifier */
+  source: 'local-git';
 }
 
 export interface PathFilter {
   include?: string[];
   exclude?: string[];
 }
+
+/**
+ * Unified context lines for git diff
+ * Locked to GitHub's default to prevent drift between local diff and API diff
+ */
+const UNIFIED_CONTEXT = 3;
 
 /**
  * Normalize a git ref to ensure it's resolvable.
@@ -105,12 +117,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
   const normalizedHead = normalizeGitRef(repoPath, headSha);
 
   try {
-    // Get list of changed files with stats
-    const diffStat = execSync(`git diff --numstat ${normalizedBase}...${normalizedHead}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    // Get list of changed files with stats (using locked unified context)
+    const diffStat = execSync(
+      `git diff --unified=${UNIFIED_CONTEXT} --numstat ${normalizedBase}...${normalizedHead}`,
+      {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      }
+    );
 
     // Get file statuses
     const nameStatus = execSync(`git diff --name-status ${normalizedBase}...${normalizedHead}`, {
@@ -118,15 +133,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       encoding: 'utf-8',
     });
 
-    const statusMap = parseNameStatus(nameStatus);
-    const files = parseDiffStat(diffStat, statusMap);
+    const { statusMap, renameMap } = parseNameStatus(nameStatus);
+    const files = parseDiffStat(diffStat, statusMap, renameMap);
 
     // Get patches for each file
     for (const file of files) {
       if (file.status !== 'deleted') {
         try {
           file.patch = execSync(
-            `git diff ${normalizedBase}...${normalizedHead} -- "${file.path}"`,
+            `git diff --unified=${UNIFIED_CONTEXT} ${normalizedBase}...${normalizedHead} -- "${file.path}"`,
             {
               cwd: repoPath,
               encoding: 'utf-8',
@@ -148,6 +163,8 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       totalDeletions,
       baseSha,
       headSha,
+      contextLines: UNIFIED_CONTEXT,
+      source: 'local-git',
     };
   } catch (error) {
     throw new Error(`Failed to get diff: ${error}`);
@@ -185,58 +202,91 @@ export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] 
 }
 
 /**
+ * Normalize a file path from git diff output
+ * Removes 'a/' and 'b/' prefixes, './' prefix, and leading slashes
+ * EXPORTED for use in path normalization at all boundaries
+ */
+export function normalizePath(path: string): string {
+  return path
+    .replace(/^a\//, '') // Remove 'a/' prefix
+    .replace(/^b\//, '') // Remove 'b/' prefix
+    .replace(/^\.\//, '') // Remove './' prefix
+    .replace(/^\//, ''); // Remove leading slash
+}
+
+/**
  * Parse git diff --name-status output
  */
-function parseNameStatus(output: string): Map<string, DiffFile['status']> {
-  const map = new Map<string, DiffFile['status']>();
+function parseNameStatus(output: string): {
+  statusMap: Map<string, DiffFile['status']>;
+  renameMap: Map<string, string>; // newPath -> oldPath
+} {
+  const statusMap = new Map<string, DiffFile['status']>();
+  const renameMap = new Map<string, string>();
 
   for (const line of output.trim().split('\n')) {
     if (!line) continue;
     const [status, ...pathParts] = line.split('\t');
-    const path = pathParts.join('\t'); // Handle paths with tabs
 
     switch (status?.[0]) {
       case 'A':
-        map.set(path, 'added');
+        statusMap.set(normalizePath(pathParts.join('\t')), 'added');
         break;
       case 'M':
-        map.set(path, 'modified');
+        statusMap.set(normalizePath(pathParts.join('\t')), 'modified');
         break;
       case 'D':
-        map.set(path, 'deleted');
+        statusMap.set(normalizePath(pathParts.join('\t')), 'deleted');
         break;
-      case 'R':
-        map.set(pathParts[1] ?? path, 'renamed');
+      case 'R': {
+        // For renames, capture BOTH old and new paths
+        // Format: R<similarity>  old-path  new-path
+        const oldPath = normalizePath(pathParts[0] ?? '');
+        const newPath = normalizePath(pathParts[1] ?? pathParts.join('\t'));
+        statusMap.set(newPath, 'renamed');
+        renameMap.set(newPath, oldPath); // Track old path for bidirectional mapping
         break;
+      }
       default:
-        map.set(path, 'modified');
+        statusMap.set(normalizePath(pathParts.join('\t')), 'modified');
     }
   }
 
-  return map;
+  return { statusMap, renameMap };
 }
 
 /**
  * Parse git diff --numstat output
  */
-function parseDiffStat(output: string, statusMap: Map<string, DiffFile['status']>): DiffFile[] {
+function parseDiffStat(
+  output: string,
+  statusMap: Map<string, DiffFile['status']>,
+  renameMap: Map<string, string>
+): DiffFile[] {
   const files: DiffFile[] = [];
 
   for (const line of output.trim().split('\n')) {
     if (!line) continue;
     const [addStr, delStr, ...pathParts] = line.split('\t');
-    const path = pathParts.join('\t');
+    const path = normalizePath(pathParts.join('\t'));
 
     // Binary files show '-' for additions/deletions
     const additions = addStr === '-' ? 0 : parseInt(addStr ?? '0', 10);
     const deletions = delStr === '-' ? 0 : parseInt(delStr ?? '0', 10);
 
-    files.push({
+    const file: DiffFile = {
       path,
       status: statusMap.get(path) ?? 'modified',
       additions,
       deletions,
-    });
+    };
+
+    // Add oldPath for renamed files
+    if (renameMap.has(path)) {
+      file.oldPath = renameMap.get(path);
+    }
+
+    files.push(file);
   }
 
   return files;

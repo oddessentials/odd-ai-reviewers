@@ -92,7 +92,7 @@ describe('ADO Line Validation Integration', () => {
     expect(result.success).toBe(true);
     expect(result.validationStats).toBeDefined();
     expect(result.validationStats?.valid).toBe(1);
-    expect(result.validationStats?.dropped).toBe(1);
+    expect(result.validationStats?.downgraded).toBe(1);
   });
 
   it('should include invalid line details', async () => {
@@ -172,7 +172,7 @@ describe('ADO Line Validation Integration', () => {
     const result = await reportToADO(findings, baseContext, baseConfig, []);
 
     expect(result.success).toBe(true);
-    expect(result.validationStats?.dropped).toBe(1);
+    expect(result.validationStats?.downgraded).toBe(1);
   });
 
   it('should validate context lines along with added lines', async () => {

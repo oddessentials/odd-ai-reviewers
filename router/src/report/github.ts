@@ -338,7 +338,18 @@ async function postPRComment(
       : formatInlineComment(finding);
 
     try {
-      await octokit.pulls.createReviewComment({
+      const commentParams: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+        body: string;
+        commit_id: string;
+        path: string;
+        line: number;
+        side: 'RIGHT';
+        start_line?: number;
+        start_side?: 'RIGHT';
+      } = {
         owner: context.owner,
         repo: context.repo,
         pull_number: context.prNumber,
@@ -346,7 +357,17 @@ async function postPRComment(
         commit_id: context.headSha,
         path: finding.file,
         line: finding.line,
-      });
+        side: 'RIGHT', // Always comment on new file (right side of diff)
+      };
+
+      // Add multi-line comment support if endLine is present
+      if (finding.endLine && finding.endLine !== finding.line) {
+        commentParams.start_line = finding.line;
+        commentParams.start_side = 'RIGHT';
+        commentParams.line = finding.endLine;
+      }
+
+      await octokit.pulls.createReviewComment(commentParams);
       postedCount++;
       for (const fingerprint of fingerprints) {
         existingFingerprints.add(fingerprint);
