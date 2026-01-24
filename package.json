@@ -12,6 +12,7 @@
     "test": "npm run test --workspace=router",
     "test:ci": "npm run test:ci --workspace=router",
     "lint": "eslint .",
+    "lint:strict": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
@@ -50,7 +51,7 @@
       "prettier --check"
     ],
     "*.{js,cjs,ts,mjs}": [
-      "eslint"
+      "eslint --max-warnings 0"
     ]
   },
   "engines": {

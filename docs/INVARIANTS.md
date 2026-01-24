@@ -235,4 +235,33 @@ odd-ai-reviewers is designed to run on cloud-hosted runners or **OSCR self-hoste
   - dedupe regression fixtures
   - image scanning gate (Trivy) prior to publish
 
+## Appendix B — Quality Gates (Zero-Tolerance Enforcement)
+
+> **Flight 2 Addition**: All quality gates are enforced both locally and in CI.
+
+30. **Zero-Tolerance Lint Policy**
+
+- ESLint runs with `--max-warnings 0` in CI and pre-commit hooks.
+- Any lint warning (including security rules) fails the pipeline.
+- Local enforcement via `lint-staged` matches CI exactly.
+
+31. **Security Linting**
+
+- `eslint-plugin-security` enabled with high-value rules:
+  - `detect-child-process`, `detect-eval-with-expression`, `detect-buffer-noassert`
+  - `detect-disable-mustache-escape`, `detect-no-csrf-before-method-override`
+- Disabled rules that cause excessive false positives: `detect-object-injection`
+
+32. **Dependency Architecture**
+
+- `dependency-cruiser` checks for circular dependencies on every push.
+- Circular dependencies in barrel files (index.ts) are allowed as warnings.
+- New circular dependencies in non-barrel files MUST be resolved.
+
+33. **Local = CI Parity**
+
+- Pre-commit hook runs: `lint-staged` (format + strict lint) + `typecheck`
+- Pre-push hook runs: `depcruise` (circular dependency check)
+- Developers cannot push code that would fail CI.
+
 ---
