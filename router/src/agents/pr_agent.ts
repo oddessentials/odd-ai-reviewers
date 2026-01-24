@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 // NOTE: Anthropic SDK will be imported when full Anthropic path is implemented
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';

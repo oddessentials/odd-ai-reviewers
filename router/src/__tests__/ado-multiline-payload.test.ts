@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DiffFile } from '../diff.js';
 import type { Finding } from '../agents/index.js';
+import type { Config } from '../config.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
 
 // Store fetch calls for verification
@@ -30,8 +31,10 @@ describe('ADO Multi-line Payload Verification', () => {
     fetchCalls.length = 0;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseConfig: any = {
+  const baseConfig = {
+    version: 1,
+    trusted_only: true,
+    triggers: { on: ['pull_request'] as const, branches: ['main'] },
     passes: [],
     path_filters: {},
     limits: {
@@ -43,18 +46,18 @@ describe('ADO Multi-line Payload Verification', () => {
     },
     gating: {
       enabled: false,
-      fail_on_severity: 'error',
+      fail_on_severity: 'error' as const,
     },
     reporting: {
       ado: {
-        mode: 'threads_and_status',
+        mode: 'threads_and_status' as const,
         max_inline_comments: 20,
-        thread_status: 'active',
+        thread_status: 'active' as const,
         summary: true,
       },
     },
     models: {},
-  };
+  } satisfies Config;
 
   const baseContext: ADOContext = {
     organization: 'test-org',

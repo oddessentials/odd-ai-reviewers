@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DiffFile } from '../diff.js';
 import type { Finding } from '../agents/index.js';
+import type { Config } from '../config.js';
 import { reportToGitHub, type GitHubContext } from '../report/github.js';
 
 // Track calls to createReviewComment for payload inspection
@@ -33,8 +34,10 @@ vi.mock('@octokit/rest', () => ({
 }));
 
 describe('GitHub Multi-line Payload Verification', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseConfig: any = {
+  const baseConfig = {
+    version: 1,
+    trusted_only: true,
+    triggers: { on: ['pull_request'] as const, branches: ['main'] },
     passes: [],
     path_filters: {},
     limits: {
@@ -42,20 +45,21 @@ describe('GitHub Multi-line Payload Verification', () => {
       max_diff_lines: 10000,
       max_tokens_per_pr: 100000,
       max_usd_per_pr: 1.0,
+      monthly_budget_usd: 100.0,
     },
     gating: {
       enabled: false,
-      fail_on_severity: 'error',
+      fail_on_severity: 'error' as const,
     },
     reporting: {
       github: {
-        mode: 'checks_and_comments',
+        mode: 'checks_and_comments' as const,
         max_inline_comments: 20,
         summary: true,
       },
     },
     models: {},
-  };
+  } satisfies Config;
 
   const baseContext: GitHubContext = {
     owner: 'test-owner',
@@ -98,8 +102,10 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
+      string,
+      unknown
+    >;
 
     // Verify exact payload shape for single-line
     expect(callArgs).toHaveProperty('line', 2);
@@ -144,8 +150,10 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
+      string,
+      unknown
+    >;
 
     // Verify exact payload shape for multi-line
     expect(callArgs).toHaveProperty('start_line', 2);
@@ -186,8 +194,10 @@ describe('GitHub Multi-line Payload Verification', () => {
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<string, unknown>;
+    const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
+      string,
+      unknown
+    >;
 
     // Should treat as single-line: no start_line/start_side
     expect(callArgs).toHaveProperty('line', 2);
@@ -228,8 +238,7 @@ describe('GitHub Multi-line Payload Verification', () => {
 
       await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<
+      const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
         string,
         unknown
       >;
@@ -273,8 +282,7 @@ describe('GitHub Multi-line Payload Verification', () => {
 
       await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const callArgs = (mockCreateReviewComment.mock.calls[0] as any)?.[0] as Record<
+      const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
         string,
         unknown
       >;

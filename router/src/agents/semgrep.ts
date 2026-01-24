@@ -4,7 +4,7 @@
  */
 
 import { execSync } from 'child_process';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 

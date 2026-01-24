@@ -9,7 +9,7 @@
  * - Deterministic: temperature=0, seed=42, alphabetical file ordering
  */
 
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { estimateTokens } from '../budget.js';

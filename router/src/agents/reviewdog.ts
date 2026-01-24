@@ -13,7 +13,7 @@ import { createReadStream, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { generateFingerprint } from '../report/formats.js';

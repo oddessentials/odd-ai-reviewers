@@ -5,7 +5,7 @@
  */
 
 import { Octokit } from '@octokit/rest';
-import type { Finding, Severity } from '../agents/index.js';
+import type { Finding, Severity } from '../agents/types.js';
 import type { Config } from '../config.js';
 import {
   deduplicateFindings,

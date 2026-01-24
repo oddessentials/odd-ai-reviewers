@@ -13,7 +13,7 @@
 
 import type { CanonicalDiffFile } from '../diff.js';
 import { normalizePath } from '../diff.js';
-import type { Finding } from '../agents/index.js';
+import type { Finding } from '../agents/types.js';
 
 /**
  * Represents a single diff hunk with line tracking

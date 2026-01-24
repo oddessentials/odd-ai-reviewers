@@ -17,7 +17,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { parseJsonResponse } from './json-utils.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';

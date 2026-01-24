@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
