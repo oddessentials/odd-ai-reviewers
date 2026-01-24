@@ -15,6 +15,8 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import { buildLineResolver, normalizeFindingsForDiff } from './line-mapping.js';
+import type { DiffFile } from '../diff.js';
 
 export interface ADOContext {
   /** Azure DevOps organization name */
@@ -98,7 +100,8 @@ export async function startBuildStatus(context: ADOContext): Promise<number> {
 export async function reportToADO(
   findings: Finding[],
   context: ADOContext,
-  config: Config
+  config: Config,
+  diffFiles: DiffFile[]
 ): Promise<ReportResult> {
   const reportingConfig = config.reporting.ado ?? {
     mode: 'threads_and_status',
@@ -107,8 +110,11 @@ export async function reportToADO(
     thread_status: 'active',
   };
 
+  const lineResolver = buildLineResolver(diffFiles);
+  const normalizedFindings = normalizeFindingsForDiff(findings, lineResolver);
+
   // Process findings
-  const deduplicated = deduplicateFindings(findings);
+  const deduplicated = deduplicateFindings(normalizedFindings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 

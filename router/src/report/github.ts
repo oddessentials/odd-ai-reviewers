@@ -17,6 +17,8 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import { buildLineResolver, normalizeFindingsForDiff } from './line-mapping.js';
+import type { DiffFile } from '../diff.js';
 
 export interface GitHubContext {
   owner: string;
@@ -77,7 +79,8 @@ export async function startCheckRun(context: GitHubContext): Promise<number> {
 export async function reportToGitHub(
   findings: Finding[],
   context: GitHubContext,
-  config: Config
+  config: Config,
+  diffFiles: DiffFile[]
 ): Promise<ReportResult> {
   const octokit = new Octokit({ auth: context.token });
   const reportingConfig = config.reporting.github ?? {
@@ -86,8 +89,11 @@ export async function reportToGitHub(
     summary: true,
   };
 
+  const lineResolver = buildLineResolver(diffFiles);
+  const normalizedFindings = normalizeFindingsForDiff(findings, lineResolver);
+
   // Process findings
-  const deduplicated = deduplicateFindings(findings);
+  const deduplicated = deduplicateFindings(normalizedFindings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 

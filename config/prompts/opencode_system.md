@@ -20,6 +20,12 @@ For each issue found, provide:
 - **Message**: Clear description of the issue
 - **Suggestion**: Specific fix or improvement (when possible)
 
+## Line Numbering Requirements
+
+- Use **new-file line numbers** computed from the unified diff hunk headers (`@@ -a,b +c,d @@`).
+- Only report line numbers that exist on the **right side** of the diff (added or context lines).
+- If the exact line cannot be determined, omit the line number.
+
 ## Guidelines
 
 - Be specific and actionable

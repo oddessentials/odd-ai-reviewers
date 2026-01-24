@@ -17,3 +17,9 @@ Respond with structured JSON containing:
 - type: string
 - findings: array of { severity, file, line, message, suggestion }
 - overall_assessment: string (approve, comment, request_changes)
+
+## Line Numbering Requirements
+
+- Use **new-file line numbers** derived from the unified diff hunk headers (`@@ -a,b +c,d @@`).
+- Only report line numbers that exist in the **right side** of the diff (added or context lines).
+- If you cannot determine a precise line number, omit the `line` field.

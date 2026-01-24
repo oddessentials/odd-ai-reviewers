@@ -203,6 +203,10 @@ Analyze the provided diff for:
 - API misuse or anti-patterns
 - Missing error handling
 
+Line numbering requirements:
+- Use new-file line numbers from unified diff hunk headers (@@ -a,b +c,d @@).
+- Only use right-side diff lines (added or context). If unsure, omit the line.
+
 Return a JSON object with findings.`;
 
     if (existsSync(PROMPT_PATH)) {

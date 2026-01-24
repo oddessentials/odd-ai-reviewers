@@ -137,7 +137,7 @@ describe('ADO Reporter', () => {
         },
       ];
 
-      const result = await reportToADO(findings, baseContext, baseConfig);
+      const result = await reportToADO(findings, baseContext, baseConfig, []);
 
       expect(result.success).toBe(true);
       expect(result.threadId).toBeDefined();
@@ -158,7 +158,7 @@ describe('ADO Reporter', () => {
       };
 
       mockFetch.mockClear();
-      await reportToADO([], baseContext, statusOnlyConfig);
+      await reportToADO([], baseContext, statusOnlyConfig, []);
 
       // Should only have status API call, no thread calls
       const threadCalls = mockFetch.mock.calls.filter((call) =>
@@ -181,7 +181,7 @@ describe('ADO Reporter', () => {
       };
 
       mockFetch.mockClear();
-      await reportToADO([], baseContext, threadsOnlyConfig);
+      await reportToADO([], baseContext, threadsOnlyConfig, []);
 
       // Should not have status API calls
       const statusCalls = mockFetch.mock.calls.filter((call) =>
@@ -197,10 +197,90 @@ describe('ADO Reporter', () => {
         text: async () => 'Server Error',
       });
 
-      const result = await reportToADO([], baseContext, baseConfig);
+      const result = await reportToADO([], baseContext, baseConfig, []);
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+
+    it('maps diff line numbers to file line numbers for inline threads', async () => {
+      const diffFiles = [
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 2,
+          deletions: 1,
+          patch: [
+            'diff --git a/src/test.ts b/src/test.ts',
+            'index 1234567..89abcde 100644',
+            '--- a/src/test.ts',
+            '+++ b/src/test.ts',
+            '@@ -1,3 +1,4 @@',
+            '-const a = 1;',
+            '+const a = 1;',
+            '+const b = 2;',
+            ' const c = 3;',
+          ].join('\n'),
+        },
+      ];
+
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/test.ts',
+          line: 3,
+          message: 'Mapped line test',
+          sourceAgent: 'pr_agent',
+        },
+      ];
+
+      const threadsOnlyConfig: Config = {
+        ...baseConfig,
+        reporting: {
+          ado: {
+            mode: 'threads_only',
+            max_inline_comments: 20,
+            summary: true,
+            thread_status: 'active',
+          },
+        },
+      };
+
+      const threadPayloads: unknown[] = [];
+
+      mockFetch.mockImplementation(async (url: string, options?: RequestInit) => {
+        if (url.includes('/threads?') && (!options?.method || options.method === 'GET')) {
+          return {
+            ok: true,
+            json: async () => ({ value: [] }),
+          };
+        }
+
+        if (url.includes('/threads?') && options?.method === 'POST') {
+          if (options.body) {
+            threadPayloads.push(JSON.parse(options.body as string));
+          }
+        }
+
+        return {
+          ok: true,
+          json: async () => ({ id: 1 }),
+        };
+      });
+
+      await reportToADO(findings, baseContext, threadsOnlyConfig, diffFiles);
+
+      const inlinePayload = threadPayloads.find(
+        (payload) =>
+          typeof payload === 'object' &&
+          payload !== null &&
+          'threadContext' in payload &&
+          payload.threadContext
+      ) as {
+        threadContext?: { rightFileStart?: { line?: number } };
+      };
+
+      expect(inlinePayload?.threadContext?.rightFileStart?.line).toBe(2);
     });
   });
 
@@ -243,7 +323,7 @@ describe('ADO Reporter', () => {
         },
       ];
 
-      const result = await reportToADO(findings, baseContext, baseConfig);
+      const result = await reportToADO(findings, baseContext, baseConfig, []);
 
       // Finding should be skipped as duplicate
       expect(result.skippedDuplicates).toBeGreaterThanOrEqual(0);
@@ -268,7 +348,7 @@ describe('ADO Reporter', () => {
       ];
 
       mockFetch.mockClear();
-      await reportToADO(findings, baseContext, gatingConfig);
+      await reportToADO(findings, baseContext, gatingConfig, []);
 
       // Find the status update call
       const statusCalls = mockFetch.mock.calls.filter((call) =>
@@ -299,7 +379,7 @@ describe('ADO Reporter', () => {
       ];
 
       mockFetch.mockClear();
-      await reportToADO(findings, baseContext, gatingConfig);
+      await reportToADO(findings, baseContext, gatingConfig, []);
 
       const statusCalls = mockFetch.mock.calls.filter((call) =>
         (call[0] as string).includes('/statuses')
