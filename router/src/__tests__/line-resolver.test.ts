@@ -866,6 +866,180 @@ index 1234567..89abcde 100644
     });
   });
 
+  /**
+   * PHASE 9: Key Consistency Tests
+   * Validates that deleted-file gating and rename remapping use consistent canonical keys.
+   * Tests with path prefix variants (a/, b/, ./) that could cause split-brain if not normalized.
+   */
+  describe('Key Consistency (Phase 9)', () => {
+    it('should gate deleted file findings regardless of path prefix variants in diff', () => {
+      // Simulate diff files with various prefix artifacts that canonicalization should strip
+      const files: DiffFile[] = canonicalizeDiffFiles([
+        {
+          path: './src/deleted.ts', // With ./ prefix
+          status: 'deleted',
+          additions: 0,
+          deletions: 10,
+        },
+        {
+          path: 'b/src/also-deleted.ts', // With b/ prefix (git diff artifact)
+          status: 'deleted',
+          additions: 0,
+          deletions: 5,
+        },
+      ]);
+
+      const resolver = buildLineResolver(files);
+
+      // Findings reference paths with different prefix variants
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/deleted.ts', // Canonical (no prefix)
+          line: 5,
+          message: 'Issue in deleted file',
+          sourceAgent: 'test',
+        },
+        {
+          severity: 'warning',
+          file: './src/also-deleted.ts', // With ./ prefix
+          line: 3,
+          message: 'Issue in another deleted file',
+          sourceAgent: 'test',
+        },
+      ];
+
+      const result = normalizeFindingsForDiff(findings, resolver);
+
+      // CRITICAL: Both should be marked as deleted-file, not dropped as "unknown"
+      expect(result.stats.deletedFiles).toBe(2);
+      expect(result.stats.dropped).toBe(0);
+      expect(result.findings).toHaveLength(2);
+      // Both should be downgraded to file-level (no line)
+      expect(result.findings.every((f) => f.line === undefined)).toBe(true);
+    });
+
+    it('should remap renamed file findings regardless of path prefix variants', () => {
+      const files: DiffFile[] = canonicalizeDiffFiles([
+        {
+          path: 'src/new-name.ts',
+          oldPath: './src/old-name.ts', // Old path with ./ prefix
+          status: 'renamed',
+          additions: 1,
+          deletions: 0,
+          patch: `@@ -1,1 +1,2 @@
++const x = 1;
+ const y = 2;`,
+        },
+        {
+          path: 'lib/renamed.ts',
+          oldPath: 'a/lib/original.ts', // Old path with a/ prefix
+          status: 'renamed',
+          additions: 1,
+          deletions: 0,
+          patch: `@@ -1,1 +1,2 @@
++const a = 1;
+ const b = 2;`,
+        },
+      ]);
+
+      const resolver = buildLineResolver(files);
+
+      // Findings reference old paths with various prefix variants
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/old-name.ts', // Old path (canonical)
+          line: 1,
+          message: 'Issue in old path',
+          sourceAgent: 'test',
+        },
+        {
+          severity: 'warning',
+          file: './lib/original.ts', // Old path with ./ prefix
+          line: 1,
+          message: 'Issue in another old path',
+          sourceAgent: 'test',
+        },
+      ];
+
+      const result = normalizeFindingsForDiff(findings, resolver);
+
+      // CRITICAL: Both should be remapped to new names, not dropped
+      expect(result.stats.remappedPaths).toBe(2);
+      expect(result.stats.dropped).toBe(0);
+      // Verify remapping to canonical new paths
+      expect(result.findings[0]?.file).toBe('src/new-name.ts');
+      expect(result.findings[1]?.file).toBe('lib/renamed.ts');
+    });
+
+    it('should handle mixed canonical and prefixed paths in same finding set', () => {
+      const files: DiffFile[] = canonicalizeDiffFiles([
+        {
+          path: 'src/modified.ts',
+          status: 'modified',
+          additions: 2,
+          deletions: 0,
+          patch: `@@ -1,1 +1,3 @@
++const line1 = 1;
++const line2 = 2;
+ const existing = 3;`,
+        },
+        {
+          path: './src/deleted.ts',
+          status: 'deleted',
+          additions: 0,
+          deletions: 5,
+        },
+        {
+          path: 'b/src/renamed.ts',
+          oldPath: 'a/src/original.ts',
+          status: 'renamed',
+          additions: 1,
+          deletions: 0,
+          patch: `@@ -1,1 +1,2 @@
++const new_line = 1;
+ const old_line = 2;`,
+        },
+      ]);
+
+      const resolver = buildLineResolver(files);
+
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/modified.ts', // Canonical
+          line: 1,
+          message: 'Valid line',
+          sourceAgent: 'test',
+        },
+        {
+          severity: 'warning',
+          file: './src/deleted.ts', // ./ prefix
+          line: 3,
+          message: 'In deleted file',
+          sourceAgent: 'test',
+        },
+        {
+          severity: 'info',
+          file: 'src/original.ts', // Old name (canonical)
+          line: 1,
+          message: 'In renamed file',
+          sourceAgent: 'test',
+        },
+      ];
+
+      const result = normalizeFindingsForDiff(findings, resolver);
+
+      // Remapped finding also counts as valid (on new path)
+      expect(result.stats.valid).toBe(2); // Modified file + remapped renamed file
+      expect(result.stats.deletedFiles).toBe(1); // Deleted file
+      expect(result.stats.remappedPaths).toBe(1); // Renamed file
+      expect(result.stats.dropped).toBe(0); // Nothing dropped
+      expect(result.findings[2]?.file).toBe('src/renamed.ts'); // Remapped
+    });
+  });
+
   describe('computeDriftSignal', () => {
     it('should return ok signal when no degradation', () => {
       const stats: ValidationStats = {
