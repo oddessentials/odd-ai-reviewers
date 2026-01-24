@@ -19,6 +19,8 @@ export interface DiffFile {
   deletions: number;
   /** Unified diff content for this file */
   patch?: string;
+  /** True for binary files (stats show as -/-) */
+  isBinary?: boolean;
 }
 
 /**
@@ -60,6 +62,23 @@ export interface PathFilter {
  * Locked to GitHub's default to prevent drift between local diff and API diff
  */
 const UNIFIED_CONTEXT = 3;
+
+/**
+ * Hard limits to fail fast on suspicious diff output
+ */
+const MAX_FILES = 5000;
+const MAX_OUTPUT_BYTES = 50 * 1024 * 1024; // 50MB
+
+/**
+ * Parse result with error tracking for user-visible messaging
+ */
+export interface NumstatParseResult {
+  files: DiffFile[];
+  errors: {
+    count: number;
+    samples: string[]; // Max 5 samples for logging
+  };
+}
 
 /**
  * Normalize a git ref to ensure it's resolvable.
@@ -122,6 +141,9 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
 /**
  * Get diff between two commits
+ *
+ * Uses NUL-delimited numstat (-z) for robustness against special characters.
+ * Includes hard guards for early failure on suspicious output.
  */
 export function getDiff(repoPath: string, baseSha: string, headSha: string): DiffSummary {
   // Normalize refs to handle ADO's refs/heads/* format
@@ -129,40 +151,69 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
   const normalizedHead = normalizeGitRef(repoPath, headSha);
 
   try {
-    // Get list of changed files with stats (using locked unified context)
-    const diffStat = execSync(
-      `git diff --unified=${UNIFIED_CONTEXT} --numstat ${normalizedBase}...${normalizedHead}`,
-      {
-        cwd: repoPath,
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
+    // Get list of changed files with stats using NUL-delimited format
+    const diffStat = execSync(`git diff --numstat -z ${normalizedBase}...${normalizedHead}`, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      maxBuffer: MAX_OUTPUT_BYTES,
+    });
 
-    // Get file statuses
+    // Hard guard: output size
+    if (diffStat.length > MAX_OUTPUT_BYTES) {
+      throw new Error(
+        `Diff output exceeds ${MAX_OUTPUT_BYTES / 1024 / 1024}MB - likely invalid base/head refs`
+      );
+    }
+
+    // Get file statuses (for non-rename status detection)
     const nameStatus = execSync(`git diff --name-status ${normalizedBase}...${normalizedHead}`, {
       cwd: repoPath,
       encoding: 'utf-8',
     });
 
-    const { statusMap, renameMap } = parseNameStatus(nameStatus);
-    const files = parseDiffStat(diffStat, statusMap, renameMap);
+    const { statusMap } = parseNameStatus(nameStatus);
+    const parseResult = parseNumstatZ(diffStat, statusMap);
+    const { files, errors } = parseResult;
 
-    // Get patches for each file
+    // Hard guard: file count
+    if (files.length > MAX_FILES) {
+      throw new Error(
+        `Diff contains ${files.length} files (max ${MAX_FILES}) - check base/head refs or use shallow clone with sufficient depth`
+      );
+    }
+
+    // Log parse errors if any (capped to avoid spam)
+    if (errors.count > 0) {
+      console.warn(
+        `[diff] ${errors.count} parse errors (samples: ${errors.samples.slice(0, 3).join(', ')})`
+      );
+    }
+
+    // Get patches using safe pathspec filtering
+    const safePaths = safePathsForGit(files);
+    if (safePaths.length === 0 && files.length > 0) {
+      console.warn('[diff] No valid paths for per-file diff - continuing with file-level only');
+    }
+
     for (const file of files) {
-      if (file.status !== 'deleted') {
-        try {
-          file.patch = execSync(
-            `git diff --unified=${UNIFIED_CONTEXT} ${normalizedBase}...${normalizedHead} -- "${file.path}"`,
-            {
-              cwd: repoPath,
-              encoding: 'utf-8',
-              maxBuffer: 1024 * 1024,
-            }
-          );
-        } catch {
-          // Skip files that fail to get patch (binary, etc.)
-        }
+      // Skip deleted files and binary files for patches
+      if (file.status === 'deleted' || file.isBinary) continue;
+
+      // Defensive: verify path is safe before executing git command
+      const safePath = file.path?.trim();
+      if (!safePath || safePath.length === 0) continue;
+
+      try {
+        file.patch = execSync(
+          `git diff --unified=${UNIFIED_CONTEXT} ${normalizedBase}...${normalizedHead} -- "${safePath}"`,
+          {
+            cwd: repoPath,
+            encoding: 'utf-8',
+            maxBuffer: 1024 * 1024,
+          }
+        );
+      } catch {
+        // Skip files that fail to get patch (binary, special chars, etc.)
       }
     }
 
@@ -179,7 +230,12 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       source: 'local-git',
     };
   } catch (error) {
-    throw new Error(`Failed to get diff: ${error}`);
+    // Provide actionable error message
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to get diff between ${baseSha} and ${headSha}: ${errorMsg}\n` +
+        `Possible causes: shallow clone, invalid refs, or cross-repo diff`
+    );
   }
 }
 
@@ -242,6 +298,128 @@ export function canonicalizeDiffFiles(files: DiffFile[]): CanonicalDiffFile[] {
 }
 
 /**
+ * Parse git diff --numstat -z output (NUL-delimited for robustness)
+ *
+ * Format: For each file: ADD\tDEL\tPATH\0
+ * For renames: ADD\tDEL\t\0OLDPATH\0NEWPATH\0
+ * Binary files: -\t-\tPATH\0
+ *
+ * Returns files array and parse errors for user-visible messaging
+ */
+export function parseNumstatZ(
+  output: string,
+  statusMap: Map<string, DiffFile['status']>
+): NumstatParseResult {
+  const files: DiffFile[] = [];
+  const errors = { count: 0, samples: [] as string[] };
+
+  // Split on NUL, filter empty parts
+  const parts = output.split('\0').filter((p) => p.length > 0);
+
+  let i = 0;
+  while (i < parts.length) {
+    const record = parts[i];
+    if (!record) {
+      i++;
+      continue;
+    }
+
+    // Match: ADD\tDEL\tPATH or ADD\tDEL\t (empty path = rename follows)
+    const match = record.match(/^(-|\d+)\t(-|\d+)\t(.*)$/);
+    if (!match) {
+      // Malformed record - log and skip
+      if (errors.count < 5) errors.samples.push(record.slice(0, 50));
+      errors.count++;
+      i++;
+      continue;
+    }
+
+    const [, addStr, delStr, firstPath] = match;
+
+    // Type guard: match groups should exist due to regex structure
+    if (addStr === undefined || delStr === undefined || firstPath === undefined) {
+      if (errors.count < 5) errors.samples.push(`Incomplete match: ${record.slice(0, 50)}`);
+      errors.count++;
+      i++;
+      continue;
+    }
+
+    const isBinary = addStr === '-' && delStr === '-';
+    const additions = isBinary ? 0 : parseInt(addStr, 10);
+    const deletions = isBinary ? 0 : parseInt(delStr, 10);
+
+    // Check for NaN (shouldn't happen with proper -z parsing but be safe)
+    if (isNaN(additions) || isNaN(deletions)) {
+      if (errors.count < 5) errors.samples.push(`NaN stats: ${record.slice(0, 50)}`);
+      errors.count++;
+      i++;
+      continue;
+    }
+
+    // Empty firstPath = rename, next two parts are oldPath and newPath
+    if (firstPath === '') {
+      const oldPath = normalizePath(parts[++i] ?? '');
+      const newPath = normalizePath(parts[++i] ?? '');
+
+      if (!newPath) {
+        if (errors.count < 5) errors.samples.push(`Empty rename path: ${record}`);
+        errors.count++;
+        i++;
+        continue;
+      }
+
+      files.push({
+        path: newPath,
+        oldPath,
+        status: 'renamed',
+        additions,
+        deletions,
+        isBinary,
+      });
+    } else {
+      const path = normalizePath(firstPath);
+      if (!path) {
+        if (errors.count < 5) errors.samples.push(`Empty path: ${record.slice(0, 50)}`);
+        errors.count++;
+        i++;
+        continue;
+      }
+
+      files.push({
+        path,
+        status: statusMap.get(path) ?? 'modified',
+        additions,
+        deletions,
+        isBinary,
+      });
+    }
+
+    i++;
+  }
+
+  return { files, errors };
+}
+
+/**
+ * Filter and dedupe paths for safe git pathspec invocation
+ * Prevents "empty string is not a valid pathspec" errors
+ */
+export function safePathsForGit(files: DiffFile[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const f of files) {
+    const p = f.path?.trim();
+    if (p && p.length > 0 && !seen.has(p)) {
+      seen.add(p);
+      result.push(p);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Parse git diff --name-status output
  */
 function parseNameStatus(output: string): {
@@ -280,43 +458,6 @@ function parseNameStatus(output: string): {
   }
 
   return { statusMap, renameMap };
-}
-
-/**
- * Parse git diff --numstat output
- */
-function parseDiffStat(
-  output: string,
-  statusMap: Map<string, DiffFile['status']>,
-  renameMap: Map<string, string>
-): DiffFile[] {
-  const files: DiffFile[] = [];
-
-  for (const line of output.trim().split('\n')) {
-    if (!line) continue;
-    const [addStr, delStr, ...pathParts] = line.split('\t');
-    const path = normalizePath(pathParts.join('\t'));
-
-    // Binary files show '-' for additions/deletions
-    const additions = addStr === '-' ? 0 : parseInt(addStr ?? '0', 10);
-    const deletions = delStr === '-' ? 0 : parseInt(delStr ?? '0', 10);
-
-    const file: DiffFile = {
-      path,
-      status: statusMap.get(path) ?? 'modified',
-      additions,
-      deletions,
-    };
-
-    // Add oldPath for renamed files
-    if (renameMap.has(path)) {
-      file.oldPath = renameMap.get(path);
-    }
-
-    files.push(file);
-  }
-
-  return files;
 }
 
 /**
