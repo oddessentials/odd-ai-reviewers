@@ -85,17 +85,23 @@ export const ModelsSchema = z.object({
 export const ConfigSchema = z.object({
   version: z.number().default(1),
   trusted_only: z.boolean().default(true),
-  triggers: TriggersSchema.default({}),
+  triggers: TriggersSchema.default({ on: ['pull_request'], branches: ['main'] }),
   passes: z.array(PassSchema).default([
     // Safe default: static analysis only (no AI agents, no API keys required)
     // Static analysis is required by default - if semgrep fails, the review fails
     // To enable AI agents, create .ai-review.yml in your repository
     { name: 'static', agents: ['semgrep'], enabled: true, required: true },
   ]),
-  limits: LimitsSchema.default({}),
+  limits: LimitsSchema.default({
+    max_files: 50,
+    max_diff_lines: 2000,
+    max_tokens_per_pr: 12000,
+    max_usd_per_pr: 1.0,
+    monthly_budget_usd: 100,
+  }),
   models: ModelsSchema.default({}),
   reporting: ReportingSchema.default({}),
-  gating: GatingSchema.default({}),
+  gating: GatingSchema.default({ enabled: false, fail_on_severity: 'error' }),
   path_filters: PathFiltersSchema.optional(),
 });
 

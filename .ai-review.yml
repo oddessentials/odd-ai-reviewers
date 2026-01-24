@@ -23,9 +23,9 @@ passes:
 #   enabled: true
 #   required: false # Skip if Ollama unavailable
 
-# Or: cloud: claude-sonnet-4-20250514, local_llm: deepseek-coder:6.7b, llama3.2:3b, codellama:7b
+# Or: cloud: gpt-5.2-codex, claude-sonnet-4-20250514, local_llm: deepseek-coder:6.7b, llama3.2:3b, codellama:7b
 models:
-  default: claude-sonnet-4-20250514
+  default: gpt-5.2-codex
 
 limits:
   max_files: 150
