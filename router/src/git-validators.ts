@@ -66,16 +66,16 @@ export function assertSafeGitRef(ref: string, name: string): void {
  * @param name - Human-readable name for error messages (e.g., 'file path')
  * @throws Error if the path contains unsafe characters
  */
-export function assertSafePath(path: string, name: string): void {
-  if (!path) {
+export function assertSafePath(filePath: string, name: string): void {
+  if (!filePath) {
     throw new Error(`Invalid ${name}: empty or undefined`);
   }
 
-  if (path.length > MAX_PATH_LENGTH) {
+  if (filePath.length > MAX_PATH_LENGTH) {
     throw new Error(`Invalid ${name}: exceeds maximum length (${MAX_PATH_LENGTH})`);
   }
 
-  if (UNSAFE_PATH_CHARS.test(path)) {
+  if (UNSAFE_PATH_CHARS.test(filePath)) {
     throw new Error(
       `Invalid ${name}: contains unsafe shell metacharacters. ` +
         `Characters like ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`
@@ -85,17 +85,17 @@ export function assertSafePath(path: string, name: string): void {
 
 /**
  * Validate a repository path for safe shell use.
- * Includes additional checks for path traversal attacks.
+ *
+ * Security model:
+ * - Shell metacharacters are blocked by assertSafePath (the real protection)
+ * - Relative paths like "../target" are legitimate in CI (used to reference target repo)
+ * - path.resolve() normalizes the path, but protection comes from character blocklist
  *
  * @param repoPath - The repository path to validate
- * @throws Error if the path contains unsafe characters or path traversal sequences
+ * @throws Error if the path contains unsafe shell metacharacters
  */
 export function assertSafeRepoPath(repoPath: string): void {
+  // All protection comes from blocking shell metacharacters
+  // Relative paths like "../target" are legitimate CI use cases
   assertSafePath(repoPath, 'repoPath');
-
-  // Check for path traversal attempts
-  // Note: Legitimate repos shouldn't have '..' in their absolute path
-  if (repoPath.includes('..')) {
-    throw new Error('Invalid repoPath: path traversal sequences (..) are not allowed');
-  }
 }
