@@ -8,6 +8,33 @@
 import type { Config, AgentId } from './schemas.js';
 
 /**
+ * COMPLETIONS-ONLY MODELS (Codex family and legacy models)
+ * These models use /v1/completions, NOT /v1/chat/completions.
+ * Cloud agents ONLY support chat models.
+ *
+ * INVARIANT: Any model matching these patterns will be rejected by preflight
+ * when cloud agents are enabled, preventing 404 errors at runtime.
+ */
+const COMPLETIONS_ONLY_PATTERNS = [
+  /codex/i, // gpt-5.2-codex, codex-davinci, gpt-4-codex, etc.
+  /davinci-00[0-3]$/i, // Legacy text-davinci-001/002/003
+  /curie/i, // Legacy curie models
+  /babbage/i, // Legacy babbage models
+  /^ada$/i, // Legacy ada model (exact match to avoid false positives with gpt-4-ada)
+];
+
+/**
+ * Check if model is a completions-only model (not chat-compatible).
+ * Used for preflight validation to prevent 404 errors.
+ *
+ * @param model - Model name to check
+ * @returns true if model is completions-only and NOT compatible with chat API
+ */
+export function isCompletionsOnlyModel(model: string): boolean {
+  return COMPLETIONS_ONLY_PATTERNS.some((pattern) => pattern.test(model));
+}
+
+/**
  * Provider type for LLM agents.
  * Router resolves provider once; agents use this without guessing.
  */

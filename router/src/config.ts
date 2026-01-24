@@ -23,6 +23,7 @@ export {
 export {
   type LlmProvider,
   inferProviderFromModel,
+  isCompletionsOnlyModel,
   resolveEffectiveModel,
   resolveProvider,
 } from './config/providers.js';

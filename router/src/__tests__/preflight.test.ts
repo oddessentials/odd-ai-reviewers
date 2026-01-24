@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateAgentSecrets,
+  validateChatModelCompatibility,
   validateModelConfig,
   validateModelProviderMatch,
   validateOllamaConfig,
@@ -796,6 +797,167 @@ describe('validateAzureDeployment', () => {
         AZURE_OPENAI_DEPLOYMENT: 'my-gpt4-deployment',
       };
       const result = validateAzureDeployment(env);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+});
+
+describe('validateChatModelCompatibility', () => {
+  // Helper to create config with cloud AI agents enabled
+  function createCloudAiConfig(agents: string[] = ['opencode']): Config {
+    return {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'cloud',
+          agents: agents as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+      },
+      models: {},
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error' },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+  }
+
+  describe('Codex models (completions-only, NOT chat-compatible)', () => {
+    it('FAILS for gpt-5.2-codex (the reported bug)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'gpt-5.2-codex', {});
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain('completions-only');
+      expect(result.errors[0]).toContain('gpt-5.2-codex');
+    });
+
+    it('FAILS for codex-davinci (legacy Codex model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'codex-davinci', {});
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('completions-only');
+    });
+
+    it('FAILS for gpt-4-codex (hypothetical future Codex variant)', () => {
+      const config = createCloudAiConfig(['pr_agent']);
+      const result = validateChatModelCompatibility(config, 'gpt-4-codex', {});
+
+      expect(result.valid).toBe(false);
+    });
+
+    it('FAILS for text-davinci-003 (legacy completion model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'text-davinci-003', {});
+
+      expect(result.valid).toBe(false);
+    });
+
+    it('error message includes copy-pastable fix suggestions', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'gpt-5.2-codex', {});
+
+      expect(result.errors[0]).toContain('MODEL=gpt-4o-mini');
+      expect(result.errors[0]).toContain('MODEL=gpt-4o');
+      expect(result.errors[0]).toContain('claude-sonnet-4');
+      expect(result.errors[0]).toContain('.ai-review.yml');
+    });
+  });
+
+  describe('Valid chat models (should pass)', () => {
+    it('PASSES for gpt-4o (flagship chat model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'gpt-4o', {});
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('PASSES for gpt-4o-mini (cost-effective chat model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'gpt-4o-mini', {});
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES for claude-sonnet-4-20250514 (Anthropic chat model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'claude-sonnet-4-20250514', {});
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES for o1-preview (OpenAI reasoning model)', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'o1-preview', {});
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('No cloud agents (validation skipped)', () => {
+    it('PASSES for Codex model when ONLY local_llm is enabled', () => {
+      const config: Config = {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [{ name: 'local', agents: ['local_llm'], enabled: true, required: false }],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+      const result = validateChatModelCompatibility(config, 'gpt-5.2-codex', {});
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('PASSES for Codex model when only static agents enabled', () => {
+      const config: Config = {
+        version: 1,
+        trusted_only: false,
+        triggers: { on: ['pull_request'], branches: ['main'] },
+        passes: [
+          { name: 'static', agents: ['semgrep', 'reviewdog'], enabled: true, required: true },
+        ],
+        limits: {
+          max_files: 50,
+          max_diff_lines: 2000,
+          max_tokens_per_pr: 12000,
+          max_usd_per_pr: 1.0,
+          monthly_budget_usd: 100,
+        },
+        models: {},
+        reporting: {
+          github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+        },
+        gating: { enabled: false, fail_on_severity: 'error' },
+        path_filters: { include: ['**/*'], exclude: [] },
+      };
+      const result = validateChatModelCompatibility(config, 'codex-davinci', {});
 
       expect(result.valid).toBe(true);
     });
