@@ -75,6 +75,10 @@ export interface ValidationStats {
   dropped: number;
   /** Subset of downgraded: findings on deleted files */
   deletedFiles: number;
+  /** Subset of downgraded: findings on ambiguous rename paths */
+  ambiguousRenames: number;
+  /** Findings remapped from old path to new path (successful rename handling) */
+  remappedPaths: number;
 }
 
 /**
@@ -107,6 +111,18 @@ export interface LineResolver {
 
   /** Check if a file is deleted (no inline comments allowed) */
   isDeleted(filePath: string): boolean;
+
+  /**
+   * Remap an old path to its new canonical path (for renames)
+   * Returns the new path if rename mapping exists, otherwise returns original path
+   */
+  remapPath(filePath: string): string;
+
+  /**
+   * Check if a path mapping is ambiguous (multiple old paths map to same new path)
+   * Ambiguous renames should be downgraded to file-level comments
+   */
+  isAmbiguousRename(filePath: string): boolean;
 }
 
 export interface LineValidationOptions {
@@ -207,6 +223,37 @@ export function parseDiffHunks(patch: string): DiffHunk[] {
 export function buildLineResolver(files: DiffFile[]): LineResolver {
   const mappings = new Map<string, FileLineMapping>();
   const deletedFiles = new Set<string>();
+
+  // Build rename maps: oldToNew for remapping, detect ambiguity
+  // Ambiguous = multiple old paths mapping to the same new path
+  const oldToNew = new Map<string, string>();
+  const newPathCounts = new Map<string, number>();
+  const ambiguousPaths = new Set<string>();
+
+  for (const file of files) {
+    if (file.oldPath && file.status === 'renamed') {
+      const normalizedOld = normalizePath(file.oldPath);
+      const normalizedNew = normalizePath(file.path);
+      oldToNew.set(normalizedOld, normalizedNew);
+
+      // Track how many old paths map to each new path
+      const currentCount = newPathCounts.get(normalizedNew) || 0;
+      newPathCounts.set(normalizedNew, currentCount + 1);
+    }
+  }
+
+  // Mark paths as ambiguous if multiple old paths map to same new path
+  for (const [newPath, count] of newPathCounts.entries()) {
+    if (count > 1) {
+      ambiguousPaths.add(newPath);
+      // Also mark all old paths that map to this new path as ambiguous
+      for (const [oldPath, targetNewPath] of oldToNew.entries()) {
+        if (targetNewPath === newPath) {
+          ambiguousPaths.add(oldPath);
+        }
+      }
+    }
+  }
 
   // Build mapping for each file
   for (const file of files) {
@@ -343,6 +390,22 @@ export function buildLineResolver(files: DiffFile[]): LineResolver {
       const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
       return deletedFiles.has(normalizedPath);
     },
+
+    remapPath(filePath: string): string {
+      const normalizedPath = normalizePath(filePath);
+      // If this is an old path that maps to a new path, return the new path
+      const remapped = oldToNew.get(normalizedPath);
+      if (remapped) {
+        return remapped;
+      }
+      // Otherwise return the original path (normalized)
+      return normalizedPath;
+    },
+
+    isAmbiguousRename(filePath: string): boolean {
+      const normalizedPath = normalizePath(filePath);
+      return ambiguousPaths.has(normalizedPath);
+    },
   };
 }
 
@@ -437,10 +500,43 @@ export function normalizeFindingsForDiff(
   let downgradedCount = 0;
   const droppedCount = 0; // Currently unused, reserved for future use
   let deletedFilesCount = 0;
+  let ambiguousRenamesCount = 0;
+  let remappedPathsCount = 0;
 
   for (const finding of findings) {
     // Normalize finding file path at normalization boundary
-    const normalizedFilePath = normalizePath(finding.file);
+    let normalizedFilePath = normalizePath(finding.file);
+
+    // ===== RENAME HANDLING =====
+    // Check if this is an old path that needs remapping to new path
+    const remappedPath = resolver.remapPath(normalizedFilePath);
+    const wasRemapped = remappedPath !== normalizedFilePath;
+    if (wasRemapped) {
+      // Check for ambiguous renames before remapping
+      if (resolver.isAmbiguousRename(normalizedFilePath)) {
+        // Ambiguous rename: downgrade to file-level comment
+        normalized.push({
+          ...finding,
+          file: remappedPath,
+          line: undefined,
+          endLine: undefined,
+        });
+        downgradedCount++;
+        ambiguousRenamesCount++;
+
+        invalidDetails.push({
+          file: normalizedFilePath,
+          line: finding.line,
+          reason: 'ambiguous-rename',
+          sourceAgent: finding.sourceAgent,
+        });
+        continue;
+      }
+
+      // Non-ambiguous rename: remap to new path
+      normalizedFilePath = remappedPath;
+      remappedPathsCount++;
+    }
 
     // Check if file is deleted first - enforce file-level only
     if (resolver.isDeleted(normalizedFilePath)) {
@@ -531,6 +627,8 @@ export function normalizeFindingsForDiff(
       downgraded: downgradedCount,
       dropped: droppedCount,
       deletedFiles: deletedFilesCount,
+      ambiguousRenames: ambiguousRenamesCount,
+      remappedPaths: remappedPathsCount,
     },
     invalidDetails,
   };

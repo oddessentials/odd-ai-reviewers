@@ -551,4 +551,296 @@ index 1234567..89abcde 100644
       expect(result.stats.downgraded).toBe(1);
     });
   });
+
+  describe('Rename Handling', () => {
+    describe('remapPath', () => {
+      it('should remap old path to new path for simple rename', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/new_name.ts',
+            oldPath: 'src/old_name.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,2 +1,3 @@
+ const a = 1;
++const b = 2;
+ const c = 3;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        // Old path should remap to new path
+        expect(resolver.remapPath('src/old_name.ts')).toBe('src/new_name.ts');
+
+        // New path should stay the same
+        expect(resolver.remapPath('src/new_name.ts')).toBe('src/new_name.ts');
+
+        // Unrelated path should stay the same
+        expect(resolver.remapPath('src/other.ts')).toBe('src/other.ts');
+      });
+
+      it('should not remap when no rename exists', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/modified.ts',
+            status: 'modified',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,1 +1,2 @@
++const a = 1;
+ const b = 2;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        expect(resolver.remapPath('src/modified.ts')).toBe('src/modified.ts');
+        expect(resolver.remapPath('src/nonexistent.ts')).toBe('src/nonexistent.ts');
+      });
+    });
+
+    describe('isAmbiguousRename', () => {
+      it('should detect ambiguous rename (multiple old paths to same new path)', () => {
+        // This scenario is rare but possible in complex refactors
+        // where two files get merged into one
+        const files: DiffFile[] = [
+          {
+            path: 'src/merged.ts',
+            oldPath: 'src/fileA.ts',
+            status: 'renamed',
+            additions: 5,
+            deletions: 0,
+            patch: `@@ -1,1 +1,6 @@
+ const a = 1;
++const b = 2;
++const c = 3;
++const d = 4;
++const e = 5;`,
+          },
+          {
+            path: 'src/merged.ts',
+            oldPath: 'src/fileB.ts',
+            status: 'renamed',
+            additions: 0,
+            deletions: 5,
+            patch: undefined,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        // Both old paths should be ambiguous
+        expect(resolver.isAmbiguousRename('src/fileA.ts')).toBe(true);
+        expect(resolver.isAmbiguousRename('src/fileB.ts')).toBe(true);
+
+        // New path should also be marked ambiguous
+        expect(resolver.isAmbiguousRename('src/merged.ts')).toBe(true);
+
+        // Unrelated path should not be ambiguous
+        expect(resolver.isAmbiguousRename('src/other.ts')).toBe(false);
+      });
+
+      it('should not mark non-ambiguous rename as ambiguous', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/new_name.ts',
+            oldPath: 'src/old_name.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,1 +1,2 @@
++const a = 1;
+ const b = 2;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        expect(resolver.isAmbiguousRename('src/old_name.ts')).toBe(false);
+        expect(resolver.isAmbiguousRename('src/new_name.ts')).toBe(false);
+      });
+    });
+
+    describe('normalizeFindingsForDiff with renames', () => {
+      it('should remap findings from old path to new path', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/new_name.ts',
+            oldPath: 'src/old_name.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,2 +1,3 @@
+ const a = 1;
++const b = 2;
+ const c = 3;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        const findings: Finding[] = [
+          {
+            severity: 'error',
+            file: 'src/old_name.ts', // Tool reports OLD name
+            line: 2,
+            message: 'Issue on old path',
+            sourceAgent: 'semgrep',
+          },
+        ];
+
+        const result = normalizeFindingsForDiff(findings, resolver);
+
+        expect(result.findings).toHaveLength(1);
+        // File should be remapped to new path
+        expect(result.findings[0]?.file).toBe('src/new_name.ts');
+        // Line should be validated and valid
+        expect(result.findings[0]?.line).toBe(2);
+        expect(result.stats.remappedPaths).toBe(1);
+      });
+
+      it('should downgrade ambiguous rename findings to file-level', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/merged.ts',
+            oldPath: 'src/fileA.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,2 +1,3 @@
+ const a = 1;
++const b = 2;
+ const c = 3;`,
+          },
+          {
+            path: 'src/merged.ts',
+            oldPath: 'src/fileB.ts',
+            status: 'renamed',
+            additions: 0,
+            deletions: 0,
+            patch: undefined,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        const findings: Finding[] = [
+          {
+            severity: 'warning',
+            file: 'src/fileA.ts', // Ambiguous old path
+            line: 2,
+            message: 'Issue on ambiguous path',
+            sourceAgent: 'test',
+          },
+        ];
+
+        const result = normalizeFindingsForDiff(findings, resolver);
+
+        expect(result.findings).toHaveLength(1);
+        // File should be remapped to new path
+        expect(result.findings[0]?.file).toBe('src/merged.ts');
+        // Line should be undefined (file-level)
+        expect(result.findings[0]?.line).toBeUndefined();
+        expect(result.stats.ambiguousRenames).toBe(1);
+        expect(result.stats.downgraded).toBe(1);
+
+        // Should have invalid detail with ambiguous-rename reason
+        expect(result.invalidDetails).toHaveLength(1);
+        expect(result.invalidDetails[0]?.reason).toBe('ambiguous-rename');
+      });
+
+      it('should preserve findings using canonical new path (precedence)', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/new_name.ts',
+            oldPath: 'src/old_name.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,2 +1,3 @@
+ const a = 1;
++const b = 2;
+ const c = 3;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        const findings: Finding[] = [
+          {
+            severity: 'error',
+            file: 'src/new_name.ts', // Tool already uses NEW name
+            line: 2,
+            message: 'Issue on new path',
+            sourceAgent: 'github-copilot',
+          },
+        ];
+
+        const result = normalizeFindingsForDiff(findings, resolver);
+
+        expect(result.findings).toHaveLength(1);
+        expect(result.findings[0]?.file).toBe('src/new_name.ts');
+        expect(result.findings[0]?.line).toBe(2);
+        // Should NOT count as remapped (already on canonical path)
+        expect(result.stats.remappedPaths).toBe(0);
+        expect(result.stats.valid).toBe(1);
+      });
+
+      it('should handle multiple renames with mixed old/new paths', () => {
+        const files: DiffFile[] = [
+          {
+            path: 'src/alpha.ts',
+            oldPath: 'src/a.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,1 +1,2 @@
++const alpha = 1;
+ const x = 2;`,
+          },
+          {
+            path: 'src/beta.ts',
+            oldPath: 'src/b.ts',
+            status: 'renamed',
+            additions: 1,
+            deletions: 0,
+            patch: `@@ -1,1 +1,2 @@
++const beta = 1;
+ const y = 2;`,
+          },
+        ];
+
+        const resolver = buildLineResolver(files);
+
+        const findings: Finding[] = [
+          {
+            severity: 'error',
+            file: 'src/a.ts', // OLD path
+            line: 1,
+            message: 'Issue A',
+            sourceAgent: 'test',
+          },
+          {
+            severity: 'warning',
+            file: 'src/beta.ts', // NEW path
+            line: 1,
+            message: 'Issue B',
+            sourceAgent: 'test',
+          },
+        ];
+
+        const result = normalizeFindingsForDiff(findings, resolver);
+
+        expect(result.findings).toHaveLength(2);
+        // First finding remapped to new path
+        expect(result.findings[0]?.file).toBe('src/alpha.ts');
+        // Second finding stays on new path
+        expect(result.findings[1]?.file).toBe('src/beta.ts');
+        expect(result.stats.remappedPaths).toBe(1);
+        expect(result.stats.valid).toBe(2);
+      });
+    });
+  });
 });
