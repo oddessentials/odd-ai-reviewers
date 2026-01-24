@@ -1,12 +1,18 @@
 /**
  * GitHub Reporter
  * Posts findings as PR comments and check run summaries
- * Includes deduplication and throttling
+ * Includes deduplication, throttling, and line validation
+ *
+ * Line Validation:
+ * GitHub's createReviewComment API requires comments to target lines
+ * that are part of the diff. This module validates line numbers before
+ * posting to prevent comments from appearing on wrong lines or failing silently.
  */
 
 import { Octokit } from '@octokit/rest';
 import type { Finding, Severity } from '../agents/index.js';
 import type { Config } from '../config.js';
+import type { DiffFile } from '../diff.js';
 import {
   deduplicateFindings,
   sortFindings,
@@ -17,6 +23,7 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import { buildDiffLineMap, validateFindingLine, type DiffLineMap } from '../diff_line_validator.js';
 
 export interface GitHubContext {
   owner: string;
@@ -26,6 +33,8 @@ export interface GitHubContext {
   token: string;
   /** Check run ID created at start of review (for proper lifecycle) */
   checkRunId?: number;
+  /** Diff files for line validation (optional but recommended) */
+  diffFiles?: DiffFile[];
 }
 
 export interface ReportResult {
@@ -35,6 +44,15 @@ export interface ReportResult {
   error?: string;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
+  /** Number of findings skipped due to invalid line numbers */
+  skippedInvalidLines?: number;
+  /** Details about findings with invalid lines (for debugging) */
+  invalidLineDetails?: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[];
 }
 
 /** Delay between inline comments to avoid spam (ms) */
@@ -91,10 +109,15 @@ export async function reportToGitHub(
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
+  // Build line map for validation (if diff files provided)
+  const diffLineMap = context.diffFiles ? buildDiffLineMap(context.diffFiles) : null;
+
   try {
     let checkRunId: number | undefined;
     let commentId: number | undefined;
     let skippedDuplicates = 0;
+    let skippedInvalidLines = 0;
+    let invalidLineDetails: ReportResult['invalidLineDetails'] = [];
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
@@ -110,10 +133,13 @@ export async function reportToGitHub(
         octokit,
         context,
         sorted,
-        reportingConfig.max_inline_comments
+        reportingConfig.max_inline_comments,
+        diffLineMap
       );
       commentId = result.commentId;
       skippedDuplicates = result.skippedDuplicates;
+      skippedInvalidLines = result.skippedInvalidLines;
+      invalidLineDetails = result.invalidLineDetails;
     }
 
     return {
@@ -121,6 +147,8 @@ export async function reportToGitHub(
       checkRunId,
       commentId,
       skippedDuplicates,
+      skippedInvalidLines,
+      invalidLineDetails: invalidLineDetails.length > 0 ? invalidLineDetails : undefined,
     };
   } catch (error) {
     return {
@@ -207,14 +235,25 @@ async function createCheckRun(
 }
 
 /**
- * Post a summary comment on the PR with deduplication
+ * Post a summary comment on the PR with deduplication and line validation
  */
 async function postPRComment(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
-  maxInlineComments: number
-): Promise<{ commentId: number; skippedDuplicates: number }> {
+  maxInlineComments: number,
+  diffLineMap: DiffLineMap | null
+): Promise<{
+  commentId: number;
+  skippedDuplicates: number;
+  skippedInvalidLines: number;
+  invalidLineDetails: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[];
+}> {
   if (!context.prNumber) {
     throw new Error('PR number required for comments');
   }
@@ -287,7 +326,14 @@ async function postPRComment(
   const groupedFindings = groupAdjacentFindings(inlineFindings);
 
   let skippedDuplicates = 0;
+  let skippedInvalidLines = 0;
   let postedCount = 0;
+  const invalidLineDetails: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[] = [];
 
   for (const findingOrGroup of groupedFindings) {
     if (postedCount >= maxInlineComments) break;
@@ -304,6 +350,30 @@ async function postPRComment(
 
     const finding = Array.isArray(findingOrGroup) ? findingOrGroup[0] : findingOrGroup;
     if (!finding) continue;
+
+    // Validate line number against diff if we have a line map
+    if (diffLineMap) {
+      const validation = validateFindingLine(finding.file, finding.line, diffLineMap, {
+        suggestNearest: true,
+      });
+
+      if (!validation.valid) {
+        skippedInvalidLines++;
+        invalidLineDetails.push({
+          file: finding.file,
+          line: finding.line,
+          reason: validation.reason ?? 'Line not in diff',
+          nearestValidLine: validation.nearestValidLine,
+        });
+        console.warn(
+          `[github] Skipping comment on ${finding.file}:${finding.line} - ${validation.reason}` +
+            (validation.nearestValidLine
+              ? ` (nearest valid line: ${validation.nearestValidLine})`
+              : '')
+        );
+        continue;
+      }
+    }
 
     const body = Array.isArray(findingOrGroup)
       ? formatGroupedInlineComment(findingOrGroup)
@@ -328,15 +398,22 @@ async function postPRComment(
       await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
       // Inline comments can fail for various reasons (line not in diff, etc.)
+      // Even with validation, there can be edge cases or API issues
       console.warn(`[github] Failed to post inline comment: ${error}`);
+      invalidLineDetails.push({
+        file: finding.file,
+        line: finding.line,
+        reason: `API error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
     }
   }
 
   console.log(
-    `[github] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+    `[github] Posted ${postedCount} inline comments ` +
+      `(skipped ${skippedDuplicates} duplicates, ${skippedInvalidLines} invalid lines)`
   );
 
-  return { commentId, skippedDuplicates };
+  return { commentId, skippedDuplicates, skippedInvalidLines, invalidLineDetails };
 }
 
 /**

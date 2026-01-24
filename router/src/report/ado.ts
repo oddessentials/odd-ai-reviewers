@@ -1,11 +1,17 @@
 /**
  * Azure DevOps Reporter
  * Posts findings as PR threads and commit statuses
- * Includes deduplication and throttling
+ * Includes deduplication, throttling, and line validation
+ *
+ * Line Validation:
+ * Azure DevOps thread API requires comments to target lines
+ * that are part of the diff. This module validates line numbers before
+ * posting to prevent comments from appearing on wrong lines or failing silently.
  */
 
 import type { Finding, Severity } from '../agents/index.js';
 import type { Config } from '../config.js';
+import type { DiffFile } from '../diff.js';
 import {
   deduplicateFindings,
   sortFindings,
@@ -15,6 +21,7 @@ import {
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
+import { buildDiffLineMap, validateFindingLine, type DiffLineMap } from '../diff_line_validator.js';
 
 export interface ADOContext {
   /** Azure DevOps organization name */
@@ -33,6 +40,8 @@ export interface ADOContext {
   summaryThreadId?: number;
   /** Optional: Existing status ID for status updates */
   statusId?: number;
+  /** Diff files for line validation (optional but recommended) */
+  diffFiles?: DiffFile[];
 }
 
 export interface ReportResult {
@@ -42,6 +51,15 @@ export interface ReportResult {
   error?: string;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
+  /** Number of findings skipped due to invalid line numbers */
+  skippedInvalidLines?: number;
+  /** Details about findings with invalid lines (for debugging) */
+  invalidLineDetails?: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[];
 }
 
 /** Delay between inline comments to avoid spam (ms) */
@@ -112,10 +130,15 @@ export async function reportToADO(
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
+  // Build line map for validation (if diff files provided)
+  const diffLineMap = context.diffFiles ? buildDiffLineMap(context.diffFiles) : null;
+
   try {
     let statusId: number | undefined;
     let threadId: number | undefined;
     let skippedDuplicates = 0;
+    let skippedInvalidLines = 0;
+    let invalidLineDetails: ReportResult['invalidLineDetails'] = [];
 
     // Create/update commit status if enabled
     if (reportingConfig.mode === 'status_only' || reportingConfig.mode === 'threads_and_status') {
@@ -128,10 +151,13 @@ export async function reportToADO(
         context,
         sorted,
         reportingConfig.max_inline_comments,
-        reportingConfig.thread_status === 'pending' ? 6 : 1
+        reportingConfig.thread_status === 'pending' ? 6 : 1,
+        diffLineMap
       );
       threadId = result.threadId;
       skippedDuplicates = result.skippedDuplicates;
+      skippedInvalidLines = result.skippedInvalidLines;
+      invalidLineDetails = result.invalidLineDetails;
     }
 
     return {
@@ -139,6 +165,8 @@ export async function reportToADO(
       statusId,
       threadId,
       skippedDuplicates,
+      skippedInvalidLines,
+      invalidLineDetails: invalidLineDetails.length > 0 ? invalidLineDetails : undefined,
     };
   } catch (error) {
     return {
@@ -210,14 +238,25 @@ async function updateBuildStatus(
 }
 
 /**
- * Post PR threads (summary + inline comments) with deduplication
+ * Post PR threads (summary + inline comments) with deduplication and line validation
  */
 async function postPRThreads(
   context: ADOContext,
   findings: Finding[],
   maxInlineComments: number,
-  threadStatus: number
-): Promise<{ threadId: number; skippedDuplicates: number }> {
+  threadStatus: number,
+  diffLineMap: DiffLineMap | null
+): Promise<{
+  threadId: number;
+  skippedDuplicates: number;
+  skippedInvalidLines: number;
+  invalidLineDetails: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[];
+}> {
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
 
   const summary = generateSummaryMarkdown(findings);
@@ -328,7 +367,14 @@ async function postPRThreads(
     });
 
   let skippedDuplicates = 0;
+  let skippedInvalidLines = 0;
   let postedCount = 0;
+  const invalidLineDetails: {
+    file: string;
+    line?: number;
+    reason: string;
+    nearestValidLine?: number;
+  }[] = [];
 
   for (const finding of inlineFindings) {
     if (postedCount >= maxInlineComments) break;
@@ -339,6 +385,30 @@ async function postPRThreads(
     if (existingFingerprints.has(fingerprint)) {
       skippedDuplicates++;
       continue;
+    }
+
+    // Validate line number against diff if we have a line map
+    if (diffLineMap) {
+      const validation = validateFindingLine(finding.file, finding.line, diffLineMap, {
+        suggestNearest: true,
+      });
+
+      if (!validation.valid) {
+        skippedInvalidLines++;
+        invalidLineDetails.push({
+          file: finding.file,
+          line: finding.line,
+          reason: validation.reason ?? 'Line not in diff',
+          nearestValidLine: validation.nearestValidLine,
+        });
+        console.warn(
+          `[ado] Skipping comment on ${finding.file}:${finding.line} - ${validation.reason}` +
+            (validation.nearestValidLine
+              ? ` (nearest valid line: ${validation.nearestValidLine})`
+              : '')
+        );
+        continue;
+      }
     }
 
     const body = formatInlineComment(finding);
@@ -372,6 +442,11 @@ async function postPRThreads(
 
       if (!response.ok) {
         console.warn(`[ado] Failed to post inline comment: ${response.status}`);
+        invalidLineDetails.push({
+          file: finding.file,
+          line: finding.line,
+          reason: `API error: HTTP ${response.status}`,
+        });
         continue;
       }
 
@@ -382,14 +457,20 @@ async function postPRThreads(
       await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
       console.warn(`[ado] Failed to post inline comment: ${error}`);
+      invalidLineDetails.push({
+        file: finding.file,
+        line: finding.line,
+        reason: `API error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
     }
   }
 
   console.log(
-    `[ado] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+    `[ado] Posted ${postedCount} inline comments ` +
+      `(skipped ${skippedDuplicates} duplicates, ${skippedInvalidLines} invalid lines)`
   );
 
-  return { threadId, skippedDuplicates };
+  return { threadId, skippedDuplicates, skippedInvalidLines, invalidLineDetails };
 }
 
 /**
