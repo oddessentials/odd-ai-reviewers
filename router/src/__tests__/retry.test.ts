@@ -10,12 +10,17 @@ import { describe, it, expect, vi } from 'vitest';
 import OpenAI from 'openai';
 import { getRetryDelayMs, withRetry } from '../agents/retry.js';
 
+// Helper to create mock headers (OpenAI 6 uses native Headers)
+function mockHeaders(init?: Record<string, string>): Headers {
+  return new Headers(init);
+}
+
 describe('getRetryDelayMs', () => {
   const BASE_DELAY = 1000;
 
   describe('Retryable errors', () => {
     it('should return extended backoff for RateLimitError', () => {
-      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit' }, '', {});
+      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit' }, '', mockHeaders());
       const delay = getRetryDelayMs(error, 0);
 
       // Rate limit uses attempt + 2 for extended backoff: 1000 * 2^(0+2) = 4000
@@ -23,18 +28,24 @@ describe('getRetryDelayMs', () => {
     });
 
     it('should respect Retry-After header for RateLimitError', () => {
-      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit' }, '', {});
-      // Manually attach headers (OpenAI SDK pattern)
-      (error as unknown as { headers: Record<string, string> }).headers = {
-        'retry-after': '30',
-      };
+      const error = new OpenAI.RateLimitError(
+        429,
+        { message: 'Rate limit' },
+        '',
+        mockHeaders({ 'retry-after': '30' })
+      );
 
       const delay = getRetryDelayMs(error, 0);
       expect(delay).toBe(30000); // 30 seconds in ms
     });
 
     it('should return exponential backoff for InternalServerError', () => {
-      const error = new OpenAI.InternalServerError(500, { message: 'Server error' }, '', {});
+      const error = new OpenAI.InternalServerError(
+        500,
+        { message: 'Server error' },
+        '',
+        mockHeaders()
+      );
 
       expect(getRetryDelayMs(error, 0)).toBe(BASE_DELAY * Math.pow(2, 0)); // 1000
       expect(getRetryDelayMs(error, 1)).toBe(BASE_DELAY * Math.pow(2, 1)); // 2000
@@ -50,7 +61,7 @@ describe('getRetryDelayMs', () => {
     });
 
     it('should return exponential backoff for generic 5xx APIError', () => {
-      const error = new OpenAI.APIError(503, { message: 'Service unavailable' }, '', {});
+      const error = new OpenAI.APIError(503, { message: 'Service unavailable' }, '', mockHeaders());
 
       expect(getRetryDelayMs(error, 0)).toBe(1000);
     });
@@ -58,22 +69,32 @@ describe('getRetryDelayMs', () => {
 
   describe('Non-retryable errors', () => {
     it('should return null for AuthenticationError', () => {
-      const error = new OpenAI.AuthenticationError(401, { message: 'Invalid key' }, '', {});
+      const error = new OpenAI.AuthenticationError(
+        401,
+        { message: 'Invalid key' },
+        '',
+        mockHeaders()
+      );
       expect(getRetryDelayMs(error, 0)).toBeNull();
     });
 
     it('should return null for BadRequestError', () => {
-      const error = new OpenAI.BadRequestError(400, { message: 'Bad request' }, '', {});
+      const error = new OpenAI.BadRequestError(400, { message: 'Bad request' }, '', mockHeaders());
       expect(getRetryDelayMs(error, 0)).toBeNull();
     });
 
     it('should return null for NotFoundError', () => {
-      const error = new OpenAI.NotFoundError(404, { message: 'Not found' }, '', {});
+      const error = new OpenAI.NotFoundError(404, { message: 'Not found' }, '', mockHeaders());
       expect(getRetryDelayMs(error, 0)).toBeNull();
     });
 
     it('should return null for PermissionDeniedError', () => {
-      const error = new OpenAI.PermissionDeniedError(403, { message: 'Forbidden' }, '', {});
+      const error = new OpenAI.PermissionDeniedError(
+        403,
+        { message: 'Forbidden' },
+        '',
+        mockHeaders()
+      );
       expect(getRetryDelayMs(error, 0)).toBeNull();
     });
 
@@ -95,18 +116,21 @@ describe('withRetry', () => {
   });
 
   it('should throw immediately on non-retryable error', async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValue(new OpenAI.AuthenticationError(401, { message: 'Invalid key' }, '', {}));
+    const error = new OpenAI.AuthenticationError(
+      401,
+      { message: 'Invalid key' },
+      '',
+      new Headers()
+    );
+    const fn = vi.fn().mockRejectedValue(error);
 
     await expect(withRetry(fn)).rejects.toThrow('Invalid key');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('should throw immediately on BadRequestError', async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValue(new OpenAI.BadRequestError(400, { message: 'Bad request' }, '', {}));
+    const error = new OpenAI.BadRequestError(400, { message: 'Bad request' }, '', new Headers());
+    const fn = vi.fn().mockRejectedValue(error);
 
     await expect(withRetry(fn)).rejects.toThrow('Bad request');
     expect(fn).toHaveBeenCalledTimes(1);

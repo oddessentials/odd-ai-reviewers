@@ -17,9 +17,9 @@ const mockCreate = vi.hoisted(() => vi.fn());
 
 // Mock OpenAI module
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: { completions: { create: mockCreate } },
-  })),
+  default: class MockOpenAI {
+    chat = { completions: { create: mockCreate } };
+  },
 }));
 
 describe('Router Integration Tests', () => {

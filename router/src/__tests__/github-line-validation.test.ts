@@ -6,21 +6,21 @@ import type { Config } from '../config.js';
 
 // Mock Octokit
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn(() => ({
-    checks: {
+  Octokit: class MockOctokit {
+    checks = {
       create: vi.fn(async () => ({ data: { id: 123 } })),
       update: vi.fn(async () => ({ data: { id: 123 } })),
-    },
-    issues: {
+    };
+    issues = {
       createComment: vi.fn(async () => ({ data: { id: 456 } })),
       updateComment: vi.fn(async () => ({ data: { id: 456 } })),
       listComments: vi.fn(async () => ({ data: [] })),
-    },
-    pulls: {
+    };
+    pulls = {
       createReviewComment: vi.fn(async () => ({ data: { id: 789 } })),
       listReviewComments: vi.fn(async () => ({ data: [] })),
-    },
-  })),
+    };
+  },
 }));
 
 describe('GitHub Line Validation Integration', () => {
@@ -38,8 +38,10 @@ describe('GitHub Line Validation Integration', () => {
     },
   ];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseConfig: any = {
+  const baseConfig = {
+    version: 1,
+    trusted_only: true,
+    triggers: { on: ['pull_request'] as const, branches: ['main'] },
     passes: [],
     path_filters: {},
     limits: {
@@ -51,17 +53,17 @@ describe('GitHub Line Validation Integration', () => {
     },
     gating: {
       enabled: false,
-      fail_on_severity: 'error',
+      fail_on_severity: 'error' as const,
     },
     reporting: {
       github: {
-        mode: 'checks_and_comments',
+        mode: 'checks_and_comments' as const,
         max_inline_comments: 20,
         summary: true,
       },
     },
     models: {},
-  };
+  } satisfies Config;
 
   const baseContext: GitHubContext = {
     owner: 'test-owner',

@@ -24,14 +24,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint (zero-tolerance)
+        run: npm run lint -- --max-warnings 0
 
       - name: Format check
         run: npm run format:check
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Check circular dependencies
+        run: npm run depcruise
+
+      - name: Verify docs manifest
+        run: |
+          npm run docs:manifest
+          git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'npm run docs:manifest' and commit." && exit 1)
 
       - name: Build
         run: npm run build

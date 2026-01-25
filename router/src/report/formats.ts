@@ -8,7 +8,7 @@
  */
 
 import { createHash } from 'crypto';
-import type { Finding, Severity } from '../agents/index.js';
+import type { Finding, Severity } from '../agents/types.js';
 
 const FINGERPRINT_MARKER_PREFIX = 'odd-ai-reviewers:fingerprint:v1:';
 

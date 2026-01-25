@@ -12,7 +12,7 @@
  */
 
 import type { Config, AgentId } from './config.js';
-import { inferProviderFromModel, resolveProvider } from './config.js';
+import { inferProviderFromModel, isCompletionsOnlyModel, resolveProvider } from './config.js';
 
 export interface PreflightResult {
   valid: boolean;
@@ -387,4 +387,47 @@ export function validateOllamaConfig(
   // - OLLAMA_MODEL defaults to codellama:7b
   // - Connectivity is validated at runtime (fail-closed behavior)
   return { valid: true, errors: [] };
+}
+
+/**
+ * Validate that model supports the chat completions API.
+ *
+ * INVARIANT: Cloud agents (opencode, pr_agent, ai_semantic_review) use the
+ * chat completions API (/v1/chat/completions). Codex and other completions-only
+ * models use the legacy /v1/completions endpoint and are NOT supported.
+ *
+ * This prevents the 404 error: "This is not a chat model and thus not
+ * supported in the v1/chat/completions endpoint."
+ */
+export function validateChatModelCompatibility(
+  config: Config,
+  model: string,
+  _env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Only validate if cloud AI agents are enabled
+  const hasCloudAiAgent = config.passes.some(
+    (pass) => pass.enabled && pass.agents.some((a) => CLOUD_AI_AGENTS.includes(a))
+  );
+
+  if (!hasCloudAiAgent) {
+    return { valid: true, errors: [] };
+  }
+
+  if (isCompletionsOnlyModel(model)) {
+    errors.push(
+      `MODEL '${model}' is a completions-only model (Codex/legacy) but cloud AI agents are enabled.\n` +
+        `Cloud agents require chat models that support the /v1/chat/completions endpoint.\n\n` +
+        `Fix: Use a chat-compatible model:\n` +
+        `  MODEL=gpt-4o-mini              # OpenAI - fast, cost-effective\n` +
+        `  MODEL=gpt-4o                   # OpenAI - flagship\n` +
+        `  MODEL=claude-sonnet-4-20250514 # Anthropic\n\n` +
+        `Or in .ai-review.yml:\n` +
+        `  models:\n` +
+        `    default: gpt-4o-mini`
+    );
+  }
+
+  return { valid: errors.length === 0, errors };
 }

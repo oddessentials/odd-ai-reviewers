@@ -17,12 +17,13 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { parseJsonResponse } from './json-utils.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
+import { getCurrentDateUTC } from './date-utils.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -67,12 +68,16 @@ interface OpencodeRawFinding {
  * Build the review prompt for the LLM
  */
 function buildReviewPrompt(context: AgentContext): { system: string; user: string } {
+  const currentDate = getCurrentDateUTC();
+
   const files = context.files
     .filter((f) => f.status !== 'deleted')
     .map((f) => `- ${f.path} (+${f.additions}/-${f.deletions})`)
     .join('\n');
 
   const systemPrompt = `You are a senior code reviewer specializing in security, performance, and code quality analysis.
+
+Current date (UTC): ${currentDate}
 
 Your task is to review code diffs and identify issues. For each issue found, provide:
 - Severity (error, warning, or info)

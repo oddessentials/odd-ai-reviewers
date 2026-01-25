@@ -3,10 +3,11 @@
  * Static analysis using Semgrep for security and bug patterns
  */
 
-import { execSync } from 'child_process';
-import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './index.js';
+import { execFileSync } from 'child_process';
+import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
+import { filterSafePaths } from './path-filter.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -81,20 +82,31 @@ export const semgrepAgent: ReviewAgent = {
     try {
       const agentEnv = buildAgentEnv('semgrep', context.env);
 
-      // Build file list for Semgrep
+      // Build file list for Semgrep and filter for safe paths
       const filePaths = supportedFiles.map((f) => f.path);
+      const { safePaths } = filterSafePaths(filePaths, 'semgrep');
 
-      // Run Semgrep with auto config
-      const result = execSync(
-        `semgrep scan --config=auto --json ${filePaths.map((p) => `"${p}"`).join(' ')}`,
-        {
-          cwd: context.repoPath,
-          encoding: 'utf-8',
-          maxBuffer: 50 * 1024 * 1024,
-          timeout: 300000, // 5 minute timeout
-          env: agentEnv,
-        }
-      );
+      if (safePaths.length === 0) {
+        return {
+          agentId: this.id,
+          success: true,
+          findings: [],
+          metrics: {
+            durationMs: Date.now() - startTime,
+            filesProcessed: 0,
+          },
+        };
+      }
+
+      // Run Semgrep with auto config - shell-free execution
+      const result = execFileSync('semgrep', ['scan', '--config=auto', '--json', ...safePaths], {
+        cwd: context.repoPath,
+        encoding: 'utf-8',
+        shell: false, // Critical: no shell interpretation
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 300000, // 5 minute timeout
+        env: agentEnv,
+      });
 
       const parsed = JSON.parse(result) as SemgrepResult;
 

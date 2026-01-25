@@ -35,8 +35,10 @@ describe('ADO Line Validation Integration', () => {
     },
   ];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseConfig: any = {
+  const baseConfig = {
+    version: 1,
+    trusted_only: true,
+    triggers: { on: ['pull_request'] as const, branches: ['main'] },
     passes: [],
     path_filters: {},
     limits: {
@@ -48,18 +50,18 @@ describe('ADO Line Validation Integration', () => {
     },
     gating: {
       enabled: false,
-      fail_on_severity: 'error',
+      fail_on_severity: 'error' as const,
     },
     reporting: {
       ado: {
-        mode: 'threads_and_status',
+        mode: 'threads_and_status' as const,
         max_inline_comments: 20,
-        thread_status: 'active',
+        thread_status: 'active' as const,
         summary: true,
       },
     },
     models: {},
-  };
+  } satisfies Config;
 
   const baseContext: ADOContext = {
     organization: 'test-org',

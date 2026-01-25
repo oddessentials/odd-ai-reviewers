@@ -16,7 +16,7 @@ describe('sanitizeDiffForLLM', () => {
       const files: DiffFile[] = [
         { path: 'test.ts', status: 'modified', additions: 1, deletions: 1 },
       ];
-      const diff = 'GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz123456';
+      const diff = 'GITHUB_TOKEN=ghp_FAKE_TEST_TOKEN_0000000000000000000000';
 
       const result = sanitizeDiffForLLM(files, diff);
 
@@ -291,6 +291,21 @@ describe('localLlmAgent', () => {
     });
 
     it('should fail when input exceeds token limit', async () => {
+      // Mock fetch to let warmup pass - token limit is checked after warmup
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => ({
+              done: true,
+              value: new TextEncoder().encode(
+                JSON.stringify({ response: '{"ping":"ok"}', done: true }) + '\n'
+              ),
+            }),
+          }),
+        },
+      });
+
       const context: AgentContext = {
         repoPath: '/repo',
         diff: {

@@ -1,0 +1,43 @@
+# Dependabot configuration for weekly dependency updates
+# Per Flight 2 requirements: automate third-party dependency updates
+
+version: 2
+updates:
+  # Node.js dependencies
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/New_York'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'oddessentials'
+    labels:
+      - 'dependencies'
+      - 'automated'
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      # Group minor/patch updates to reduce PR spam
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Keep major updates separate for careful review
+      # (they auto-generate individual PRs)
+
+  # GitHub Actions dependencies
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    commit-message:
+      prefix: 'chore(ci)'
+    labels:
+      - 'dependencies'
+      - 'ci'

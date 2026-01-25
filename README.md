@@ -3,6 +3,11 @@
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
+[![Code Style: Prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)](https://prettier.io/)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
+[![Security: Trivy](https://img.shields.io/badge/security-trivy-blueviolet)](https://trivy.dev/)
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
 
@@ -150,7 +155,7 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 
 ### Using with GitHub
 
-- [GitHub Setup Guide](docs/GITHUB-SETUP.md) — Complete setup instructions
+- [GitHub Setup Guide](docs/github-setup.md) — Complete setup instructions
 - [Configuration Schema](docs/config-schema.md) — All YAML options
 
 ### Using with Azure DevOps
@@ -168,12 +173,12 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 ### Controlling Which Agents Run
 
 - [Configuration Schema](docs/config-schema.md) — Passes, agents, limits
-- [Cost Controls](docs/COST-CONTROLS.md) — Budget management
+- [Cost Controls](docs/cost-controls.md) — Budget management
 
 ### Architecture & Security
 
 - [Architecture](docs/ARCHITECTURE.md) — Execution flow diagrams
-- [Security Model](docs/SECURITY.md) — Trust model and threat mitigation
+- [Security Model](docs/security.md) — Trust model and threat mitigation
 - [Invariants](docs/INVARIANTS.md) — Non-negotiable design constraints
 - [Scope](docs/SCOPE.md) — What this project does and doesn't do
 

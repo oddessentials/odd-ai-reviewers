@@ -4,19 +4,19 @@
  * Includes deduplication and throttling
  */
 
-import type { Finding, Severity } from '../agents/index.js';
+import type { Finding, Severity } from '../agents/types.js';
 import type { Config } from '../config.js';
 import {
   deduplicateFindings,
   sortFindings,
   generateSummaryMarkdown,
   countBySeverity,
-  buildFingerprintMarker,
   extractFingerprintMarkers,
   getDedupeKey,
 } from './formats.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
+import { delay, INLINE_COMMENT_DELAY_MS, formatInlineComment } from './base.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -57,16 +57,6 @@ export interface ReportResult {
   validationStats?: ValidationStats;
   /** Details about findings with invalid lines */
   invalidLineDetails?: InvalidLineDetail[];
-}
-
-/** Delay between inline comments to avoid spam (ms) */
-const INLINE_COMMENT_DELAY_MS = 100;
-
-/**
- * Delay helper for rate limiting
- */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -463,24 +453,4 @@ function toADOThreadContext(finding: Finding): {
     rightFileStart: { line: finding.line, offset: 1 },
     rightFileEnd: { line: finding.endLine ?? finding.line, offset: 1 },
   };
-}
-
-/**
- * Format a finding as an inline comment
- */
-function formatInlineComment(finding: Finding): string {
-  const emoji = finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
-  const lines = [`${emoji} **${finding.sourceAgent}**: ${finding.message}`];
-
-  if (finding.ruleId) {
-    lines.push(`\n*Rule: \`${finding.ruleId}\`*`);
-  }
-
-  if (finding.suggestion) {
-    lines.push(`\n💡 **Suggestion**: ${finding.suggestion}`);
-  }
-
-  lines.push(`\n\n${buildFingerprintMarker(finding)}`);
-
-  return lines.join('');
 }

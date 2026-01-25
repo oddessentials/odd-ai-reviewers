@@ -13,21 +13,21 @@ const mockIssuesListComments = vi.fn();
 
 // Mock Octokit - vi.mock is hoisted to the top
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn(() => ({
-    checks: {
+  Octokit: class MockOctokit {
+    checks = {
       create: mockChecksCreate,
       update: mockChecksUpdate,
-    },
-    issues: {
+    };
+    issues = {
       listComments: mockIssuesListComments,
       createComment: vi.fn().mockResolvedValue({ data: { id: 1 } }),
       updateComment: vi.fn().mockResolvedValue({ data: { id: 1 } }),
-    },
-    pulls: {
+    };
+    pulls = {
       listReviewComments: vi.fn().mockResolvedValue({ data: [] }),
       createReviewComment: vi.fn().mockResolvedValue({ data: { id: 1 } }),
-    },
-  })),
+    };
+  },
 }));
 
 // Dynamic import after mock is set up

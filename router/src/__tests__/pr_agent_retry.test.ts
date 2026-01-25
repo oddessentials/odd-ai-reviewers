@@ -5,6 +5,11 @@
 import { describe, it, expect } from 'vitest';
 import OpenAI from 'openai';
 
+// Helper to create mock headers (OpenAI 6 uses native Headers)
+function mockHeaders(): Headers {
+  return new Headers();
+}
+
 // We need to test the retry logic functions.
 // Since they're internal to pr_agent.ts, we'll test them via the module.
 // For now, we create a test file that verifies the retry behavior patterns.
@@ -13,13 +18,23 @@ describe('PR-Agent Retry Classification', () => {
   describe('getRetryDelayMs behavior (via error types)', () => {
     it('should treat RateLimitError as retryable with extended backoff', () => {
       // RateLimitError (429) should be retried with longer delay
-      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit exceeded' }, '', {});
+      const error = new OpenAI.RateLimitError(
+        429,
+        { message: 'Rate limit exceeded' },
+        '',
+        mockHeaders()
+      );
       expect(error).toBeInstanceOf(OpenAI.RateLimitError);
     });
 
     it('should treat InternalServerError as retryable', () => {
       // 5xx errors should be retried
-      const error = new OpenAI.InternalServerError(500, { message: 'Server error' }, '', {});
+      const error = new OpenAI.InternalServerError(
+        500,
+        { message: 'Server error' },
+        '',
+        mockHeaders()
+      );
       expect(error).toBeInstanceOf(OpenAI.InternalServerError);
     });
 
@@ -31,25 +46,40 @@ describe('PR-Agent Retry Classification', () => {
 
     it('should treat AuthenticationError as non-retryable', () => {
       // 401 should not be retried
-      const error = new OpenAI.AuthenticationError(401, { message: 'Invalid API key' }, '', {});
+      const error = new OpenAI.AuthenticationError(
+        401,
+        { message: 'Invalid API key' },
+        '',
+        mockHeaders()
+      );
       expect(error).toBeInstanceOf(OpenAI.AuthenticationError);
     });
 
     it('should treat BadRequestError as non-retryable', () => {
       // 400 should not be retried
-      const error = new OpenAI.BadRequestError(400, { message: 'Invalid request' }, '', {});
+      const error = new OpenAI.BadRequestError(
+        400,
+        { message: 'Invalid request' },
+        '',
+        mockHeaders()
+      );
       expect(error).toBeInstanceOf(OpenAI.BadRequestError);
     });
 
     it('should treat NotFoundError as non-retryable', () => {
       // 404 should not be retried
-      const error = new OpenAI.NotFoundError(404, { message: 'Not found' }, '', {});
+      const error = new OpenAI.NotFoundError(404, { message: 'Not found' }, '', mockHeaders());
       expect(error).toBeInstanceOf(OpenAI.NotFoundError);
     });
 
     it('should treat PermissionDeniedError as non-retryable', () => {
       // 403 should not be retried
-      const error = new OpenAI.PermissionDeniedError(403, { message: 'Permission denied' }, '', {});
+      const error = new OpenAI.PermissionDeniedError(
+        403,
+        { message: 'Permission denied' },
+        '',
+        mockHeaders()
+      );
       expect(error).toBeInstanceOf(OpenAI.PermissionDeniedError);
     });
   });
@@ -57,7 +87,7 @@ describe('PR-Agent Retry Classification', () => {
   describe('Retry-After header parsing', () => {
     it('RateLimitError should have headers property for Retry-After', () => {
       // Verify the error structure allows headers
-      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit' }, '', {});
+      const error = new OpenAI.RateLimitError(429, { message: 'Rate limit' }, '', mockHeaders());
       // The headers property exists on the error
       expect(error).toHaveProperty('status', 429);
     });

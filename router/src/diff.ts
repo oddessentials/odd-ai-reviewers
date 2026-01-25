@@ -5,6 +5,7 @@
 
 import { execSync } from 'child_process';
 import { minimatch } from 'minimatch';
+import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 
 export interface DiffFile {
   /** File path relative to repo root (normalized - no a/, b/, ./, / prefixes) */
@@ -94,6 +95,10 @@ export interface NumstatParseResult {
  * @returns Resolved SHA or original ref if already valid
  */
 export function normalizeGitRef(repoPath: string, ref: string): string {
+  // Validate inputs before shell execution (defense-in-depth)
+  assertSafeRepoPath(repoPath);
+  assertSafeGitRef(ref, 'ref');
+
   // First, try to resolve the ref directly
   try {
     const resolved = execSync(`git rev-parse --verify "${ref}"`, {
@@ -146,6 +151,12 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
  * Includes hard guards for early failure on suspicious output.
  */
 export function getDiff(repoPath: string, baseSha: string, headSha: string): DiffSummary {
+  // Validate inputs before any shell execution (defense-in-depth)
+  // Note: normalizeGitRef also validates, but we validate early for clear error messages
+  assertSafeRepoPath(repoPath);
+  assertSafeGitRef(baseSha, 'baseSha');
+  assertSafeGitRef(headSha, 'headSha');
+
   // Normalize refs to handle ADO's refs/heads/* format
   const normalizedBase = normalizeGitRef(repoPath, baseSha);
   const normalizedHead = normalizeGitRef(repoPath, headSha);
@@ -202,6 +213,14 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       // Defensive: verify path is safe before executing git command
       const safePath = file.path?.trim();
       if (!safePath || safePath.length === 0) continue;
+
+      // Validate path before shell execution (defense-in-depth)
+      try {
+        assertSafePath(safePath, 'file path');
+      } catch {
+        console.warn(`[diff] Skipping file with unsafe path characters: ${safePath.slice(0, 50)}`);
+        continue;
+      }
 
       try {
         file.patch = execSync(
