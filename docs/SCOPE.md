@@ -48,7 +48,7 @@ This document defines what odd-ai-reviewers **is** and **is not**, preventing sc
 | Provider         | Status      | Reporter           | Pipeline Template                 |
 | ---------------- | ----------- | ------------------ | --------------------------------- |
 | **GitHub**       | ✅ Complete | `report/github.ts` | `.github/workflows/ai-review.yml` |
-| **Azure DevOps** | 🔴 Roadmap  | Not implemented    | Stub only                         |
+| **Azure DevOps** | ✅ Complete | `report/ado.ts`    | `templates/ado/`                  |
 | **GitLab**       | ⚪ Future   | Not planned        | —                                 |
 | **Gitea**        | ⚪ Future   | Not planned        | —                                 |
 
@@ -59,5 +59,5 @@ See [ROADMAP.md](./ROADMAP.md) for Azure DevOps implementation details.
 ## Related Documentation
 
 - [INVARIANTS.md](./INVARIANTS.md) — Non-negotiable design constraints
-- [SECURITY.md](./SECURITY.md) — Security model and trust boundaries
+- [security.md](./security.md) — Security model and trust boundaries
 - [OSCR-INTEGRATION.md](./OSCR-INTEGRATION.md) — Self-hosted CI integration

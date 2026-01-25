@@ -30,25 +30,55 @@ const DocsViewer = {
   // Icons
   icons: {
     markdown: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+    folder: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
+    folderOpen: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v1"></path><path d="M4 10h16l-3 9H7l-3-9z"></path></svg>`,
     compare: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"></rect><rect x="14" y="3" width="7" height="18" rx="1"></rect></svg>`,
     close: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
   },
 
-  // Build file tree
+  // Build file tree with folder support
   buildTree(items, parentUl, paneId = 'primary') {
-    items.sort((a, b) => a.name.localeCompare(b.name));
-
     for (const item of items) {
       const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'file-link';
-      a.innerHTML = `${this.icons.markdown}<span class="name">${item.name}</span>`;
-      a.onclick = (e) => {
-        e.preventDefault();
-        this.loadFile(item.name, paneId);
-      };
-      li.appendChild(a);
+
+      if (item.type === 'folder') {
+        // Create folder item with expand/collapse
+        li.className = 'folder-item';
+        const folderHeader = document.createElement('a');
+        folderHeader.href = '#';
+        folderHeader.className = 'folder-link';
+        folderHeader.innerHTML = `${this.icons.folder}<span class="name">${item.name}</span>`;
+
+        const childUl = document.createElement('ul');
+        childUl.className = 'folder-children';
+        childUl.style.display = 'none';
+
+        folderHeader.onclick = (e) => {
+          e.preventDefault();
+          const isOpen = childUl.style.display !== 'none';
+          childUl.style.display = isOpen ? 'none' : 'block';
+          folderHeader.innerHTML = `${isOpen ? this.icons.folder : this.icons.folderOpen}<span class="name">${item.name}</span>`;
+          li.classList.toggle('open', !isOpen);
+        };
+
+        li.appendChild(folderHeader);
+        if (item.children && item.children.length > 0) {
+          this.buildTree(item.children, childUl, paneId);
+        }
+        li.appendChild(childUl);
+      } else {
+        // Create file item
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'file-link';
+        a.innerHTML = `${this.icons.markdown}<span class="name">${item.name}</span>`;
+        a.onclick = (e) => {
+          e.preventDefault();
+          this.loadFile(item.name, paneId);
+        };
+        li.appendChild(a);
+      }
+
       parentUl.appendChild(li);
     }
   },
@@ -315,8 +345,12 @@ const DocsViewer = {
         return false;
       }
       const manifest = await response.json();
+      // Use tree structure for v2+ manifests, fall back to flat files
+      this.manifestTree = manifest.tree || null;
       this.fileTree = manifest.files || [];
-      console.log(`Loaded ${this.fileTree.length} documentation files from manifest`);
+      console.log(
+        `Loaded ${this.fileTree.length} documentation files from manifest (v${manifest.version || 1})`
+      );
       return true;
     } catch (error) {
       console.error('Error loading manifest:', error);
@@ -347,7 +381,9 @@ const DocsViewer = {
     }
 
     const primaryTree = document.getElementById('tree-primary');
-    this.buildTree(this.fileTree, primaryTree, 'primary');
+    // Use tree structure if available, otherwise fall back to flat files
+    const treeData = this.manifestTree || this.fileTree;
+    this.buildTree(treeData, primaryTree, 'primary');
 
     const compareBtn = document.getElementById('compare-btn');
     compareBtn.onclick = () => this.toggleCompareMode();

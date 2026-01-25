@@ -225,6 +225,6 @@ flowchart TD
 ## Related Documentation
 
 - [Configuration Schema](./config-schema.md) — All YAML options
-- [Security Model](./SECURITY.md) — Trust boundaries and threat model
+- [Security Model](./security.md) — Trust boundaries and threat model
 - [Invariants](./INVARIANTS.md) — Non-negotiable design constraints
 - [Scope](./SCOPE.md) — What this project does and doesn't do
