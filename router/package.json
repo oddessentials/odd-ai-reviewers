@@ -13,7 +13,9 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
+    "test:ci:coverage": "vitest run --coverage --reporter=json --outputFile=test-results.json",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "22.10.7",
+    "@vitest/coverage-v8": "4.0.18",
     "typescript": "5.7.3",
     "vitest": "^4.0.0"
   },
