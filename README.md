@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/YOUR_COVERAGE_GIST_ID/raw/coverage.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
@@ -212,11 +213,13 @@ graph LR
 ## Development
 
 ```bash
-npm install        # Install dependencies
-npm run build      # Build the router
-npm test           # Run tests
-npm run lint       # Check linting
-npm run format     # Format code
+npm install                           # Install dependencies
+npm run build                         # Build the router
+npm test                              # Run tests
+npm run test:coverage --workspace=router  # Run tests with coverage
+npm run lint                          # Check linting
+npm run format                        # Format code
+npm run verify                        # Run all quality gates
 ```
 
 ---
@@ -225,7 +228,7 @@ npm run format     # Format code
 
 | Platform       | Status      | Documentation                        |
 | -------------- | ----------- | ------------------------------------ |
-| GitHub Actions | ✅ Complete | [GitHub Setup](docs/GITHUB-SETUP.md) |
+| GitHub Actions | ✅ Complete | [GitHub Setup](docs/github-setup.md) |
 | Azure DevOps   | ✅ Complete | [ADO Setup](docs/ADO-SETUP.md)       |
 | GitLab CI      | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
 | Gitea Actions  | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
