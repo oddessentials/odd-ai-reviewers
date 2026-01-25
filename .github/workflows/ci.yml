@@ -103,7 +103,7 @@ jobs:
         run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .
 
       - name: Trivy scan (HIGH,CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: odd-ai-reviewers-router:ci
           format: table
