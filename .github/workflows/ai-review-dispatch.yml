@@ -36,10 +36,10 @@ jobs:
 
     steps:
       - name: Checkout review router
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout target repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ inputs.target_repo }}
           ref: ${{ inputs.target_ref }}
