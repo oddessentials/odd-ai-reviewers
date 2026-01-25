@@ -166,4 +166,4 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 - [OSCR Integration](./OSCR-INTEGRATION.md) — Self-hosted CI overview
 - [Model Provisioning](./MODEL-PROVISIONING.md) — Air-gap deployment
 - [Configuration Schema](./config-schema.md) — All YAML options
-- [Security Model](./SECURITY.md) — Trust boundaries
+- [Security Model](./security.md) — Trust boundaries

@@ -181,4 +181,4 @@ Check spending at your LLM provider:
 
 - [Configuration Schema](./config-schema.md) — All limits and options
 - [Local LLM Setup](./LOCAL-LLM-SETUP.md) — Compute-only alternative
-- [Security Model](./SECURITY.md) — Trust boundaries
+- [Security Model](./security.md) — Trust boundaries

@@ -1,8 +1,10 @@
 /**
  * Generate Docs Manifest
  *
- * Scans the /docs directory for markdown files and generates a manifest.json
+ * Scans the /docs directory recursively for markdown files and generates a manifest.json
  * that the docs viewer uses for dynamic file discovery.
+ *
+ * Supports nested directories for organized documentation structure.
  *
  * Usage: node scripts/generate-docs-manifest.cjs
  */
@@ -17,33 +19,50 @@ const MANIFEST_PATH = path.join(VIEWER_DIR, 'manifest.json');
 // Files/directories to exclude from the manifest
 const EXCLUDE = new Set(['index.html', 'viewer']);
 
-function scanDocsDirectory() {
-  const entries = fs.readdirSync(DOCS_DIR, { withFileTypes: true });
-  const markdownFiles = [];
+/**
+ * Recursively scan a directory for markdown files
+ * @param {string} dir - Directory to scan
+ * @param {string} relativePath - Relative path from docs root (for nested folders)
+ * @returns {Array} Array of file objects
+ */
+function scanDirectory(dir, relativePath = '') {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const files = [];
 
   for (const entry of entries) {
-    // Skip directories and excluded files
-    if (entry.isDirectory()) continue;
+    // Skip excluded items
     if (EXCLUDE.has(entry.name)) continue;
 
-    // Only include markdown files
-    if (entry.name.endsWith('.md')) {
-      markdownFiles.push({
+    const fullPath = path.join(dir, entry.name);
+    const itemRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+    if (entry.isDirectory()) {
+      // Recursively scan subdirectories
+      const nestedFiles = scanDirectory(fullPath, itemRelativePath);
+      files.push(...nestedFiles);
+    } else if (entry.name.endsWith('.md')) {
+      // Add markdown file to manifest
+      // Calculate path relative to viewer directory (which is in /docs/viewer)
+      const pathFromViewer = relativePath ? `../${relativePath}/${entry.name}` : `../${entry.name}`;
+
+      files.push({
         name: entry.name,
         type: 'file',
-        path: `../${entry.name}`,
+        path: pathFromViewer,
+        // Include folder info for nested files (useful for future categorization)
+        ...(relativePath && { folder: relativePath }),
       });
     }
   }
 
-  // Sort alphabetically for consistent ordering
-  markdownFiles.sort((a, b) => a.name.localeCompare(b.name));
-
-  return markdownFiles;
+  return files;
 }
 
 function generateManifest() {
-  const files = scanDocsDirectory();
+  const files = scanDirectory(DOCS_DIR);
+
+  // Sort alphabetically by name for consistent ordering
+  files.sort((a, b) => a.name.localeCompare(b.name));
 
   const manifest = {
     version: 1,
@@ -58,7 +77,8 @@ function generateManifest() {
   // List the files for verification
   console.log('\nFiles included:');
   for (const file of files) {
-    console.log(`  - ${file.name}`);
+    const prefix = file.folder ? `  [${file.folder}]` : '';
+    console.log(`  - ${prefix}${file.name}`);
   }
 }
 

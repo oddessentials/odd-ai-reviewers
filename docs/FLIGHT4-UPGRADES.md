@@ -1,18 +1,18 @@
 # Flight 4: Major Version Upgrades
 
-> **Status**: Planning Complete — Awaiting Dedicated Testing Window
+> **Status: ✅ ALL UPGRADES COMPLETE** (January 2026)
 
-This document tracks the deferred major version upgrades that require dedicated testing due to breaking API changes.
+This document tracked the major version upgrades that required dedicated testing. All upgrades have been successfully completed.
 
 ---
 
 ## Overview
 
-| Package | Current | Target | Complexity | Status     |
-| ------- | ------- | ------ | ---------- | ---------- |
-| vitest  | 2.1.8   | 4.x    | Low        | 🟡 Planned |
-| openai  | 4.77.0  | 6.x    | Medium     | 🟡 Planned |
-| zod     | 3.24.1  | 4.x    | Low-Medium | 🟡 Planned |
+| Package | Previous | Current | Complexity | Status      |
+| ------- | -------- | ------- | ---------- | ----------- |
+| vitest  | 2.1.8    | 4.0.x   | Low        | ✅ Complete |
+| openai  | 4.77.0   | 6.0.x   | Medium     | ✅ Complete |
+| zod     | 3.24.1   | 4.0.x   | Low-Medium | ✅ Complete |
 
 ---
 
