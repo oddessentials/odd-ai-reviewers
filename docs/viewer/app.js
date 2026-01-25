@@ -1,6 +1,15 @@
 /**
  * Docs Viewer - AI Reviewers Documentation Tool
  * A secure, GitHub Pages-compatible viewer for project documentation.
+ *
+ * SECURITY MODEL:
+ * 1. File Allowlist: Only files listed in manifest.json can be loaded.
+ *    The manifest is generated at build time by a trusted script.
+ * 2. Content Sanitization: All markdown content is sanitized via DOMPurify
+ *    before rendering, with a strict allowlist of tags and attributes.
+ * 3. Safe DOM Construction: File tree and UI elements use textContent and
+ *    DOM APIs instead of innerHTML to prevent XSS from manifest data.
+ * 4. CSP Headers: Content Security Policy in index.html restricts scripts.
  */
 
 const DocsViewer = {
@@ -36,6 +45,48 @@ const DocsViewer = {
     close: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
   },
 
+  // Cached parsed icon elements for safe reuse (populated on first use)
+  iconElements: null,
+
+  /**
+   * Parse icon SVG strings into DOM elements once, then clone for reuse.
+   * SECURITY: Avoids innerHTML by parsing trusted static strings once.
+   */
+  parseIcons() {
+    const parser = new DOMParser();
+    this.iconElements = {};
+    for (const [name, svg] of Object.entries(this.icons)) {
+      const doc = parser.parseFromString(svg, 'image/svg+xml');
+      this.iconElements[name] = doc.documentElement;
+    }
+  },
+
+  /**
+   * Create a clone of a named icon for safe DOM insertion.
+   * @param {string} name - Icon name from this.icons
+   * @returns {Element} Cloned SVG element
+   */
+  createIcon(name) {
+    if (!this.iconElements) this.parseIcons();
+    return this.iconElements[name].cloneNode(true);
+  },
+
+  /**
+   * Safely set link content with icon and text.
+   * SECURITY: Uses textContent for the name to prevent XSS.
+   * @param {Element} link - The anchor element
+   * @param {string} iconName - Icon name from this.icons
+   * @param {string} text - Text content for the name span
+   */
+  setLinkContent(link, iconName, text) {
+    link.innerHTML = '';
+    link.appendChild(this.createIcon(iconName));
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'name';
+    nameSpan.textContent = text;
+    link.appendChild(nameSpan);
+  },
+
   // Build file tree with folder support
   buildTree(items, parentUl, paneId = 'primary') {
     for (const item of items) {
@@ -47,7 +98,7 @@ const DocsViewer = {
         const folderHeader = document.createElement('a');
         folderHeader.href = '#';
         folderHeader.className = 'folder-link';
-        folderHeader.innerHTML = `${this.icons.folder}<span class="name">${item.name}</span>`;
+        this.setLinkContent(folderHeader, 'folder', item.name);
 
         const childUl = document.createElement('ul');
         childUl.className = 'folder-children';
@@ -57,7 +108,7 @@ const DocsViewer = {
           e.preventDefault();
           const isOpen = childUl.style.display !== 'none';
           childUl.style.display = isOpen ? 'none' : 'block';
-          folderHeader.innerHTML = `${isOpen ? this.icons.folder : this.icons.folderOpen}<span class="name">${item.name}</span>`;
+          this.setLinkContent(folderHeader, isOpen ? 'folder' : 'folderOpen', item.name);
           li.classList.toggle('open', !isOpen);
         };
 
@@ -71,7 +122,7 @@ const DocsViewer = {
         const a = document.createElement('a');
         a.href = '#';
         a.className = 'file-link';
-        a.innerHTML = `${this.icons.markdown}<span class="name">${item.name}</span>`;
+        this.setLinkContent(a, 'markdown', item.name);
         a.onclick = (e) => {
           e.preventDefault();
           this.loadFile(item.name, paneId);
@@ -183,7 +234,12 @@ const DocsViewer = {
       return true;
     } catch (error) {
       console.error(error);
-      bodyDiv.innerHTML = `<div class="error">Error loading ${fileId}.</div>`;
+      // SECURITY: Use textContent for fileId to prevent XSS
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error';
+      errorDiv.textContent = `Error loading ${fileId}.`;
+      bodyDiv.innerHTML = '';
+      bodyDiv.appendChild(errorDiv);
       return false;
     }
   },
@@ -260,7 +316,7 @@ const DocsViewer = {
     if (this.state.compareMode) {
       viewer.classList.add('compare-mode');
       btn.classList.add('active');
-      btn.innerHTML = `${this.icons.close}<span>Exit Compare</span>`;
+      this.setLinkContent(btn, 'close', 'Exit Compare');
 
       const secondaryTree = document.getElementById('tree-secondary');
       if (secondaryTree && secondaryTree.children.length === 0) {
@@ -269,7 +325,7 @@ const DocsViewer = {
     } else {
       viewer.classList.remove('compare-mode');
       btn.classList.remove('active');
-      btn.innerHTML = `${this.icons.compare}<span>Compare</span>`;
+      this.setLinkContent(btn, 'compare', 'Compare');
       this.state.compareFile = null;
     }
 
