@@ -1,6 +1,15 @@
 /**
  * Docs Viewer - AI Reviewers Documentation Tool
  * A secure, GitHub Pages-compatible viewer for project documentation.
+ *
+ * SECURITY MODEL:
+ * 1. File Allowlist: Only files listed in manifest.json can be loaded.
+ *    The manifest is generated at build time by a trusted script.
+ * 2. Content Sanitization: All markdown content is sanitized via DOMPurify
+ *    before rendering, with a strict allowlist of tags and attributes.
+ * 3. Safe DOM Construction: File tree and UI elements use textContent and
+ *    DOM APIs instead of innerHTML to prevent XSS from manifest data.
+ * 4. CSP Headers: Content Security Policy in index.html restricts scripts.
  */
 
 const DocsViewer = {
@@ -30,25 +39,97 @@ const DocsViewer = {
   // Icons
   icons: {
     markdown: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+    folder: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
+    folderOpen: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v1"></path><path d="M4 10h16l-3 9H7l-3-9z"></path></svg>`,
     compare: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"></rect><rect x="14" y="3" width="7" height="18" rx="1"></rect></svg>`,
     close: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
   },
 
-  // Build file tree
-  buildTree(items, parentUl, paneId = 'primary') {
-    items.sort((a, b) => a.name.localeCompare(b.name));
+  // Cached parsed icon elements for safe reuse (populated on first use)
+  iconElements: null,
 
+  /**
+   * Parse icon SVG strings into DOM elements once, then clone for reuse.
+   * SECURITY: Avoids innerHTML by parsing trusted static strings once.
+   */
+  parseIcons() {
+    const parser = new DOMParser();
+    this.iconElements = {};
+    for (const [name, svg] of Object.entries(this.icons)) {
+      const doc = parser.parseFromString(svg, 'image/svg+xml');
+      this.iconElements[name] = doc.documentElement;
+    }
+  },
+
+  /**
+   * Create a clone of a named icon for safe DOM insertion.
+   * @param {string} name - Icon name from this.icons
+   * @returns {Element} Cloned SVG element
+   */
+  createIcon(name) {
+    if (!this.iconElements) this.parseIcons();
+    return this.iconElements[name].cloneNode(true);
+  },
+
+  /**
+   * Safely set link content with icon and text.
+   * SECURITY: Uses textContent for the name to prevent XSS.
+   * @param {Element} link - The anchor element
+   * @param {string} iconName - Icon name from this.icons
+   * @param {string} text - Text content for the name span
+   */
+  setLinkContent(link, iconName, text) {
+    link.innerHTML = '';
+    link.appendChild(this.createIcon(iconName));
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'name';
+    nameSpan.textContent = text;
+    link.appendChild(nameSpan);
+  },
+
+  // Build file tree with folder support
+  buildTree(items, parentUl, paneId = 'primary') {
     for (const item of items) {
       const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'file-link';
-      a.innerHTML = `${this.icons.markdown}<span class="name">${item.name}</span>`;
-      a.onclick = (e) => {
-        e.preventDefault();
-        this.loadFile(item.name, paneId);
-      };
-      li.appendChild(a);
+
+      if (item.type === 'folder') {
+        // Create folder item with expand/collapse
+        li.className = 'folder-item';
+        const folderHeader = document.createElement('a');
+        folderHeader.href = '#';
+        folderHeader.className = 'folder-link';
+        this.setLinkContent(folderHeader, 'folder', item.name);
+
+        const childUl = document.createElement('ul');
+        childUl.className = 'folder-children';
+        childUl.style.display = 'none';
+
+        folderHeader.onclick = (e) => {
+          e.preventDefault();
+          const isOpen = childUl.style.display !== 'none';
+          childUl.style.display = isOpen ? 'none' : 'block';
+          this.setLinkContent(folderHeader, isOpen ? 'folder' : 'folderOpen', item.name);
+          li.classList.toggle('open', !isOpen);
+        };
+
+        li.appendChild(folderHeader);
+        if (item.children && item.children.length > 0) {
+          this.buildTree(item.children, childUl, paneId);
+        }
+        li.appendChild(childUl);
+      } else {
+        // Create file item
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'file-link';
+        this.setLinkContent(a, 'markdown', item.name);
+        a.onclick = (e) => {
+          e.preventDefault();
+          this.loadFile(item.name, paneId);
+        };
+        li.appendChild(a);
+      }
+
       parentUl.appendChild(li);
     }
   },
@@ -153,7 +234,12 @@ const DocsViewer = {
       return true;
     } catch (error) {
       console.error(error);
-      bodyDiv.innerHTML = `<div class="error">Error loading ${fileId}.</div>`;
+      // SECURITY: Use textContent for fileId to prevent XSS
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error';
+      errorDiv.textContent = `Error loading ${fileId}.`;
+      bodyDiv.innerHTML = '';
+      bodyDiv.appendChild(errorDiv);
       return false;
     }
   },
@@ -230,7 +316,7 @@ const DocsViewer = {
     if (this.state.compareMode) {
       viewer.classList.add('compare-mode');
       btn.classList.add('active');
-      btn.innerHTML = `${this.icons.close}<span>Exit Compare</span>`;
+      this.setLinkContent(btn, 'close', 'Exit Compare');
 
       const secondaryTree = document.getElementById('tree-secondary');
       if (secondaryTree && secondaryTree.children.length === 0) {
@@ -239,7 +325,7 @@ const DocsViewer = {
     } else {
       viewer.classList.remove('compare-mode');
       btn.classList.remove('active');
-      btn.innerHTML = `${this.icons.compare}<span>Compare</span>`;
+      this.setLinkContent(btn, 'compare', 'Compare');
       this.state.compareFile = null;
     }
 
@@ -315,8 +401,12 @@ const DocsViewer = {
         return false;
       }
       const manifest = await response.json();
+      // Use tree structure for v2+ manifests, fall back to flat files
+      this.manifestTree = manifest.tree || null;
       this.fileTree = manifest.files || [];
-      console.log(`Loaded ${this.fileTree.length} documentation files from manifest`);
+      console.log(
+        `Loaded ${this.fileTree.length} documentation files from manifest (v${manifest.version || 1})`
+      );
       return true;
     } catch (error) {
       console.error('Error loading manifest:', error);
@@ -347,7 +437,9 @@ const DocsViewer = {
     }
 
     const primaryTree = document.getElementById('tree-primary');
-    this.buildTree(this.fileTree, primaryTree, 'primary');
+    // Use tree structure if available, otherwise fall back to flat files
+    const treeData = this.manifestTree || this.fileTree;
+    this.buildTree(treeData, primaryTree, 'primary');
 
     const compareBtn = document.getElementById('compare-btn');
     compareBtn.onclick = () => this.toggleCompareMode();

@@ -38,11 +38,11 @@ POST https://dev.azure.com/{org}/{project}/_apis/git/repositories/{repo}/pullReq
 
 ### Requirements
 
-- [ ] Create `ado.ts` reporter module
-- [ ] Use Azure DevOps REST API for PR threads
-- [ ] Support inline comments (position-based)
-- [ ] Create pipeline status as check
-- [ ] Handle ADO-specific auth:
+- [x] Create `ado.ts` reporter module
+- [x] Use Azure DevOps REST API for PR threads
+- [x] Support inline comments (position-based)
+- [x] Create pipeline status as check
+- [x] Handle ADO-specific auth:
   - Personal Access Token (PAT)
   - Managed Identity (Azure Pipelines)
   - System.AccessToken
@@ -68,11 +68,11 @@ Complete `templates/ado/ai-review-template.yml` (currently stub)
 
 ### Requirements
 
-- [ ] Extend Azure Pipeline YAML template
-- [ ] Variable groups for secrets (`OPENAI_API_KEY`, etc.)
-- [ ] Agent pool compatibility (`ubuntu-latest`, self-hosted)
-- [ ] Service connection for cross-repo checkout
-- [ ] Semgrep installation step
+- [x] Extend Azure Pipeline YAML template
+- [x] Variable groups for secrets (`OPENAI_API_KEY`, etc.)
+- [x] Agent pool compatibility (`ubuntu-latest`, self-hosted)
+- [x] Service connection for cross-repo checkout
+- [x] Semgrep installation step
 
 ### Example Usage
 

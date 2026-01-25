@@ -9,6 +9,8 @@
 [![Code Style: Prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)](https://prettier.io/)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 [![Security: Trivy](https://img.shields.io/badge/security-trivy-blueviolet)](https://trivy.dev/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/oddessentials/odd-ai-reviewers/pulls)
+[![Last Commit](https://img.shields.io/github/last-commit/oddessentials/odd-ai-reviewers)](https://github.com/oddessentials/odd-ai-reviewers/commits/main)
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
 
@@ -162,7 +164,7 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 ### Using with Azure DevOps
 
 - [Azure DevOps Setup Guide](docs/ADO-SETUP.md) — Complete setup instructions
-- [ADO + OSCR Free Example](examples/ado-oscr-free.md) — Free tier with Ollama
+- [ADO + OSCR Free Example](docs/examples/ado-oscr-free.md) — Free tier with Ollama
 - [Roadmap](docs/ROADMAP.md) — Platform support status
 
 ### Using with OSCR (Self-Hosted CI)

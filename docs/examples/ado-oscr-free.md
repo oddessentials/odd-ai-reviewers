@@ -6,7 +6,7 @@
 
 Before using this example, ensure:
 
-1. **Build Service has PR permissions** — Grant "Contribute to pull requests" to your Build Service. See [ADO Setup Guide](../docs/ADO-SETUP.md#4-configure-repository-permissions).
+1. **Build Service has PR permissions** — Grant "Contribute to pull requests" to your Build Service. See [ADO Setup Guide](../ADO-SETUP.md#4-configure-repository-permissions).
 2. **OSCR agent with `ai-review` capability** — Your self-hosted agent needs the Ollama sidecar.
 3. **`fetchDepth: 0`** — Required for git diff to work correctly.
 
@@ -239,7 +239,7 @@ For the AI review to work, your OSCR agent needs:
 2. **Agent demand label** `ai-review` configured
 3. **Network access** to the Ollama sidecar
 
-See [OSCR Integration Guide](../docs/OSCR-INTEGRATION.md) for full setup.
+See [OSCR Integration Guide](../OSCR-INTEGRATION.md) for full setup.
 
 ## Environment Variables Reference
 
@@ -252,6 +252,6 @@ See [OSCR Integration Guide](../docs/OSCR-INTEGRATION.md) for full setup.
 
 ## Related Documentation
 
-- [ADO Setup Guide](../docs/ADO-SETUP.md)
-- [Local LLM Setup](../docs/LOCAL-LLM-SETUP.md)
-- [OSCR Integration](../docs/OSCR-INTEGRATION.md)
+- [ADO Setup Guide](../ADO-SETUP.md)
+- [Local LLM Setup](../LOCAL-LLM-SETUP.md)
+- [OSCR Integration](../OSCR-INTEGRATION.md)
