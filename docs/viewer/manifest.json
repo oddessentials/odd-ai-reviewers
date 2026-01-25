@@ -1,90 +1,90 @@
 {
-  "version": 1,
+  "version": 2,
   "files": [
     {
       "name": "ADO-IMPLEMENTATION-PLAN.md",
       "type": "file",
-      "path": "../ADO-IMPLEMENTATION-PLAN.md"
+      "path": "ADO-IMPLEMENTATION-PLAN.md"
     },
     {
       "name": "ADO-SETUP.md",
       "type": "file",
-      "path": "../ADO-SETUP.md"
+      "path": "ADO-SETUP.md"
     },
     {
       "name": "ARCHITECTURE.md",
       "type": "file",
-      "path": "../ARCHITECTURE.md"
+      "path": "ARCHITECTURE.md"
     },
     {
       "name": "BRANDING.md",
       "type": "file",
-      "path": "../BRANDING.md"
+      "path": "BRANDING.md"
     },
     {
       "name": "config-schema.md",
       "type": "file",
-      "path": "../config-schema.md"
+      "path": "config-schema.md"
     },
     {
       "name": "cost-controls.md",
       "type": "file",
-      "path": "../cost-controls.md"
+      "path": "cost-controls.md"
     },
     {
       "name": "FLIGHT4-UPGRADES.md",
       "type": "file",
-      "path": "../FLIGHT4-UPGRADES.md"
+      "path": "FLIGHT4-UPGRADES.md"
     },
     {
       "name": "GITHUB-FREE.md",
       "type": "file",
-      "path": "../GITHUB-FREE.md"
+      "path": "GITHUB-FREE.md"
     },
     {
       "name": "GITHUB-MAX.md",
       "type": "file",
-      "path": "../GITHUB-MAX.md"
+      "path": "GITHUB-MAX.md"
     },
     {
       "name": "github-setup.md",
       "type": "file",
-      "path": "../github-setup.md"
+      "path": "github-setup.md"
     },
     {
       "name": "INVARIANTS.md",
       "type": "file",
-      "path": "../INVARIANTS.md"
+      "path": "INVARIANTS.md"
     },
     {
       "name": "LOCAL-LLM-SETUP.md",
       "type": "file",
-      "path": "../LOCAL-LLM-SETUP.md"
+      "path": "LOCAL-LLM-SETUP.md"
     },
     {
       "name": "MODEL-PROVISIONING.md",
       "type": "file",
-      "path": "../MODEL-PROVISIONING.md"
+      "path": "MODEL-PROVISIONING.md"
     },
     {
       "name": "OSCR-INTEGRATION.md",
       "type": "file",
-      "path": "../OSCR-INTEGRATION.md"
+      "path": "OSCR-INTEGRATION.md"
     },
     {
       "name": "ROADMAP.md",
       "type": "file",
-      "path": "../ROADMAP.md"
+      "path": "ROADMAP.md"
     },
     {
       "name": "SCOPE.md",
       "type": "file",
-      "path": "../SCOPE.md"
+      "path": "SCOPE.md"
     },
     {
       "name": "security.md",
       "type": "file",
-      "path": "../security.md"
+      "path": "security.md"
     }
   ]
 }

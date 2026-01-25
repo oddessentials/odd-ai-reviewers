@@ -231,6 +231,41 @@ body {
   margin: 0;
 }
 
+.folder {
+  margin: 2px 0;
+}
+
+.folder summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.folder summary::-webkit-details-marker {
+  display: none;
+}
+
+.folder summary:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+}
+
+.folder[open] > summary {
+  color: var(--text-primary);
+}
+
+.folder ul {
+  margin: 4px 0 0 18px;
+  padding-left: 10px;
+  border-left: 1px solid var(--glass-border);
+}
+
 .file-link {
   display: flex;
   align-items: center;
