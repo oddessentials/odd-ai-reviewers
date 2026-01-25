@@ -14,6 +14,7 @@ import {
   validateProviderModelCompatibility,
   validateAzureDeployment,
   validateOllamaConfig,
+  validateChatModelCompatibility,
 } from '../preflight.js';
 
 export interface PreflightResult {
@@ -32,6 +33,7 @@ export interface PreflightResult {
  * 4. Provider-model compatibility (resolved provider matches model family)
  * 5. Azure deployment validation (if Azure configured)
  * 6. Ollama config validation (if local_llm enabled)
+ * 7. Chat model compatibility (reject completions-only models for cloud agents)
  */
 export function runPreflightChecks(
   config: Config,
@@ -74,6 +76,12 @@ export function runPreflightChecks(
   const ollamaCheck = validateOllamaConfig(config, env);
   if (!ollamaCheck.valid) {
     allErrors.push(...ollamaCheck.errors);
+  }
+
+  // 7. Chat model compatibility (reject codex/completions-only models)
+  const chatCheck = validateChatModelCompatibility(config, agentContext.effectiveModel, env);
+  if (!chatCheck.valid) {
+    allErrors.push(...chatCheck.errors);
   }
 
   return {

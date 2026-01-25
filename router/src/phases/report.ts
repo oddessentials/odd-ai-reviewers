@@ -15,6 +15,7 @@ import {
   sortFindings,
   generateFullSummaryMarkdown,
 } from '../report/formats.js';
+import { sanitizeFindings } from '../report/sanitize.js';
 import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
@@ -35,7 +36,7 @@ export interface ProcessedFindings {
 }
 
 /**
- * Process findings: deduplicate, sort, and generate summary.
+ * Process findings: deduplicate, sanitize, sort, and generate summary.
  */
 export function processFindings(
   allFindings: Finding[],
@@ -43,7 +44,9 @@ export function processFindings(
   skippedAgents: SkippedAgent[]
 ): ProcessedFindings {
   const deduplicated = deduplicateFindings(allFindings);
-  const sorted = sortFindings(deduplicated);
+  // Sanitize findings before sorting/posting (defense-in-depth)
+  const sanitized = sanitizeFindings(deduplicated);
+  const sorted = sortFindings(sanitized);
   const summary = generateFullSummaryMarkdown(sorted, allResults, skippedAgents);
 
   console.log(
@@ -60,7 +63,7 @@ export function processFindings(
 
   console.log('\n' + summary);
 
-  return { deduplicated, sorted, summary };
+  return { deduplicated: sanitized, sorted, summary };
 }
 
 /**

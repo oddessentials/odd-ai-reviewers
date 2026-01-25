@@ -6,6 +6,25 @@
  * and filenames MUST be treated as hostile.
  *
  * These validators enforce strict character allowlists at all git command boundaries.
+ *
+ * SECURITY ANALYSIS:
+ * ==================
+ * 1. SAFE_REF_PATTERN is an ALLOWLIST - only permits [a-zA-Z0-9\-_/.]+
+ *    This EXCLUDES all shell metacharacters by design.
+ *
+ * 2. UNSAFE_PATH_CHARS is a BLOCKLIST - explicitly rejects ; | & $ ` \ ! < > ( ) { } [ ] ' " * ? \n \r \0
+ *    Any path containing these characters is rejected.
+ *
+ * 3. Both patterns are tested in git-validators.test.ts with command injection attempts:
+ *    - $(command) substitution
+ *    - `command` backticks
+ *    - ; && || command chaining
+ *    - | pipe injection
+ *    - $VAR environment expansion
+ *    - > < redirection
+ *
+ * 4. Primary protection is shell-free execution (execFileSync with shell: false).
+ *    These validators are DEFENSE-IN-DEPTH.
  */
 
 /**
