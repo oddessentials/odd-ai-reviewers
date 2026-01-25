@@ -1,16 +1,105 @@
 /**
  * Reviewdog Agent Tests
  *
- * Integration tests are guarded by CI_HAS_REVIEWDOG environment variable.
- * Unit tests run without the reviewdog binary.
+ * Comprehensive tests for reviewdog agent functionality.
+ * Tests cover binary detection, severity mapping, and integration behaviors.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import {
+  reviewdogAgent,
+  mapSeverity,
+  isReviewdogAvailable,
+  isSemgrepAvailable,
+} from '../agents/reviewdog.js';
 
 describe('Reviewdog Agent', () => {
+  describe('mapSeverity', () => {
+    it('should map ERROR to error', () => {
+      expect(mapSeverity('ERROR')).toBe('error');
+    });
+
+    it('should map WARNING to warning', () => {
+      expect(mapSeverity('WARNING')).toBe('warning');
+    });
+
+    it('should map INFO to info', () => {
+      expect(mapSeverity('INFO')).toBe('info');
+    });
+
+    it('should handle lowercase severity (case-insensitive)', () => {
+      expect(mapSeverity('error')).toBe('error');
+      expect(mapSeverity('warning')).toBe('warning');
+      expect(mapSeverity('info')).toBe('info');
+    });
+
+    it('should handle mixed case severity', () => {
+      expect(mapSeverity('Error')).toBe('error');
+      expect(mapSeverity('Warning')).toBe('warning');
+      expect(mapSeverity('Info')).toBe('info');
+    });
+
+    it('should default to info for unknown severity', () => {
+      expect(mapSeverity('CRITICAL')).toBe('info');
+      expect(mapSeverity('DEBUG')).toBe('info');
+      expect(mapSeverity('UNKNOWN')).toBe('info');
+      expect(mapSeverity('')).toBe('info');
+    });
+  });
+
+  describe('Binary availability functions', () => {
+    // These tests are conditional based on environment
+    // In CI without binaries, they should return false
+    // On dev machines with binaries, they should return true
+
+    it('isReviewdogAvailable returns boolean', () => {
+      const result = isReviewdogAvailable();
+      expect(typeof result).toBe('boolean');
+    });
+
+    it('isSemgrepAvailable returns boolean', () => {
+      const result = isSemgrepAvailable();
+      expect(typeof result).toBe('boolean');
+    });
+  });
+
+  describe('Agent supports method', () => {
+    it('should support non-deleted files', () => {
+      expect(
+        reviewdogAgent.supports({ path: 'file.ts', status: 'added', additions: 1, deletions: 0 })
+      ).toBe(true);
+      expect(
+        reviewdogAgent.supports({ path: 'file.ts', status: 'modified', additions: 1, deletions: 0 })
+      ).toBe(true);
+      expect(
+        reviewdogAgent.supports({ path: 'file.ts', status: 'renamed', additions: 0, deletions: 0 })
+      ).toBe(true);
+    });
+
+    it('should not support deleted files', () => {
+      expect(
+        reviewdogAgent.supports({ path: 'file.ts', status: 'deleted', additions: 0, deletions: 1 })
+      ).toBe(false);
+    });
+  });
+
+  describe('Agent metadata', () => {
+    it('should have correct id', () => {
+      expect(reviewdogAgent.id).toBe('reviewdog');
+    });
+
+    it('should have correct name', () => {
+      expect(reviewdogAgent.name).toBe('Reviewdog');
+    });
+
+    it('should not use LLM', () => {
+      expect(reviewdogAgent.usesLlm).toBe(false);
+    });
+  });
+
   describe('Temp file handling', () => {
     it('should write JSON to temp file without injection issues', () => {
       const maliciousJson = JSON.stringify({
@@ -61,6 +150,146 @@ describe('Reviewdog Agent', () => {
       expect(readBack).toContain('\\t');
 
       unlinkSync(tempFile);
+    });
+  });
+
+  describe('Agent run integration (without semgrep)', () => {
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should return success with no findings when semgrep is not available', async () => {
+      // This test works in environments without semgrep
+      const hasNoSemgrep = !isSemgrepAvailable();
+      if (!hasNoSemgrep) {
+        // Skip if semgrep is available - we cannot test the "no binary" path
+        return;
+      }
+
+      const result = await reviewdogAgent.run({
+        files: [{ path: 'test.ts', status: 'modified', additions: 1, deletions: 0 }],
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 1,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+          contextLines: 3,
+          source: 'local-git',
+        },
+        config: {
+          version: 1,
+          passes: [],
+          limits: {
+            max_files: 50,
+            max_diff_lines: 2000,
+            max_tokens_per_pr: 12000,
+            max_usd_per_pr: 1.0,
+            monthly_budget_usd: 100,
+          },
+          models: {},
+          gating: { enabled: false, fail_on_severity: 'error' },
+        } as never,
+        diffContent: 'const x = 1;',
+        prNumber: 123,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.findings).toEqual([]);
+    });
+
+    it('should return success with empty file list', async () => {
+      const result = await reviewdogAgent.run({
+        files: [],
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: 'abc123',
+          headSha: 'def456',
+          contextLines: 3,
+          source: 'local-git',
+        },
+        config: {
+          version: 1,
+          passes: [],
+          limits: {
+            max_files: 50,
+            max_diff_lines: 2000,
+            max_tokens_per_pr: 12000,
+            max_usd_per_pr: 1.0,
+            monthly_budget_usd: 100,
+          },
+          models: {},
+          gating: { enabled: false, fail_on_severity: 'error' },
+        } as never,
+        diffContent: '',
+        prNumber: 123,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.findings).toEqual([]);
+      expect(result.metrics.filesProcessed).toBe(0);
+    });
+
+    it('should filter out deleted files before processing', async () => {
+      const hasSemgrep = isSemgrepAvailable();
+      if (!hasSemgrep) {
+        return;
+      }
+
+      const result = await reviewdogAgent.run({
+        files: [
+          { path: 'deleted.ts', status: 'deleted', additions: 0, deletions: 10 },
+          { path: 'also-deleted.ts', status: 'deleted', additions: 0, deletions: 5 },
+        ],
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 15,
+          baseSha: 'abc123',
+          headSha: 'def456',
+          contextLines: 3,
+          source: 'local-git',
+        },
+        config: {
+          version: 1,
+          passes: [],
+          limits: {
+            max_files: 50,
+            max_diff_lines: 2000,
+            max_tokens_per_pr: 12000,
+            max_usd_per_pr: 1.0,
+            monthly_budget_usd: 100,
+          },
+          models: {},
+          gating: { enabled: false, fail_on_severity: 'error' },
+        } as never,
+        diffContent: '',
+        prNumber: 123,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.findings).toEqual([]);
+      expect(result.metrics.filesProcessed).toBe(0);
     });
   });
 

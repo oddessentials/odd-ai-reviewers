@@ -182,7 +182,7 @@ export const semgrepAgent: ReviewAgent = {
   },
 };
 
-function mapSeverity(semgrepSeverity: string): Severity {
+export function mapSeverity(semgrepSeverity: string): Severity {
   switch (semgrepSeverity.toUpperCase()) {
     case 'ERROR':
       return 'error';

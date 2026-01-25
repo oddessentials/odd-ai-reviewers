@@ -143,5 +143,112 @@ describe('Path Filter', () => {
       expect(result.safePaths).toEqual(paths);
       expect(result.skippedCount).toBe(0);
     });
+
+    // Additional edge case tests for shell metacharacters
+    describe('additional shell metacharacter edge cases', () => {
+      it('should skip paths with ampersand (command chaining)', () => {
+        const paths = ['normal.ts', 'file && cat /etc/passwd.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with single ampersand (background execution)', () => {
+        const paths = ['normal.ts', 'file & disown.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with newline (command injection)', () => {
+        const paths = ['normal.ts', 'file\nrm -rf /.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with carriage return', () => {
+        const paths = ['normal.ts', 'file\rinjection.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with null byte (truncation attack)', () => {
+        const paths = ['normal.ts', 'file\0injection.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with exclamation mark (history expansion)', () => {
+        const paths = ['normal.ts', 'file!.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with less-than operator (input redirection)', () => {
+        const paths = ['normal.ts', 'file < /etc/passwd.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with greater-than operator (output redirection)', () => {
+        const paths = ['normal.ts', 'file > /tmp/pwned.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with single quotes (string escape)', () => {
+        const paths = ['normal.ts', "file'injection.ts"];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with double quotes (string escape)', () => {
+        const paths = ['normal.ts', 'file"injection.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should skip paths with wildcards (glob injection)', () => {
+        const paths = ['normal.ts', 'file*.ts', 'file?.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(2);
+      });
+
+      it('should skip paths with backslash (escape sequences)', () => {
+        const paths = ['normal.ts', 'C:\\Windows\\system32.ts'];
+        const result = filterSafePaths(paths, 'agent');
+
+        expect(result.safePaths).toEqual(['normal.ts']);
+        expect(result.skippedCount).toBe(1);
+      });
+
+      it('should log unsafe chars in sample output', () => {
+        const paths = ['file&rm.ts'];
+        filterSafePaths(paths, 'agent');
+
+        // Should include the & character in the log
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('&'));
+      });
+    });
   });
 });

@@ -44,7 +44,7 @@ interface SemgrepFinding {
 /**
  * Check if reviewdog binary is available
  */
-function isReviewdogAvailable(): boolean {
+export function isReviewdogAvailable(): boolean {
   try {
     execFileSync('reviewdog', ['--version'], { stdio: 'ignore', shell: false });
     return true;
@@ -56,7 +56,7 @@ function isReviewdogAvailable(): boolean {
 /**
  * Check if semgrep binary is available
  */
-function isSemgrepAvailable(): boolean {
+export function isSemgrepAvailable(): boolean {
   try {
     execFileSync('semgrep', ['--version'], { stdio: 'ignore', shell: false });
     return true;
@@ -68,7 +68,7 @@ function isSemgrepAvailable(): boolean {
 /**
  * Map semgrep severity to Finding severity
  */
-function mapSeverity(semgrepSeverity: string): Severity {
+export function mapSeverity(semgrepSeverity: string): Severity {
   switch (semgrepSeverity.toUpperCase()) {
     case 'ERROR':
       return 'error';
