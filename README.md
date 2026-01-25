@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
-![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/YOUR_COVERAGE_GIST_ID/raw/coverage.json)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/2fc5b1cb256e3c48591abf95e24d3492/raw/coverage.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
