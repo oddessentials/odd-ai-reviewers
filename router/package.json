@@ -19,7 +19,7 @@
   "dependencies": {
     "@actions/cache": "^4.0.0",
     "@anthropic-ai/sdk": "0.71.2",
-    "@octokit/rest": "^21.0.0",
+    "@octokit/rest": "^22.0.1",
     "commander": "^13.0.0",
     "minimatch": "^10.0.1",
     "openai": "^6.0.0",
