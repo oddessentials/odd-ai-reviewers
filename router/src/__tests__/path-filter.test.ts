@@ -43,7 +43,8 @@ describe('Path Filter', () => {
 
       expect(result.safePaths).toEqual(['safe.ts', 'also-safe.js']);
       expect(result.skippedCount).toBe(1);
-      expect(result.skippedSamples).toContain('file$(id).ts');
+      // Format now includes unsafe chars: "file$(id).ts [$ ( )]"
+      expect(result.skippedSamples[0]).toMatch(/file\$\(id\)\.ts \[/);
     });
 
     it('should skip paths with semicolon (command chaining)', () => {
@@ -105,8 +106,10 @@ describe('Path Filter', () => {
 
       const result = filterSafePaths(paths, 'agent');
 
-      expect(result.skippedSamples[0]).toHaveLength(50);
-      expect(result.skippedSamples[0]?.endsWith('...')).toBe(true);
+      // Format: truncated path + " [unsafe chars]"
+      // Path is truncated to 37 chars + "...", then " [$ ( )]" appended
+      expect(result.skippedSamples[0]).toContain('...');
+      expect(result.skippedSamples[0]).toMatch(/\[.*\]$/);
     });
 
     it('should handle empty input array', () => {

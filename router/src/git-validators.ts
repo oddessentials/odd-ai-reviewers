@@ -47,12 +47,34 @@ const MAX_REF_LENGTH = 512;
 /**
  * Shell metacharacters that MUST NOT appear in paths passed to execSync
  */
-const UNSAFE_PATH_CHARS = /[;|&$`\\!<>(){}[\]'"*?\n\r\0]/;
+const UNSAFE_PATH_CHARS = /[;|&$`\\!<>(){}[\]'"*?\n\r\0]/g;
 
 /**
  * Maximum path length (defensive limit)
  */
 const MAX_PATH_LENGTH = 4096;
+
+/**
+ * Get list of unsafe characters found in a path (for debugging).
+ * Returns human-readable representation of detected metacharacters.
+ *
+ * @param path - The path to analyze
+ * @returns String listing unsafe chars found, or 'none'
+ */
+export function getUnsafeCharsInPath(path: string): string {
+  const matches = path.match(UNSAFE_PATH_CHARS);
+  if (!matches) return 'none';
+
+  const unique = [...new Set(matches)];
+  return unique
+    .map((c) => {
+      if (c === '\n') return '\\n';
+      if (c === '\r') return '\\r';
+      if (c === '\0') return '\\0';
+      return c;
+    })
+    .join(' ');
+}
 
 /**
  * Validate a git ref (SHA, branch name, tag, refs/heads/...) for safe shell use.
@@ -63,16 +85,20 @@ const MAX_PATH_LENGTH = 4096;
  */
 export function assertSafeGitRef(ref: string, name: string): void {
   if (!ref) {
-    throw new Error(`Invalid ${name}: empty or undefined`);
+    throw new Error(`Invalid ${name}: value is empty or undefined`);
   }
 
   if (ref.length > MAX_REF_LENGTH) {
-    throw new Error(`Invalid ${name}: exceeds maximum length (${MAX_REF_LENGTH})`);
+    throw new Error(
+      `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`
+    );
   }
 
   if (!SAFE_REF_PATTERN.test(ref)) {
+    // Find the first invalid character for helpful error message
+    const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
     throw new Error(
-      `Invalid ${name}: contains unsafe characters. ` +
+      `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
         `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`
     );
   }
@@ -87,17 +113,20 @@ export function assertSafeGitRef(ref: string, name: string): void {
  */
 export function assertSafePath(filePath: string, name: string): void {
   if (!filePath) {
-    throw new Error(`Invalid ${name}: empty or undefined`);
+    throw new Error(`Invalid ${name}: value is empty or undefined`);
   }
 
   if (filePath.length > MAX_PATH_LENGTH) {
-    throw new Error(`Invalid ${name}: exceeds maximum length (${MAX_PATH_LENGTH})`);
+    throw new Error(
+      `Invalid ${name}: length ${filePath.length} exceeds maximum ${MAX_PATH_LENGTH} characters`
+    );
   }
 
   if (UNSAFE_PATH_CHARS.test(filePath)) {
+    const unsafeChars = getUnsafeCharsInPath(filePath);
     throw new Error(
-      `Invalid ${name}: contains unsafe shell metacharacters. ` +
-        `Characters like ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`
+      `Invalid ${name}: contains unsafe characters [${unsafeChars}]. ` +
+        `Shell metacharacters ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`
     );
   }
 }

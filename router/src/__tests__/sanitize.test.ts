@@ -51,6 +51,28 @@ describe('sanitizeFinding', () => {
 
       expect(result.suggestion).toBe('Replace &lt;div&gt; with &lt;span&gt;');
     });
+
+    it('should escape double quotes', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 'Use "quoted" string',
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toBe('Use &quot;quoted&quot; string');
+    });
+
+    it('should escape single quotes', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: "Use 'quoted' string",
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toBe('Use &#x27;quoted&#x27; string');
+    });
   });
 
   describe('null byte removal', () => {
@@ -161,6 +183,77 @@ describe('sanitizeFinding', () => {
       const result = sanitizeFinding(finding);
 
       expect(result.message).toBe('');
+    });
+
+    it('should handle null values gracefully', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: null as unknown as string,
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toBe('');
+    });
+
+    it('should handle number values gracefully', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 42 as unknown as string,
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toBe('42');
+    });
+  });
+
+  describe('XSS URL scheme blocking', () => {
+    it('should block javascript: URLs', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 'Click here: javascript:alert(1)',
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toContain('javascript-blocked:');
+      expect(result.message).not.toContain('javascript:alert');
+    });
+
+    it('should block data: URLs', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 'Image: data:text/html,<script>alert(1)</script>',
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toContain('data-blocked:');
+      expect(result.message).not.toContain('data:text');
+    });
+
+    it('should block vbscript: URLs', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 'Run: vbscript:MsgBox(1)',
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).toContain('vbscript-blocked:');
+    });
+
+    it('should block case-insensitive URL schemes', () => {
+      const finding: Finding = {
+        ...baseFinding,
+        message: 'JAVASCRIPT:alert(1) and JavaScript:alert(2)',
+      };
+
+      const result = sanitizeFinding(finding);
+
+      expect(result.message).not.toMatch(/javascript:/i);
+      expect(result.message).toContain('javascript-blocked:');
     });
   });
 });

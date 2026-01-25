@@ -23,9 +23,11 @@ const MAX_RULE_ID_LENGTH = 200;
  * Sanitize a single finding before posting to GitHub/ADO.
  *
  * Operations:
- * 1. Truncate long content
+ * 1. Type coercion for non-string inputs
  * 2. Remove null bytes
- * 3. Escape HTML entities (defense-in-depth)
+ * 3. Block dangerous URL schemes
+ * 4. Truncate long content
+ * 5. Escape HTML entities including quotes
  *
  * @param finding - The raw finding from an agent
  * @returns Sanitized finding safe for posting
@@ -56,27 +58,39 @@ export function sanitizeFindings(findings: Finding[]): Finding[] {
 /**
  * Sanitize text content for safe posting.
  *
- * @param text - Raw text to sanitize
+ * @param text - Raw text to sanitize (handles non-string inputs gracefully)
  * @param maxLength - Maximum allowed length
  * @returns Sanitized text
  */
-function sanitizeText(text: string, maxLength: number): string {
-  // Handle empty/undefined
-  if (!text) return '';
+function sanitizeText(text: unknown, maxLength: number): string {
+  // Type safety: handle null, undefined, and non-string inputs
+  if (text === null || text === undefined) return '';
+  if (typeof text !== 'string') {
+    text = String(text);
+  }
 
-  let sanitized = text;
+  let sanitized = text as string;
 
   // 1. Remove null bytes (prevent injection)
   sanitized = sanitized.replace(/\0/g, '');
 
-  // 2. Truncate to max length (before escaping to ensure we don't cut entities)
+  // 2. Block dangerous URL schemes (XSS vectors)
+  sanitized = sanitized.replace(/javascript:/gi, 'javascript-blocked:');
+  sanitized = sanitized.replace(/data:/gi, 'data-blocked:');
+  sanitized = sanitized.replace(/vbscript:/gi, 'vbscript-blocked:');
+
+  // 3. Truncate to max length (before escaping to ensure we don't cut entities)
   if (sanitized.length > maxLength) {
     sanitized = sanitized.slice(0, maxLength - 3) + '...';
   }
 
-  // 3. Escape HTML entities (defense-in-depth, platforms also sanitize)
-  // Only escape the dangerous chars that could enable XSS
-  sanitized = sanitized.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // 4. Escape HTML entities (defense-in-depth, platforms also sanitize)
+  sanitized = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
 
   return sanitized;
 }

@@ -54,56 +54,56 @@ describe('Git Input Validators (Security)', () => {
 
     describe('command injection attempts', () => {
       it('should reject command substitution with $()', () => {
-        expect(() => assertSafeGitRef('$(whoami)', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('$(whoami)', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject command substitution with backticks', () => {
-        expect(() => assertSafeGitRef('ref`id`', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('ref`id`', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject command chaining with semicolon', () => {
-        expect(() => assertSafeGitRef('main; rm -rf /', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main; rm -rf /', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject command chaining with &&', () => {
         expect(() => assertSafeGitRef('main && cat /etc/passwd', 'ref')).toThrow(
-          /unsafe characters/
+          /unsafe character/
         );
       });
 
       it('should reject pipe operator', () => {
-        expect(() => assertSafeGitRef('main | cat', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main | cat', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject environment variable expansion', () => {
-        expect(() => assertSafeGitRef('$HOME', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('$HOME', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject shell globbing', () => {
-        expect(() => assertSafeGitRef('main*', 'ref')).toThrow(/unsafe characters/);
-        expect(() => assertSafeGitRef('main?', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main*', 'ref')).toThrow(/unsafe character/);
+        expect(() => assertSafeGitRef('main?', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject redirection operators', () => {
-        expect(() => assertSafeGitRef('main > /tmp/out', 'ref')).toThrow(/unsafe characters/);
-        expect(() => assertSafeGitRef('main < /etc/passwd', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main > /tmp/out', 'ref')).toThrow(/unsafe character/);
+        expect(() => assertSafeGitRef('main < /etc/passwd', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject quotes', () => {
-        expect(() => assertSafeGitRef("main'", 'ref')).toThrow(/unsafe characters/);
-        expect(() => assertSafeGitRef('main"', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef("main'", 'ref')).toThrow(/unsafe character/);
+        expect(() => assertSafeGitRef('main"', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject backslash escapes', () => {
-        expect(() => assertSafeGitRef('main\\ntest', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main\\ntest', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject newlines', () => {
-        expect(() => assertSafeGitRef('main\nrm -rf /', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main\nrm -rf /', 'ref')).toThrow(/unsafe character/);
       });
 
       it('should reject carriage returns', () => {
-        expect(() => assertSafeGitRef('main\rtest', 'ref')).toThrow(/unsafe characters/);
+        expect(() => assertSafeGitRef('main\rtest', 'ref')).toThrow(/unsafe character/);
       });
     });
 
@@ -114,7 +114,7 @@ describe('Git Input Validators (Security)', () => {
 
       it('should reject excessively long refs', () => {
         const longRef = 'a'.repeat(600);
-        expect(() => assertSafeGitRef(longRef, 'ref')).toThrow(/maximum length/);
+        expect(() => assertSafeGitRef(longRef, 'ref')).toThrow(/exceeds maximum/);
       });
 
       it('should include parameter name in error message', () => {
@@ -197,7 +197,7 @@ describe('Git Input Validators (Security)', () => {
 
       it('should reject excessively long paths', () => {
         const longPath = 'a/'.repeat(2500);
-        expect(() => assertSafePath(longPath, 'path')).toThrow(/maximum length/);
+        expect(() => assertSafePath(longPath, 'path')).toThrow(/exceeds maximum/);
       });
     });
   });
@@ -236,7 +236,7 @@ describe('Git Validators Integration', () => {
       expect(error).toBeInstanceOf(Error);
       const message = (error as Error).message;
       expect(message).toContain('baseSha');
-      expect(message).toContain('unsafe characters');
+      expect(message).toContain('unsafe character');
       expect(message).toContain('alphanumeric');
     }
   });

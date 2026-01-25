@@ -6,7 +6,7 @@
  * This module provides secondary validation and structured logging.
  */
 
-import { assertSafePath } from '../git-validators.js';
+import { assertSafePath, getUnsafeCharsInPath } from '../git-validators.js';
 
 export interface PathFilterResult {
   /** Paths that passed validation */
@@ -34,9 +34,11 @@ export function filterSafePaths(filePaths: string[], agentId: string): PathFilte
       assertSafePath(p, 'file path');
       safePaths.push(p);
     } catch {
-      // Collect samples for logging (truncate long paths)
+      // Collect samples for logging with specific unsafe chars
       if (skippedSamples.length < 3) {
-        skippedSamples.push(p.length > 50 ? p.slice(0, 47) + '...' : p);
+        const unsafeChars = getUnsafeCharsInPath(p);
+        const truncated = p.length > 40 ? p.slice(0, 37) + '...' : p;
+        skippedSamples.push(`${truncated} [${unsafeChars}]`);
       }
     }
   }
