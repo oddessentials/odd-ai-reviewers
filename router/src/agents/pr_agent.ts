@@ -11,6 +11,7 @@ import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
 import { parseJsonResponse } from './json-utils.js';
+import { getCurrentDateUTC } from './date-utils.js';
 
 // Supported file extensions for PR-Agent review
 const SUPPORTED_EXTENSIONS = [
@@ -210,6 +211,10 @@ export const prAgentAgent: ReviewAgent = {
         console.log('[pr_agent] Using default prompt (failed to load template)');
       }
     }
+
+    // Prepend date once at the top (not on retries - prompt is built once per run)
+    const currentDate = getCurrentDateUTC();
+    systemPrompt = `Current date (UTC): ${currentDate}\n\n${systemPrompt}`;
 
     // Build file summary for context
     const fileSummary = supportedFiles

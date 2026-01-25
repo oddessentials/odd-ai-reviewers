@@ -8,11 +8,11 @@
  * - Never posts directly to GitHub
  */
 
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, execFileSync, type ChildProcess } from 'child_process';
 import { createReadStream, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { execSync } from 'child_process';
+import { filterSafePaths } from './path-filter.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
@@ -46,7 +46,7 @@ interface SemgrepFinding {
  */
 function isReviewdogAvailable(): boolean {
   try {
-    execSync('reviewdog --version', { stdio: 'ignore' });
+    execFileSync('reviewdog', ['--version'], { stdio: 'ignore', shell: false });
     return true;
   } catch {
     return false;
@@ -58,7 +58,7 @@ function isReviewdogAvailable(): boolean {
  */
 function isSemgrepAvailable(): boolean {
   try {
-    execSync('semgrep --version', { stdio: 'ignore' });
+    execFileSync('semgrep', ['--version'], { stdio: 'ignore', shell: false });
     return true;
   } catch {
     return false;
@@ -89,19 +89,23 @@ async function runSemgrepStructured(
   filePaths: string[],
   _env: Record<string, string>
 ): Promise<{ success: boolean; findings: Finding[]; error?: string }> {
-  // Run semgrep with JSON output
+  // Filter paths for safe execution (defense-in-depth)
+  const { safePaths } = filterSafePaths(filePaths, 'reviewdog');
+  if (safePaths.length === 0) {
+    return { success: true, findings: [], error: 'No valid file paths to scan' };
+  }
+
+  // Run semgrep with JSON output - shell-free execution
   let semgrepOutput: string;
   try {
-    semgrepOutput = execSync(
-      `semgrep scan --config=auto --json ${filePaths.map((p) => `"${p}"`).join(' ')}`,
-      {
-        cwd: repoPath,
-        encoding: 'utf-8',
-        maxBuffer: 50 * 1024 * 1024,
-        timeout: 300000, // 5 minute timeout
-        env: _env, // Clean env, no tokens
-      }
-    );
+    semgrepOutput = execFileSync('semgrep', ['scan', '--config=auto', '--json', ...safePaths], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      shell: false, // Critical: no shell interpretation
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 300000, // 5 minute timeout
+      env: _env, // Clean env, no tokens
+    });
   } catch (error: unknown) {
     // Semgrep returns non-zero exit code when it finds issues
     // The JSON output is still in stdout
@@ -268,11 +272,15 @@ export const reviewdogAgent: ReviewAgent = {
       const tempFile = join(tmpdir(), `semgrep-${Date.now()}.json`);
       try {
         // Re-run semgrep to get raw JSON for reviewdog validation
-        const semgrepOutput = execSync(
-          `semgrep scan --config=auto --json ${filePaths.map((p) => `"${p}"`).join(' ')}`,
+        // Use same safe paths from earlier filtering
+        const { safePaths: validationPaths } = filterSafePaths(filePaths, 'reviewdog');
+        const semgrepOutput = execFileSync(
+          'semgrep',
+          ['scan', '--config=auto', '--json', ...validationPaths],
           {
             cwd: context.repoPath,
             encoding: 'utf-8',
+            shell: false,
             maxBuffer: 50 * 1024 * 1024,
             timeout: 300000,
             env: cleanEnv,

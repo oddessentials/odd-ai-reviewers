@@ -13,6 +13,7 @@ import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from '
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { estimateTokens } from '../budget.js';
+import { getCurrentDateUTC } from './date-utils.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -176,12 +177,16 @@ export function sanitizeDiffForLLM(
  * Files must be pre-sorted for determinism
  */
 function buildPrompt(files: DiffFile[], diffContent: string): string {
+  const currentDate = getCurrentDateUTC();
+
   // Files are already sorted by sanitizeDiffForLLM
   const fileSummary = files
     .map((f) => `- ${f.path} (${f.status}: +${f.additions}/-${f.deletions})`)
     .join('\n');
 
   return `You are a code reviewer. Analyze this diff and return ONLY a valid JSON object.
+
+Current date (UTC): ${currentDate}
 
 ## Files Changed
 ${fileSummary}

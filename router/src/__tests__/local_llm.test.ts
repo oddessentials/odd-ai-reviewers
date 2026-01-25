@@ -16,7 +16,7 @@ describe('sanitizeDiffForLLM', () => {
       const files: DiffFile[] = [
         { path: 'test.ts', status: 'modified', additions: 1, deletions: 1 },
       ];
-      const diff = 'GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz123456';
+      const diff = 'GITHUB_TOKEN=ghp_FAKE_TEST_TOKEN_0000000000000000000000';
 
       const result = sanitizeDiffForLLM(files, diff);
 
