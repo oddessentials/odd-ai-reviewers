@@ -15,12 +15,21 @@
  * - Trailing / matches directories only (treated as prefix match)
  */
 
-import { readFile } from 'fs/promises';
+import { lstat, readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, relative } from 'path';
 import { minimatch } from 'minimatch';
+import { assertSafeRepoPath } from './git-validators.js';
 
 const REVIEWIGNORE_FILENAME = '.reviewignore';
+const MAX_REVIEWIGNORE_BYTES = 1024 * 1024; // 1MB
+
+function isPathInside(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  if (rel === '') return true;
+  if (isAbsolute(rel)) return false;
+  return !rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\');
+}
 
 /**
  * Parsed pattern with metadata for application order and negation
@@ -65,14 +74,21 @@ export function parseReviewIgnoreLine(
     return null;
   }
 
+  // Handle escaped leading comment/negation markers
+  let effective = trimmed;
+  const hasEscapedLeading = trimmed.startsWith('\\#') || trimmed.startsWith('\\!');
+  if (hasEscapedLeading) {
+    effective = trimmed.slice(1);
+  }
+
   // Skip comments
-  if (trimmed.startsWith('#')) {
+  if (!hasEscapedLeading && effective.startsWith('#')) {
     return null;
   }
 
   // Handle negation patterns
-  if (trimmed.startsWith('!')) {
-    const pattern = trimmed.slice(1).trim();
+  if (!hasEscapedLeading && effective.startsWith('!')) {
+    const pattern = effective.slice(1).trim();
     // Skip if negation results in empty pattern
     if (pattern.length === 0) {
       return null;
@@ -85,7 +101,7 @@ export function parseReviewIgnoreLine(
   }
 
   return {
-    pattern: normalizePattern(trimmed),
+    pattern: normalizePattern(effective),
     negated: false,
     lineNumber,
   };
@@ -174,6 +190,7 @@ export function parseReviewIgnoreContent(content: string): ReviewIgnorePattern[]
  * @returns Parsed patterns and metadata
  */
 export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreResult> {
+  assertSafeRepoPath(repoPath);
   const filePath = join(repoPath, REVIEWIGNORE_FILENAME);
 
   if (!existsSync(filePath)) {
@@ -184,6 +201,33 @@ export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreRe
   }
 
   try {
+    const stat = await lstat(filePath);
+    let effectiveStat = stat;
+    if (stat.isSymbolicLink()) {
+      const resolvedFile = await realpath(filePath);
+      const resolvedRepo = await realpath(repoPath);
+      if (!isPathInside(resolvedRepo, resolvedFile)) {
+        console.warn(`[reviewignore] Refusing to follow symlink outside repo root`);
+        return { patterns: [], found: false };
+      }
+      effectiveStat = await lstat(resolvedFile);
+    } else if (!stat.isFile()) {
+      console.warn(`[reviewignore] Ignoring non-file ${REVIEWIGNORE_FILENAME}`);
+      return { patterns: [], found: false };
+    }
+
+    if (!effectiveStat.isFile()) {
+      console.warn(`[reviewignore] Ignoring non-file ${REVIEWIGNORE_FILENAME}`);
+      return { patterns: [], found: false };
+    }
+
+    if (effectiveStat.size > MAX_REVIEWIGNORE_BYTES) {
+      console.warn(
+        `[reviewignore] Ignoring ${REVIEWIGNORE_FILENAME} larger than ${MAX_REVIEWIGNORE_BYTES} bytes`
+      );
+      return { patterns: [], found: false };
+    }
+
     const content = await readFile(filePath, 'utf-8');
     const patterns = parseReviewIgnoreContent(content);
 

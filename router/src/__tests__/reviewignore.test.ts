@@ -15,7 +15,7 @@ import {
   type ReviewIgnorePattern,
 } from '../reviewignore.js';
 import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
+import { lstat, readFile, realpath } from 'fs/promises';
 
 // Mock fs modules
 vi.mock('fs', () => ({
@@ -24,10 +24,25 @@ vi.mock('fs', () => ({
 
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+  lstat: vi.fn(),
+  realpath: vi.fn(),
 }));
 
 const mockExistsSync = vi.mocked(existsSync);
 const mockReadFile = vi.mocked(readFile);
+const mockLstat = vi.mocked(lstat);
+const mockRealpath = vi.mocked(realpath);
+
+function fileStat(
+  overrides?: Partial<{ size: number; isFile: () => boolean; isSymbolicLink: () => boolean }>
+) {
+  return {
+    size: 128,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+    ...overrides,
+  };
+}
 
 describe('parseReviewIgnoreLine', () => {
   describe('happy path - valid patterns', () => {
@@ -73,6 +88,24 @@ describe('parseReviewIgnoreLine', () => {
         pattern: '**/important.js',
         negated: true,
         lineNumber: 5,
+      });
+    });
+
+    it('should parse escaped leading # as a literal pattern', () => {
+      const result = parseReviewIgnoreLine('\\#file', 10);
+      expect(result).toEqual({
+        pattern: '**/#file',
+        negated: false,
+        lineNumber: 10,
+      });
+    });
+
+    it('should parse escaped leading ! as a literal pattern', () => {
+      const result = parseReviewIgnoreLine('\\!important', 11);
+      expect(result).toEqual({
+        pattern: '**/!important',
+        negated: false,
+        lineNumber: 11,
       });
     });
 
@@ -421,9 +454,11 @@ describe('loadReviewIgnore', () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLstat.mockResolvedValue(fileStat() as never);
+    mockRealpath.mockImplementation(async (path) => path as string);
   });
 
   afterEach(() => {
@@ -480,6 +515,44 @@ dist/
     expect(result.found).toBe(true);
     expect(result.patterns).toEqual([]);
     expect(consoleLogSpy).not.toHaveBeenCalled();
+  });
+
+  it('should ignore non-file paths', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockLstat.mockResolvedValue(fileStat({ isFile: () => false }) as never);
+
+    const result = await loadReviewIgnore('/repo');
+    expect(result.found).toBe(false);
+    expect(result.patterns).toEqual([]);
+    expect(consoleWarnSpy).toHaveBeenCalledWith('[reviewignore] Ignoring non-file .reviewignore');
+  });
+
+  it('should refuse symlinks outside repo root', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockLstat
+      .mockResolvedValueOnce(fileStat({ isFile: () => false, isSymbolicLink: () => true }) as never)
+      .mockResolvedValueOnce(fileStat() as never);
+    mockRealpath.mockImplementation(async (path) => {
+      if (path === '/repo/.reviewignore') return '/outside/.reviewignore';
+      return '/repo';
+    });
+
+    const result = await loadReviewIgnore('/repo');
+    expect(result.found).toBe(false);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[reviewignore] Refusing to follow symlink outside repo root'
+    );
+  });
+
+  it('should ignore oversized files', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockLstat.mockResolvedValue(fileStat({ size: 2 * 1024 * 1024 }) as never);
+
+    const result = await loadReviewIgnore('/repo');
+    expect(result.found).toBe(false);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[reviewignore] Ignoring .reviewignore larger than 1048576 bytes'
+    );
   });
 });
 
