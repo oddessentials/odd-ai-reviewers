@@ -48,6 +48,14 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '**/*.cjs', '**/*.mjs'],
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/*.js',
+      '**/*.cjs',
+      '**/*.mjs',
+    ],
   }
 );

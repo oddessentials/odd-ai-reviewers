@@ -3,6 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
+build/
 *.tsbuildinfo
 
 # IDE
@@ -19,6 +20,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env*
 
 # Logs
 *.log
@@ -38,5 +40,6 @@ docs/viewer/node_modules/
 docs/viewer/test-results/
 docs/viewer/playwright-report/
 
-# Claude Code CLI session data
+# AI agent session data
 .claude/
+.codex/
