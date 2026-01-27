@@ -190,6 +190,73 @@ describe('Cache Key - Branch vs SHA Resolution', () => {
     expect(keyWithBranchName).toContain(CACHE_KEY_PREFIX);
     expect(keyWithBranchName).toContain('42');
   });
+
+  it('should produce different keys for different config hashes', () => {
+    const key1 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config-a',
+      agentId: 'semgrep',
+    });
+
+    const key2 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config-b',
+      agentId: 'semgrep',
+    });
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it('should produce different keys for different agents', () => {
+    const key1 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    const key2 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config1',
+      agentId: 'reviewdog',
+    });
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it('should produce different keys for different PR numbers', () => {
+    const key1 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    const key2 = generateCacheKey({
+      prNumber: 43,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it('should produce fixed-length hash for long SHAs', () => {
+    const key = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd',
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    const parsed = parseCacheKey(key);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.hash).toHaveLength(16);
+  });
 });
 
 describe('Cache Store', () => {
