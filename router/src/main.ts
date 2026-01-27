@@ -17,6 +17,7 @@ import {
   resolveReviewRefs,
   getGitHubCheckHeadSha,
 } from './diff.js';
+import { filterReviewIgnoredFiles, loadReviewIgnore } from './reviewignore.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -162,7 +163,21 @@ async function runReview(options: ReviewOptions): Promise<void> {
     `[router] Found ${diff.files.length} changed files (${diff.totalAdditions}+ / ${diff.totalDeletions}-)`
   );
 
-  const filteredFiles = filterFiles(diff.files, config.path_filters);
+  const reviewIgnore = loadReviewIgnore(options.repo);
+  if (reviewIgnore) {
+    console.log(
+      `[router] Loaded ${reviewIgnore.patterns.length} .reviewignore patterns from ${reviewIgnore.sourcePath}`
+    );
+  }
+  const { filtered: reviewIgnoreFiltered, ignored: reviewIgnoreIgnored } = filterReviewIgnoredFiles(
+    diff.files,
+    reviewIgnore
+  );
+  if (reviewIgnoreIgnored.length > 0) {
+    console.log(`[router] Ignored ${reviewIgnoreIgnored.length} files via .reviewignore`);
+  }
+
+  const filteredFiles = filterFiles(reviewIgnoreFiltered, config.path_filters);
   console.log(`[router] ${filteredFiles.length} files after filtering`);
 
   if (filteredFiles.length === 0) {
