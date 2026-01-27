@@ -37,3 +37,6 @@ test-results.json
 docs/viewer/node_modules/
 docs/viewer/test-results/
 docs/viewer/playwright-report/
+
+# Claude Code CLI session data
+.claude/
