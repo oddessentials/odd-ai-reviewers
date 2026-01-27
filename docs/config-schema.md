@@ -139,6 +139,78 @@ Glob patterns to include/exclude files:
 - `include`: Only review matching files
 - `exclude`: Skip matching files
 
+## `.reviewignore` File
+
+In addition to `path_filters` in `.ai-review.yml`, you can create a `.reviewignore` file at your repository root to exclude files from review using `.gitignore`-compatible syntax.
+
+### Syntax
+
+```gitignore
+# Comments start with #
+# Empty lines are ignored
+
+# Bare names match anywhere and include directory contents
+node_modules
+.vscode
+
+# Trailing slash explicitly marks directories
+dist/
+vendor/
+
+# Wildcards work as expected
+*.min.js
+*.generated.ts
+
+# Negation patterns re-include previously excluded files
+!webpack.config.js
+
+# Root-relative patterns (leading /) only match at repo root
+/config.local.js
+
+# Path patterns are anchored
+src/generated/
+```
+
+### Filter Precedence
+
+When both `.reviewignore` and `path_filters` are configured, they are applied in this order:
+
+1. **`.reviewignore`** — Files matching patterns are excluded first
+2. **`path_filters.exclude`** — Additional files are excluded
+3. **`path_filters.include`** — If set, only matching files survive
+
+### When to Use Each
+
+| Use Case                                                | Recommended            |
+| ------------------------------------------------------- | ---------------------- |
+| Repository-wide exclusions (dependencies, build output) | `.reviewignore`        |
+| Workflow-specific filtering (only review `src/`)        | `path_filters.include` |
+| Exclude test files from semantic review                 | `path_filters.exclude` |
+
+### Example `.reviewignore`
+
+```gitignore
+# Dependencies
+node_modules
+vendor/
+
+# Build outputs
+dist/
+*.min.js
+*.bundle.js
+
+# Generated files
+src/generated/
+**/*.pb.go
+
+# IDE and editor files
+.vscode
+.idea
+
+# But keep important configs
+!.vscode/settings.json
+```
+
 ## Examples
 
 ### Minimal Configuration

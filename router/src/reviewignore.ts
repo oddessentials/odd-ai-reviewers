@@ -13,6 +13,27 @@
  * - ? matches any single character except /
  * - [abc] matches any character in brackets
  * - Trailing / matches directories only (treated as prefix match)
+ * - Bare names (no path separators) match anywhere and include contents
+ *
+ * Example .reviewignore file:
+ * ```
+ * # Dependencies - ignore all contents
+ * node_modules
+ * vendor/
+ *
+ * # Build outputs
+ * dist/
+ * *.min.js
+ *
+ * # Generated files
+ * src/generated/
+ *
+ * # But keep important config
+ * !webpack.config.js
+ *
+ * # Root-relative pattern (only matches at repo root)
+ * /config.local.js
+ * ```
  */
 
 import { lstat, readFile, realpath } from 'fs/promises';
@@ -28,7 +49,7 @@ function isPathInside(parent: string, child: string): boolean {
   const rel = relative(parent, child);
   if (rel === '') return true;
   if (isAbsolute(rel)) return false;
-  return !rel.startsWith('..') && !rel.startsWith('../') && !rel.startsWith('..\\');
+  return !rel.startsWith('..');
 }
 
 /**
@@ -154,7 +175,7 @@ export function normalizePattern(pattern: string): string {
   // - Pattern wasn't originally root-relative (didn't start with /)
   // - Pattern doesn't already start with **
   if (!hasRealPathSep && !wasRootRelative && !startsWithDoubleStar) {
-    normalized = `**/${normalized}`;
+    normalized = '**/' + normalized;
   }
 
   return normalized;
@@ -207,23 +228,27 @@ export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreRe
       const resolvedFile = await realpath(filePath);
       const resolvedRepo = await realpath(repoPath);
       if (!isPathInside(resolvedRepo, resolvedFile)) {
-        console.warn(`[reviewignore] Refusing to follow symlink outside repo root`);
+        console.warn('[reviewignore] Refusing to follow symlink outside repo root');
         return { patterns: [], found: false };
       }
       effectiveStat = await lstat(resolvedFile);
     } else if (!stat.isFile()) {
-      console.warn(`[reviewignore] Ignoring non-file ${REVIEWIGNORE_FILENAME}`);
+      console.warn('[reviewignore] Ignoring non-file ' + REVIEWIGNORE_FILENAME);
       return { patterns: [], found: false };
     }
 
     if (!effectiveStat.isFile()) {
-      console.warn(`[reviewignore] Ignoring non-file ${REVIEWIGNORE_FILENAME}`);
+      console.warn('[reviewignore] Ignoring non-file ' + REVIEWIGNORE_FILENAME);
       return { patterns: [], found: false };
     }
 
     if (effectiveStat.size > MAX_REVIEWIGNORE_BYTES) {
       console.warn(
-        `[reviewignore] Ignoring ${REVIEWIGNORE_FILENAME} larger than ${MAX_REVIEWIGNORE_BYTES} bytes`
+        '[reviewignore] Ignoring ' +
+          REVIEWIGNORE_FILENAME +
+          ' larger than ' +
+          MAX_REVIEWIGNORE_BYTES +
+          ' bytes'
       );
       return { patterns: [], found: false };
     }
@@ -233,7 +258,7 @@ export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreRe
 
     if (patterns.length > 0) {
       console.log(
-        `[reviewignore] Loaded ${patterns.length} patterns from ${REVIEWIGNORE_FILENAME}`
+        '[reviewignore] Loaded ' + patterns.length + ' patterns from ' + REVIEWIGNORE_FILENAME
       );
     }
 
@@ -244,7 +269,10 @@ export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreRe
     };
   } catch (error) {
     console.warn(
-      `[reviewignore] Failed to read ${REVIEWIGNORE_FILENAME}: ${error instanceof Error ? error.message : String(error)}`
+      '[reviewignore] Failed to read ' +
+        REVIEWIGNORE_FILENAME +
+        ': ' +
+        (error instanceof Error ? error.message : String(error))
     );
     return {
       patterns: [],
@@ -254,10 +282,37 @@ export async function loadReviewIgnore(repoPath: string): Promise<ReviewIgnoreRe
 }
 
 /**
+ * Check if a pattern is a "bare segment" pattern that should also match contents.
+ *
+ * A bare segment pattern has the form: double-star slash name
+ * where name has no wildcards and no additional slashes.
+ * These patterns match both the name itself AND anything under it,
+ * following .gitignore semantics where a bare name matches directories and their contents.
+ */
+function isBareSegmentPattern(pattern: string): boolean {
+  // Must start with **/
+  if (!pattern.startsWith('**/')) return false;
+
+  const segment = pattern.slice(3); // Remove '**/' prefix
+
+  // Must be a single segment (no more slashes)
+  if (segment.includes('/')) return false;
+
+  // Must not contain wildcards
+  if (segment.includes('*') || segment.includes('?') || segment.includes('[')) return false;
+
+  return true;
+}
+
+/**
  * Check if a file path matches any of the reviewignore patterns
  *
  * Patterns are applied in order, with later patterns overriding earlier ones.
  * Negation patterns (!) can re-include files that were previously excluded.
+ *
+ * For bare segment patterns (e.g., node_modules which normalizes to double-star/node_modules),
+ * we also match contents (as if double-star/node_modules/double-star was specified). This follows
+ * .gitignore semantics where a bare directory name excludes all its contents.
  *
  * @param filePath - Normalized file path (relative to repo root)
  * @param patterns - Parsed reviewignore patterns
@@ -268,15 +323,26 @@ export function shouldIgnoreFile(filePath: string, patterns: ReviewIgnorePattern
     return false;
   }
 
+  const minimatchOptions = {
+    dot: true, // Match dotfiles
+    matchBase: false, // We handle this in normalizePattern
+    nocase: false, // Case-sensitive matching (Unix-style)
+  };
+
   // Apply patterns in order - later patterns override earlier ones
   let ignored = false;
 
   for (const { pattern, negated } of patterns) {
-    const matches = minimatch(filePath, pattern, {
-      dot: true, // Match dotfiles
-      matchBase: false, // We handle this in normalizePattern
-      nocase: false, // Case-sensitive matching (Unix-style)
-    });
+    // Check base pattern
+    let matches = minimatch(filePath, pattern, minimatchOptions);
+
+    // For bare segment patterns, ALSO check contents pattern
+    // This is an OR - if either matches, the pattern line matches
+    // IMPORTANT: Both checks are ONE logical match for this line,
+    // preserving "last match wins" semantics for negation
+    if (!matches && isBareSegmentPattern(pattern)) {
+      matches = minimatch(filePath, pattern + '/**', minimatchOptions);
+    }
 
     if (matches) {
       // Negated patterns un-ignore, regular patterns ignore

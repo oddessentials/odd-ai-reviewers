@@ -16,7 +16,8 @@ flowchart TD
     B --> C[Trust Check]
     C -->|Untrusted| X[Skip Review]
     C -->|Trusted| D[Extract Diff]
-    D --> E[Filter Files]
+    D --> E1[Load .reviewignore]
+    E1 --> E[Filter Files]
     E --> F[Budget Check]
     F --> G[Preflight Validation]
     G -->|Missing Secrets| Y1[Fail Fast]
@@ -35,6 +36,48 @@ flowchart TD
     O --> P[Generate Summary Markdown]
     P --> Q[Report to GitHub]
     Q --> R[Update Check to 'completed']
+```
+
+---
+
+## File Filtering
+
+After extracting the diff, the router filters files based on two mechanisms:
+
+1. **`.reviewignore`** — A file at repo root using `.gitignore`-compatible syntax
+2. **`path_filters`** — YAML configuration in `.ai-review.yml`
+
+```mermaid
+flowchart TD
+    D[Diff Files] --> R{.reviewignore exists?}
+    R -->|Yes| L[Load patterns]
+    R -->|No| P[path_filters only]
+    L --> A[Apply .reviewignore exclusions]
+    A --> P
+    P --> E[Apply path_filters.exclude]
+    E --> I{path_filters.include set?}
+    I -->|Yes| W[Whitelist: keep only matching]
+    I -->|No| F[Keep remaining files]
+    W --> F
+    F --> Out[Filtered files for review]
+```
+
+### Filter Precedence
+
+| Order | Filter                 | Effect                                |
+| ----- | ---------------------- | ------------------------------------- |
+| 1     | `.reviewignore`        | Exclude matching files                |
+| 2     | `path_filters.exclude` | Exclude additional files              |
+| 3     | `path_filters.include` | If set, whitelist (only keep matches) |
+
+### Logging
+
+The router logs filtering results separately:
+
+```
+[router] 15 files after filtering
+[router]   - 3 excluded by .reviewignore
+[router]   - 2 excluded by path_filters
 ```
 
 ---
@@ -214,11 +257,12 @@ flowchart TD
 
 ## Summary
 
-1. **Sequential execution**: Passes run in order, agents within passes run in order
-2. **Shared findings**: All agents contribute to a single `allFindings[]` array
-3. **Deduplication**: Router removes duplicates before reporting
-4. **Single report**: One unified GitHub check run and/or PR comment
-5. **Scoped security**: Each agent sees only its allowed environment variables
+1. **File filtering**: `.reviewignore` and `path_filters` control which files are reviewed
+2. **Sequential execution**: Passes run in order, agents within passes run in order
+3. **Shared findings**: All agents contribute to a single `allFindings[]` array
+4. **Deduplication**: Router removes duplicates before reporting
+5. **Single report**: One unified GitHub check run and/or PR comment
+6. **Scoped security**: Each agent sees only its allowed environment variables
 
 ---
 

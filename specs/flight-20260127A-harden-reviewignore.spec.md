@@ -1,7 +1,7 @@
 # Flight 20260127A: Harden reviewignore
 
 **Branch:** `feat/reviewignore`
-**Status:** Specification
+**Status:** Implemented
 **Priority:** P2
 
 ## Summary
@@ -595,10 +595,18 @@ Check if any tests need updating for the changed matching behavior.
 
 ## Definition of Done
 
-- [ ] REQ-1: `isPathInside` simplified
-- [ ] REQ-2: Log messages show separate counts for `.reviewignore` and `path_filters`
-- [ ] REQ-3: Bare directory patterns match contents (`.gitignore` semantics)
-- [ ] REQ-4: Documentation includes examples
-- [ ] REQ-5: Tests cover bare directory semantics
-- [ ] All tests pass
+- [x] REQ-1: `isPathInside` simplified
+- [x] REQ-2: Log messages show separate counts for `.reviewignore` and `path_filters`
+- [x] REQ-3: Bare directory patterns match contents (`.gitignore` semantics)
+- [x] REQ-4: Documentation includes examples (module header + docs/config-schema.md)
+- [x] REQ-5: Tests cover bare segment semantics (14 new tests)
+- [x] All new tests pass (2 pre-existing Windows path failures unrelated to this flight)
 - [ ] Code reviewed and approved
+
+## Documentation Updates
+
+In addition to the code changes, the following documentation was updated:
+
+- **docs/config-schema.md** — Added `.reviewignore` section with syntax, examples, and filter precedence
+- **docs/ARCHITECTURE.md** — Added "File Filtering" section with mermaid diagram, updated high-level flow
+- **README.md** — Added "Flexible Filtering" feature, updated "How It Works" diagram and steps

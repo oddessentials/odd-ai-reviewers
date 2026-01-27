@@ -751,3 +751,152 @@ describe('edge cases', () => {
     });
   });
 });
+
+/**
+ * Helper: parse .reviewignore lines and return patterns for shouldIgnoreFile
+ * This tests the full user-facing pipeline, not internal normalized patterns
+ */
+function patternsFromLines(...lines: string[]): ReviewIgnorePattern[] {
+  return lines
+    .map((line, i) => parseReviewIgnoreLine(line, i + 1))
+    .filter((p): p is ReviewIgnorePattern => p !== null);
+}
+
+describe('bare segment pattern semantics (user-facing input)', () => {
+  describe('directory-like bare names', () => {
+    it('node_modules should match the name and its contents', () => {
+      const patterns = patternsFromLines('node_modules');
+
+      // Should match the name itself
+      expect(shouldIgnoreFile('node_modules', patterns)).toBe(true);
+      expect(shouldIgnoreFile('src/node_modules', patterns)).toBe(true);
+      // Should match contents
+      expect(shouldIgnoreFile('node_modules/lodash/index.js', patterns)).toBe(true);
+      expect(shouldIgnoreFile('src/node_modules/local/file.js', patterns)).toBe(true);
+      // Should NOT match prefix-similar names
+      expect(shouldIgnoreFile('node_modules_backup/file.js', patterns)).toBe(false);
+    });
+
+    it('build should match the name and its contents', () => {
+      const patterns = patternsFromLines('build');
+
+      expect(shouldIgnoreFile('build', patterns)).toBe(true);
+      expect(shouldIgnoreFile('build/output.js', patterns)).toBe(true);
+      expect(shouldIgnoreFile('packages/app/build/index.js', patterns)).toBe(true);
+    });
+  });
+
+  describe('dotfile/dotdir bare names', () => {
+    it('.github should match the name and its contents', () => {
+      const patterns = patternsFromLines('.github');
+
+      expect(shouldIgnoreFile('.github', patterns)).toBe(true);
+      expect(shouldIgnoreFile('.github/workflows/ci.yml', patterns)).toBe(true);
+    });
+
+    it('.vscode should match the name and its contents', () => {
+      const patterns = patternsFromLines('.vscode');
+
+      expect(shouldIgnoreFile('.vscode', patterns)).toBe(true);
+      expect(shouldIgnoreFile('.vscode/settings.json', patterns)).toBe(true);
+    });
+  });
+
+  describe('extensionless file names (treated same as directories)', () => {
+    it('LICENSE should match the name and hypothetical contents', () => {
+      const patterns = patternsFromLines('LICENSE');
+
+      expect(shouldIgnoreFile('LICENSE', patterns)).toBe(true);
+      expect(shouldIgnoreFile('packages/lib/LICENSE', patterns)).toBe(true);
+      // Also matches hypothetical contents (harmless - path won't exist for a file)
+      expect(shouldIgnoreFile('LICENSE/foo', patterns)).toBe(true);
+    });
+
+    it('Makefile should match the name and hypothetical contents', () => {
+      const patterns = patternsFromLines('Makefile');
+
+      expect(shouldIgnoreFile('Makefile', patterns)).toBe(true);
+      expect(shouldIgnoreFile('Makefile/foo', patterns)).toBe(true);
+    });
+  });
+
+  describe('files with extensions (ALSO treated as bare segments)', () => {
+    it('package.json should match the name and hypothetical contents', () => {
+      const patterns = patternsFromLines('package.json');
+
+      expect(shouldIgnoreFile('package.json', patterns)).toBe(true);
+      // Bare segment = also matches contents (harmless for actual files)
+      expect(shouldIgnoreFile('package.json/something', patterns)).toBe(true);
+    });
+  });
+
+  describe('wildcard patterns (NOT bare segments - no expansion)', () => {
+    it('*.log should NOT match contents of matched files', () => {
+      const patterns = patternsFromLines('*.log');
+
+      expect(shouldIgnoreFile('app.log', patterns)).toBe(true);
+      expect(shouldIgnoreFile('logs/debug.log', patterns)).toBe(true);
+      // Should NOT recursively match - has wildcard
+      expect(shouldIgnoreFile('app.log/nested', patterns)).toBe(false);
+    });
+
+    it('file?.txt should NOT match contents', () => {
+      const patterns = patternsFromLines('file?.txt');
+
+      expect(shouldIgnoreFile('file1.txt', patterns)).toBe(true);
+      expect(shouldIgnoreFile('file1.txt/nested', patterns)).toBe(false);
+    });
+  });
+
+  describe('path patterns (NOT bare segments - no expansion)', () => {
+    it('src/generated should NOT match its contents', () => {
+      const patterns = patternsFromLines('src/generated');
+
+      expect(shouldIgnoreFile('src/generated', patterns)).toBe(true);
+      // Has path separator - not a bare segment - no expansion
+      expect(shouldIgnoreFile('src/generated/models.ts', patterns)).toBe(false);
+    });
+  });
+
+  describe('explicit directory patterns (trailing slash)', () => {
+    it('dist/ should match contents (already recursive via normalization)', () => {
+      const patterns = patternsFromLines('dist/');
+
+      expect(shouldIgnoreFile('dist/bundle.js', patterns)).toBe(true);
+      expect(shouldIgnoreFile('packages/app/dist/index.js', patterns)).toBe(true);
+    });
+  });
+
+  describe('negation with bare segments (CRITICAL: precedence)', () => {
+    it('should allow re-including specific files under excluded directory', () => {
+      const patterns = patternsFromLines(
+        'node_modules', // Exclude node_modules and contents
+        '!node_modules/keep.js' // But keep this specific file
+      );
+
+      expect(shouldIgnoreFile('node_modules/lodash/index.js', patterns)).toBe(true);
+      expect(shouldIgnoreFile('node_modules/keep.js', patterns)).toBe(false);
+    });
+
+    it('should allow re-including subdirectories', () => {
+      const patterns = patternsFromLines(
+        'vendor', // Exclude vendor and contents
+        '!vendor/important/' // But keep vendor/important/ contents
+      );
+
+      expect(shouldIgnoreFile('vendor/junk/file.js', patterns)).toBe(true);
+      expect(shouldIgnoreFile('vendor/important/file.js', patterns)).toBe(false);
+    });
+
+    it('should respect pattern order (last match wins)', () => {
+      const patterns = patternsFromLines(
+        'build', // Exclude
+        '!build/keep.js', // Re-include
+        'build/keep.js' // Exclude again
+      );
+
+      // Last pattern wins
+      expect(shouldIgnoreFile('build/keep.js', patterns)).toBe(true);
+    });
+  });
+});
