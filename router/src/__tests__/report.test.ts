@@ -186,7 +186,27 @@ describe('Report Module', () => {
         expect.objectContaining({
           owner: 'test-owner',
           repo: 'test-repo',
+          headSha: 'abc123',
           token: 'ghp_test',
+        }),
+        minimalConfig,
+        []
+      );
+    });
+
+    it('should prefer githubHeadSha when provided for GitHub reporting', async () => {
+      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+        head: 'pr-head-sha',
+        githubHeadSha: 'merge-head-sha',
+        owner: 'test-owner',
+        repoName: 'test-repo',
+        pr: 123,
+      });
+
+      expect(mockGitHubReport).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          headSha: 'merge-head-sha',
         }),
         minimalConfig,
         []

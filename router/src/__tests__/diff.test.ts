@@ -7,12 +7,14 @@ import {
   filterFiles,
   buildCombinedDiff,
   normalizeGitRef,
+  resolveReviewRefs,
+  getGitHubCheckHeadSha,
   normalizePath,
   canonicalizeDiffFiles,
   type DiffFile,
   type PathFilter,
 } from '../diff.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 const testFiles: DiffFile[] = [
   { path: 'src/index.ts', status: 'modified', additions: 10, deletions: 5, patch: '+ added' },
@@ -133,12 +135,12 @@ vi.mock('child_process', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    execSync: vi.fn(),
+    execFileSync: vi.fn(),
   };
 });
 
 describe('normalizeGitRef', () => {
-  const mockExecSync = vi.mocked(execSync);
+  const mockExecSync = vi.mocked(execFileSync);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -155,18 +157,20 @@ describe('normalizeGitRef', () => {
     const result = normalizeGitRef('/repo', 'abc123def456');
     expect(result).toBe('abc123def456789');
     expect(mockExecSync).toHaveBeenCalledWith(
-      expect.stringContaining('git rev-parse --verify'),
+      'git',
+      ['rev-parse', '--verify', 'abc123def456'],
       expect.any(Object)
     );
   });
 
   it('should resolve refs/heads/main to origin/main SHA', () => {
     // First call (direct ref) fails
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('refs/heads/main')) {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'refs/heads/main') {
         throw new Error('unknown revision');
       }
-      if (cmd.includes('origin/main')) {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/main') {
         return 'resolved-sha-12345\n';
       }
       throw new Error('unexpected call');
@@ -178,11 +182,12 @@ describe('normalizeGitRef', () => {
 
   it('should try origin/* as fallback for branch names', () => {
     // Direct ref fails, origin/* succeeds
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('"feature-branch"')) {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'feature-branch') {
         throw new Error('unknown revision');
       }
-      if (cmd.includes('origin/feature-branch')) {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/feature-branch') {
         return 'feature-sha-67890\n';
       }
       throw new Error('unexpected call');
@@ -193,8 +198,9 @@ describe('normalizeGitRef', () => {
   });
 
   it('should resolve origin/<branch> directly', () => {
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('origin/feature-branch')) {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/feature-branch') {
         return 'resolved-origin-sha\n';
       }
       throw new Error('unexpected call');
@@ -205,8 +211,9 @@ describe('normalizeGitRef', () => {
   });
 
   it('should resolve tags directly', () => {
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('refs/tags/v1.2.3')) {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'refs/tags/v1.2.3') {
         return 'tag-sha-123\n';
       }
       throw new Error('unexpected call');
@@ -236,6 +243,173 @@ describe('normalizeGitRef', () => {
 
     const result = normalizeGitRef('/repo', '7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
     expect(result).toBe('7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
+  });
+});
+
+describe('resolveReviewRefs', () => {
+  const mockExecSync = vi.mocked(execFileSync);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should use merge queue second parent when base matches first parent', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
+        return 'base-sha\n';
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'merge-sha') {
+        return 'merge-sha\n';
+      }
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'merge-sha') {
+        return 'merge-sha base-sha head-sha\n';
+      }
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      inputHeadSha: 'merge-sha',
+      headSource: 'merge-parent',
+    });
+  });
+
+  it('should resolve merge queue head when base is refs/heads/main', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'refs/heads/main') {
+        throw new Error('unknown revision');
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/main') {
+        return 'base-sha\n';
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'merge-sha') {
+        return 'merge-sha\n';
+      }
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'merge-sha') {
+        return 'merge-sha base-sha head-sha\n';
+      }
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'refs/heads/main', 'merge-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      inputHeadSha: 'merge-sha',
+      headSource: 'merge-parent',
+    });
+  });
+
+  it('should keep head when base does not match merge first parent', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
+        return 'base-sha\n';
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'merge-sha') {
+        return 'merge-sha\n';
+      }
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'merge-sha') {
+        return 'merge-sha other-base head-sha\n';
+      }
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'merge-sha',
+      inputHeadSha: 'merge-sha',
+      headSource: 'input',
+    });
+  });
+
+  it('should keep head for rebase merges (single parent)', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
+        return 'base-sha\n';
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'head-sha') {
+        return 'head-sha\n';
+      }
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'head-sha') {
+        return 'head-sha parent-only\n';
+      }
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'head-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      inputHeadSha: 'head-sha',
+      headSource: 'input',
+    });
+  });
+
+  it('should keep head for non-PR runs (regular commit range)', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
+        return 'base-sha\n';
+      }
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'feature-sha') {
+        return 'feature-sha\n';
+      }
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'feature-sha') {
+        return 'feature-sha parent-only\n';
+      }
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'feature-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'feature-sha',
+      inputHeadSha: 'feature-sha',
+      headSource: 'input',
+    });
+  });
+
+  it('should throw on unsafe base SHA', () => {
+    expect(() => resolveReviewRefs('/repo', 'base;rm -rf /', 'head-sha')).toThrow(/baseSha/);
+  });
+
+  it('should throw on unsafe repo path', () => {
+    expect(() => resolveReviewRefs('/repo;rm -rf /', 'base-sha', 'head-sha')).toThrow(/repoPath/);
+  });
+});
+
+describe('getGitHubCheckHeadSha', () => {
+  it('should use input head SHA for merge-parent reviews', () => {
+    const result = getGitHubCheckHeadSha({
+      baseSha: 'base-sha',
+      headSha: 'pr-head-sha',
+      inputHeadSha: 'merge-head-sha',
+      headSource: 'merge-parent',
+    });
+
+    expect(result).toBe('merge-head-sha');
+  });
+
+  it('should use review head SHA for non-merge reviews', () => {
+    const result = getGitHubCheckHeadSha({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      inputHeadSha: 'head-sha',
+      headSource: 'input',
+    });
+
+    expect(result).toBe('head-sha');
   });
 });
 
