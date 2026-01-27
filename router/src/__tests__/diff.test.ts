@@ -197,6 +197,36 @@ describe('normalizeGitRef', () => {
     expect(result).toBe('feature-sha-67890');
   });
 
+  it('should resolve origin/<branch> directly', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/feature-branch') {
+        return 'resolved-origin-sha\n';
+      }
+      throw new Error('unexpected call');
+    });
+
+    const result = normalizeGitRef('/repo', 'origin/feature-branch');
+    expect(result).toBe('resolved-origin-sha');
+  });
+
+  it('should resolve tags directly', () => {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'refs/tags/v1.2.3') {
+        return 'tag-sha-123\n';
+      }
+      throw new Error('unexpected call');
+    });
+
+    const result = normalizeGitRef('/repo', 'refs/tags/v1.2.3');
+    expect(result).toBe('tag-sha-123');
+  });
+
+  it('should reject unsafe refs', () => {
+    expect(() => normalizeGitRef('/repo', 'main;rm -rf /')).toThrow(/ref/);
+  });
+
   it('should return original ref if all resolutions fail', () => {
     // All attempts fail
     mockExecSync.mockImplementation(() => {

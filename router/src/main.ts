@@ -146,6 +146,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   }
 
   console.log('[router] Resolving review refs...');
+  // Resolve base/head refs to SHAs for stable cache keys and accurate diff mapping.
   const reviewRefs = resolveReviewRefs(options.repo, options.base, options.head);
   if (reviewRefs.headSource === 'merge-parent') {
     console.log(`[router] Using PR head SHA ${reviewRefs.headSha} for review`);
