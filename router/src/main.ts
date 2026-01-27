@@ -10,7 +10,7 @@ import { Command } from 'commander';
 import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
-import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
+import { getDiff, filterFiles, buildCombinedDiff, resolveReviewRefs } from './diff.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -139,8 +139,14 @@ async function runReview(options: ReviewOptions): Promise<void> {
     return;
   }
 
+  console.log('[router] Resolving review refs...');
+  const reviewRefs = resolveReviewRefs(options.repo, options.base, options.head);
+  if (reviewRefs.headSource === 'merge-parent') {
+    console.log(`[router] Using PR head SHA ${reviewRefs.headSha} for review`);
+  }
+
   console.log('[router] Extracting diff...');
-  const diff = getDiff(options.repo, options.base, options.head);
+  const diff = getDiff(options.repo, reviewRefs.baseSha, reviewRefs.headSha);
   console.log(
     `[router] Found ${diff.files.length} changed files (${diff.totalAdditions}+ / ${diff.totalDeletions}-)`
   );
@@ -170,7 +176,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
       checkRunId = await startCheckRun({
         owner: options.owner,
         repo: options.repoName,
-        headSha: options.head,
+        headSha: reviewRefs.headSha,
         token: routerEnv['GITHUB_TOKEN'],
       });
     } catch (error) {
@@ -222,7 +228,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   // === PHASE 5: Execute Agent Passes ===
   const executeResult = await executeAllPasses(config, agentContext, routerEnv, budgetCheck, {
     pr: options.pr,
-    head: options.head,
+    head: reviewRefs.headSha,
     configHash,
   });
 
@@ -238,7 +244,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     owner: options.owner,
     repoName: options.repoName,
     pr: options.pr,
-    head: options.head,
+    head: reviewRefs.headSha,
     checkRunId,
   });
 

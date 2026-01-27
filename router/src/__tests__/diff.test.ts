@@ -7,6 +7,7 @@ import {
   filterFiles,
   buildCombinedDiff,
   normalizeGitRef,
+  resolveReviewRefs,
   normalizePath,
   canonicalizeDiffFiles,
   type DiffFile,
@@ -208,6 +209,84 @@ describe('normalizeGitRef', () => {
 
     const result = normalizeGitRef('/repo', '7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
     expect(result).toBe('7a3f80cfb32f57fc25c32d9c07b4d36b145b9e4b');
+  });
+});
+
+describe('resolveReviewRefs', () => {
+  const mockExecSync = vi.mocked(execSync);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should use merge commit second parent when base matches first parent', () => {
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+        return 'base-sha\n';
+      }
+      if (cmd.includes('git rev-parse --verify "merge-sha"')) {
+        return 'merge-sha\n';
+      }
+      if (cmd.includes('git rev-list --parents -n 1 merge-sha')) {
+        return 'merge-sha base-sha head-sha\n';
+      }
+      throw new Error(`Unexpected command: ${cmd}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      headSource: 'merge-parent',
+    });
+  });
+
+  it('should keep head when base does not match merge first parent', () => {
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+        return 'base-sha\n';
+      }
+      if (cmd.includes('git rev-parse --verify "merge-sha"')) {
+        return 'merge-sha\n';
+      }
+      if (cmd.includes('git rev-list --parents -n 1 merge-sha')) {
+        return 'merge-sha other-base head-sha\n';
+      }
+      throw new Error(`Unexpected command: ${cmd}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'merge-sha',
+      headSource: 'input',
+    });
+  });
+
+  it('should keep head when commit has a single parent', () => {
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+        return 'base-sha\n';
+      }
+      if (cmd.includes('git rev-parse --verify "head-sha"')) {
+        return 'head-sha\n';
+      }
+      if (cmd.includes('git rev-list --parents -n 1 head-sha')) {
+        return 'head-sha parent-only\n';
+      }
+      throw new Error(`Unexpected command: ${cmd}`);
+    });
+
+    const result = resolveReviewRefs('/repo', 'base-sha', 'head-sha');
+    expect(result).toEqual({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      headSource: 'input',
+    });
   });
 });
 

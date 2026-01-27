@@ -53,6 +53,15 @@ export interface DiffSummary {
   source: 'local-git';
 }
 
+export interface ResolvedReviewRefs {
+  /** Normalized base SHA used for diff */
+  baseSha: string;
+  /** Normalized head SHA used for diff and reporting */
+  headSha: string;
+  /** Whether the head SHA was derived from a merge commit parent */
+  headSource: 'input' | 'merge-parent';
+}
+
 export interface PathFilter {
   include?: string[];
   exclude?: string[];
@@ -142,6 +151,61 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // Return original ref - will fail at git diff if invalid
   return ref;
+}
+
+/**
+ * Resolve base/head refs for review runs, including merge-commit handling.
+ *
+ * GitHub PR workflows often pass a merge commit SHA (refs/pull/<id>/merge) as head.
+ * Inline comment APIs expect the PR HEAD commit, not the merge commit. When the
+ * provided head is a merge commit whose first parent matches the base SHA,
+ * we use the second parent (PR head) for diff and reporting to keep line
+ * numbers aligned with the PR diff view.
+ */
+export function resolveReviewRefs(
+  repoPath: string,
+  baseSha: string,
+  headSha: string
+): ResolvedReviewRefs {
+  assertSafeRepoPath(repoPath);
+  assertSafeGitRef(baseSha, 'baseSha');
+  assertSafeGitRef(headSha, 'headSha');
+
+  const normalizedBase = normalizeGitRef(repoPath, baseSha);
+  const normalizedHead = normalizeGitRef(repoPath, headSha);
+
+  let resolvedHead = normalizedHead;
+  let headSource: ResolvedReviewRefs['headSource'] = 'input';
+
+  try {
+    const parents = execSync(`git rev-list --parents -n 1 ${normalizedHead}`, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+      .trim()
+      .split(' ');
+
+    // Format: <commit> <parent1> <parent2> ...
+    const parent1 = parents[1];
+    const parent2 = parents[2];
+    if (parent1 && parent2 && parent1 === normalizedBase) {
+      resolvedHead = parent2;
+      headSource = 'merge-parent';
+      console.log(
+        `[diff] Detected merge commit head ${normalizedHead.slice(0, 8)}; ` +
+          `using second parent ${parent2.slice(0, 8)} for review`
+      );
+    }
+  } catch (error) {
+    console.warn(`[diff] Failed to inspect head parents: ${error}`);
+  }
+
+  return {
+    baseSha: normalizedBase,
+    headSha: resolvedHead,
+    headSource,
+  };
 }
 
 /**
