@@ -241,6 +241,7 @@ describe('resolveReviewRefs', () => {
     expect(result).toEqual({
       baseSha: 'base-sha',
       headSha: 'head-sha',
+      inputHeadSha: 'merge-sha',
       headSource: 'merge-parent',
     });
   });
@@ -263,6 +264,7 @@ describe('resolveReviewRefs', () => {
     expect(result).toEqual({
       baseSha: 'base-sha',
       headSha: 'merge-sha',
+      inputHeadSha: 'merge-sha',
       headSource: 'input',
     });
   });
@@ -285,6 +287,7 @@ describe('resolveReviewRefs', () => {
     expect(result).toEqual({
       baseSha: 'base-sha',
       headSha: 'head-sha',
+      inputHeadSha: 'head-sha',
       headSource: 'input',
     });
   });

@@ -144,6 +144,11 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (reviewRefs.headSource === 'merge-parent') {
     console.log(`[router] Using PR head SHA ${reviewRefs.headSha} for review`);
   }
+  const githubHeadSha =
+    reviewRefs.headSource === 'merge-parent' ? reviewRefs.inputHeadSha : reviewRefs.headSha;
+  if (platform === 'github' && reviewRefs.headSource === 'merge-parent') {
+    console.log(`[router] Using merge commit SHA ${githubHeadSha} for GitHub checks`);
+  }
 
   console.log('[router] Extracting diff...');
   const diff = getDiff(options.repo, reviewRefs.baseSha, reviewRefs.headSha);
@@ -176,7 +181,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
       checkRunId = await startCheckRun({
         owner: options.owner,
         repo: options.repoName,
-        headSha: reviewRefs.headSha,
+        headSha: githubHeadSha,
         token: routerEnv['GITHUB_TOKEN'],
       });
     } catch (error) {
@@ -245,6 +250,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     repoName: options.repoName,
     pr: options.pr,
     head: reviewRefs.headSha,
+    githubHeadSha,
     checkRunId,
   });
 

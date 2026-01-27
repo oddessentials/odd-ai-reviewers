@@ -56,8 +56,10 @@ export interface DiffSummary {
 export interface ResolvedReviewRefs {
   /** Normalized base SHA used for diff */
   baseSha: string;
-  /** Normalized head SHA used for diff and reporting */
+  /** Normalized head SHA used for diff and review context */
   headSha: string;
+  /** Normalized head SHA from input (e.g., merge commit) */
+  inputHeadSha: string;
   /** Whether the head SHA was derived from a merge commit parent */
   headSource: 'input' | 'merge-parent';
 }
@@ -204,6 +206,7 @@ export function resolveReviewRefs(
   return {
     baseSha: normalizedBase,
     headSha: resolvedHead,
+    inputHeadSha: normalizedHead,
     headSource,
   };
 }
