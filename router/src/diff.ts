@@ -3,7 +3,7 @@
  * Extracts and processes PR diffs with path filtering
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 
@@ -112,7 +112,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // First, try to resolve the ref directly
   try {
-    const resolved = execSync(`git rev-parse --verify "${ref}"`, {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', ref], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -126,7 +126,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
   if (ref.startsWith('refs/heads/')) {
     const branchName = ref.replace('refs/heads/', '');
     try {
-      const resolved = execSync(`git rev-parse --verify "origin/${branchName}"`, {
+      const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${branchName}`], {
         cwd: repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -140,7 +140,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // Try as a remote branch directly
   try {
-    const resolved = execSync(`git rev-parse --verify "origin/${ref}"`, {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${ref}`], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -180,7 +180,7 @@ export function resolveReviewRefs(
   let headSource: ResolvedReviewRefs['headSource'] = 'input';
 
   try {
-    const parents = execSync(`git rev-list --parents -n 1 ${normalizedHead}`, {
+    const parents = execFileSync('git', ['rev-list', '--parents', '-n', '1', normalizedHead], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -199,8 +199,8 @@ export function resolveReviewRefs(
           `using second parent ${parent2.slice(0, 8)} for review`
       );
     }
-  } catch (error) {
-    console.warn(`[diff] Failed to inspect head parents: ${error}`);
+  } catch {
+    console.warn('[diff] Failed to inspect head parents');
   }
 
   return {
@@ -230,11 +230,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
 
   try {
     // Get list of changed files with stats using NUL-delimited format
-    const diffStat = execSync(`git diff --numstat -z ${normalizedBase}...${normalizedHead}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      maxBuffer: MAX_OUTPUT_BYTES,
-    });
+    const diffStat = execFileSync(
+      'git',
+      ['diff', '--numstat', '-z', `${normalizedBase}...${normalizedHead}`],
+      {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        maxBuffer: MAX_OUTPUT_BYTES,
+      }
+    );
 
     // Hard guard: output size
     if (diffStat.length > MAX_OUTPUT_BYTES) {
@@ -244,10 +248,14 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
     }
 
     // Get file statuses (for non-rename status detection)
-    const nameStatus = execSync(`git diff --name-status ${normalizedBase}...${normalizedHead}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    });
+    const nameStatus = execFileSync(
+      'git',
+      ['diff', '--name-status', `${normalizedBase}...${normalizedHead}`],
+      {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      }
+    );
 
     const { statusMap } = parseNameStatus(nameStatus);
     const parseResult = parseNumstatZ(diffStat, statusMap);
@@ -290,8 +298,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       }
 
       try {
-        file.patch = execSync(
-          `git diff --unified=${UNIFIED_CONTEXT} ${normalizedBase}...${normalizedHead} -- "${safePath}"`,
+        file.patch = execFileSync(
+          'git',
+          [
+            'diff',
+            `--unified=${UNIFIED_CONTEXT}`,
+            `${normalizedBase}...${normalizedHead}`,
+            '--',
+            safePath,
+          ],
           {
             cwd: repoPath,
             encoding: 'utf-8',

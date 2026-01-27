@@ -13,7 +13,7 @@ import {
   type DiffFile,
   type PathFilter,
 } from '../diff.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 const testFiles: DiffFile[] = [
   { path: 'src/index.ts', status: 'modified', additions: 10, deletions: 5, patch: '+ added' },
@@ -134,12 +134,12 @@ vi.mock('child_process', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    execSync: vi.fn(),
+    execFileSync: vi.fn(),
   };
 });
 
 describe('normalizeGitRef', () => {
-  const mockExecSync = vi.mocked(execSync);
+  const mockExecSync = vi.mocked(execFileSync);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -156,18 +156,19 @@ describe('normalizeGitRef', () => {
     const result = normalizeGitRef('/repo', 'abc123def456');
     expect(result).toBe('abc123def456789');
     expect(mockExecSync).toHaveBeenCalledWith(
-      expect.stringContaining('git rev-parse --verify'),
+      'git',
+      ['rev-parse', '--verify', 'abc123def456'],
       expect.any(Object)
     );
   });
 
   it('should resolve refs/heads/main to origin/main SHA', () => {
     // First call (direct ref) fails
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('refs/heads/main')) {
+    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[2] === 'refs/heads/main') {
         throw new Error('unknown revision');
       }
-      if (cmd.includes('origin/main')) {
+      if (args[0] === 'rev-parse' && args[2] === 'origin/main') {
         return 'resolved-sha-12345\n';
       }
       throw new Error('unexpected call');
@@ -179,11 +180,11 @@ describe('normalizeGitRef', () => {
 
   it('should try origin/* as fallback for branch names', () => {
     // Direct ref fails, origin/* succeeds
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('"feature-branch"')) {
+    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[2] === 'feature-branch') {
         throw new Error('unknown revision');
       }
-      if (cmd.includes('origin/feature-branch')) {
+      if (args[0] === 'rev-parse' && args[2] === 'origin/feature-branch') {
         return 'feature-sha-67890\n';
       }
       throw new Error('unexpected call');
@@ -213,7 +214,7 @@ describe('normalizeGitRef', () => {
 });
 
 describe('resolveReviewRefs', () => {
-  const mockExecSync = vi.mocked(execSync);
+  const mockExecSync = vi.mocked(execFileSync);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -224,17 +225,17 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should use merge commit second parent when base matches first parent', () => {
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (cmd.includes('git rev-parse --verify "merge-sha"')) {
+      if (args[0] === 'rev-parse' && args[2] === 'merge-sha') {
         return 'merge-sha\n';
       }
-      if (cmd.includes('git rev-list --parents -n 1 merge-sha')) {
+      if (args[0] === 'rev-list' && args[args.length - 1] === 'merge-sha') {
         return 'merge-sha base-sha head-sha\n';
       }
-      throw new Error(`Unexpected command: ${cmd}`);
+      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
@@ -247,17 +248,17 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should keep head when base does not match merge first parent', () => {
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (cmd.includes('git rev-parse --verify "merge-sha"')) {
+      if (args[0] === 'rev-parse' && args[2] === 'merge-sha') {
         return 'merge-sha\n';
       }
-      if (cmd.includes('git rev-list --parents -n 1 merge-sha')) {
+      if (args[0] === 'rev-list' && args[args.length - 1] === 'merge-sha') {
         return 'merge-sha other-base head-sha\n';
       }
-      throw new Error(`Unexpected command: ${cmd}`);
+      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
@@ -270,17 +271,17 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should keep head when commit has a single parent', () => {
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd.includes('git rev-parse --verify "base-sha"')) {
+    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
+      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (cmd.includes('git rev-parse --verify "head-sha"')) {
+      if (args[0] === 'rev-parse' && args[2] === 'head-sha') {
         return 'head-sha\n';
       }
-      if (cmd.includes('git rev-list --parents -n 1 head-sha')) {
+      if (args[0] === 'rev-list' && args[args.length - 1] === 'head-sha') {
         return 'head-sha parent-only\n';
       }
-      throw new Error(`Unexpected command: ${cmd}`);
+      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'head-sha');
@@ -290,6 +291,14 @@ describe('resolveReviewRefs', () => {
       inputHeadSha: 'head-sha',
       headSource: 'input',
     });
+  });
+
+  it('should throw on unsafe base SHA', () => {
+    expect(() => resolveReviewRefs('/repo', 'base;rm -rf /', 'head-sha')).toThrow(/baseSha/);
+  });
+
+  it('should throw on unsafe repo path', () => {
+    expect(() => resolveReviewRefs('/repo;rm -rf /', 'base-sha', 'head-sha')).toThrow(/repoPath/);
   });
 });
 
