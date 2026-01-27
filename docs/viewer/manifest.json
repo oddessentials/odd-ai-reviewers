@@ -84,6 +84,11 @@
       "path": "../OSCR-INTEGRATION.md"
     },
     {
+      "name": "REVIEW_TEAM.md",
+      "type": "file",
+      "path": "../REVIEW_TEAM.md"
+    },
+    {
       "name": "ROADMAP.md",
       "type": "file",
       "path": "../ROADMAP.md"
@@ -174,6 +179,11 @@
       "name": "OSCR-INTEGRATION.md",
       "type": "file",
       "path": "../OSCR-INTEGRATION.md"
+    },
+    {
+      "name": "REVIEW_TEAM.md",
+      "type": "file",
+      "path": "../REVIEW_TEAM.md"
     },
     {
       "name": "ROADMAP.md",
