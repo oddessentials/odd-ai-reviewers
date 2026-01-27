@@ -10,7 +10,7 @@ import { Command } from 'commander';
 import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
-import { getDiff, filterFiles, buildCombinedDiff } from './diff.js';
+import { getDiff, filterFiles, buildCombinedDiff, normalizeGitRef } from './diff.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -97,6 +97,17 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Repository: ${options.repo}`);
   console.log(`[router] Diff: ${options.base}...${options.head}`);
 
+  // === PHASE 0: Resolve Git Refs to SHAs ===
+  // CRITICAL: Resolve head ref to actual SHA before using it for caching or reporting.
+  // This prevents stale cache hits when a branch name is passed as --head.
+  // Without this, if --head is 'feat/branch', the cache key would be the same
+  // across different commits on that branch, causing incorrect line numbers
+  // when cached findings are returned for a different commit.
+  const resolvedHead = normalizeGitRef(options.repo, options.head);
+  if (resolvedHead !== options.head) {
+    console.log(`[router] Resolved head ref: ${options.head} -> ${resolvedHead.slice(0, 12)}`);
+  }
+
   // === PHASE 1: Setup & Context Building ===
   const routerEnv = buildRouterEnv(process.env as Record<string, string | undefined>);
   const config = await loadConfig(options.repo);
@@ -170,7 +181,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
       checkRunId = await startCheckRun({
         owner: options.owner,
         repo: options.repoName,
-        headSha: options.head,
+        headSha: resolvedHead,
         token: routerEnv['GITHUB_TOKEN'],
       });
     } catch (error) {
@@ -222,7 +233,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   // === PHASE 5: Execute Agent Passes ===
   const executeResult = await executeAllPasses(config, agentContext, routerEnv, budgetCheck, {
     pr: options.pr,
-    head: options.head,
+    head: resolvedHead,
     configHash,
   });
 
@@ -238,7 +249,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
     owner: options.owner,
     repoName: options.repoName,
     pr: options.pr,
-    head: options.head,
+    head: resolvedHead,
     checkRunId,
   });
 

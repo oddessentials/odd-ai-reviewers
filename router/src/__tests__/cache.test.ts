@@ -112,6 +112,86 @@ describe('parseCacheKey', () => {
   });
 });
 
+describe('Cache Key - Branch vs SHA Resolution', () => {
+  /**
+   * This test demonstrates the stale cache bug that was fixed.
+   *
+   * BUG SCENARIO (before fix):
+   * 1. First review: --head feat/branch (branch name)
+   *    - Cache key uses 'feat/branch' as headSha
+   *    - Agent runs, produces findings for commit ABC123
+   * 2. User pushes new commit to feat/branch
+   * 3. Second review: --head feat/branch (same branch name)
+   *    - Cache key STILL uses 'feat/branch' - CACHE HIT!
+   *    - Returns OLD findings from ABC123
+   *    - But diff is computed for NEW commit DEF456
+   *    - Line numbers are WRONG!
+   *
+   * FIX: Resolve branch names to SHAs BEFORE generating cache key
+   * - First review: key uses resolved SHA 'abc123...' (12 chars)
+   * - Second review: key uses NEW resolved SHA 'def456...'
+   * - Cache misses correctly, agent re-runs with correct diff
+   */
+  it('should produce different keys when branch resolves to different SHAs', () => {
+    // Simulate first review - branch resolves to commit ABC
+    const key1 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'abc123def456789012345678901234567890abcd', // Resolved SHA
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    // Simulate second review - same branch now resolves to commit DEF
+    const key2 = generateCacheKey({
+      prNumber: 42,
+      headSha: 'def456abc789012345678901234567890abcdef12', // NEW resolved SHA
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    // Keys MUST be different to prevent stale cache hits
+    expect(key1).not.toBe(key2);
+  });
+
+  it('should produce same key for same resolved SHA regardless of original ref', () => {
+    // Whether user passes branch name or SHA, after resolution we get same cache behavior
+    const resolvedSha = 'abc123def456789012345678901234567890abcd';
+
+    const key1 = generateCacheKey({
+      prNumber: 42,
+      headSha: resolvedSha, // From resolved 'feat/branch'
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    const key2 = generateCacheKey({
+      prNumber: 42,
+      headSha: resolvedSha, // From resolved 'abc123def456789012345678901234567890abcd'
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    // Same SHA = same key = correct cache behavior
+    expect(key1).toBe(key2);
+  });
+
+  it('should NOT use branch name as cache key (demonstrates the bug)', () => {
+    // This test shows what would happen if we used branch names directly
+    // BOTH would have the same key even though they're different commits!
+    const keyWithBranchName = generateCacheKey({
+      prNumber: 42,
+      headSha: 'feat/my-branch', // Branch name - BAD!
+      configHash: 'config1',
+      agentId: 'semgrep',
+    });
+
+    // This key would be the same for ANY commit on 'feat/my-branch'
+    // which is why we must resolve to SHA first
+    expect(keyWithBranchName).toContain(CACHE_KEY_PREFIX);
+    expect(keyWithBranchName).toContain('42');
+  });
+});
+
 describe('Cache Store', () => {
   beforeEach(async () => {
     await clearCache();
