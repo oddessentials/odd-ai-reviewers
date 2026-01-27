@@ -206,7 +206,7 @@ graph LR
 
 1. **Trigger** — PR is opened or updated
 2. **Trust Check** — Fork PRs blocked by default
-3. **Filter Files** — Apply `.reviewignore` and `path_filters` exclusions
+3. **Filter Files** — Apply `.reviewignore` and `path_filters` exclusions (see [Architecture](docs/ARCHITECTURE.md#file-filtering) for details)
 4. **Preflight** — Validates model config and API keys
 5. **Budget Check** — Enforces file, line, token, and cost limits
 6. **Static Pass** — Free tools like Semgrep run first

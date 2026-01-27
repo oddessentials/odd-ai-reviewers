@@ -141,7 +141,7 @@ Glob patterns to include/exclude files:
 
 ## `.reviewignore` File
 
-In addition to `path_filters` in `.ai-review.yml`, you can create a `.reviewignore` file at your repository root to exclude files from review using `.gitignore`-compatible syntax.
+In addition to `path_filters` in `.ai-review.yml`, you can create a `.reviewignore` file at your repository root to exclude files from review using [`.gitignore`-compatible syntax](https://git-scm.com/docs/gitignore#_pattern_format).
 
 ### Syntax
 
@@ -170,6 +170,50 @@ vendor/
 # Path patterns are anchored
 src/generated/
 ```
+
+#### Bare Segment Matching
+
+When you use a bare name like `node_modules` (no path separators), it matches that name **anywhere** in the path, plus all contents within it.
+
+**What `node_modules` matches:**
+
+| Path                             | Matches? | Why                   |
+| -------------------------------- | -------- | --------------------- |
+| `node_modules`                   | ✅       | Directory itself      |
+| `node_modules/lodash/index.js`   | ✅       | Contents of directory |
+| `src/node_modules/local/file.js` | ✅       | Nested occurrence     |
+
+**What `node_modules` does NOT match:**
+
+| Path                          | Matches? | Why                            |
+| ----------------------------- | -------- | ------------------------------ |
+| `node_modules_backup/file.js` | ❌       | Different segment (has suffix) |
+| `my-node_modules/file.js`     | ❌       | Different segment (has prefix) |
+
+> **Tip**: To match only at the repository root, use `/node_modules` instead of `node_modules`.
+
+### Pattern Normalization
+
+Patterns you write in `.reviewignore` are transformed before matching. Understanding these transformations helps you write effective exclusion rules.
+
+| You Write       | Becomes           | Rule                                        |
+| --------------- | ----------------- | ------------------------------------------- |
+| `node_modules`  | `**/node_modules` | Bare name → matches anywhere in path        |
+| `/config.js`    | `config.js`       | Leading `/` → root-relative only            |
+| `dist/`         | `**/dist/**`      | Trailing `/` → directory + all contents     |
+| `src/generated` | `src/generated`   | Has `/` → path-relative (no transformation) |
+| `./src/file.ts` | `src/file.ts`     | Leading `./` stripped                       |
+| `**/vendor`     | `**/vendor`       | Already recursive → no change               |
+
+**When is `**/` prefix added?\*\*
+
+The `**/` prefix (match anywhere) is added only when ALL of these are true:
+
+- Pattern has no path separator (except trailing `/`)
+- Pattern doesn't start with `/` (not root-relative)
+- Pattern doesn't already start with `**`
+
+This means `node_modules` matches `node_modules/`, `src/node_modules/`, and `deep/path/node_modules/`, while `/node_modules` only matches at the repository root.
 
 ### Filter Precedence
 
@@ -209,7 +253,22 @@ src/generated/
 
 # But keep important configs
 !.vscode/settings.json
+
+# Exclude directory but keep specific file for review
+node_modules
+!node_modules/important-patch.js
 ```
+
+#### Negation Pattern Behavior
+
+Negation patterns (starting with `!`) re-include files that were previously excluded. The **last matching pattern wins**:
+
+```gitignore
+node_modules           # Exclude all node_modules contents
+!node_modules/keep.js  # Re-include this specific file
+```
+
+In this example, `node_modules/keep.js` will be reviewed while all other files in `node_modules/` remain excluded.
 
 ## Examples
 
