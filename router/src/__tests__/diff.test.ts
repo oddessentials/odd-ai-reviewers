@@ -164,11 +164,12 @@ describe('normalizeGitRef', () => {
 
   it('should resolve refs/heads/main to origin/main SHA', () => {
     // First call (direct ref) fails
-    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
-      if (args[0] === 'rev-parse' && args[2] === 'refs/heads/main') {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'refs/heads/main') {
         throw new Error('unknown revision');
       }
-      if (args[0] === 'rev-parse' && args[2] === 'origin/main') {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/main') {
         return 'resolved-sha-12345\n';
       }
       throw new Error('unexpected call');
@@ -180,11 +181,12 @@ describe('normalizeGitRef', () => {
 
   it('should try origin/* as fallback for branch names', () => {
     // Direct ref fails, origin/* succeeds
-    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
-      if (args[0] === 'rev-parse' && args[2] === 'feature-branch') {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'feature-branch') {
         throw new Error('unknown revision');
       }
-      if (args[0] === 'rev-parse' && args[2] === 'origin/feature-branch') {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'origin/feature-branch') {
         return 'feature-sha-67890\n';
       }
       throw new Error('unexpected call');
@@ -225,17 +227,18 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should use merge commit second parent when base matches first parent', () => {
-    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
-      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (args[0] === 'rev-parse' && args[2] === 'merge-sha') {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'merge-sha') {
         return 'merge-sha\n';
       }
-      if (args[0] === 'rev-list' && args[args.length - 1] === 'merge-sha') {
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'merge-sha') {
         return 'merge-sha base-sha head-sha\n';
       }
-      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
@@ -248,17 +251,18 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should keep head when base does not match merge first parent', () => {
-    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
-      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (args[0] === 'rev-parse' && args[2] === 'merge-sha') {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'merge-sha') {
         return 'merge-sha\n';
       }
-      if (args[0] === 'rev-list' && args[args.length - 1] === 'merge-sha') {
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'merge-sha') {
         return 'merge-sha other-base head-sha\n';
       }
-      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'merge-sha');
@@ -271,17 +275,18 @@ describe('resolveReviewRefs', () => {
   });
 
   it('should keep head when commit has a single parent', () => {
-    mockExecSync.mockImplementation((cmd: string, args: string[]) => {
-      if (args[0] === 'rev-parse' && args[2] === 'base-sha') {
+    mockExecSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      const safeArgs = args ?? [];
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'base-sha') {
         return 'base-sha\n';
       }
-      if (args[0] === 'rev-parse' && args[2] === 'head-sha') {
+      if (safeArgs[0] === 'rev-parse' && safeArgs[2] === 'head-sha') {
         return 'head-sha\n';
       }
-      if (args[0] === 'rev-list' && args[args.length - 1] === 'head-sha') {
+      if (safeArgs[0] === 'rev-list' && safeArgs[safeArgs.length - 1] === 'head-sha') {
         return 'head-sha parent-only\n';
       }
-      throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
+      throw new Error(`Unexpected command: ${cmd} ${safeArgs.join(' ')}`);
     });
 
     const result = resolveReviewRefs('/repo', 'base-sha', 'head-sha');
