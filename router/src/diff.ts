@@ -6,6 +6,10 @@
 import { execFileSync } from 'child_process';
 import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
+import { shouldIgnoreFile, type ReviewIgnorePattern } from './reviewignore.js';
+
+// Re-export for convenience
+export type { ReviewIgnorePattern } from './reviewignore.js';
 
 export interface DiffFile {
   /** File path relative to repo root (normalized - no a/, b/, ./, / prefixes) */
@@ -67,6 +71,8 @@ export interface ResolvedReviewRefs {
 export interface PathFilter {
   include?: string[];
   exclude?: string[];
+  /** Patterns loaded from .reviewignore file */
+  reviewIgnorePatterns?: ReviewIgnorePattern[];
 }
 
 /**
@@ -351,13 +357,25 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
 }
 
 /**
- * Filter files based on include/exclude patterns
+ * Filter files based on include/exclude patterns and .reviewignore
+ *
+ * Filter precedence (applied in order):
+ * 1. .reviewignore patterns (excludes files from review)
+ * 2. path_filters.exclude (excludes files matching patterns)
+ * 3. path_filters.include (if set, only includes files matching patterns)
  */
 export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] {
   if (!filter) return files;
 
   return files.filter((file) => {
-    // Check exclude patterns first
+    // Apply .reviewignore patterns first (highest precedence for exclusions)
+    if (filter.reviewIgnorePatterns && filter.reviewIgnorePatterns.length > 0) {
+      if (shouldIgnoreFile(file.path, filter.reviewIgnorePatterns)) {
+        return false;
+      }
+    }
+
+    // Check exclude patterns from config
     if (filter.exclude) {
       for (const pattern of filter.exclude) {
         if (minimatch(file.path, pattern)) {

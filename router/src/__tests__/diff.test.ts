@@ -13,6 +13,7 @@ import {
   canonicalizeDiffFiles,
   type DiffFile,
   type PathFilter,
+  type ReviewIgnorePattern,
 } from '../diff.js';
 import { execFileSync } from 'child_process';
 
@@ -78,6 +79,90 @@ describe('filterFiles', () => {
   it('should return all files when filter is empty', () => {
     const result = filterFiles(testFiles, {});
     expect(result).toHaveLength(6);
+  });
+
+  describe('reviewIgnorePatterns integration', () => {
+    it('should exclude files matching reviewignore patterns', () => {
+      const reviewIgnorePatterns: ReviewIgnorePattern[] = [
+        { pattern: '**/node_modules/**', negated: false, lineNumber: 1 },
+      ];
+      const filter: PathFilter = { reviewIgnorePatterns };
+
+      const result = filterFiles(testFiles, filter);
+      expect(result).toHaveLength(5);
+      expect(result.some((f) => f.path.includes('node_modules'))).toBe(false);
+    });
+
+    it('should apply reviewignore before path_filters exclude', () => {
+      const reviewIgnorePatterns: ReviewIgnorePattern[] = [
+        { pattern: '**/node_modules/**', negated: false, lineNumber: 1 },
+      ];
+      const filter: PathFilter = {
+        exclude: ['**/*.md'],
+        reviewIgnorePatterns,
+      };
+
+      const result = filterFiles(testFiles, filter);
+      expect(result).toHaveLength(4);
+      expect(result.some((f) => f.path.includes('node_modules'))).toBe(false);
+      expect(result.some((f) => f.path.endsWith('.md'))).toBe(false);
+    });
+
+    it('should apply reviewignore with include patterns', () => {
+      const reviewIgnorePatterns: ReviewIgnorePattern[] = [
+        { pattern: '**/helper.ts', negated: false, lineNumber: 1 },
+      ];
+      const filter: PathFilter = {
+        include: ['src/**/*'],
+        reviewIgnorePatterns,
+      };
+
+      const result = filterFiles(testFiles, filter);
+      // Should only include src files except helper.ts
+      expect(result).toHaveLength(1);
+      expect(result[0]?.path).toBe('src/index.ts');
+    });
+
+    it('should handle negation patterns in reviewignore', () => {
+      const reviewIgnorePatterns: ReviewIgnorePattern[] = [
+        { pattern: '**/*.ts', negated: false, lineNumber: 1 },
+        { pattern: '**/index.ts', negated: true, lineNumber: 2 },
+      ];
+      const filter: PathFilter = { reviewIgnorePatterns };
+
+      const result = filterFiles(testFiles, filter);
+      // All .ts files except index.ts should be excluded
+      // Remaining: index.ts, package.json, README.md, node_modules file
+      expect(result.map((f) => f.path)).toContain('src/index.ts');
+      expect(result.map((f) => f.path)).not.toContain('src/utils/helper.ts');
+      expect(result.map((f) => f.path)).not.toContain('tests/index.test.ts');
+    });
+
+    it('should handle empty reviewignore patterns', () => {
+      const filter: PathFilter = {
+        reviewIgnorePatterns: [],
+        exclude: ['**/*.md'],
+      };
+
+      const result = filterFiles(testFiles, filter);
+      expect(result).toHaveLength(5);
+    });
+
+    it('should combine all filter types correctly', () => {
+      const reviewIgnorePatterns: ReviewIgnorePattern[] = [
+        { pattern: '**/node_modules/**', negated: false, lineNumber: 1 },
+      ];
+      const filter: PathFilter = {
+        include: ['src/**/*', 'tests/**/*'],
+        exclude: ['**/*.test.ts'],
+        reviewIgnorePatterns,
+      };
+
+      const result = filterFiles(testFiles, filter);
+      // Include: src/*, tests/* | Exclude: *.test.ts | ReviewIgnore: node_modules
+      expect(result).toHaveLength(2);
+      expect(result.map((f) => f.path)).toEqual(['src/index.ts', 'src/utils/helper.ts']);
+    });
   });
 });
 

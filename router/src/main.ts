@@ -16,7 +16,9 @@ import {
   buildCombinedDiff,
   resolveReviewRefs,
   getGitHubCheckHeadSha,
+  type PathFilter,
 } from './diff.js';
+import { loadReviewIgnore, shouldIgnoreFile } from './reviewignore.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -109,6 +111,10 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
   const configHash = hashConfig(config);
 
+  // Load .reviewignore patterns
+  const reviewIgnoreResult = await loadReviewIgnore(options.repo);
+  const reviewIgnorePatterns = reviewIgnoreResult.patterns;
+
   const platform = detectPlatform(routerEnv);
   console.log(`[router] Detected platform: ${platform}`);
 
@@ -162,8 +168,35 @@ async function runReview(options: ReviewOptions): Promise<void> {
     `[router] Found ${diff.files.length} changed files (${diff.totalAdditions}+ / ${diff.totalDeletions}-)`
   );
 
-  const filteredFiles = filterFiles(diff.files, config.path_filters);
+  // Count .reviewignore exclusions separately (count-only pre-pass)
+  const ignoredByReviewIgnore =
+    reviewIgnorePatterns.length > 0
+      ? diff.files.filter((f) => shouldIgnoreFile(f.path, reviewIgnorePatterns)).length
+      : 0;
+
+  // Combine path_filters from config with .reviewignore patterns
+  // Filter precedence (applied in filterFiles):
+  //   1. .reviewignore patterns (excludes matching files)
+  //   2. path_filters.exclude (excludes additional files)
+  //   3. path_filters.include (if set, only keeps matching files - whitelist)
+  const pathFilter: PathFilter = {
+    ...config.path_filters,
+    reviewIgnorePatterns,
+  };
+  const filteredFiles = filterFiles(diff.files, pathFilter);
+
+  // Calculate path_filters exclusions (approximate if there's overlap)
+  const totalExcluded = diff.files.length - filteredFiles.length;
+  const ignoredByPathFilters = Math.max(0, totalExcluded - ignoredByReviewIgnore);
+
+  // Log filtering results with breakdown
   console.log(`[router] ${filteredFiles.length} files after filtering`);
+  if (ignoredByReviewIgnore > 0) {
+    console.log(`[router]   - ${ignoredByReviewIgnore} excluded by .reviewignore`);
+  }
+  if (ignoredByPathFilters > 0) {
+    console.log(`[router]   - ${ignoredByPathFilters} excluded by path_filters`);
+  }
 
   if (filteredFiles.length === 0) {
     console.log('[router] No files to review after filtering');

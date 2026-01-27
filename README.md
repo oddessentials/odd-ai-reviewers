@@ -1,4 +1,4 @@
-# 🐝 odd-ai-reviewers
+# 🐝 Odd AI Reviewers
 
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
@@ -25,6 +25,7 @@
 - 📝 **Rich Reporting** — PR comments, inline annotations, check summaries
 - 🌐 **Multi-Platform** — GitHub Actions and Azure DevOps Pipelines
 - ⚙️ **Zero CI Changes** — Works via reusable workflows
+- 📁 **Flexible Filtering** — `.reviewignore` files and path filters to control what gets reviewed
 
 ---
 
@@ -173,9 +174,9 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 - [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) — Ollama configuration
 - [Model Provisioning](docs/MODEL-PROVISIONING.md) — Air-gap deployment
 
-### Controlling Which Agents Run
+### Controlling What Gets Reviewed
 
-- [Configuration Schema](docs/config-schema.md) — Passes, agents, limits
+- [Configuration Schema](docs/config-schema.md) — Passes, agents, limits, path filters, `.reviewignore`
 - [Cost Controls](docs/cost-controls.md) — Budget management
 
 ### Architecture & Security
@@ -192,23 +193,25 @@ See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matr
 ```mermaid
 graph LR
     A[PR Opened] --> B[Trust Check]
-    B --> C[Preflight Validation]
-    C --> D[Budget Check]
-    D --> E[Static Pass]
-    E --> F[Semantic Pass]
-    F --> G[Deduplicate Findings]
-    G --> H{Platform?}
-    H -->|GitHub| I[Post to GitHub]
-    H -->|ADO| J[Post to ADO]
+    B --> C[Filter Files]
+    C --> D[Preflight Validation]
+    D --> E[Budget Check]
+    E --> F[Static Pass]
+    F --> G[Semantic Pass]
+    G --> H[Deduplicate Findings]
+    H --> I{Platform?}
+    I -->|GitHub| J[Post to GitHub]
+    I -->|ADO| K[Post to ADO]
 ```
 
 1. **Trigger** — PR is opened or updated
 2. **Trust Check** — Fork PRs blocked by default
-3. **Preflight** — Validates model config and API keys
-4. **Budget Check** — Enforces file, line, token, and cost limits
-5. **Static Pass** — Free tools like Semgrep run first
-6. **Semantic Pass** — AI agents analyze the diff
-7. **Report** — Findings posted as comments and annotations
+3. **Filter Files** — Apply `.reviewignore` and `path_filters` exclusions
+4. **Preflight** — Validates model config and API keys
+5. **Budget Check** — Enforces file, line, token, and cost limits
+6. **Static Pass** — Free tools like Semgrep run first
+7. **Semantic Pass** — AI agents analyze the diff
+8. **Report** — Findings posted as comments and annotations
 
 ---
 
