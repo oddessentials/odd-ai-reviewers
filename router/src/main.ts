@@ -98,11 +98,16 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Diff: ${options.base}...${options.head}`);
 
   // === PHASE 0: Resolve Git Refs to SHAs ===
-  // CRITICAL: Resolve head ref to actual SHA before using it for caching or reporting.
+  // CRITICAL: Resolve base/head refs to actual SHAs before using them for caching or reporting.
   // This prevents stale cache hits when a branch name is passed as --head.
   // Without this, if --head is 'feat/branch', the cache key would be the same
   // across different commits on that branch, causing incorrect line numbers
   // when cached findings are returned for a different commit.
+  const resolvedBase = normalizeGitRef(options.repo, options.base);
+  if (resolvedBase !== options.base) {
+    console.log(`[router] Resolved base ref: ${options.base} -> ${resolvedBase.slice(0, 12)}`);
+  }
+
   const resolvedHead = normalizeGitRef(options.repo, options.head);
   if (resolvedHead !== options.head) {
     console.log(`[router] Resolved head ref: ${options.head} -> ${resolvedHead.slice(0, 12)}`);
@@ -151,7 +156,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   }
 
   console.log('[router] Extracting diff...');
-  const diff = getDiff(options.repo, options.base, options.head);
+  const diff = getDiff(options.repo, resolvedBase, resolvedHead);
   console.log(
     `[router] Found ${diff.files.length} changed files (${diff.totalAdditions}+ / ${diff.totalDeletions}-)`
   );
