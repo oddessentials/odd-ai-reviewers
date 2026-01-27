@@ -16,6 +16,7 @@ import {
 } from '../reviewignore.js';
 import { existsSync } from 'fs';
 import { lstat, readFile, realpath } from 'fs/promises';
+import { join } from 'path';
 
 // Mock fs modules
 vi.mock('fs', () => ({
@@ -476,7 +477,7 @@ dist/
 
     const result = await loadReviewIgnore('/repo');
     expect(result.found).toBe(true);
-    expect(result.filePath).toBe('/repo/.reviewignore');
+    expect(result.filePath).toBe(join('/repo', '.reviewignore'));
     expect(result.patterns).toHaveLength(3);
     expect(consoleLogSpy).toHaveBeenCalledWith(
       '[reviewignore] Loaded 3 patterns from .reviewignore'
@@ -532,8 +533,9 @@ dist/
     mockLstat
       .mockResolvedValueOnce(fileStat({ isFile: () => false, isSymbolicLink: () => true }) as never)
       .mockResolvedValueOnce(fileStat() as never);
+    const reviewignorePath = join('/repo', '.reviewignore');
     mockRealpath.mockImplementation(async (path) => {
-      if (path === '/repo/.reviewignore') return '/outside/.reviewignore';
+      if (path === reviewignorePath) return join('/outside', '.reviewignore');
       return '/repo';
     });
 
