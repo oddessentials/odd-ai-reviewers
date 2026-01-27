@@ -16,6 +16,16 @@
 
 ---
 
+## Meet the Team
+
+<a href="docs/REVIEW_TEAM.md">
+  <img src="docs/img/odd-ai-reviewers-banner.png" alt="Meet the AI Review Team" width="600">
+</a>
+
+**[Meet the AI-powered code review team →](docs/REVIEW_TEAM.md)**
+
+---
+
 ## Features
 
 - 🔍 **Multi-Pass Review** — Static analysis first (free), then AI semantic review
