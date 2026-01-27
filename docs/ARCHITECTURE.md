@@ -64,11 +64,9 @@ flowchart TD
 
 ### Filter Precedence
 
-| Order | Filter                 | Effect                                |
-| ----- | ---------------------- | ------------------------------------- |
-| 1     | `.reviewignore`        | Exclude matching files                |
-| 2     | `path_filters.exclude` | Exclude additional files              |
-| 3     | `path_filters.include` | If set, whitelist (only keep matches) |
+> 📖 For detailed filter precedence and pattern syntax, see [Configuration Schema](./config-schema.md#filter-precedence).
+
+Filters are applied in order: `.reviewignore` → `path_filters.exclude` → `path_filters.include`.
 
 ### Logging
 
