@@ -16,7 +16,9 @@ import {
   buildCombinedDiff,
   resolveReviewRefs,
   getGitHubCheckHeadSha,
+  type PathFilter,
 } from './diff.js';
+import { loadReviewIgnore } from './reviewignore.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -109,6 +111,10 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
   const configHash = hashConfig(config);
 
+  // Load .reviewignore patterns
+  const reviewIgnoreResult = await loadReviewIgnore(options.repo);
+  const reviewIgnorePatterns = reviewIgnoreResult.patterns;
+
   const platform = detectPlatform(routerEnv);
   console.log(`[router] Detected platform: ${platform}`);
 
@@ -162,8 +168,22 @@ async function runReview(options: ReviewOptions): Promise<void> {
     `[router] Found ${diff.files.length} changed files (${diff.totalAdditions}+ / ${diff.totalDeletions}-)`
   );
 
-  const filteredFiles = filterFiles(diff.files, config.path_filters);
-  console.log(`[router] ${filteredFiles.length} files after filtering`);
+  // Combine path_filters from config with .reviewignore patterns
+  const pathFilter: PathFilter = {
+    ...config.path_filters,
+    reviewIgnorePatterns,
+  };
+  const filteredFiles = filterFiles(diff.files, pathFilter);
+
+  // Log filtering results
+  const ignoredByReviewIgnore = diff.files.length - filteredFiles.length;
+  if (reviewIgnoreResult.found && ignoredByReviewIgnore > 0) {
+    console.log(
+      `[router] ${filteredFiles.length} files after filtering (${ignoredByReviewIgnore} excluded by .reviewignore/path_filters)`
+    );
+  } else {
+    console.log(`[router] ${filteredFiles.length} files after filtering`);
+  }
 
   if (filteredFiles.length === 0) {
     console.log('[router] No files to review after filtering');
