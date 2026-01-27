@@ -218,9 +218,7 @@ export function resolveReviewRefs(
  * merge commit SHA for checks but use PR head for diff/line mapping elsewhere.
  */
 export function getGitHubCheckHeadSha(reviewRefs: ResolvedReviewRefs): string {
-  return reviewRefs.headSource === 'merge-parent'
-    ? reviewRefs.inputHeadSha
-    : reviewRefs.headSha;
+  return reviewRefs.headSource === 'merge-parent' ? reviewRefs.inputHeadSha : reviewRefs.headSha;
 }
 
 /**
