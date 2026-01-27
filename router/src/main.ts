@@ -175,6 +175,10 @@ async function runReview(options: ReviewOptions): Promise<void> {
       : 0;
 
   // Combine path_filters from config with .reviewignore patterns
+  // Filter precedence (applied in filterFiles):
+  //   1. .reviewignore patterns (excludes matching files)
+  //   2. path_filters.exclude (excludes additional files)
+  //   3. path_filters.include (if set, only keeps matching files - whitelist)
   const pathFilter: PathFilter = {
     ...config.path_filters,
     reviewIgnorePatterns,

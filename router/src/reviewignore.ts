@@ -39,7 +39,7 @@
 import { lstat, readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
 import { isAbsolute, join, relative } from 'path';
-import { minimatch } from 'minimatch';
+import { Minimatch } from 'minimatch';
 import { assertSafeRepoPath } from './git-validators.js';
 
 const REVIEWIGNORE_FILENAME = '.reviewignore';
@@ -52,6 +52,13 @@ function isPathInside(parent: string, child: string): boolean {
   return !rel.startsWith('..');
 }
 
+/** Minimatch options used for all pattern matching */
+const MINIMATCH_OPTIONS = {
+  dot: true, // Match dotfiles
+  matchBase: false, // We handle this in normalizePattern
+  nocase: false, // Case-sensitive matching (Unix-style)
+};
+
 /**
  * Parsed pattern with metadata for application order and negation
  */
@@ -62,6 +69,10 @@ export interface ReviewIgnorePattern {
   negated: boolean;
   /** Original line number for debugging */
   lineNumber: number;
+  /** Pre-compiled matcher for performance (populated during parsing) */
+  _matcher?: Minimatch;
+  /** Pre-compiled contents matcher for bare segments (populated during parsing) */
+  _contentsMatcher?: Minimatch;
 }
 
 /**
@@ -114,18 +125,35 @@ export function parseReviewIgnoreLine(
     if (pattern.length === 0) {
       return null;
     }
-    return {
-      pattern: normalizePattern(pattern),
-      negated: true,
-      lineNumber,
-    };
+    const normalized = normalizePattern(pattern);
+    return compilePattern(normalized, true, lineNumber);
   }
 
-  return {
-    pattern: normalizePattern(effective),
-    negated: false,
+  const normalized = normalizePattern(effective);
+  return compilePattern(normalized, false, lineNumber);
+}
+
+/**
+ * Compile a normalized pattern into a ReviewIgnorePattern with pre-compiled matchers
+ */
+function compilePattern(
+  pattern: string,
+  negated: boolean,
+  lineNumber: number
+): ReviewIgnorePattern {
+  const result: ReviewIgnorePattern = {
+    pattern,
+    negated,
     lineNumber,
+    _matcher: new Minimatch(pattern, MINIMATCH_OPTIONS),
   };
+
+  // For bare segment patterns, also compile the contents matcher
+  if (isBareSegmentPattern(pattern)) {
+    result._contentsMatcher = new Minimatch(pattern + '/**', MINIMATCH_OPTIONS);
+  }
+
+  return result;
 }
 
 /**
@@ -316,38 +344,53 @@ function isBareSegmentPattern(pattern: string): boolean {
  *
  * @param filePath - Normalized file path (relative to repo root)
  * @param patterns - Parsed reviewignore patterns
+ * @param debug - If true, logs which patterns matched (for troubleshooting)
  * @returns true if the file should be ignored (excluded from review)
  */
-export function shouldIgnoreFile(filePath: string, patterns: ReviewIgnorePattern[]): boolean {
+export function shouldIgnoreFile(
+  filePath: string,
+  patterns: ReviewIgnorePattern[],
+  debug = false
+): boolean {
   if (patterns.length === 0) {
     return false;
   }
 
-  const minimatchOptions = {
-    dot: true, // Match dotfiles
-    matchBase: false, // We handle this in normalizePattern
-    nocase: false, // Case-sensitive matching (Unix-style)
-  };
-
   // Apply patterns in order - later patterns override earlier ones
   let ignored = false;
+  let matchedPattern: ReviewIgnorePattern | null = null;
 
-  for (const { pattern, negated } of patterns) {
-    // Check base pattern
-    let matches = minimatch(filePath, pattern, minimatchOptions);
+  for (const entry of patterns) {
+    const { pattern, negated, _matcher, _contentsMatcher } = entry;
+
+    // Use pre-compiled matcher if available, otherwise fall back to runtime matching
+    let matches = _matcher
+      ? _matcher.match(filePath)
+      : new Minimatch(pattern, MINIMATCH_OPTIONS).match(filePath);
 
     // For bare segment patterns, ALSO check contents pattern
     // This is an OR - if either matches, the pattern line matches
     // IMPORTANT: Both checks are ONE logical match for this line,
     // preserving "last match wins" semantics for negation
-    if (!matches && isBareSegmentPattern(pattern)) {
-      matches = minimatch(filePath, pattern + '/**', minimatchOptions);
+    if (!matches && (_contentsMatcher || isBareSegmentPattern(pattern))) {
+      matches = _contentsMatcher
+        ? _contentsMatcher.match(filePath)
+        : new Minimatch(pattern + '/**', MINIMATCH_OPTIONS).match(filePath);
     }
 
     if (matches) {
       // Negated patterns un-ignore, regular patterns ignore
       ignored = !negated;
+      matchedPattern = entry;
     }
+  }
+
+  // Debug logging to help users troubleshoot unexpected exclusions
+  if (debug && matchedPattern) {
+    const action = ignored ? 'excluded' : 're-included';
+    console.log(
+      `[reviewignore] ${filePath} ${action} by pattern "${matchedPattern.pattern}" (line ${matchedPattern.lineNumber})`
+    );
   }
 
   return ignored;

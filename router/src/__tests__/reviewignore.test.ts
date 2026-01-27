@@ -49,7 +49,7 @@ describe('parseReviewIgnoreLine', () => {
   describe('happy path - valid patterns', () => {
     it('should parse a simple file pattern', () => {
       const result = parseReviewIgnoreLine('node_modules', 1);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/node_modules',
         negated: false,
         lineNumber: 1,
@@ -58,7 +58,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a glob pattern', () => {
       const result = parseReviewIgnoreLine('*.log', 2);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/*.log',
         negated: false,
         lineNumber: 2,
@@ -67,7 +67,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a directory pattern with trailing slash', () => {
       const result = parseReviewIgnoreLine('build/', 3);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/build/**',
         negated: false,
         lineNumber: 3,
@@ -76,7 +76,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a path pattern', () => {
       const result = parseReviewIgnoreLine('src/generated', 4);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: 'src/generated',
         negated: false,
         lineNumber: 4,
@@ -85,7 +85,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a negation pattern', () => {
       const result = parseReviewIgnoreLine('!important.js', 5);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/important.js',
         negated: true,
         lineNumber: 5,
@@ -94,7 +94,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse escaped leading # as a literal pattern', () => {
       const result = parseReviewIgnoreLine('\\#file', 10);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/#file',
         negated: false,
         lineNumber: 10,
@@ -103,7 +103,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse escaped leading ! as a literal pattern', () => {
       const result = parseReviewIgnoreLine('\\!important', 11);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/!important',
         negated: false,
         lineNumber: 11,
@@ -112,7 +112,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a double-star pattern', () => {
       const result = parseReviewIgnoreLine('**/test/**', 6);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/test/**',
         negated: false,
         lineNumber: 6,
@@ -122,7 +122,7 @@ describe('parseReviewIgnoreLine', () => {
     it('should parse a root-relative pattern (leading slash)', () => {
       // Root-relative patterns don't get **/ prefix - they match from repo root only
       const result = parseReviewIgnoreLine('/config.js', 7);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: 'config.js',
         negated: false,
         lineNumber: 7,
@@ -131,7 +131,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a pattern with brackets', () => {
       const result = parseReviewIgnoreLine('[Bb]uild/', 8);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/[Bb]uild/**',
         negated: false,
         lineNumber: 8,
@@ -140,7 +140,7 @@ describe('parseReviewIgnoreLine', () => {
 
     it('should parse a pattern with question mark', () => {
       const result = parseReviewIgnoreLine('file?.txt', 9);
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         pattern: '**/file?.txt',
         negated: false,
         lineNumber: 9,
@@ -258,17 +258,17 @@ dist/
 
     const patterns = parseReviewIgnoreContent(content);
     expect(patterns).toHaveLength(5);
-    expect(patterns[0]).toEqual({
+    expect(patterns[0]).toMatchObject({
       pattern: '**/node_modules',
       negated: false,
       lineNumber: 3,
     });
-    expect(patterns[1]).toEqual({
+    expect(patterns[1]).toMatchObject({
       pattern: '**/vendor/**',
       negated: false,
       lineNumber: 4,
     });
-    expect(patterns[4]).toEqual({
+    expect(patterns[4]).toMatchObject({
       pattern: '**/important.min.js',
       negated: true,
       lineNumber: 11,
