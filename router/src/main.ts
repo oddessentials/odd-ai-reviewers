@@ -10,7 +10,13 @@ import { Command } from 'commander';
 import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
-import { getDiff, filterFiles, buildCombinedDiff, resolveReviewRefs } from './diff.js';
+import {
+  getDiff,
+  filterFiles,
+  buildCombinedDiff,
+  resolveReviewRefs,
+  getGitHubCheckHeadSha,
+} from './diff.js';
 import type { AgentContext } from './agents/types.js';
 import { startCheckRun } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
@@ -144,8 +150,7 @@ async function runReview(options: ReviewOptions): Promise<void> {
   if (reviewRefs.headSource === 'merge-parent') {
     console.log(`[router] Using PR head SHA ${reviewRefs.headSha} for review`);
   }
-  const githubHeadSha =
-    reviewRefs.headSource === 'merge-parent' ? reviewRefs.inputHeadSha : reviewRefs.headSha;
+  const githubHeadSha = getGitHubCheckHeadSha(reviewRefs);
   if (platform === 'github' && reviewRefs.headSource === 'merge-parent') {
     console.log(`[router] Using merge commit SHA ${githubHeadSha} for GitHub checks`);
   }

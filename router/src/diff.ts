@@ -212,6 +212,18 @@ export function resolveReviewRefs(
 }
 
 /**
+ * Choose a GitHub check run head SHA based on resolved review refs.
+ *
+ * Merge commit heads may not exist in the base repo for fork PRs, so keep the
+ * merge commit SHA for checks but use PR head for diff/line mapping elsewhere.
+ */
+export function getGitHubCheckHeadSha(reviewRefs: ResolvedReviewRefs): string {
+  return reviewRefs.headSource === 'merge-parent'
+    ? reviewRefs.inputHeadSha
+    : reviewRefs.headSha;
+}
+
+/**
  * Get diff between two commits
  *
  * Uses NUL-delimited numstat (-z) for robustness against special characters.

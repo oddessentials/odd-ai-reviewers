@@ -8,6 +8,7 @@ import {
   buildCombinedDiff,
   normalizeGitRef,
   resolveReviewRefs,
+  getGitHubCheckHeadSha,
   normalizePath,
   canonicalizeDiffFiles,
   type DiffFile,
@@ -355,6 +356,30 @@ describe('resolveReviewRefs', () => {
 
   it('should throw on unsafe repo path', () => {
     expect(() => resolveReviewRefs('/repo;rm -rf /', 'base-sha', 'head-sha')).toThrow(/repoPath/);
+  });
+});
+
+describe('getGitHubCheckHeadSha', () => {
+  it('should use input head SHA for merge-parent reviews', () => {
+    const result = getGitHubCheckHeadSha({
+      baseSha: 'base-sha',
+      headSha: 'pr-head-sha',
+      inputHeadSha: 'merge-head-sha',
+      headSource: 'merge-parent',
+    });
+
+    expect(result).toBe('merge-head-sha');
+  });
+
+  it('should use review head SHA for non-merge reviews', () => {
+    const result = getGitHubCheckHeadSha({
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+      inputHeadSha: 'head-sha',
+      headSource: 'input',
+    });
+
+    expect(result).toBe('head-sha');
   });
 });
 
