@@ -79,6 +79,22 @@ As a developer, I want the project to build successfully and all tests to pass a
 - **FR-009**: System MUST ensure ESLint, Prettier, TypeScript, and other tooling work correctly with updated versions
 - **FR-010**: System MUST update package-lock.json to reflect all dependency changes
 
+### Compatibility Policy
+
+- **Latest compatible** means the newest version that satisfies Node.js >=22.0.0, passes `npm run verify` and `npm test`, and does not introduce unresolved peer conflicts.
+- Major version upgrades are allowed when migration steps are feasible within this change set; any exceptions must be documented.
+- If a dependency cannot be updated due to conflicts or regressions, document the lock and rationale.
+
+### Repo-Standards Validation
+
+- Generate the standards checklist with `npx repo-standards typescript-js github-actions` and validate applicable items against repo configuration and CI commands.
+
+### Non-Functional Requirements
+
+- **NFR-001 (Security)**: No new high/critical vulnerabilities are introduced by dependency updates.
+- **NFR-002 (CI Parity)**: Local hooks and CI checks remain aligned with the canonical verify command.
+- **NFR-003 (Determinism)**: Tooling outputs remain stable for identical inputs (no nondeterministic behavior introduced).
+
 ### Key Entities
 
 - **Root package.json**: Contains monorepo-level devDependencies including linting, formatting, and repo-standards tools

@@ -19,20 +19,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@actions/cache": "5.0.3",
+    "@actions/cache": "5.0.4",
     "@anthropic-ai/sdk": "0.71.2",
-    "@octokit/rest": "^21.0.0",
-    "commander": "^13.0.0",
-    "minimatch": "^10.0.1",
-    "openai": "^6.0.0",
-    "yaml": "^2.7.0",
-    "zod": "^4.0.0"
+    "@octokit/rest": "^22.0.1",
+    "commander": "^14.0.2",
+    "minimatch": "^10.1.1",
+    "openai": "^6.16.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "22.10.7",
+    "@types/node": "25.0.10",
     "@vitest/coverage-v8": "4.0.18",
-    "typescript": "5.7.3",
-    "vitest": "^4.0.0"
+    "typescript": "5.9.3",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=22.0.0"
