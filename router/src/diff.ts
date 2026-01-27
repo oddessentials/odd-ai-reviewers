@@ -3,7 +3,7 @@
  * Extracts and processes PR diffs with path filtering
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 
@@ -51,6 +51,17 @@ export interface DiffSummary {
   contextLines: number;
   /** Diff source identifier */
   source: 'local-git';
+}
+
+export interface ResolvedReviewRefs {
+  /** Normalized base SHA used for diff */
+  baseSha: string;
+  /** Normalized head SHA used for diff and review context */
+  headSha: string;
+  /** Normalized head SHA from input (e.g., merge commit) */
+  inputHeadSha: string;
+  /** Whether the head SHA was derived from a merge commit parent */
+  headSource: 'input' | 'merge-parent';
 }
 
 export interface PathFilter {
@@ -101,7 +112,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // First, try to resolve the ref directly
   try {
-    const resolved = execSync(`git rev-parse --verify "${ref}"`, {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', ref], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -115,7 +126,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
   if (ref.startsWith('refs/heads/')) {
     const branchName = ref.replace('refs/heads/', '');
     try {
-      const resolved = execSync(`git rev-parse --verify "origin/${branchName}"`, {
+      const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${branchName}`], {
         cwd: repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -129,7 +140,7 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // Try as a remote branch directly
   try {
-    const resolved = execSync(`git rev-parse --verify "origin/${ref}"`, {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${ref}`], {
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -142,6 +153,72 @@ export function normalizeGitRef(repoPath: string, ref: string): string {
 
   // Return original ref - will fail at git diff if invalid
   return ref;
+}
+
+/**
+ * Resolve base/head refs for review runs, including merge-commit handling.
+ *
+ * GitHub PR workflows often pass a merge commit SHA (refs/pull/<id>/merge) as head.
+ * Inline comment APIs expect the PR HEAD commit, not the merge commit. When the
+ * provided head is a merge commit whose first parent matches the base SHA,
+ * we use the second parent (PR head) for diff and reporting to keep line
+ * numbers aligned with the PR diff view.
+ */
+export function resolveReviewRefs(
+  repoPath: string,
+  baseSha: string,
+  headSha: string
+): ResolvedReviewRefs {
+  assertSafeRepoPath(repoPath);
+  assertSafeGitRef(baseSha, 'baseSha');
+  assertSafeGitRef(headSha, 'headSha');
+
+  const normalizedBase = normalizeGitRef(repoPath, baseSha);
+  const normalizedHead = normalizeGitRef(repoPath, headSha);
+
+  let resolvedHead = normalizedHead;
+  let headSource: ResolvedReviewRefs['headSource'] = 'input';
+
+  try {
+    const parents = execFileSync('git', ['rev-list', '--parents', '-n', '1', normalizedHead], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+      .trim()
+      .split(' ');
+
+    // Format: <commit> <parent1> <parent2> ...
+    const parent1 = parents[1];
+    const parent2 = parents[2];
+    if (parent1 && parent2 && parent1 === normalizedBase) {
+      resolvedHead = parent2;
+      headSource = 'merge-parent';
+      console.log(
+        `[diff] Detected merge commit head ${normalizedHead.slice(0, 8)}; ` +
+          `using second parent ${parent2.slice(0, 8)} for review`
+      );
+    }
+  } catch {
+    console.warn('[diff] Failed to inspect head parents');
+  }
+
+  return {
+    baseSha: normalizedBase,
+    headSha: resolvedHead,
+    inputHeadSha: normalizedHead,
+    headSource,
+  };
+}
+
+/**
+ * Choose a GitHub check run head SHA based on resolved review refs.
+ *
+ * Merge commit heads may not exist in the base repo for fork PRs, so keep the
+ * merge commit SHA for checks but use PR head for diff/line mapping elsewhere.
+ */
+export function getGitHubCheckHeadSha(reviewRefs: ResolvedReviewRefs): string {
+  return reviewRefs.headSource === 'merge-parent' ? reviewRefs.inputHeadSha : reviewRefs.headSha;
 }
 
 /**
@@ -163,11 +240,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
 
   try {
     // Get list of changed files with stats using NUL-delimited format
-    const diffStat = execSync(`git diff --numstat -z ${normalizedBase}...${normalizedHead}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      maxBuffer: MAX_OUTPUT_BYTES,
-    });
+    const diffStat = execFileSync(
+      'git',
+      ['diff', '--numstat', '-z', `${normalizedBase}...${normalizedHead}`],
+      {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        maxBuffer: MAX_OUTPUT_BYTES,
+      }
+    );
 
     // Hard guard: output size
     if (diffStat.length > MAX_OUTPUT_BYTES) {
@@ -177,10 +258,14 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
     }
 
     // Get file statuses (for non-rename status detection)
-    const nameStatus = execSync(`git diff --name-status ${normalizedBase}...${normalizedHead}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    });
+    const nameStatus = execFileSync(
+      'git',
+      ['diff', '--name-status', `${normalizedBase}...${normalizedHead}`],
+      {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      }
+    );
 
     const { statusMap } = parseNameStatus(nameStatus);
     const parseResult = parseNumstatZ(diffStat, statusMap);
@@ -223,8 +308,15 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       }
 
       try {
-        file.patch = execSync(
-          `git diff --unified=${UNIFIED_CONTEXT} ${normalizedBase}...${normalizedHead} -- "${safePath}"`,
+        file.patch = execFileSync(
+          'git',
+          [
+            'diff',
+            `--unified=${UNIFIED_CONTEXT}`,
+            `${normalizedBase}...${normalizedHead}`,
+            '--',
+            safePath,
+          ],
           {
             cwd: repoPath,
             encoding: 'utf-8',

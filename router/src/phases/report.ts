@@ -26,6 +26,8 @@ export interface ReportOptions {
   repoName?: string;
   pr?: number;
   head: string;
+  /** Optional: use this SHA for GitHub check runs when the review head is not in the base repo */
+  githubHeadSha?: string;
   checkRunId?: number;
 }
 
@@ -88,7 +90,7 @@ export async function dispatchReport(
       owner: options.owner,
       repo: options.repoName,
       prNumber: options.pr,
-      headSha: options.head,
+      headSha: options.githubHeadSha ?? options.head,
       token: routerEnv['GITHUB_TOKEN'],
       checkRunId: options.checkRunId,
     };
