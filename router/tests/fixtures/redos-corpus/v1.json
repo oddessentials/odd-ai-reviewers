@@ -1,0 +1,417 @@
+{
+  "version": "1.0.0",
+  "source_urls": [
+    "https://github.com/davisjam/vuln-regex-detector",
+    "https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS",
+    "https://snyk.io/blog/redos-and-catastrophic-backtracking/"
+  ],
+  "retrieved_at": "2026-01-28T00:00:00Z",
+  "curation_rules": [
+    "Patterns must demonstrate exponential or polynomial backtracking",
+    "Patterns must be syntactically valid JavaScript RegExp",
+    "Each pattern includes attack string that triggers worst-case behavior",
+    "Categories: nested_quantifiers, overlapping_alternation, atomic_group_missing"
+  ],
+  "patterns": [
+    {
+      "id": "redos-001",
+      "pattern": "(a+)+$",
+      "category": "nested_quantifiers",
+      "description": "Classic nested quantifier - exponential backtracking",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-002",
+      "pattern": "([a-zA-Z]+)*$",
+      "category": "nested_quantifiers",
+      "description": "Nested quantifier with character class",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-003",
+      "pattern": "(a|aa)+$",
+      "category": "overlapping_alternation",
+      "description": "Overlapping alternatives - exponential paths",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-004",
+      "pattern": "(a|a?)+$",
+      "category": "overlapping_alternation",
+      "description": "Optional alternative overlap",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-005",
+      "pattern": "(.*a){x}$",
+      "category": "nested_quantifiers",
+      "description": "Greedy quantifier inside repetition (x=10+)",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-006",
+      "pattern": "^(a+)+b$",
+      "category": "nested_quantifiers",
+      "description": "Anchored nested quantifier",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaac",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-007",
+      "pattern": "^([a-z]+)+$",
+      "category": "nested_quantifiers",
+      "description": "Character class with nested plus",
+      "attack_string": "abcdefghijklmnopqrstuvwxyz1",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-008",
+      "pattern": "(\\w+\\s?)*$",
+      "category": "nested_quantifiers",
+      "description": "Word with optional space - polynomial",
+      "attack_string": "word word word word word word !",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-009",
+      "pattern": "^(\\d+\\.?)+$",
+      "category": "nested_quantifiers",
+      "description": "Digits with optional dot - version-like",
+      "attack_string": "1.2.3.4.5.6.7.8.9.0.1.2.3.4.5x",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-010",
+      "pattern": "(x+x+)+y",
+      "category": "nested_quantifiers",
+      "description": "Double nested quantifiers",
+      "attack_string": "xxxxxxxxxxxxxxxxxxxxxxxxxxxx!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-011",
+      "pattern": "^(a+|b)+$",
+      "category": "overlapping_alternation",
+      "description": "Alternation with quantifiers on both sides",
+      "attack_string": "ababababababababababababababc",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-012",
+      "pattern": "([^\"]*)*",
+      "category": "nested_quantifiers",
+      "description": "Negated class with nested quantifier",
+      "attack_string": "no quotes here at all in this string\"",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-013",
+      "pattern": "(a*)*b",
+      "category": "nested_quantifiers",
+      "description": "Star inside star - classic ReDoS",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-014",
+      "pattern": "^(([a-z])+.)+[A-Z]([a-z])+$",
+      "category": "nested_quantifiers",
+      "description": "Complex nested groups - email-like",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-015",
+      "pattern": "(a+)+b",
+      "category": "nested_quantifiers",
+      "description": "Simple nested plus without anchors",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaac",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-016",
+      "pattern": "(\\s*,\\s*)*",
+      "category": "nested_quantifiers",
+      "description": "Whitespace around comma - CSV-like",
+      "attack_string": " , , , , , , , , , , , , , , !",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-017",
+      "pattern": "^([0-9]+)+$",
+      "category": "nested_quantifiers",
+      "description": "Numeric nested quantifier",
+      "attack_string": "123456789012345678901234567a",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-018",
+      "pattern": "(a?){20,}",
+      "category": "nested_quantifiers",
+      "description": "Optional with high minimum repetition",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-019",
+      "pattern": "(.+)+",
+      "category": "nested_quantifiers",
+      "description": "Dot-plus nested - matches anything",
+      "attack_string": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-020",
+      "pattern": "(.*?)+",
+      "category": "nested_quantifiers",
+      "description": "Non-greedy star nested",
+      "attack_string": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-021",
+      "pattern": "^[a-z]+$",
+      "category": "safe",
+      "description": "Simple character class - no nested quantifiers",
+      "attack_string": "abcdefghijklmnopqrstuvwxyz",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-022",
+      "pattern": "\\d{4}-\\d{2}-\\d{2}",
+      "category": "safe",
+      "description": "Date pattern - bounded quantifiers",
+      "attack_string": "2026-01-28",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-023",
+      "pattern": "^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "category": "safe",
+      "description": "Simple email pattern - no nested quantifiers",
+      "attack_string": "test@example.com",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-024",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "category": "safe",
+      "description": "Semver-like pattern - anchored, no nesting",
+      "attack_string": "1.2.3",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-025",
+      "pattern": "https?://[^\\s]+",
+      "category": "safe",
+      "description": "URL pattern - negated class, no nesting",
+      "attack_string": "https://example.com/path",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-026",
+      "pattern": "(ab|cd|ef)+$",
+      "category": "safe",
+      "description": "Non-overlapping alternation with quantifier",
+      "attack_string": "abcdefabcdefabcdef!",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-027",
+      "pattern": "\\b\\w+\\b",
+      "category": "safe",
+      "description": "Word boundary pattern - no nesting",
+      "attack_string": "hello world test",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-028",
+      "pattern": "[A-Z]{2,3}-\\d{1,6}",
+      "category": "safe",
+      "description": "Ticket ID pattern - bounded quantifiers",
+      "attack_string": "ABC-12345",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-029",
+      "pattern": "^(true|false)$",
+      "category": "safe",
+      "description": "Boolean pattern - exact match",
+      "attack_string": "true",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-030",
+      "pattern": "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
+      "category": "safe",
+      "description": "IPv4 pattern - bounded quantifiers",
+      "attack_string": "192.168.1.1",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-031",
+      "pattern": "(a{1,10})+$",
+      "category": "bounded_nested",
+      "description": "Bounded inner quantifier reduces risk",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-032",
+      "pattern": "([a-z]|\\d)+$",
+      "category": "safe",
+      "description": "Disjoint character classes - no overlap",
+      "attack_string": "abc123abc123abc123!",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-033",
+      "pattern": "(\\s+|\\t+)+$",
+      "category": "overlapping_alternation",
+      "description": "Overlapping whitespace types",
+      "attack_string": "                              x",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-034",
+      "pattern": "(<!--.*?-->)+",
+      "category": "safe",
+      "description": "HTML comment - non-greedy, no nested quant",
+      "attack_string": "<!-- comment --> <!-- another -->",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-035",
+      "pattern": "\"([^\"]|\\\\.)*\"",
+      "category": "safe",
+      "description": "Quoted string with escape - no nested quant",
+      "attack_string": "\"test \\\" escaped\"",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-036",
+      "pattern": "(a+b+)+$",
+      "category": "nested_quantifiers",
+      "description": "Consecutive quantified groups nested",
+      "attack_string": "aaabbbaaabbbaaabbb!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-037",
+      "pattern": "^(.*?;)+$",
+      "category": "nested_quantifiers",
+      "description": "Semicolon-separated with non-greedy",
+      "attack_string": "a;b;c;d;e;f;g;h;i;j;k;l;m;n!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-038",
+      "pattern": "((?:a|b)+)+$",
+      "category": "nested_quantifiers",
+      "description": "Non-capturing group doesn't help",
+      "attack_string": "ababababababababababababababc",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-039",
+      "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+      "category": "safe",
+      "description": "Username pattern - bounded by anchor",
+      "attack_string": "user_name.test-123",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-040",
+      "pattern": "^\\s*$",
+      "category": "safe",
+      "description": "Empty or whitespace only - bounded",
+      "attack_string": "   ",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-041",
+      "pattern": "((a+)+)+$",
+      "category": "nested_quantifiers",
+      "description": "Triple nested quantifiers - severe",
+      "attack_string": "aaaaaaaaaaaaaaaaaaab",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-042",
+      "pattern": "(aa|a)+$",
+      "category": "overlapping_alternation",
+      "description": "Substring overlap in alternation",
+      "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-043",
+      "pattern": "([\\w\\.]+)+@",
+      "category": "nested_quantifiers",
+      "description": "Email local part - nested quantifier",
+      "attack_string": "a.b.c.d.e.f.g.h.i.j.k.l.m.n!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-044",
+      "pattern": "^[\\w.-]+@[\\w.-]+$",
+      "category": "safe",
+      "description": "Email without nesting - safe",
+      "attack_string": "test.user@example.com",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-045",
+      "pattern": "(\\d+|\\d*)+$",
+      "category": "overlapping_alternation",
+      "description": "Numeric with star/plus overlap",
+      "attack_string": "123456789012345678901234567x",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-046",
+      "pattern": "^-?\\d+(\\.\\d+)?$",
+      "category": "safe",
+      "description": "Number pattern - optional group, no nesting",
+      "attack_string": "-123.456",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-047",
+      "pattern": "(.*?a.*?)+$",
+      "category": "nested_quantifiers",
+      "description": "Non-greedy doesn't prevent ReDoS",
+      "attack_string": "xaxaxaxaxaxaxaxaxaxaxaxaxaxax!",
+      "expected_vulnerable": true
+    },
+    {
+      "id": "redos-048",
+      "pattern": "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+      "category": "safe",
+      "description": "UUID pattern - bounded quantifiers",
+      "attack_string": "550e8400-e29b-41d4-a716-446655440000",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-049",
+      "pattern": "(\\w|_)+",
+      "category": "safe",
+      "description": "Word or underscore - char classes disjoint",
+      "attack_string": "test_variable_name",
+      "expected_vulnerable": false
+    },
+    {
+      "id": "redos-050",
+      "pattern": "^(?:[a-z]+_)*[a-z]+$",
+      "category": "safe",
+      "description": "Snake case - non-capturing, non-nested",
+      "attack_string": "snake_case_variable_name",
+      "expected_vulnerable": false
+    }
+  ]
+}
