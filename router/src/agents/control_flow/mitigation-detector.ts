@@ -19,9 +19,14 @@ import type {
   SourceLocation,
   MatchCriteria,
   ControlFlowConfig,
+  PatternEvaluationResult,
+  PatternTimeoutInfo,
+  CallChainEntry,
+  CrossFileMitigationInfo,
 } from './types.js';
 import { BUILTIN_PATTERNS } from './mitigation-patterns.js';
 import { getLogger, type AnalysisLogger } from './logger.js';
+import { createTimeoutRegex } from './timeout-regex.js';
 
 // =============================================================================
 // Types
@@ -65,10 +70,15 @@ export class MitigationDetector {
   private disabledPatterns: Set<string>;
   private customPatternIds: Set<string>;
   private logger: AnalysisLogger;
+  private patternTimeoutMs: number;
+  private patternTimeouts: PatternTimeoutInfo[] = [];
+  private patternEvaluations: PatternEvaluationResult[] = [];
+  private crossFileMitigations: CrossFileMitigationInfo[] = [];
 
   constructor(config?: Partial<ControlFlowConfig>, logger?: AnalysisLogger) {
     this.logger = logger ?? getLogger();
     this.customPatternIds = new Set<string>();
+    this.patternTimeoutMs = config?.patternTimeoutMs ?? 100;
     // Start with built-in patterns
     this.patterns = [...BUILTIN_PATTERNS];
 
@@ -196,9 +206,9 @@ export class MitigationDetector {
     for (const pattern of patterns) {
       // For method calls, also try matching without module if module is specified but not found
       // This handles cases like `schema.parse()` where schema is a variable typed by zod
-      const matchesWithModule = this.matchesPattern(pattern.match, name, moduleName);
+      const matchesWithModule = this.matchesPattern(pattern.match, name, moduleName, pattern.id);
       const matchesWithoutModule = pattern.match.module
-        ? this.matchesPattern({ ...pattern.match, module: undefined }, name, undefined)
+        ? this.matchesPattern({ ...pattern.match, module: undefined }, name, undefined, pattern.id)
         : false;
 
       const matched = matchesWithModule || matchesWithoutModule;
@@ -398,18 +408,50 @@ export class MitigationDetector {
 
   /**
    * Check if a call matches a pattern's criteria.
+   * Uses timeout-protected regex evaluation for namePattern matching.
    */
-  private matchesPattern(criteria: MatchCriteria, name: string, moduleName?: string): boolean {
+  private matchesPattern(
+    criteria: MatchCriteria,
+    name: string,
+    moduleName?: string,
+    patternId?: string
+  ): boolean {
     // Check exact name match
     if (criteria.name && criteria.name !== name) {
       return false;
     }
 
-    // Check name pattern match
+    // Check name pattern match with timeout protection
     if (criteria.namePattern) {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- Pattern from validated config
-      const regex = new RegExp(criteria.namePattern);
-      if (!regex.test(name)) {
+      const timeoutRegex = createTimeoutRegex(
+        criteria.namePattern,
+        patternId ?? 'unknown',
+        this.patternTimeoutMs
+      );
+      const result = timeoutRegex.test(name);
+
+      // Track evaluation result
+      this.patternEvaluations.push(result);
+
+      // Handle timeout (FR-002: treat as non-matching)
+      if (result.timedOut) {
+        this.patternTimeouts.push({
+          patternId: result.patternId,
+          elapsedMs: result.elapsedMs,
+        });
+        this.logger.logPatternTimeout(result.patternId, result.inputLength, result.elapsedMs);
+        return false;
+      }
+
+      // Log evaluation for debugging
+      this.logger.logPatternEvaluated(
+        result.patternId,
+        result.matched,
+        result.elapsedMs,
+        result.inputLength
+      );
+
+      if (!result.matched) {
         return false;
       }
     }
@@ -581,6 +623,125 @@ export class MitigationDetector {
    */
   getActivePatterns(): MitigationPattern[] {
     return this.patterns.filter((p) => !this.disabledPatterns.has(p.id) && !p.deprecated);
+  }
+
+  /**
+   * Get pattern timeout info collected during detection.
+   * Used to populate finding metadata with timeout indicators.
+   */
+  getPatternTimeouts(): PatternTimeoutInfo[] {
+    return [...this.patternTimeouts];
+  }
+
+  /**
+   * Get all pattern evaluation results collected during detection.
+   */
+  getPatternEvaluations(): PatternEvaluationResult[] {
+    return [...this.patternEvaluations];
+  }
+
+  /**
+   * Clear collected pattern timeout, evaluation, and cross-file mitigation info.
+   * Call this before starting a new analysis session.
+   */
+  clearPatternStats(): void {
+    this.patternTimeouts = [];
+    this.patternEvaluations = [];
+    this.crossFileMitigations = [];
+  }
+
+  /**
+   * Check if any patterns timed out during evaluation.
+   */
+  hasPatternTimeouts(): boolean {
+    return this.patternTimeouts.length > 0;
+  }
+
+  // =============================================================================
+  // Cross-File Mitigation Tracking (FR-006 to FR-011)
+  // =============================================================================
+
+  /**
+   * Create a mitigation instance with cross-file tracking info.
+   *
+   * @param baseInstance The base mitigation instance
+   * @param vulnerabilityFile The file containing the vulnerability
+   * @param callChain The call chain from vulnerability to mitigation
+   * @returns MitigationInstance with cross-file tracking fields populated
+   */
+  createCrossFileMitigation(
+    baseInstance: MitigationInstance,
+    vulnerabilityFile: string,
+    callChain: CallChainEntry[]
+  ): MitigationInstance {
+    const mitigationFile = baseInstance.location.file;
+    const isCrossFile = mitigationFile !== vulnerabilityFile;
+
+    if (!isCrossFile) {
+      return baseInstance;
+    }
+
+    // Calculate discovery depth (number of calls away from vulnerability)
+    const discoveryDepth = callChain.length > 0 ? callChain.length - 1 : 0;
+
+    // Track cross-file mitigation for finding metadata
+    const crossFileInfo: CrossFileMitigationInfo = {
+      patternId: baseInstance.patternId,
+      file: mitigationFile,
+      line: baseInstance.location.line,
+      depth: discoveryDepth,
+      functionName:
+        callChain.length > 0 ? callChain[callChain.length - 1]?.functionName : undefined,
+    };
+    this.crossFileMitigations.push(crossFileInfo);
+
+    // Log cross-file mitigation detection (FR-011)
+    this.logger.logCrossFileMitigation(
+      vulnerabilityFile,
+      mitigationFile,
+      baseInstance.location.line,
+      discoveryDepth,
+      baseInstance.patternId
+    );
+
+    // Log complete call chain for verbose mode
+    if (callChain.length > 0) {
+      this.logger.logCallChainComplete(baseInstance.patternId, callChain);
+    }
+
+    return {
+      ...baseInstance,
+      callChain: callChain.length > 0 ? callChain : undefined,
+      discoveryDepth,
+    };
+  }
+
+  /**
+   * Build a call chain entry from function and location info.
+   */
+  buildCallChainEntry(file: string, functionName: string, line: number): CallChainEntry {
+    return { file, functionName, line };
+  }
+
+  /**
+   * Get cross-file mitigations collected during detection.
+   */
+  getCrossFileMitigations(): CrossFileMitigationInfo[] {
+    return [...this.crossFileMitigations];
+  }
+
+  /**
+   * Check if any cross-file mitigations were detected.
+   */
+  hasCrossFileMitigations(): boolean {
+    return this.crossFileMitigations.length > 0;
+  }
+
+  /**
+   * Clear collected cross-file mitigation info.
+   */
+  clearCrossFileMitigations(): void {
+    this.crossFileMitigations = [];
   }
 }
 

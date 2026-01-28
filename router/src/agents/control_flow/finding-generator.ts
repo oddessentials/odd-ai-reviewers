@@ -17,6 +17,8 @@ import type {
   VulnerabilityType,
   PotentialVulnerability,
   ControlFlowConfig,
+  PatternTimeoutInfo,
+  CrossFileMitigationInfo,
 } from './types.js';
 import type { ControlFlowGraphRuntime } from './cfg-types.js';
 import { type PathAnalysisResult, type PathAnalyzer, createPathAnalyzer } from './path-analyzer.js';
@@ -62,6 +64,8 @@ const RULE_PREFIX = 'cfa/';
 export class FindingGenerator {
   private config: ControlFlowConfig;
   private pathAnalyzer: PathAnalyzer;
+  private patternTimeouts: PatternTimeoutInfo[] = [];
+  private crossFileMitigations: CrossFileMitigationInfo[] = [];
 
   constructor(config?: Partial<ControlFlowConfig>) {
     this.config = {
@@ -72,8 +76,52 @@ export class FindingGenerator {
       mitigationPatterns: config?.mitigationPatterns ?? [],
       patternOverrides: config?.patternOverrides ?? [],
       disabledPatterns: config?.disabledPatterns ?? [],
+      patternTimeoutMs: config?.patternTimeoutMs ?? 100,
     };
     this.pathAnalyzer = createPathAnalyzer(config);
+  }
+
+  /**
+   * Set pattern timeouts to include in finding metadata.
+   */
+  setPatternTimeouts(timeouts: PatternTimeoutInfo[]): void {
+    this.patternTimeouts = timeouts;
+  }
+
+  /**
+   * Set cross-file mitigations to include in finding messages and metadata.
+   */
+  setCrossFileMitigations(mitigations: CrossFileMitigationInfo[]): void {
+    this.crossFileMitigations = mitigations;
+  }
+
+  /**
+   * Clear collected stats for a new analysis session.
+   */
+  clearStats(): void {
+    this.patternTimeouts = [];
+    this.crossFileMitigations = [];
+    this.pathAnalyzer.clearCrossFileMitigations();
+  }
+
+  /**
+   * Get the internal path analyzer.
+   * Use this to run inter-procedural analysis which collects cross-file mitigations.
+   */
+  getPathAnalyzer(): PathAnalyzer {
+    return this.pathAnalyzer;
+  }
+
+  /**
+   * Sync cross-file mitigations from the path analyzer.
+   * Call this after inter-procedural analysis has been performed on the path analyzer.
+   */
+  syncCrossFileMitigationsFromPathAnalyzer(): void {
+    const crossFileMitigations = this.pathAnalyzer.getCrossFileMitigations();
+    if (crossFileMitigations.length > 0) {
+      this.crossFileMitigations.push(...crossFileMitigations);
+      this.pathAnalyzer.clearCrossFileMitigations();
+    }
   }
 
   /**
@@ -113,6 +161,11 @@ export class FindingGenerator {
       analysisDepth: this.config.maxCallDepth,
       degraded: pathAnalysis.degraded,
       degradedReason: pathAnalysis.degradedReason,
+      // Include pattern timeout info if any timeouts occurred (FR-004)
+      patternTimeouts: this.patternTimeouts.length > 0 ? this.patternTimeouts : undefined,
+      // Include cross-file mitigation info if any detected (FR-006 to FR-010)
+      crossFileMitigations:
+        this.crossFileMitigations.length > 0 ? this.crossFileMitigations : undefined,
     };
 
     return {
@@ -171,22 +224,46 @@ export class FindingGenerator {
     pathAnalysis: PathAnalysisResult
   ): string {
     const baseMessage = vulnerability.description;
+    let message: string;
 
     if (pathAnalysis.status === 'none') {
-      return `${baseMessage}. No mitigations detected on any execution path.`;
-    }
-
-    if (pathAnalysis.status === 'partial') {
+      message = `${baseMessage}. No mitigations detected on any execution path.`;
+    } else if (pathAnalysis.status === 'partial') {
       const { coveragePercent, mitigatedPaths, unmitigatedPaths } = pathAnalysis;
-      return (
+      message =
         `${baseMessage}. Partial mitigation detected: ` +
         `${mitigatedPaths.length} of ${pathAnalysis.pathsToSink.length} paths ` +
         `(${coveragePercent.toFixed(0)}%) are protected. ` +
-        `${unmitigatedPaths.length} path(s) remain unprotected.`
-      );
+        `${unmitigatedPaths.length} path(s) remain unprotected.`;
+
+      // Add cross-file mitigation details (FR-006 to FR-010)
+      if (this.crossFileMitigations.length > 0) {
+        message += this.formatCrossFileMitigations();
+      }
+    } else {
+      message = baseMessage;
     }
 
-    return baseMessage;
+    // Add timeout warning if patterns timed out (FR-004)
+    if (this.patternTimeouts.length > 0) {
+      message += ` Note: ${this.patternTimeouts.length} pattern(s) timed out during evaluation; results may be conservative.`;
+    }
+
+    return message;
+  }
+
+  /**
+   * Format cross-file mitigations for inclusion in finding message.
+   */
+  private formatCrossFileMitigations(): string {
+    if (this.crossFileMitigations.length === 0) return '';
+
+    const lines = this.crossFileMitigations.map((m) => {
+      const funcName = m.functionName ? `${m.functionName}()` : 'mitigation';
+      return `\n- Protected by: ${funcName} in ${m.file}:${m.line} (depth: ${m.depth})`;
+    });
+
+    return lines.join('');
   }
 
   /**
@@ -259,12 +336,24 @@ export class FindingGenerator {
    * Performs path analysis for each vulnerability and filters out:
    * - Fully mitigated vulnerabilities
    * - Unreachable sinks (T041)
+   *
+   * @param vulnerabilities List of potential vulnerabilities to analyze
+   * @param cfg The control flow graph for the function
+   * @param cfgMap Optional map of all CFGs for inter-procedural analysis
    */
   processVulnerabilities(
     vulnerabilities: PotentialVulnerability[],
-    cfg: ControlFlowGraphRuntime
+    cfg: ControlFlowGraphRuntime,
+    cfgMap?: Map<string, ControlFlowGraphRuntime>
   ): ControlFlowFinding[] {
     const findings: ControlFlowFinding[] = [];
+
+    // If cfgMap provided, run inter-procedural analysis first to collect cross-file mitigations
+    if (cfgMap && cfgMap.size > 0) {
+      this.pathAnalyzer.clearCrossFileMitigations();
+      this.pathAnalyzer.analyzeInterProcedural(cfg, cfgMap);
+      this.syncCrossFileMitigationsFromPathAnalyzer();
+    }
 
     for (const vuln of vulnerabilities) {
       // Find the node containing the sink

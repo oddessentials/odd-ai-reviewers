@@ -123,6 +123,79 @@ export const MitigationPatternSchema = z.object({
 export type MitigationPattern = z.infer<typeof MitigationPatternSchema>;
 
 // =============================================================================
+// Call Chain Entry (Cross-File Mitigation Tracking)
+// =============================================================================
+
+/**
+ * A single entry in the call chain from vulnerability to mitigation.
+ * Used to track how mitigations in other files are reached.
+ */
+export const CallChainEntrySchema = z.object({
+  /** Source file containing this call */
+  file: z.string(),
+  /** Name of the function making or receiving the call */
+  functionName: z.string(),
+  /** Line number of the call site or mitigation */
+  line: z.number().int().positive(),
+});
+export type CallChainEntry = z.infer<typeof CallChainEntrySchema>;
+
+// =============================================================================
+// Pattern Evaluation Result (Timeout Tracking)
+// =============================================================================
+
+/**
+ * Result of evaluating a single regex pattern with timeout protection.
+ */
+export const PatternEvaluationResultSchema = z.object({
+  /** ID of the pattern that was evaluated */
+  patternId: z.string(),
+  /** Whether the pattern matched the input */
+  matched: z.boolean(),
+  /** Whether evaluation was terminated due to timeout */
+  timedOut: z.boolean(),
+  /** Actual time taken for evaluation in milliseconds */
+  elapsedMs: z.number().nonnegative(),
+  /** Length of input string that was matched against */
+  inputLength: z.number().int().nonnegative(),
+});
+export type PatternEvaluationResult = z.infer<typeof PatternEvaluationResultSchema>;
+
+// =============================================================================
+// Cross-File Mitigation Info
+// =============================================================================
+
+/**
+ * Summary information about a cross-file mitigation for finding metadata.
+ * Used in finding messages to report mitigation locations.
+ */
+export const CrossFileMitigationInfoSchema = z.object({
+  /** ID of the mitigation pattern */
+  patternId: z.string(),
+  /** File where the mitigation was found */
+  file: z.string(),
+  /** Line number of the mitigation */
+  line: z.number().int().positive(),
+  /** Call depth at which the mitigation was detected */
+  depth: z.number().int().nonnegative(),
+  /** Name of the function containing the mitigation (optional) */
+  functionName: z.string().optional(),
+});
+export type CrossFileMitigationInfo = z.infer<typeof CrossFileMitigationInfoSchema>;
+
+/**
+ * Summary information about a pattern that timed out during evaluation.
+ * Used in finding metadata to indicate conservative results.
+ */
+export const PatternTimeoutInfoSchema = z.object({
+  /** ID of the pattern that timed out */
+  patternId: z.string(),
+  /** Time elapsed before timeout in milliseconds */
+  elapsedMs: z.number().nonnegative(),
+});
+export type PatternTimeoutInfo = z.infer<typeof PatternTimeoutInfoSchema>;
+
+// =============================================================================
 // Mitigation Instance (Runtime Detection)
 // =============================================================================
 
@@ -133,6 +206,11 @@ export const MitigationInstanceSchema = z.object({
   protectedPaths: z.array(z.string()),
   scope: MitigationScopeSchema,
   confidence: ConfidenceSchema,
+  // Cross-file tracking fields (optional for backward compatibility)
+  /** Call chain from vulnerability location to this mitigation */
+  callChain: z.array(CallChainEntrySchema).optional(),
+  /** How many call levels deep this mitigation was found (0 = same file) */
+  discoveryDepth: z.number().int().nonnegative().optional(),
 });
 export type MitigationInstance = z.infer<typeof MitigationInstanceSchema>;
 
@@ -211,6 +289,11 @@ export const FindingMetadataSchema = z.object({
   analysisDepth: z.number().int().nonnegative(),
   degraded: z.boolean(),
   degradedReason: z.string().optional(),
+  // Cross-file mitigation tracking (optional for backward compatibility)
+  /** Details of mitigations found in different files than the vulnerability */
+  crossFileMitigations: z.array(CrossFileMitigationInfoSchema).optional(),
+  /** Patterns that timed out during evaluation (indicates conservative results) */
+  patternTimeouts: z.array(PatternTimeoutInfoSchema).optional(),
 });
 export type FindingMetadata = z.infer<typeof FindingMetadataSchema>;
 
@@ -259,6 +342,8 @@ export const ControlFlowConfigSchema = z.object({
   mitigationPatterns: z.array(MitigationPatternSchema).default([]),
   patternOverrides: z.array(PatternOverrideSchema).default([]),
   disabledPatterns: z.array(z.string()).default([]),
+  /** Maximum time in milliseconds for a single regex pattern evaluation (10-1000ms) */
+  patternTimeoutMs: z.number().int().min(10).max(1000).default(100),
 });
 export type ControlFlowConfig = z.infer<typeof ControlFlowConfigSchema>;
 

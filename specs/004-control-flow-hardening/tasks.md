@@ -25,12 +25,12 @@
 
 **Purpose**: Extend existing type schemas and prepare configuration
 
-- [ ] T001 Add CallChainEntrySchema to router/src/agents/control_flow/types.ts
-- [ ] T002 Add PatternEvaluationResultSchema to router/src/agents/control_flow/types.ts
-- [ ] T003 Add CrossFileMitigationInfoSchema and PatternTimeoutInfoSchema to router/src/agents/control_flow/types.ts
-- [ ] T004 Extend MitigationInstanceSchema with optional callChain and discoveryDepth fields in router/src/agents/control_flow/types.ts
-- [ ] T005 Extend FindingMetadataSchema with optional crossFileMitigations and patternTimeouts fields in router/src/agents/control_flow/types.ts
-- [ ] T006 Add patternTimeoutMs field to ControlFlowConfigSchema in router/src/config/mitigation-config.ts
+- [x] T001 Add CallChainEntrySchema to router/src/agents/control_flow/types.ts
+- [x] T002 Add PatternEvaluationResultSchema to router/src/agents/control_flow/types.ts
+- [x] T003 Add CrossFileMitigationInfoSchema and PatternTimeoutInfoSchema to router/src/agents/control_flow/types.ts
+- [x] T004 Extend MitigationInstanceSchema with optional callChain and discoveryDepth fields in router/src/agents/control_flow/types.ts
+- [x] T005 Extend FindingMetadataSchema with optional crossFileMitigations and patternTimeouts fields in router/src/agents/control_flow/types.ts
+- [x] T006 Add patternTimeoutMs field to ControlFlowConfigSchema in router/src/agents/control_flow/types.ts
 
 **Checkpoint**: All schema extensions complete - feature implementation can begin
 
@@ -42,10 +42,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 Create TimeoutRegex utility class for pattern evaluation with timeout in router/src/agents/control_flow/timeout-regex.ts
-- [ ] T008 Add input length validation helper (max 10KB) in router/src/agents/control_flow/timeout-regex.ts
-- [ ] T009 Implement time tracking using process.hrtime.bigint() in router/src/agents/control_flow/timeout-regex.ts
-- [ ] T010 Add new log categories (pattern_timeout, cross_file, call_chain) to router/src/agents/control_flow/logger.ts
+- [x] T007 Create TimeoutRegex utility class for pattern evaluation with timeout in router/src/agents/control_flow/timeout-regex.ts
+- [x] T008 Add input length validation helper (max 10KB) in router/src/agents/control_flow/timeout-regex.ts
+- [x] T009 Implement time tracking using process.hrtime.bigint() in router/src/agents/control_flow/timeout-regex.ts
+- [x] T010 Add new log categories (pattern_timeout, cross_file, call_chain) to router/src/agents/control_flow/logger.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -59,14 +59,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Integrate TimeoutRegex into pattern evaluation in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T012 [US1] Add timeout handling logic that treats timed-out patterns as non-matching in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T013 [US1] Return PatternEvaluationResult with timedOut flag from pattern evaluation in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T014 [US1] Collect pattern timeout info during analysis for finding metadata in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T015 [US1] Add pattern timeout indicator to finding messages in router/src/agents/control_flow/finding-generator.ts
-- [ ] T016 [US1] Validate patternTimeoutMs config bounds (10-1000ms) in router/src/config/mitigation-config.ts
-- [ ] T017 [P] [US1] Create unit tests for regex timeout behavior in router/tests/unit/agents/control_flow/regex-timeout.test.ts
-- [ ] T018 [US1] Add integration test for analysis continuing after pattern timeout in router/tests/unit/agents/control_flow/regex-timeout.test.ts
+- [x] T011 [US1] Integrate TimeoutRegex into pattern evaluation in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T012 [US1] Add timeout handling logic that treats timed-out patterns as non-matching in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T013 [US1] Return PatternEvaluationResult with timedOut flag from pattern evaluation in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T014 [US1] Collect pattern timeout info during analysis for finding metadata in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T015 [US1] Add pattern timeout indicator to finding messages in router/src/agents/control_flow/finding-generator.ts
+- [x] T016 [US1] Validate patternTimeoutMs config bounds (10-1000ms) in router/src/agents/control_flow/types.ts
+- [x] T017 [P] [US1] Create unit tests for regex timeout behavior in router/tests/unit/agents/control_flow/regex-timeout.test.ts
+- [x] T018 [US1] Add integration test for analysis continuing after pattern timeout in router/tests/unit/agents/control_flow/regex-timeout.test.ts
 
 **Checkpoint**: User Story 1 complete - analysis resilient to malicious patterns
 
@@ -80,15 +80,15 @@
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Populate callChain field when detecting cross-file mitigations in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T020 [US2] Populate discoveryDepth field based on call chain length in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T021 [US2] Build CrossFileMitigationInfo objects for findings in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T022 [US2] Enhance finding message generator to include cross-file mitigation details in router/src/agents/control_flow/finding-generator.ts
-- [ ] T023 [US2] Format mitigation list with file:line and depth info in finding messages in router/src/agents/control_flow/finding-generator.ts
-- [ ] T024 [US2] Handle multiple cross-file mitigations in finding message formatting in router/src/agents/control_flow/finding-generator.ts
-- [ ] T025 [US2] Format partial mitigation messages to show which paths protected by which mitigations in router/src/agents/control_flow/finding-generator.ts
-- [ ] T026 [P] [US2] Create unit tests for cross-file message formatting in router/tests/unit/agents/control_flow/cross-file-messages.test.ts
-- [ ] T027 [US2] Add integration test for cross-file mitigation detection in router/tests/unit/agents/control_flow/cross-file-messages.test.ts
+- [x] T019 [US2] Populate callChain field when detecting cross-file mitigations in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T020 [US2] Populate discoveryDepth field based on call chain length in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T021 [US2] Build CrossFileMitigationInfo objects for findings in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T022 [US2] Enhance finding message generator to include cross-file mitigation details in router/src/agents/control_flow/finding-generator.ts
+- [x] T023 [US2] Format mitigation list with file:line and depth info in finding messages in router/src/agents/control_flow/finding-generator.ts
+- [x] T024 [US2] Handle multiple cross-file mitigations in finding message formatting in router/src/agents/control_flow/finding-generator.ts
+- [x] T025 [US2] Format partial mitigation messages to show which paths protected by which mitigations in router/src/agents/control_flow/finding-generator.ts
+- [x] T026 [P] [US2] Create unit tests for cross-file message formatting in router/tests/unit/agents/control_flow/cross-file-messages.test.ts
+- [x] T027 [US2] Add integration test for cross-file mitigation detection in router/tests/unit/agents/control_flow/cross-file-messages.test.ts
 
 **Checkpoint**: User Story 2 complete - cross-file mitigations fully transparent
 
@@ -102,11 +102,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Add pattern timeout logging with pattern ID, input length, elapsed time in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T029 [US3] Add cross-file mitigation detection logging with source and target files in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T030 [US3] Add call chain traversal logging for verbose mode in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T031 [US3] Log pattern evaluation result (match/no-match/timeout) for each pattern in router/src/agents/control_flow/mitigation-detector.ts
-- [ ] T032 [P] [US3] Add unit tests for logging output in router/tests/unit/agents/control_flow/logger.test.ts
+- [x] T028 [US3] Add pattern timeout logging with pattern ID, input length, elapsed time in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T029 [US3] Add cross-file mitigation detection logging with source and target files in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T030 [US3] Add call chain traversal logging for verbose mode in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T031 [US3] Log pattern evaluation result (match/no-match/timeout) for each pattern in router/src/agents/control_flow/mitigation-detector.ts
+- [x] T032 [P] [US3] Add unit tests for logging output in router/tests/unit/agents/control_flow/logger.test.ts
 
 **Checkpoint**: User Story 3 complete - full audit trail available for debugging
 
@@ -116,10 +116,10 @@
 
 **Purpose**: Validation and documentation updates
 
-- [ ] T033 Verify all validation helpers work correctly (validateCallChain, validateDepthConsistency)
-- [ ] T034 Run full test suite to verify no regressions in router/tests/
-- [ ] T035 Run quickstart.md validation scenarios manually
-- [ ] T036 Update CLAUDE.md if new patterns introduced
+- [x] T033 Verify all validation helpers work correctly (validateCallChain, validateDepthConsistency)
+- [x] T034 Run full test suite to verify no regressions in router/tests/
+- [x] T035 Run quickstart.md validation scenarios manually
+- [x] T036 Update CLAUDE.md if new patterns introduced
 
 ---
 

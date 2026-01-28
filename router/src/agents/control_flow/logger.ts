@@ -31,7 +31,10 @@ export type LogCategory =
   | 'finding'
   | 'budget'
   | 'cfg'
-  | 'vulnerability';
+  | 'vulnerability'
+  | 'pattern_timeout'
+  | 'cross_file'
+  | 'call_chain';
 
 /**
  * Structured log entry for analysis decisions.
@@ -480,6 +483,98 @@ export class AnalysisLogger {
   }
 
   // ===========================================================================
+  // Pattern Timeout Logging (FR-003, FR-012)
+  // ===========================================================================
+
+  /**
+   * Log pattern evaluation timeout.
+   */
+  logPatternTimeout(patternId: string, inputLength: number, elapsedMs: number): void {
+    this.addEntry(
+      'warn',
+      'pattern_timeout',
+      `Pattern ${patternId} timed out after ${elapsedMs.toFixed(1)}ms (input: ${inputLength} chars)`,
+      { patternId, inputLength, elapsedMs, result: 'conservative_non_match' }
+    );
+  }
+
+  /**
+   * Log pattern evaluation completion (for debugging).
+   */
+  logPatternEvaluated(
+    patternId: string,
+    matched: boolean,
+    elapsedMs: number,
+    inputLength: number
+  ): void {
+    this.addEntry(
+      'debug',
+      'pattern_timeout',
+      `Pattern ${patternId}: ${matched ? 'matched' : 'no match'} in ${elapsedMs.toFixed(2)}ms`,
+      { patternId, matched, elapsedMs, inputLength }
+    );
+  }
+
+  // ===========================================================================
+  // Cross-File Mitigation Logging (FR-011)
+  // ===========================================================================
+
+  /**
+   * Log cross-file mitigation detection.
+   */
+  logCrossFileMitigation(
+    vulnerabilityFile: string,
+    mitigationFile: string,
+    mitigationLine: number,
+    depth: number,
+    patternId: string
+  ): void {
+    this.addEntry(
+      'info',
+      'cross_file',
+      `Cross-file mitigation: ${patternId} at ${mitigationFile}:${mitigationLine} (depth: ${depth})`,
+      { vulnerabilityFile, mitigationFile, mitigationLine, depth, patternId }
+    );
+  }
+
+  // ===========================================================================
+  // Call Chain Logging (FR-011 verbose)
+  // ===========================================================================
+
+  /**
+   * Log call chain traversal (verbose mode).
+   */
+  logCallChainStep(
+    fromFile: string,
+    fromFunction: string,
+    toFile: string,
+    toFunction: string,
+    depth: number
+  ): void {
+    this.addEntry(
+      'debug',
+      'call_chain',
+      `Call chain: ${fromFunction} (${fromFile}) -> ${toFunction} (${toFile}) at depth ${depth}`,
+      { fromFile, fromFunction, toFile, toFunction, depth }
+    );
+  }
+
+  /**
+   * Log complete call chain for a mitigation.
+   */
+  logCallChainComplete(
+    patternId: string,
+    chain: { file: string; functionName: string; line: number }[]
+  ): void {
+    const chainStr = chain.map((c) => `${c.functionName}@${c.file}:${c.line}`).join(' -> ');
+    this.addEntry('debug', 'call_chain', `Complete call chain for ${patternId}: ${chainStr}`, {
+      patternId,
+      chain,
+      totalDepth: chain.length - 1,
+    });
+  }
+
+  // ===========================================================================
   // Log Retrieval
   // ===========================================================================
 
@@ -524,6 +619,9 @@ export class AnalysisLogger {
       budget: 0,
       cfg: 0,
       vulnerability: 0,
+      pattern_timeout: 0,
+      cross_file: 0,
+      call_chain: 0,
     };
 
     for (const entry of this.entries) {

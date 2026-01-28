@@ -485,4 +485,111 @@ describe('AnalysisLogger', () => {
       expect(entries[0]?.timestamp).toBeLessThanOrEqual(after);
     });
   });
+
+  // ===========================================================================
+  // Pattern Timeout Logging Tests (FR-003, FR-012)
+  // ===========================================================================
+
+  describe('pattern timeout logging', () => {
+    it('should log pattern timeout events', () => {
+      logger.logPatternTimeout('slow-pattern', 5000, 150.5);
+
+      const entries = logger.getEntriesByCategory('pattern_timeout');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('warn');
+      expect(entries[0]?.context?.['patternId']).toBe('slow-pattern');
+      expect(entries[0]?.context?.['inputLength']).toBe(5000);
+      expect(entries[0]?.context?.['elapsedMs']).toBe(150.5);
+    });
+
+    it('should log pattern evaluation completion', () => {
+      logger.logPatternEvaluated('fast-pattern', true, 5.2, 100);
+
+      const entries = logger.getEntriesByCategory('pattern_timeout');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('debug');
+      expect(entries[0]?.context?.['patternId']).toBe('fast-pattern');
+      expect(entries[0]?.context?.['matched']).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // Cross-File Mitigation Logging Tests (FR-011)
+  // ===========================================================================
+
+  describe('cross-file mitigation logging', () => {
+    it('should log cross-file mitigation detection', () => {
+      logger.logCrossFileMitigation(
+        'src/api/handler.ts',
+        'src/utils/validate.ts',
+        42,
+        1,
+        'input-validation'
+      );
+
+      const entries = logger.getEntriesByCategory('cross_file');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('info');
+      expect(entries[0]?.context?.['vulnerabilityFile']).toBe('src/api/handler.ts');
+      expect(entries[0]?.context?.['mitigationFile']).toBe('src/utils/validate.ts');
+      expect(entries[0]?.context?.['mitigationLine']).toBe(42);
+      expect(entries[0]?.context?.['depth']).toBe(1);
+    });
+  });
+
+  // ===========================================================================
+  // Call Chain Logging Tests (FR-011 verbose)
+  // ===========================================================================
+
+  describe('call chain logging', () => {
+    it('should log call chain step', () => {
+      logger.logCallChainStep(
+        'src/api/handler.ts',
+        'handleRequest',
+        'src/services/user.ts',
+        'processUser',
+        1
+      );
+
+      const entries = logger.getEntriesByCategory('call_chain');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('debug');
+      expect(entries[0]?.context?.['fromFile']).toBe('src/api/handler.ts');
+      expect(entries[0]?.context?.['toFile']).toBe('src/services/user.ts');
+    });
+
+    it('should log complete call chain', () => {
+      const chain = [
+        { file: 'src/api/handler.ts', functionName: 'handleRequest', line: 10 },
+        { file: 'src/services/user.ts', functionName: 'processUser', line: 25 },
+        { file: 'src/utils/validate.ts', functionName: 'sanitize', line: 42 },
+      ];
+
+      logger.logCallChainComplete('input-validation', chain);
+
+      const entries = logger.getEntriesByCategory('call_chain');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.context?.['patternId']).toBe('input-validation');
+      expect(entries[0]?.context?.['chain']).toEqual(chain);
+      expect(entries[0]?.context?.['totalDepth']).toBe(2);
+    });
+  });
+
+  // ===========================================================================
+  // New Category Summary Tests
+  // ===========================================================================
+
+  describe('summary with new categories', () => {
+    it('should include new categories in summary', () => {
+      logger.logPatternTimeout('pattern1', 1000, 200);
+      logger.logCrossFileMitigation('a.ts', 'b.ts', 1, 1, 'p1');
+      logger.logCallChainStep('a.ts', 'fn1', 'b.ts', 'fn2', 1);
+
+      const summary = logger.getSummary();
+
+      expect(summary.byCategory.pattern_timeout).toBe(1);
+      expect(summary.byCategory.cross_file).toBe(1);
+      expect(summary.byCategory.call_chain).toBe(1);
+    });
+  });
 });

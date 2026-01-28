@@ -46,6 +46,7 @@ export function createTestControlFlowConfig(
     mitigationPatterns: [],
     patternOverrides: [],
     disabledPatterns: [],
+    patternTimeoutMs: 100,
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@
 
 **Feature**: 004-control-flow-hardening
 **Date**: 2026-01-28
-**Status**: Ready for Implementation
+**Status**: Implemented
 
 ## Overview
 
@@ -108,6 +108,44 @@ Vulnerability (file A) → Call Site → ... → Mitigation (file B)
                     Call Chain tracked here
 ```
 
+### Integration with FindingGenerator
+
+The `FindingGenerator` class provides automatic cross-file mitigation integration:
+
+```typescript
+import { createFindingGenerator } from './finding-generator.js';
+
+// Create the finding generator
+const generator = createFindingGenerator(config);
+
+// Option 1: Automatic integration with cfgMap
+// Pass cfgMap to automatically run inter-procedural analysis
+const findings = generator.processVulnerabilities(
+  vulnerabilities,
+  cfg,
+  cfgMap // Optional: Map<string, ControlFlowGraphRuntime>
+);
+// Cross-file mitigations are automatically collected and included in findings
+
+// Option 2: Manual integration for advanced use cases
+const pathAnalyzer = generator.getPathAnalyzer();
+pathAnalyzer.analyzeInterProcedural(cfg, cfgMap);
+generator.syncCrossFileMitigationsFromPathAnalyzer();
+const findings = generator.processVulnerabilities(vulnerabilities, cfg);
+
+// Clear stats between analysis sessions
+generator.clearStats();
+```
+
+**Key Methods**:
+
+| Method                                       | Description                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| `processVulnerabilities(vulns, cfg, map)`    | Process vulnerabilities with optional cfgMap for cross-file analysis |
+| `getPathAnalyzer()`                          | Get internal path analyzer for custom analysis                       |
+| `syncCrossFileMitigationsFromPathAnalyzer()` | Pull cross-file mitigations after manual analysis                    |
+| `clearStats()`                               | Clear collected timeouts and cross-file mitigations                  |
+
 ### Extended MitigationInstance
 
 ```typescript
@@ -173,15 +211,18 @@ describe('regex timeout', () => {
 
 ## Validation Checklist
 
-Before marking implementation complete:
+Implementation status:
 
-- [ ] `patternTimeoutMs` config is validated (10-1000ms range)
-- [ ] Pattern timeouts are logged with category `pattern_timeout`
-- [ ] Cross-file mitigations include file path in finding message
-- [ ] Cross-file mitigations include line number in finding message
-- [ ] Discovery depth is reported in message
-- [ ] All existing tests still pass
-- [ ] New tests cover timeout and cross-file scenarios
+- [x] `patternTimeoutMs` config is validated (10-1000ms range)
+- [x] Pattern timeouts are logged with category `pattern_timeout`
+- [x] Cross-file mitigations include file path in finding message
+- [x] Cross-file mitigations include line number in finding message
+- [x] Discovery depth is reported in message
+- [x] All existing tests still pass
+- [x] New tests cover timeout and cross-file scenarios
+- [x] `FindingGenerator.processVulnerabilities()` supports optional cfgMap for automatic cross-file analysis
+- [x] `FindingGenerator.getPathAnalyzer()` exposes path analyzer for manual analysis
+- [x] `FindingGenerator.syncCrossFileMitigationsFromPathAnalyzer()` syncs cross-file data
 
 ## Related Documentation
 
