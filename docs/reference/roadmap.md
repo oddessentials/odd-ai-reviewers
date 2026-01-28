@@ -1,8 +1,8 @@
 # Roadmap: Azure DevOps Support
 
-> Azure DevOps support has been implemented. For setup instructions, see [ADO-SETUP.md](./ADO-SETUP.md).
+> Azure DevOps support has been implemented. For setup instructions, see [Azure DevOps Setup](../platforms/azure-devops/setup.md).
 
-> **Implementation Plan:** See [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) for the comprehensive implementation details.
+> **Implementation Plan:** See [ADO Implementation Plan](../platforms/azure-devops/implementation.md) for the comprehensive implementation details.
 
 ---
 
@@ -126,7 +126,7 @@ The following are explicitly **not planned** for odd-ai-reviewers:
 
 A comprehensive implementation plan has been created to ensure enterprise-grade Azure DevOps support with full GitHub feature parity:
 
-**[ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md)** covers:
+**[ADO Implementation Plan](../platforms/azure-devops/implementation.md)** covers:
 
 - Phase 1: ADO Reporter Module (`ado.ts`) with thread comments, inline annotations, build status
 - Phase 2: Trust & Environment Detection for ADO-specific context
@@ -136,7 +136,7 @@ A comprehensive implementation plan has been created to ensure enterprise-grade 
 - Phase 6: Comprehensive Testing Strategy matching GitHub test coverage
 - Phase 7: Documentation Updates
 
-The plan ensures compliance with all invariants defined in [INVARIANTS.md](./INVARIANTS.md), particularly:
+The plan ensures compliance with all invariants defined in [Invariants](../architecture/invariants.md), particularly:
 
 - Router Monopoly Rule (only router posts to ADO)
 - No Direct Secrets to Agents (ADO tokens stripped)
@@ -147,7 +147,7 @@ The plan ensures compliance with all invariants defined in [INVARIANTS.md](./INV
 
 ## Related Documentation
 
-- [ADO-IMPLEMENTATION-PLAN.md](./ADO-IMPLEMENTATION-PLAN.md) — Comprehensive Azure DevOps implementation plan
-- [SCOPE.md](./SCOPE.md) — What odd-ai-reviewers does and doesn't do
-- [config-schema.md](./config-schema.md) — Configuration reference
-- [INVARIANTS.md](./INVARIANTS.md) — Design constraints
+- [ADO Implementation Plan](../platforms/azure-devops/implementation.md) — Comprehensive Azure DevOps implementation plan
+- [Scope](../architecture/scope.md) — What odd-ai-reviewers does and doesn't do
+- [Configuration Schema](../configuration/config-schema.md) — Configuration reference
+- [Invariants](../architecture/invariants.md) — Design constraints

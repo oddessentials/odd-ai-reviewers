@@ -141,7 +141,7 @@ To enable AI review for all repositories in an organization:
 
 ## Related Documentation
 
-- [Configuration Reference](./config-schema.md)
-- [Security Model](./SECURITY.md)
-- [Cost Controls](./COST-CONTROLS.md)
-- [Architecture](./ARCHITECTURE.md)
+- [Configuration Reference](../../configuration/config-schema.md)
+- [Security Model](../../architecture/security.md)
+- [Cost Controls](../../configuration/cost-controls.md)
+- [Architecture](../../architecture/overview.md)

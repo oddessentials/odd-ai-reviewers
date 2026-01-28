@@ -52,12 +52,12 @@ This document defines what odd-ai-reviewers **is** and **is not**, preventing sc
 | **GitLab**       | ⚪ Future   | Not planned        | —                                 |
 | **Gitea**        | ⚪ Future   | Not planned        | —                                 |
 
-See [ROADMAP.md](./ROADMAP.md) for Azure DevOps implementation details.
+See [Roadmap](../reference/roadmap.md) for Azure DevOps implementation details.
 
 ---
 
 ## Related Documentation
 
-- [INVARIANTS.md](./INVARIANTS.md) — Non-negotiable design constraints
-- [security.md](./security.md) — Security model and trust boundaries
-- [OSCR-INTEGRATION.md](./OSCR-INTEGRATION.md) — Self-hosted CI integration
+- [Invariants](./invariants.md) — Non-negotiable design constraints
+- [Security](./security.md) — Security model and trust boundaries
+- [OSCR Integration](../platforms/oscr/integration.md) — Self-hosted CI integration

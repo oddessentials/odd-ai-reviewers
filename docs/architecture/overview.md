@@ -64,7 +64,7 @@ flowchart TD
 
 ### Filter Precedence
 
-> 📖 For detailed filter precedence and pattern syntax, see [Configuration Schema](./config-schema.md#filter-precedence).
+> 📖 For detailed filter precedence and pattern syntax, see [Configuration Schema](../configuration/config-schema.md#filter-precedence).
 
 Filters are applied in order: `.reviewignore` → `path_filters.exclude` → `path_filters.include`.
 
@@ -266,7 +266,7 @@ flowchart TD
 
 ## Related Documentation
 
-- [Configuration Schema](./config-schema.md) — All YAML options
+- [Configuration Schema](../configuration/config-schema.md) — All YAML options
 - [Security Model](./security.md) — Trust boundaries and threat model
-- [Invariants](./INVARIANTS.md) — Non-negotiable design constraints
-- [Scope](./SCOPE.md) — What this project does and doesn't do
+- [Invariants](./invariants.md) — Non-negotiable design constraints
+- [Scope](./scope.md) — What this project does and doesn't do

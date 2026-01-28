@@ -39,7 +39,7 @@ env:
 
 > **Recommendation:** Always set `OLLAMA_BASE_URL` explicitly in CI to avoid ambiguity, even if defaults exist.
 
-> **⚠️ Air-Gapped Environments:** If Ollama is truly air-gapped (no internet access), models **must be provisioned ahead of time** via pre-pull, cache volume, or baked image. Otherwise, the agent will fail-closed when models are unavailable. See [Model Provisioning Guide](./MODEL-PROVISIONING.md).
+> **⚠️ Air-Gapped Environments:** If Ollama is truly air-gapped (no internet access), models **must be provisioned ahead of time** via pre-pull, cache volume, or baked image. Otherwise, the agent will fail-closed when models are unavailable. See [Model Provisioning Guide](./model-provisioning.md).
 
 ## Behavior Modes
 
@@ -103,7 +103,7 @@ When running odd-ai-reviewers inside [OSCR](https://github.com/oddessentials/odd
 - Air-gap model provisioning
 - Troubleshooting
 
-See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
+See [OSCR Integration Guide](./integration.md) for conceptual overview.
 
 ## Troubleshooting
 
@@ -163,7 +163,7 @@ See [OSCR Integration Guide](./OSCR-INTEGRATION.md) for conceptual overview.
 
 ## Related Documentation
 
-- [OSCR Integration](./OSCR-INTEGRATION.md) — Self-hosted CI overview
-- [Model Provisioning](./MODEL-PROVISIONING.md) — Air-gap deployment
-- [Configuration Schema](./config-schema.md) — All YAML options
-- [Security Model](./security.md) — Trust boundaries
+- [OSCR Integration](./integration.md) — Self-hosted CI overview
+- [Model Provisioning](./model-provisioning.md) — Air-gap deployment
+- [Configuration Schema](../../configuration/config-schema.md) — All YAML options
+- [Security Model](../../architecture/security.md) — Trust boundaries

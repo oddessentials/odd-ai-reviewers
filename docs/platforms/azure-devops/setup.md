@@ -194,7 +194,7 @@ node dist/main.js review --repo . --base main --head HEAD
 
 ## Related Documentation
 
-- [Configuration Schema](./config-schema.md)
-- [Architecture Overview](./ARCHITECTURE.md)
-- [Security Model](./security.md)
-- [GitHub Setup](./github-setup.md)
+- [Configuration Schema](../../configuration/config-schema.md)
+- [Architecture Overview](../../architecture/overview.md)
+- [Security Model](../../architecture/security.md)
+- [GitHub Setup](../github/setup.md)

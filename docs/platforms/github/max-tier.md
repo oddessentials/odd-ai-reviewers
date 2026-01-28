@@ -349,8 +349,8 @@ Set `required: true` to fail instead of skip.
 
 ## Related Documentation
 
-- [Free Tier Setup](./GITHUB-FREE.md) - No API keys needed
-- [Local LLM Setup](./LOCAL-LLM-SETUP.md) - Self-hosted Ollama
-- [Configuration Reference](./config-schema.md) - All options
-- [Cost Controls](./cost-controls.md) - Budget management
-- [Security Model](./security.md) - How secrets are protected
+- [Free Tier Setup](./free-tier.md) - No API keys needed
+- [Local LLM Setup](../oscr/local-llm-setup.md) - Self-hosted Ollama
+- [Configuration Reference](../../configuration/config-schema.md) - All options
+- [Cost Controls](../../configuration/cost-controls.md) - Budget management
+- [Security Model](../../architecture/security.md) - How secrets are protected

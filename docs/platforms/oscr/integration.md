@@ -64,7 +64,7 @@ LOCAL_LLM_OPTIONAL=false  # fail-closed by default
 
 When running in OSCR, model provisioning is handled by the OSCR host operator. See:
 
-- [Model Provisioning Guide](./MODEL-PROVISIONING.md) for generic strategies
+- [Model Provisioning Guide](./model-provisioning.md) for generic strategies
 - [OSCR repository](https://github.com/oddessentials/odd-self-hosted-ci-runtime) for OSCR-specific deployment patterns
 
 ## Workflow Configuration

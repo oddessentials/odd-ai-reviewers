@@ -135,7 +135,7 @@ When Semgrep finds issues, you'll see:
 
 ## Upgrading to AI-Powered Review
 
-Want deeper semantic analysis? See [GITHUB-MAX.md](./GITHUB-MAX.md) for:
+Want deeper semantic analysis? See [GitHub Max Setup](./max-tier.md) for:
 
 - AI-powered code review (OpenCode agent)
 - Natural language explanations
@@ -169,6 +169,6 @@ Semgrep uses pattern-based detection. If no patterns match:
 
 ## Related Documentation
 
-- [Configuration Reference](./config-schema.md)
-- [Security Model](./security.md)
-- [Architecture](./ARCHITECTURE.md)
+- [Configuration Reference](../../configuration/config-schema.md)
+- [Security Model](../../architecture/security.md)
+- [Architecture](../../architecture/overview.md)
