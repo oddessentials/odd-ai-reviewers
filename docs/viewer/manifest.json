@@ -193,6 +193,11 @@
           "path": "../reference/branding.md"
         },
         {
+          "name": "custom-badges.md",
+          "type": "file",
+          "path": "../reference/custom-badges.md"
+        },
+        {
           "name": "index.md",
           "type": "file",
           "path": "../reference/index.md"
@@ -345,6 +350,11 @@
       "name": "reference/branding.md",
       "type": "file",
       "path": "../reference/branding.md"
+    },
+    {
+      "name": "reference/custom-badges.md",
+      "type": "file",
+      "path": "../reference/custom-badges.md"
     },
     {
       "name": "reference/index.md",
