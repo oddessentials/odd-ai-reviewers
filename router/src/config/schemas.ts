@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { ControlFlowConfigSchema } from '../agents/control_flow/types.js';
 
 // Schema definitions
 export const AgentSchema = z.enum([
@@ -15,6 +16,7 @@ export const AgentSchema = z.enum([
   'pr_agent',
   'local_llm',
   'ai_semantic_review',
+  'control_flow',
 ]);
 
 export const PassSchema = z.object({
@@ -103,6 +105,8 @@ export const ConfigSchema = z.object({
   reporting: ReportingSchema.default({}),
   gating: GatingSchema.default({ enabled: false, fail_on_severity: 'error' }),
   path_filters: PathFiltersSchema.optional(),
+  /** Control flow analysis agent configuration (T058) */
+  control_flow: ControlFlowConfigSchema.optional(),
 });
 
 // Type exports
