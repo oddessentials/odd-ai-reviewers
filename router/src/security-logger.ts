@@ -127,18 +127,20 @@ interface LoggerState {
   isDegraded: boolean;
 }
 
-let state: LoggerState = {
-  runId: generateRunId(),
-  events: [],
-  loggingFailures: [],
-  isDegraded: false,
-};
-
 /**
  * Generate a unique run ID
  */
 function generateRunId(): string {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createInitialState(): LoggerState {
+  return {
+    runId: generateRunId(),
+    events: [],
+    loggingFailures: [],
+    isDegraded: false,
+  };
 }
 
 // =============================================================================
@@ -159,6 +161,144 @@ export interface SecurityEventInput {
 }
 
 /**
+ * Security logger instance interface
+ */
+export interface SecurityLogger {
+  /** Log a security event */
+  logSecurityEvent(input: SecurityEventInput): void;
+  /** Start a new logging run */
+  startRun(): string;
+  /** Get the current run ID */
+  getCurrentRunId(): string;
+  /** Get summary statistics for the current run */
+  getRunSummary(): RunSummary;
+  /** Get all events for the current run */
+  getRunEvents(): readonly SecurityEvent[];
+  /** Check if logging is in degraded mode */
+  isLoggingDegraded(): boolean;
+}
+
+/**
+ * Create a new security logger instance.
+ *
+ * Use this factory when you need isolated logger state (e.g., for testing).
+ * For most production use cases, use the default exported functions.
+ *
+ * @returns A new SecurityLogger instance with its own isolated state
+ */
+export function createSecurityLogger(): SecurityLogger {
+  let state: LoggerState = createInitialState();
+
+  /**
+   * Handle logging failures gracefully (FR-023)
+   */
+  function handleLoggingFailure(category: string, error: string): void {
+    state.loggingFailures.push({ category, error });
+    state.isDegraded = true;
+
+    // Fallback to stderr
+    try {
+      process.stderr.write(`[security] LOGGING_DEGRADED category=${category} error=${error}\n`);
+    } catch {
+      // Silently ignore if stderr is unavailable
+    }
+  }
+
+  return {
+    logSecurityEvent(input: SecurityEventInput): void {
+      try {
+        const event: SecurityEvent = {
+          category: input.category,
+          ruleId: input.ruleId,
+          file: input.file,
+          patternHash: hashPattern(input.pattern),
+          durationMs: input.durationMs,
+          outcome: input.outcome,
+          errorReason: input.errorReason,
+          timestamp: new Date().toISOString(),
+          runId: state.runId,
+        };
+
+        // Validate the event
+        const result = SecurityEventSchema.safeParse(event);
+        if (!result.success) {
+          handleLoggingFailure(input.category, `Validation failed: ${result.error.message}`);
+          return;
+        }
+
+        // Store the event
+        state.events.push(event);
+
+        // Log to stderr for immediate visibility (structured JSON)
+        const logLine = JSON.stringify({
+          level: 'security',
+          ...event,
+        });
+        process.stderr.write(`[security] ${logLine}\n`);
+      } catch (error) {
+        // FR-023: Logging failures don't block execution
+        handleLoggingFailure(
+          input.category,
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+      }
+    },
+
+    startRun(): string {
+      state = createInitialState();
+      return state.runId;
+    },
+
+    getCurrentRunId(): string {
+      return state.runId;
+    },
+
+    getRunSummary(): RunSummary {
+      const successCount = state.events.filter((e) => e.outcome === 'success').length;
+      const failureCount = state.events.filter((e) => e.outcome === 'failure').length;
+      const timeoutCount = state.events.filter((e) => e.outcome === 'timeout').length;
+      const totalDurationMs = state.events.reduce((sum, e) => sum + e.durationMs, 0);
+
+      const loggingFailuresByCategory: Record<string, number> = {};
+      for (const failure of state.loggingFailures) {
+        loggingFailuresByCategory[failure.category] =
+          (loggingFailuresByCategory[failure.category] ?? 0) + 1;
+      }
+
+      return {
+        runId: state.runId,
+        totalEvents: state.events.length,
+        successCount,
+        failureCount,
+        timeoutCount,
+        totalDurationMs,
+        loggingFailuresTotal: state.loggingFailures.length,
+        loggingFailuresByCategory,
+        loggingDegraded: state.isDegraded,
+      };
+    },
+
+    getRunEvents(): readonly SecurityEvent[] {
+      return [...state.events];
+    },
+
+    isLoggingDegraded(): boolean {
+      return state.isDegraded;
+    },
+  };
+}
+
+// =============================================================================
+// Default Instance (Backwards Compatibility)
+// =============================================================================
+
+/**
+ * Default logger instance for module-level exports.
+ * Use createSecurityLogger() for isolated instances in tests.
+ */
+const defaultLogger = createSecurityLogger();
+
+/**
  * Log a security event.
  *
  * This is the SOLE export for security logging. All security-relevant
@@ -172,118 +312,50 @@ export interface SecurityEventInput {
  * @param input - Security event input (raw pattern will be hashed)
  */
 export function logSecurityEvent(input: SecurityEventInput): void {
-  try {
-    const event: SecurityEvent = {
-      category: input.category,
-      ruleId: input.ruleId,
-      file: input.file,
-      patternHash: hashPattern(input.pattern),
-      durationMs: input.durationMs,
-      outcome: input.outcome,
-      errorReason: input.errorReason,
-      timestamp: new Date().toISOString(),
-      runId: state.runId,
-    };
-
-    // Validate the event
-    const result = SecurityEventSchema.safeParse(event);
-    if (!result.success) {
-      handleLoggingFailure(input.category, `Validation failed: ${result.error.message}`);
-      return;
-    }
-
-    // Store the event
-    state.events.push(event);
-
-    // Log to stderr for immediate visibility (structured JSON)
-    const logLine = JSON.stringify({
-      level: 'security',
-      ...event,
-    });
-    process.stderr.write(`[security] ${logLine}\n`);
-  } catch (error) {
-    // FR-023: Logging failures don't block execution
-    handleLoggingFailure(input.category, error instanceof Error ? error.message : 'Unknown error');
-  }
+  defaultLogger.logSecurityEvent(input);
 }
-
-/**
- * Handle logging failures gracefully (FR-023)
- */
-function handleLoggingFailure(category: string, error: string): void {
-  state.loggingFailures.push({ category, error });
-  state.isDegraded = true;
-
-  // Fallback to stderr
-  try {
-    process.stderr.write(`[security] LOGGING_DEGRADED category=${category} error=${error}\n`);
-  } catch {
-    // Silently ignore if stderr is unavailable
-  }
-}
-
-// =============================================================================
-// Run Management
-// =============================================================================
 
 /**
  * Start a new logging run
  */
 export function startRun(): string {
-  state = {
-    runId: generateRunId(),
-    events: [],
-    loggingFailures: [],
-    isDegraded: false,
-  };
-  return state.runId;
+  return defaultLogger.startRun();
 }
 
 /**
  * Get the current run ID
  */
 export function getCurrentRunId(): string {
-  return state.runId;
+  return defaultLogger.getCurrentRunId();
 }
 
 /**
  * Get summary statistics for the current run
  */
 export function getRunSummary(): RunSummary {
-  const successCount = state.events.filter((e) => e.outcome === 'success').length;
-  const failureCount = state.events.filter((e) => e.outcome === 'failure').length;
-  const timeoutCount = state.events.filter((e) => e.outcome === 'timeout').length;
-  const totalDurationMs = state.events.reduce((sum, e) => sum + e.durationMs, 0);
-
-  const loggingFailuresByCategory: Record<string, number> = {};
-  for (const failure of state.loggingFailures) {
-    loggingFailuresByCategory[failure.category] =
-      (loggingFailuresByCategory[failure.category] ?? 0) + 1;
-  }
-
-  return {
-    runId: state.runId,
-    totalEvents: state.events.length,
-    successCount,
-    failureCount,
-    timeoutCount,
-    totalDurationMs,
-    loggingFailuresTotal: state.loggingFailures.length,
-    loggingFailuresByCategory,
-    loggingDegraded: state.isDegraded,
-  };
+  return defaultLogger.getRunSummary();
 }
 
 /**
  * Get all events for the current run (for testing/debugging)
  */
 export function getRunEvents(): readonly SecurityEvent[] {
-  return [...state.events];
+  return defaultLogger.getRunEvents();
 }
 
 /**
  * Check if logging is in degraded mode
  */
 export function isLoggingDegraded(): boolean {
-  return state.isDegraded;
+  return defaultLogger.isLoggingDegraded();
+}
+
+/**
+ * Reset the default logger state for testing.
+ * This ensures test isolation when using module-level exports.
+ *
+ * @internal - Only use in test files
+ */
+export function resetForTesting(): void {
+  defaultLogger.startRun();
 }
