@@ -29,19 +29,35 @@ jobs:
         with:
           ref: main
 
+      # Try to download artifacts from CI workflow (FR-031 optimization)
+      - name: Download test artifacts
+        id: download-artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: router/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+        continue-on-error: true
+
+      # Fallback: run tests if artifacts not available (e.g., workflow_dispatch)
       - name: Setup Node.js
+        if: steps.download-artifacts.outcome == 'failure'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.download-artifacts.outcome == 'failure'
         run: npm ci
 
       - name: Build router
+        if: steps.download-artifacts.outcome == 'failure'
         run: npm run build --workspace=router
 
       - name: Run tests with coverage
+        if: steps.download-artifacts.outcome == 'failure'
         run: npm run test:ci:coverage --workspace=router
         env:
           CI: 'true'

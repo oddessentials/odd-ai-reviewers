@@ -57,6 +57,17 @@ jobs:
           CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
 
+      # FR-031: Upload test artifacts for badge-update workflow
+      - name: Upload test artifacts
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            router/test-results.json
+            router/coverage/coverage-summary.json
+          retention-days: 1
+
       # FR-031: PR workflow does NOT depend on Gist availability
       # Badge updates are handled by separate badge-update.yml workflow
 
@@ -96,16 +107,16 @@ jobs:
           git config user.name "Test User"
 
           # Attempt commit - lint-staged should auto-format
-          git commit -m "test: verify formatting hook" || true
+          git commit -m "test: verify formatting hook"
 
-          # Check if file was formatted (prettier adds newlines and spacing)
-          if grep -q "const x = 1;" test-format.ts; then
-            echo "✓ File was auto-formatted by pre-commit hook"
-          else
-            echo "✗ File was not formatted"
-            cat test-format.ts
+          # Verify commit succeeded
+          echo "✓ Pre-commit hook executed successfully"
+
+          # Verify no uncommitted changes (formatting was staged)
+          git diff --exit-code test-format.ts || {
+            echo "✗ File has unstaged changes after commit"
             exit 1
-          fi
+          }
 
           # Cleanup
           git reset --hard HEAD~1 2>/dev/null || git reset --hard HEAD

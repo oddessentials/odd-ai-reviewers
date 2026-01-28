@@ -34,10 +34,13 @@ const localThresholds = {
 const activeThresholds = isCI ? ciThresholds : localThresholds;
 
 // FR-005a: Log active coverage configuration at test start
-console.log(`[coverage] mode=${coverageMode}`);
-console.log(
-  `[coverage] thresholds: statements=${activeThresholds.statements}%, branches=${activeThresholds.branches}%, functions=${activeThresholds.functions}%, lines=${activeThresholds.lines}%`
-);
+// Only log when running in Vitest context to avoid polluting other tool output
+if (process.env['VITEST'] || process.env['VITEST_WORKER_ID']) {
+  console.log(`[coverage] mode=${coverageMode}`);
+  console.log(
+    `[coverage] thresholds: statements=${activeThresholds.statements}%, branches=${activeThresholds.branches}%, functions=${activeThresholds.functions}%, lines=${activeThresholds.lines}%`
+  );
+}
 
 export default defineConfig({
   test: {
