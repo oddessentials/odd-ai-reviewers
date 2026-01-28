@@ -323,6 +323,89 @@ export const AnalysisBudgetConfigSchema = z.object({
 export type AnalysisBudgetConfig = z.infer<typeof AnalysisBudgetConfigSchema>;
 
 // =============================================================================
+// ReDoS Detection Result (Pattern Validation)
+// =============================================================================
+
+/**
+ * Risk level for ReDoS vulnerability assessment.
+ */
+export const ReDoSRiskLevelSchema = z.enum(['none', 'low', 'medium', 'high']);
+export type ReDoSRiskLevel = z.infer<typeof ReDoSRiskLevelSchema>;
+
+/**
+ * Result of checking a pattern for ReDoS vulnerability patterns.
+ * Internal result from static pattern analysis.
+ */
+export const ReDoSDetectionResultSchema = z.object({
+  /** Pattern contains `(a+)+` style constructs */
+  hasNestedQuantifiers: z.boolean(),
+  /** Pattern contains `(a|a)+` style constructs */
+  hasOverlappingAlternation: z.boolean(),
+  /** Pattern contains `(.*a){n}` style constructs */
+  hasQuantifiedOverlap: z.boolean(),
+  /** Maximum nesting depth of Kleene operators */
+  starHeight: z.number().int().nonnegative(),
+  /** Composite risk score (0-100) */
+  vulnerabilityScore: z.number().min(0).max(100),
+  /** Names of ReDoS patterns detected */
+  detectedPatterns: z.array(z.string()),
+});
+export type ReDoSDetectionResult = z.infer<typeof ReDoSDetectionResultSchema>;
+
+/**
+ * Result of validating a regex pattern for ReDoS vulnerabilities.
+ * Captures validation status and details for audit logging and error reporting.
+ */
+export const PatternValidationResultSchema = z.object({
+  /** The regex pattern that was validated */
+  pattern: z.string().min(1),
+  /** Identifier for the pattern */
+  patternId: z.string().min(1),
+  /** Whether the pattern passed validation */
+  isValid: z.boolean(),
+  /** Reasons why pattern was rejected (empty if valid) */
+  rejectionReasons: z.array(z.string()).default([]),
+  /** Assessed ReDoS risk level */
+  redosRisk: ReDoSRiskLevelSchema,
+  /** Time taken for validation in milliseconds */
+  validationTimeMs: z.number().nonnegative(),
+  /** Whether pattern was whitelisted (skipped validation) */
+  whitelisted: z.boolean().optional(),
+});
+export type PatternValidationResult = z.infer<typeof PatternValidationResultSchema>;
+
+/**
+ * Error type categories for validation errors.
+ */
+export const ValidationErrorTypeSchema = z.enum([
+  'compilation',
+  'validation',
+  'timeout',
+  'resource',
+]);
+export type ValidationErrorType = z.infer<typeof ValidationErrorTypeSchema>;
+
+/**
+ * Represents an error encountered during pattern validation or execution.
+ * Structured error information for logging and recovery decisions.
+ */
+export const ValidationErrorSchema = z.object({
+  /** Category of error */
+  errorType: ValidationErrorTypeSchema,
+  /** Pattern that caused the error */
+  patternId: z.string().min(1),
+  /** Human-readable error description */
+  message: z.string().min(1),
+  /** Additional context (input length, elapsed time, etc.) */
+  details: z.record(z.string(), z.unknown()).optional(),
+  /** Whether analysis can continue */
+  recoverable: z.boolean(),
+  /** Unix timestamp of error occurrence */
+  timestamp: z.number().int().positive(),
+});
+export type ValidationError = z.infer<typeof ValidationErrorSchema>;
+
+// =============================================================================
 // Configuration
 // =============================================================================
 
@@ -344,6 +427,12 @@ export const ControlFlowConfigSchema = z.object({
   disabledPatterns: z.array(z.string()).default([]),
   /** Maximum time in milliseconds for a single regex pattern evaluation (10-1000ms) */
   patternTimeoutMs: z.number().int().min(10).max(1000).default(100),
+  /** Pattern IDs to skip ReDoS validation (manually verified safe) */
+  whitelistedPatterns: z.array(z.string()).default([]),
+  /** Maximum time allowed for pattern validation in milliseconds (1-100ms) */
+  validationTimeoutMs: z.number().int().min(1).max(100).default(10),
+  /** Minimum ReDoS risk level that causes pattern rejection */
+  rejectionThreshold: ReDoSRiskLevelSchema.default('medium'),
 });
 export type ControlFlowConfig = z.infer<typeof ControlFlowConfigSchema>;
 

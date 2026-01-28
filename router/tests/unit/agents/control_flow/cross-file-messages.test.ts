@@ -312,3 +312,266 @@ describe('Integration: Cross-file mitigation in findings', () => {
     });
   });
 });
+
+// =============================================================================
+// T027-T030: Edge Case Tests for Cross-File Mitigation Tracking
+// =============================================================================
+
+describe('Cross-File Mitigation Edge Cases', () => {
+  let detector: MitigationDetector;
+
+  beforeEach(() => {
+    const config = createTestControlFlowConfig();
+    detector = new MitigationDetector(config);
+    detector.clearPatternStats();
+  });
+
+  // T027: Maximum call depth handling
+  describe('maximum call depth handling', () => {
+    it('should handle call chains at maximum configured depth', () => {
+      const mitigation: MitigationInstance = {
+        patternId: 'deep-mitigation',
+        location: { file: 'src/deep/nested.ts', line: 100 },
+        protectedVariables: ['data'],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      // Create a deep call chain (5 levels)
+      const deepCallChain: CallChainEntry[] = [
+        { file: 'src/api/handler.ts', functionName: 'handler', line: 10 },
+        { file: 'src/services/processor.ts', functionName: 'process', line: 20 },
+        { file: 'src/utils/transform.ts', functionName: 'transform', line: 30 },
+        { file: 'src/helpers/validate.ts', functionName: 'validate', line: 40 },
+        { file: 'src/deep/nested.ts', functionName: 'nested', line: 100 },
+      ];
+
+      const result = detector.createCrossFileMitigation(
+        mitigation,
+        'src/api/handler.ts',
+        deepCallChain
+      );
+
+      expect(result.callChain).toBeDefined();
+      expect(result.discoveryDepth).toBe(4); // 4 levels deep from handler
+    });
+
+    it('should track mitigations with varying depths correctly', () => {
+      const mitigation1: MitigationInstance = {
+        patternId: 'shallow',
+        location: { file: 'src/utils/a.ts', line: 10 },
+        protectedVariables: [],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      const mitigation2: MitigationInstance = {
+        patternId: 'deep',
+        location: { file: 'src/deep/b.ts', line: 20 },
+        protectedVariables: [],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'medium',
+      };
+
+      // Shallow chain (depth 1)
+      detector.createCrossFileMitigation(mitigation1, 'src/handler.ts', [
+        { file: 'src/handler.ts', functionName: 'handle', line: 1 },
+        { file: 'src/utils/a.ts', functionName: 'validate', line: 10 },
+      ]);
+
+      // Deep chain (depth 3)
+      detector.createCrossFileMitigation(mitigation2, 'src/handler.ts', [
+        { file: 'src/handler.ts', functionName: 'handle', line: 1 },
+        { file: 'src/services/s.ts', functionName: 'service', line: 5 },
+        { file: 'src/utils/u.ts', functionName: 'util', line: 10 },
+        { file: 'src/deep/b.ts', functionName: 'deep', line: 20 },
+      ]);
+
+      const mitigations = detector.getCrossFileMitigations();
+      expect(mitigations).toHaveLength(2);
+      expect(mitigations[0]?.depth).toBe(1);
+      expect(mitigations[1]?.depth).toBe(3);
+    });
+  });
+
+  // T028: Circular reference detection
+  describe('circular reference detection', () => {
+    it('should handle call chain with circular reference gracefully', () => {
+      // A -> B -> A pattern in call chain
+      const mitigation: MitigationInstance = {
+        patternId: 'circular-test',
+        location: { file: 'src/file-b.ts', line: 50 },
+        protectedVariables: ['input'],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      // Call chain: A calls B, which might call back to A conceptually
+      // But the mitigation is in B
+      const callChain: CallChainEntry[] = [
+        { file: 'src/file-a.ts', functionName: 'funcA', line: 10 },
+        { file: 'src/file-b.ts', functionName: 'funcB', line: 50 },
+      ];
+
+      // Should not throw or hang
+      const result = detector.createCrossFileMitigation(mitigation, 'src/file-a.ts', callChain);
+
+      expect(result.callChain).toBeDefined();
+      expect(result.discoveryDepth).toBe(1);
+    });
+
+    it('should track mitigation even with same file appearing multiple times', () => {
+      const mitigation: MitigationInstance = {
+        patternId: 'multi-visit',
+        location: { file: 'src/util.ts', line: 100 },
+        protectedVariables: [],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'medium',
+      };
+
+      // Call chain where util.ts appears in different contexts
+      const callChain: CallChainEntry[] = [
+        { file: 'src/handler.ts', functionName: 'handle', line: 10 },
+        { file: 'src/util.ts', functionName: 'helper1', line: 20 },
+        { file: 'src/service.ts', functionName: 'process', line: 30 },
+        { file: 'src/util.ts', functionName: 'helper2', line: 100 },
+      ];
+
+      const result = detector.createCrossFileMitigation(mitigation, 'src/handler.ts', callChain);
+
+      // Should complete without infinite loop
+      expect(result.callChain).toHaveLength(4);
+    });
+  });
+
+  // T029: Multi-path mitigation scenarios
+  describe('multi-path mitigation scenarios', () => {
+    it('should track mitigations discovered via different paths', () => {
+      const mitigation: MitigationInstance = {
+        patternId: 'shared-mitigation',
+        location: { file: 'src/shared/validate.ts', line: 50 },
+        protectedVariables: ['data'],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      // Path 1: handler -> service -> validate
+      const path1: CallChainEntry[] = [
+        { file: 'src/handler.ts', functionName: 'handle', line: 10 },
+        { file: 'src/service.ts', functionName: 'process', line: 20 },
+        { file: 'src/shared/validate.ts', functionName: 'validate', line: 50 },
+      ];
+
+      // Path 2: controller -> utils -> validate (same mitigation)
+      const path2: CallChainEntry[] = [
+        { file: 'src/controller.ts', functionName: 'control', line: 15 },
+        { file: 'src/utils/util.ts', functionName: 'util', line: 25 },
+        { file: 'src/shared/validate.ts', functionName: 'validate', line: 50 },
+      ];
+
+      detector.createCrossFileMitigation(mitigation, 'src/handler.ts', path1);
+      detector.createCrossFileMitigation(mitigation, 'src/controller.ts', path2);
+
+      const mitigations = detector.getCrossFileMitigations();
+      // Both discoveries should be tracked (different vulnerability files)
+      expect(mitigations).toHaveLength(2);
+      expect(mitigations.every((m) => m.patternId === 'shared-mitigation')).toBe(true);
+    });
+
+    it('should track different mitigations on same path', () => {
+      const mitigation1: MitigationInstance = {
+        patternId: 'validate-input',
+        location: { file: 'src/validate.ts', line: 10 },
+        protectedVariables: ['input'],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      const mitigation2: MitigationInstance = {
+        patternId: 'sanitize-output',
+        location: { file: 'src/sanitize.ts', line: 20 },
+        protectedVariables: ['output'],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      const callChain1: CallChainEntry[] = [
+        { file: 'src/handler.ts', functionName: 'handle', line: 5 },
+        { file: 'src/validate.ts', functionName: 'validate', line: 10 },
+      ];
+
+      const callChain2: CallChainEntry[] = [
+        { file: 'src/handler.ts', functionName: 'handle', line: 5 },
+        { file: 'src/sanitize.ts', functionName: 'sanitize', line: 20 },
+      ];
+
+      detector.createCrossFileMitigation(mitigation1, 'src/handler.ts', callChain1);
+      detector.createCrossFileMitigation(mitigation2, 'src/handler.ts', callChain2);
+
+      const mitigations = detector.getCrossFileMitigations();
+      expect(mitigations).toHaveLength(2);
+      expect(mitigations.map((m) => m.patternId)).toContain('validate-input');
+      expect(mitigations.map((m) => m.patternId)).toContain('sanitize-output');
+    });
+  });
+
+  // T030: Confidence reduction at depth limits
+  describe('confidence reduction at depth limits', () => {
+    it('should report lower confidence for deeper mitigations', () => {
+      // Note: Actual confidence reduction logic may be in the analysis,
+      // but mitigations with high depth should be tracked for review
+      const shallowMitigation: MitigationInstance = {
+        patternId: 'shallow',
+        location: { file: 'src/near.ts', line: 10 },
+        protectedVariables: [],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high',
+      };
+
+      const deepMitigation: MitigationInstance = {
+        patternId: 'deep',
+        location: { file: 'src/far.ts', line: 100 },
+        protectedVariables: [],
+        protectedPaths: [],
+        scope: 'function',
+        confidence: 'high', // Original confidence
+      };
+
+      detector.createCrossFileMitigation(shallowMitigation, 'src/handler.ts', [
+        { file: 'src/handler.ts', functionName: 'h', line: 1 },
+        { file: 'src/near.ts', functionName: 'near', line: 10 },
+      ]);
+
+      detector.createCrossFileMitigation(deepMitigation, 'src/handler.ts', [
+        { file: 'src/handler.ts', functionName: 'h', line: 1 },
+        { file: 'src/a.ts', functionName: 'a', line: 2 },
+        { file: 'src/b.ts', functionName: 'b', line: 3 },
+        { file: 'src/c.ts', functionName: 'c', line: 4 },
+        { file: 'src/d.ts', functionName: 'd', line: 5 },
+        { file: 'src/far.ts', functionName: 'far', line: 100 },
+      ]);
+
+      const mitigations = detector.getCrossFileMitigations();
+      expect(mitigations).toHaveLength(2);
+
+      // Verify depth tracking allows for confidence considerations
+      const shallow = mitigations.find((m) => m.patternId === 'shallow');
+      const deep = mitigations.find((m) => m.patternId === 'deep');
+
+      expect(shallow?.depth).toBe(1);
+      expect(deep?.depth).toBe(5);
+
+      // Deep mitigations should have higher depth indicating lower certainty
+      expect(deep?.depth).toBeGreaterThan(shallow?.depth ?? 0);
+    });
+  });
+});

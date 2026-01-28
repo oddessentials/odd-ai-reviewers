@@ -5,6 +5,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 ## Active Technologies
 - TypeScript 5.x (ESM), Node.js >=22.0.0 + typescript (compiler API for AST parsing), Zod (schema validation), Vitest (testing) (004-control-flow-hardening)
 - N/A (in-memory analysis only) (004-control-flow-hardening)
+- TypeScript 5.9.x (ESM), targeting ES2022 + typescript (compiler API), zod (schema validation), vitest (testing) (005-redos-prevention)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -32,11 +33,11 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 005-redos-prevention: Added TypeScript 5.9.x (ESM), targeting ES2022 + typescript (compiler API), zod (schema validation), vitest (testing)
 - 004-control-flow-hardening: Added TypeScript 5.x (ESM), Node.js >=22.0.0 + typescript (compiler API for AST parsing), Zod (schema validation), Vitest (testing)
 
 - 001-control-flow-analysis: Added TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0
 
-- 001-docs-refactor: Added Markdown documentation (no code changes) + N/A (documentation only)
 
 
 

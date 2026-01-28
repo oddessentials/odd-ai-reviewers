@@ -592,4 +592,265 @@ describe('AnalysisLogger', () => {
       expect(summary.byCategory.call_chain).toBe(1);
     });
   });
+
+  // ===========================================================================
+  // T045: Pattern Validation Logging Tests (US4)
+  // ===========================================================================
+
+  describe('pattern validation logging', () => {
+    it('should log pattern validated with full context', () => {
+      logger.logPatternValidated('safe-pattern', '\\d+', 'none', 5.2);
+
+      const entries = logger.getEntriesByCategory('pattern_validation');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('debug');
+      expect(entries[0]?.context?.['patternId']).toBe('safe-pattern');
+      expect(entries[0]?.context?.['pattern']).toBe('\\d+');
+      expect(entries[0]?.context?.['riskLevel']).toBe('none');
+      expect(entries[0]?.context?.['validationTimeMs']).toBe(5.2);
+    });
+
+    it('should log pattern rejected with rejection reasons', () => {
+      logger.logPatternRejected(
+        'dangerous-pattern',
+        '(a+)+',
+        ['nested_quantifier', 'high_star_height'],
+        'high'
+      );
+
+      const entries = logger.getEntriesByCategory('pattern_validation');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('warn');
+      expect(entries[0]?.context?.['patternId']).toBe('dangerous-pattern');
+      expect(entries[0]?.context?.['pattern']).toBe('(a+)+');
+      expect(entries[0]?.context?.['rejectionReasons']).toEqual([
+        'nested_quantifier',
+        'high_star_height',
+      ]);
+      expect(entries[0]?.context?.['riskLevel']).toBe('high');
+    });
+
+    it('should log whitelisted pattern bypass', () => {
+      logger.logPatternWhitelisted('known-pattern', '(a|ab)+', 'high');
+
+      const entries = logger.getEntriesByCategory('pattern_validation');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('info');
+      expect(entries[0]?.context?.['patternId']).toBe('known-pattern');
+      expect(entries[0]?.context?.['riskLevel']).toBe('high');
+      expect(entries[0]?.message).toContain('whitelisted');
+    });
+
+    it('should log validation timeout', () => {
+      logger.logValidationTimeout('complex-pattern', '(.*){100}', 10);
+
+      const entries = logger.getEntriesByCategory('pattern_validation');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('warn');
+      expect(entries[0]?.context?.['patternId']).toBe('complex-pattern');
+      expect(entries[0]?.context?.['timeoutMs']).toBe(10);
+    });
+  });
+
+  // ===========================================================================
+  // T046: ReDoS Detection Warning Logs Tests (US4)
+  // ===========================================================================
+
+  describe('redos detection logging', () => {
+    it('should log ReDoS detection with vulnerability details', () => {
+      logger.logRedosDetected('vuln-pattern', '(a+)+$', {
+        hasNestedQuantifiers: true,
+        hasOverlappingAlternation: false,
+        hasQuantifiedOverlap: false,
+        starHeight: 2,
+        vulnerabilityScore: 85,
+        detectedPatterns: ['nested_quantifier'],
+      });
+
+      const entries = logger.getEntriesByCategory('redos_detection');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('warn');
+      expect(entries[0]?.context?.['patternId']).toBe('vuln-pattern');
+      expect(entries[0]?.context?.['pattern']).toBe('(a+)+$');
+      expect(entries[0]?.context?.['vulnerabilityScore']).toBe(85);
+      expect(entries[0]?.context?.['detectedPatterns']).toEqual(['nested_quantifier']);
+    });
+
+    it('should log ReDoS risk assessment', () => {
+      logger.logRedosRiskAssessment('pattern-1', 'medium', 45);
+
+      const entries = logger.getEntriesByCategory('redos_detection');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.level).toBe('info');
+      expect(entries[0]?.context?.['patternId']).toBe('pattern-1');
+      expect(entries[0]?.context?.['riskLevel']).toBe('medium');
+      expect(entries[0]?.context?.['score']).toBe(45);
+    });
+
+    it('should log multiple ReDoS detections', () => {
+      logger.logRedosDetected('pattern-1', '(a+)+', {
+        hasNestedQuantifiers: true,
+        hasOverlappingAlternation: false,
+        hasQuantifiedOverlap: false,
+        starHeight: 2,
+        vulnerabilityScore: 80,
+        detectedPatterns: ['nested_quantifier'],
+      });
+      logger.logRedosDetected('pattern-2', '(a|ab)+', {
+        hasNestedQuantifiers: false,
+        hasOverlappingAlternation: true,
+        hasQuantifiedOverlap: false,
+        starHeight: 1,
+        vulnerabilityScore: 70,
+        detectedPatterns: ['overlapping_alternation'],
+      });
+
+      const entries = logger.getEntriesByCategory('redos_detection');
+      expect(entries.length).toBe(2);
+    });
+  });
+
+  // ===========================================================================
+  // T047: Log Filtering by Category Tests (US4)
+  // ===========================================================================
+
+  describe('log filtering by category', () => {
+    it('should filter entries by multiple categories', () => {
+      logger.logPatternValidated('p1', '\\d+', 'none', 1);
+      logger.logRedosDetected('p2', '(a+)+', {
+        hasNestedQuantifiers: true,
+        hasOverlappingAlternation: false,
+        hasQuantifiedOverlap: false,
+        starHeight: 2,
+        vulnerabilityScore: 80,
+        detectedPatterns: [],
+      });
+      logger.logPathStart('a', 'b');
+      logger.logMitigationCoverage('xss', 100, 'full');
+
+      const securityEntries = logger.getEntriesByCategories([
+        'pattern_validation',
+        'redos_detection',
+      ]);
+      expect(securityEntries.length).toBe(2);
+      expect(
+        securityEntries.every(
+          (e) => e.category === 'pattern_validation' || e.category === 'redos_detection'
+        )
+      ).toBe(true);
+    });
+
+    it('should return empty array for non-matching categories', () => {
+      logger.logPathStart('a', 'b');
+
+      const entries = logger.getEntriesByCategories(['pattern_validation', 'redos_detection']);
+      expect(entries.length).toBe(0);
+    });
+
+    it('should support correlation ID filtering', () => {
+      const correlationId = 'corr-123';
+      logger.logPatternValidated('p1', '\\d+', 'none', 1, correlationId);
+      logger.logPatternValidated('p2', '\\w+', 'none', 2, correlationId);
+      logger.logPatternValidated('p3', '\\s+', 'none', 3); // no correlation ID
+
+      const correlatedEntries = logger.getEntriesByCorrelationId(correlationId);
+      expect(correlatedEntries.length).toBe(2);
+      expect(correlatedEntries.every((e) => e.context?.['correlationId'] === correlationId)).toBe(
+        true
+      );
+    });
+  });
+
+  // ===========================================================================
+  // T048: Structured Log Format Verification Tests (US4)
+  // ===========================================================================
+
+  describe('structured log format verification', () => {
+    it('should include all required fields in log entries', () => {
+      logger.logPatternValidated('test-pattern', '\\d+', 'none', 5);
+
+      const entries = logger.getEntries();
+      expect(entries.length).toBe(1);
+
+      const entry = entries[0];
+      expect(entry).toBeDefined();
+      expect(entry?.timestamp).toBeTypeOf('number');
+      expect(entry?.level).toBeTypeOf('string');
+      expect(entry?.category).toBeTypeOf('string');
+      expect(entry?.message).toBeTypeOf('string');
+      expect(entry?.context).toBeDefined();
+    });
+
+    it('should format pattern validation entry with complete context', () => {
+      logger.logPatternRejected('bad-pattern', '(a+)+', ['nested_quantifier'], 'high');
+
+      const entry = logger.getEntries()[0];
+      expect(entry?.context).toMatchObject({
+        patternId: 'bad-pattern',
+        pattern: '(a+)+',
+        rejectionReasons: ['nested_quantifier'],
+        riskLevel: 'high',
+      });
+    });
+
+    it('should export structured JSON with all categories', () => {
+      logger.logPatternValidated('p1', '\\d+', 'none', 1);
+      logger.logRedosDetected('p2', '(a+)+', {
+        hasNestedQuantifiers: true,
+        hasOverlappingAlternation: false,
+        hasQuantifiedOverlap: false,
+        starHeight: 2,
+        vulnerabilityScore: 80,
+        detectedPatterns: [],
+      });
+
+      const json = logger.exportAsJson();
+      const parsed = JSON.parse(json);
+
+      expect(parsed.analysisId).toBeDefined();
+      expect(parsed.exportTime).toBeTypeOf('number');
+      expect(parsed.entries.length).toBe(2);
+      expect(parsed.entries[0].category).toBe('pattern_validation');
+      expect(parsed.entries[1].category).toBe('redos_detection');
+    });
+
+    it('should include summary with new security categories', () => {
+      logger.logPatternValidated('p1', '\\d+', 'none', 1);
+      logger.logPatternRejected('p2', '(a+)+', ['nested'], 'high');
+      logger.logRedosDetected('p3', '(a|ab)+', {
+        hasNestedQuantifiers: false,
+        hasOverlappingAlternation: true,
+        hasQuantifiedOverlap: false,
+        starHeight: 1,
+        vulnerabilityScore: 60,
+        detectedPatterns: [],
+      });
+
+      const summary = logger.getSummary();
+
+      expect(summary.byCategory.pattern_validation).toBe(2);
+      expect(summary.byCategory.redos_detection).toBe(1);
+    });
+
+    it('should support enhanced cross-file mitigation logging with call chain', () => {
+      const callChain = [
+        { file: 'handler.ts', functionName: 'handleRequest', line: 10 },
+        { file: 'validate.ts', functionName: 'sanitize', line: 25 },
+      ];
+
+      logger.logCrossFileMitigationEnhanced(
+        'src/api/handler.ts',
+        'src/utils/validate.ts',
+        42,
+        2,
+        'input-validation',
+        callChain
+      );
+
+      const entries = logger.getEntriesByCategory('cross_file');
+      expect(entries.length).toBe(1);
+      expect(entries[0]?.context?.['callChain']).toEqual(callChain);
+      expect(entries[0]?.context?.['callChainSummary']).toBeDefined();
+    });
+  });
 });

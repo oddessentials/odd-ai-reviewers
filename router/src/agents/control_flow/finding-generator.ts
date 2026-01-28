@@ -19,6 +19,7 @@ import type {
   ControlFlowConfig,
   PatternTimeoutInfo,
   CrossFileMitigationInfo,
+  ValidationError,
 } from './types.js';
 import type { ControlFlowGraphRuntime } from './cfg-types.js';
 import { type PathAnalysisResult, type PathAnalyzer, createPathAnalyzer } from './path-analyzer.js';
@@ -72,6 +73,7 @@ export class FindingGenerator {
   private pathAnalyzer: PathAnalyzer;
   private patternTimeouts: PatternTimeoutInfo[] = [];
   private crossFileMitigations: CrossFileMitigationInfo[] = [];
+  private validationErrors: ValidationError[] = [];
 
   constructor(config?: Partial<ControlFlowConfig>) {
     this.config = {
@@ -83,6 +85,9 @@ export class FindingGenerator {
       patternOverrides: config?.patternOverrides ?? [],
       disabledPatterns: config?.disabledPatterns ?? [],
       patternTimeoutMs: config?.patternTimeoutMs ?? 100,
+      whitelistedPatterns: config?.whitelistedPatterns ?? [],
+      validationTimeoutMs: config?.validationTimeoutMs ?? 10,
+      rejectionThreshold: config?.rejectionThreshold ?? 'medium',
     };
     this.pathAnalyzer = createPathAnalyzer(config);
   }
@@ -102,11 +107,27 @@ export class FindingGenerator {
   }
 
   /**
+   * Set validation errors to include in finding metadata.
+   * Implements T044: Integrate validation errors into FindingMetadata
+   */
+  setValidationErrors(errors: ValidationError[]): void {
+    this.validationErrors = errors;
+  }
+
+  /**
+   * Get current validation errors.
+   */
+  getValidationErrors(): ValidationError[] {
+    return [...this.validationErrors];
+  }
+
+  /**
    * Clear collected stats for a new analysis session.
    */
   clearStats(): void {
     this.patternTimeouts = [];
     this.crossFileMitigations = [];
+    this.validationErrors = [];
     this.pathAnalyzer.clearCrossFileMitigations();
   }
 

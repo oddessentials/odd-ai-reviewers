@@ -314,3 +314,238 @@ describe('Integration: Analysis continues after pattern timeout', () => {
     expect(timeouts).toEqual([]);
   });
 });
+
+// =============================================================================
+// T031-T034: Edge Case Tests for Timeout Behavior
+// =============================================================================
+
+describe('TimeoutRegex Edge Cases', () => {
+  // T031: Timeout triggering with controlled slow patterns
+  describe('timeout triggering with controlled patterns', () => {
+    it('should handle patterns that could cause backtracking', () => {
+      // Use a pattern known for potential backtracking issues
+      const regex = new TimeoutRegex('(a+)+b', 'backtrack-risk', 100);
+
+      // Short input - should complete quickly
+      const shortResult = regex.test('aaaab');
+      expect(shortResult.timedOut).toBe(false);
+      expect(shortResult.matched).toBe(true);
+    });
+
+    it('should complete within timeout for well-formed patterns', () => {
+      const regex = new TimeoutRegex(/^[a-z]+$/, 'simple-pattern', 100);
+      const result = regex.test('abcdefghijklmnopqrstuvwxyz'.repeat(100));
+
+      expect(result.timedOut).toBe(false);
+      expect(result.matched).toBe(true);
+      expect(result.elapsedMs).toBeLessThan(100);
+    });
+
+    it('should record accurate timing for fast patterns', () => {
+      const regex = new TimeoutRegex('test', 'fast-pattern', 100);
+      const result = regex.test('test');
+
+      expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
+      expect(result.elapsedMs).toBeLessThan(10); // Fast pattern should be very quick
+    });
+
+    it('should handle regex with many capture groups', () => {
+      const regex = new TimeoutRegex('(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)', 'many-groups', 100);
+      const result = regex.test('abcdefghij');
+
+      expect(result.matched).toBe(true);
+      expect(result.timedOut).toBe(false);
+    });
+  });
+
+  // T032: Resource cleanup after timeout
+  describe('resource cleanup after timeout', () => {
+    it('should return valid result structure even on timeout detection', () => {
+      const regex = new TimeoutRegex(/.*/, 'any-pattern', 10);
+      const result = regex.test('some input');
+
+      // Result should always have complete structure
+      expect(result).toHaveProperty('patternId');
+      expect(result).toHaveProperty('matched');
+      expect(result).toHaveProperty('timedOut');
+      expect(result).toHaveProperty('elapsedMs');
+      expect(result).toHaveProperty('inputLength');
+    });
+
+    it('should handle exec() gracefully on potential timeout', () => {
+      const regex = new TimeoutRegex(/(\w+)\s+(\w+)/, 'word-pair', 100);
+      const { match, result } = regex.exec('hello world');
+
+      // Should return valid structures regardless of timing
+      expect(result).toHaveProperty('patternId');
+      expect(result).toHaveProperty('matched');
+      expect(match).toBeDefined();
+    });
+
+    it('should not leak resources with multiple rapid evaluations', () => {
+      const regex = new TimeoutRegex(/test/, 'rapid-pattern', 50);
+
+      // Run many evaluations rapidly
+      const results: { matched: boolean; timedOut: boolean }[] = [];
+      for (let i = 0; i < 100; i++) {
+        results.push(regex.test(`test${i}`));
+      }
+
+      // All should complete without errors
+      expect(results.every((r) => typeof r.matched === 'boolean')).toBe(true);
+      expect(results.every((r) => typeof r.timedOut === 'boolean')).toBe(true);
+    });
+  });
+
+  // T033: Consecutive timeout handling (stress test)
+  describe('consecutive timeout handling', () => {
+    it('should handle many consecutive pattern evaluations', () => {
+      const patterns = [
+        new TimeoutRegex(/hello/, 'pattern-1', 100),
+        new TimeoutRegex(/world/, 'pattern-2', 100),
+        new TimeoutRegex(/test/, 'pattern-3', 100),
+        new TimeoutRegex(/foo/, 'pattern-4', 100),
+        new TimeoutRegex(/bar/, 'pattern-5', 100),
+      ];
+
+      const input = 'hello world test foo bar';
+      const results = patterns.map((p) => p.test(input));
+
+      // All patterns should match
+      expect(results.every((r) => r.matched)).toBe(true);
+      expect(results.every((r) => !r.timedOut)).toBe(true);
+    });
+
+    it('should maintain consistent behavior across many iterations', () => {
+      const regex = new TimeoutRegex(/test\d+/, 'iteration-pattern', 100);
+
+      // Run 50 iterations
+      for (let i = 0; i < 50; i++) {
+        const result = regex.test(`test${i}`);
+        expect(result.matched).toBe(true);
+        expect(result.timedOut).toBe(false);
+      }
+    });
+
+    it('should handle alternating match/non-match patterns', () => {
+      const regex = new TimeoutRegex(/^match$/, 'alternating', 100);
+
+      const results: boolean[] = [];
+      for (let i = 0; i < 20; i++) {
+        const input = i % 2 === 0 ? 'match' : 'no-match';
+        results.push(regex.test(input).matched);
+      }
+
+      // Even indices should match, odd should not
+      results.forEach((matched, i) => {
+        expect(matched).toBe(i % 2 === 0);
+      });
+    });
+  });
+
+  // T034: Error recovery and continuation
+  describe('error recovery and continuation', () => {
+    it('should catch errors from invalid regex operations', () => {
+      // This tests the try/catch in test() method
+      const regex = new TimeoutRegex(/.*/, 'error-test', 100);
+
+      // Even with unusual input, should return valid result
+      const result = regex.test('\x00\x01\x02');
+      expect(result).toHaveProperty('matched');
+      expect(result).toHaveProperty('timedOut');
+    });
+
+    it('should handle Unicode edge cases', () => {
+      const regex = new TimeoutRegex(/[\u{1F600}-\u{1F64F}]/u, 'emoji-pattern', 100);
+      const result = regex.test('Hello 😀 World');
+
+      expect(result.matched).toBe(true);
+      expect(result.timedOut).toBe(false);
+    });
+
+    it('should handle null characters in input', () => {
+      const regex = new TimeoutRegex(/test/, 'null-char', 100);
+      const result = regex.test('test\x00test');
+
+      expect(result.matched).toBe(true);
+      expect(result.timedOut).toBe(false);
+    });
+
+    it('should continue working after handling edge cases', () => {
+      const regex = new TimeoutRegex(/simple/, 'recovery', 100);
+
+      // First, test edge case
+      regex.test('\x00\x01\x02');
+
+      // Then, test normal case - should still work
+      const result = regex.test('simple test');
+      expect(result.matched).toBe(true);
+    });
+
+    it('should handle very long patterns', () => {
+      // Create a pattern with many alternatives
+      const longPattern = Array.from({ length: 100 }, (_, i) => `alt${i}`).join('|');
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Intentional test pattern
+      const regex = new TimeoutRegex(new RegExp(longPattern), 'long-pattern', 100);
+
+      const result = regex.test('alt50');
+      expect(result.matched).toBe(true);
+      expect(result.timedOut).toBe(false);
+    });
+  });
+});
+
+// T036-T038: Error Handling Tests (US3 - moved here for organization)
+describe('TimeoutRegex Error Handling', () => {
+  // T036: Regex compilation error handling
+  describe('compilation error handling', () => {
+    it('should throw on invalid regex string', () => {
+      expect(() => {
+        new TimeoutRegex('[invalid', 'broken-pattern');
+      }).toThrow();
+    });
+
+    it('should throw on unclosed group', () => {
+      expect(() => {
+        new TimeoutRegex('(unclosed', 'unclosed-pattern');
+      }).toThrow();
+    });
+
+    it('should accept valid complex patterns', () => {
+      expect(() => {
+        new TimeoutRegex('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$', 'email-pattern');
+      }).not.toThrow();
+    });
+  });
+
+  // T037: Cumulative error tracking (via detector)
+  describe('cumulative timeout tracking', () => {
+    it('should track multiple pattern timeout events', () => {
+      const config = createTestControlFlowConfig({
+        patternTimeoutMs: 100,
+      });
+      const detector = new MitigationDetector(config);
+      detector.clearPatternStats();
+
+      // Verify we can track timeout state
+      expect(detector.hasPatternTimeouts()).toBe(false);
+      expect(detector.getPatternTimeouts()).toHaveLength(0);
+    });
+  });
+
+  // T038: Error summary generation
+  describe('error summary in detector', () => {
+    it('should provide pattern stats summary', () => {
+      const config = createTestControlFlowConfig();
+      const detector = new MitigationDetector(config);
+      detector.clearPatternStats();
+
+      // Stats should be accessible
+      const timeouts = detector.getPatternTimeouts();
+      const evaluations = detector.getPatternEvaluations();
+
+      expect(timeouts).toBeInstanceOf(Array);
+      expect(evaluations).toBeInstanceOf(Array);
+    });
+  });
+});

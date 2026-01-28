@@ -10,7 +10,8 @@
  * - FR-005: Configurable timeout limit (10-1000ms)
  */
 
-import type { PatternEvaluationResult } from './types.js';
+import type { PatternEvaluationResult, PatternValidationResult, ValidationError } from './types.js';
+import { createPatternValidator, type PatternValidatorConfig } from './pattern-validator.js';
 
 // =============================================================================
 // Constants
@@ -33,6 +34,32 @@ const MAX_TIMEOUT_MS = 1000;
 // =============================================================================
 
 /**
+ * Options for TimeoutRegex construction.
+ */
+export interface TimeoutRegexOptions {
+  /** Timeout in milliseconds for pattern execution */
+  timeoutMs?: number;
+  /** Whether to validate pattern for ReDoS before use */
+  validatePattern?: boolean;
+  /** Configuration for pattern validation */
+  validationConfig?: Partial<PatternValidatorConfig>;
+}
+
+/**
+ * Result of creating a TimeoutRegex with validation.
+ */
+export interface TimeoutRegexCreationResult {
+  /** The created TimeoutRegex instance (null if validation failed) */
+  regex: TimeoutRegex | null;
+  /** Validation result if validation was performed */
+  validationResult?: PatternValidationResult;
+  /** Whether creation was successful */
+  success: boolean;
+  /** Error if creation failed */
+  error?: ValidationError;
+}
+
+/**
  * Provides timeout-protected regex pattern evaluation.
  *
  * Uses process.hrtime.bigint() for high-resolution time tracking.
@@ -42,12 +69,27 @@ export class TimeoutRegex {
   private pattern: RegExp;
   private patternId: string;
   private timeoutMs: number;
+  private validationResult?: PatternValidationResult;
 
   constructor(pattern: RegExp | string, patternId: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
     // eslint-disable-next-line security/detect-non-literal-regexp -- Pattern from validated config
     this.pattern = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     this.patternId = patternId;
     this.timeoutMs = this.validateTimeout(timeoutMs);
+  }
+
+  /**
+   * Get the validation result if pattern was validated during creation.
+   */
+  getValidationResult(): PatternValidationResult | undefined {
+    return this.validationResult;
+  }
+
+  /**
+   * Set validation result (internal use by factory functions).
+   */
+  setValidationResult(result: PatternValidationResult): void {
+    this.validationResult = result;
   }
 
   /**
@@ -259,4 +301,124 @@ export function evaluatePatternWithTimeout(
 ): PatternEvaluationResult {
   const regex = new TimeoutRegex(pattern, patternId, timeoutMs);
   return regex.test(input);
+}
+
+/**
+ * Create a TimeoutRegex with optional pattern validation.
+ *
+ * This is the recommended way to create TimeoutRegex instances when
+ * using user-provided patterns, as it validates for ReDoS vulnerabilities
+ * before creating the regex.
+ *
+ * @param pattern The regex pattern (string or RegExp)
+ * @param patternId Identifier for the pattern
+ * @param options Creation options including validation settings
+ * @returns TimeoutRegexCreationResult with regex instance or error
+ */
+export function createValidatedTimeoutRegex(
+  pattern: RegExp | string,
+  patternId: string,
+  options: TimeoutRegexOptions = {}
+): TimeoutRegexCreationResult {
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    validatePattern: shouldValidate = true,
+    validationConfig,
+  } = options;
+
+  const patternString = typeof pattern === 'string' ? pattern : pattern.source;
+
+  // Validate pattern if requested
+  if (shouldValidate) {
+    const validator = createPatternValidator(validationConfig);
+    const validationResult = validator.validatePattern(patternString, patternId);
+
+    if (!validationResult.isValid) {
+      return {
+        regex: null,
+        validationResult,
+        success: false,
+        error: {
+          errorType: 'validation',
+          patternId,
+          message: validationResult.rejectionReasons.join('; ') || 'Pattern validation failed',
+          details: {
+            pattern: patternString,
+            riskLevel: validationResult.redosRisk,
+            reasons: validationResult.rejectionReasons,
+          },
+          recoverable: true,
+          timestamp: Date.now(),
+        },
+      };
+    }
+
+    // Create regex with stored validation result
+    try {
+      const regex = new TimeoutRegex(pattern, patternId, timeoutMs);
+      regex.setValidationResult(validationResult);
+
+      return {
+        regex,
+        validationResult,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        regex: null,
+        validationResult,
+        success: false,
+        error: {
+          errorType: 'compilation',
+          patternId,
+          message: error instanceof Error ? error.message : 'Failed to compile pattern',
+          details: { pattern: patternString },
+          recoverable: true,
+          timestamp: Date.now(),
+        },
+      };
+    }
+  }
+
+  // No validation - just create the regex
+  try {
+    const regex = new TimeoutRegex(pattern, patternId, timeoutMs);
+
+    return {
+      regex,
+      success: true,
+    };
+  } catch (error) {
+    return {
+      regex: null,
+      success: false,
+      error: {
+        errorType: 'compilation',
+        patternId,
+        message: error instanceof Error ? error.message : 'Failed to compile pattern',
+        details: { pattern: patternString },
+        recoverable: true,
+        timestamp: Date.now(),
+      },
+    };
+  }
+}
+
+/**
+ * Helper to create a ValidationError from an exception.
+ */
+export function createValidationError(
+  errorType: 'compilation' | 'validation' | 'timeout' | 'resource',
+  patternId: string,
+  message: string,
+  details?: Record<string, unknown>
+): ValidationError {
+  return {
+    errorType,
+    patternId,
+    message,
+    details,
+    recoverable: errorType !== 'resource',
+    timestamp: Date.now(),
+  };
 }

@@ -23,6 +23,7 @@ import type {
   PatternTimeoutInfo,
   CallChainEntry,
   CrossFileMitigationInfo,
+  ValidationError,
 } from './types.js';
 import { BUILTIN_PATTERNS } from './mitigation-patterns.js';
 import { getLogger, type AnalysisLogger } from './logger.js';
@@ -74,6 +75,7 @@ export class MitigationDetector {
   private patternTimeouts: PatternTimeoutInfo[] = [];
   private patternEvaluations: PatternEvaluationResult[] = [];
   private crossFileMitigations: CrossFileMitigationInfo[] = [];
+  private validationErrors: ValidationError[] = [];
 
   constructor(config?: Partial<ControlFlowConfig>, logger?: AnalysisLogger) {
     this.logger = logger ?? getLogger();
@@ -641,13 +643,14 @@ export class MitigationDetector {
   }
 
   /**
-   * Clear collected pattern timeout, evaluation, and cross-file mitigation info.
+   * Clear collected pattern timeout, evaluation, cross-file mitigation, and error info.
    * Call this before starting a new analysis session.
    */
   clearPatternStats(): void {
     this.patternTimeouts = [];
     this.patternEvaluations = [];
     this.crossFileMitigations = [];
+    this.validationErrors = [];
   }
 
   /**
@@ -742,6 +745,75 @@ export class MitigationDetector {
    */
   clearCrossFileMitigations(): void {
     this.crossFileMitigations = [];
+  }
+
+  // =============================================================================
+  // T042-T043: Cumulative Error Tracking
+  // =============================================================================
+
+  /**
+   * Record a validation error encountered during pattern evaluation.
+   *
+   * @param error The validation error to record
+   */
+  recordValidationError(error: ValidationError): void {
+    this.validationErrors.push(error);
+
+    // Log the error
+    this.logger.log('warn', 'pattern_timeout', `Validation error: ${error.message}`, {
+      patternId: error.patternId,
+      errorType: error.errorType,
+      recoverable: error.recoverable,
+    });
+  }
+
+  /**
+   * Get all validation errors recorded during detection.
+   */
+  getValidationErrors(): ValidationError[] {
+    return [...this.validationErrors];
+  }
+
+  /**
+   * Check if any validation errors were recorded.
+   */
+  hasValidationErrors(): boolean {
+    return this.validationErrors.length > 0;
+  }
+
+  /**
+   * Get a summary of all errors and warnings from the detection session.
+   * Used for reporting at the end of analysis.
+   */
+  getErrorSummary(): {
+    totalErrors: number;
+    timeoutCount: number;
+    compilationErrors: number;
+    validationErrors: number;
+    resourceErrors: number;
+    allRecoverable: boolean;
+    errors: ValidationError[];
+    timeouts: PatternTimeoutInfo[];
+  } {
+    const compilationErrors = this.validationErrors.filter(
+      (e) => e.errorType === 'compilation'
+    ).length;
+    const validationErrors = this.validationErrors.filter(
+      (e) => e.errorType === 'validation'
+    ).length;
+    const resourceErrors = this.validationErrors.filter((e) => e.errorType === 'resource').length;
+    const allRecoverable = this.validationErrors.every((e) => e.recoverable);
+
+    return {
+      totalErrors: this.validationErrors.length + this.patternTimeouts.length,
+      timeoutCount: this.patternTimeouts.length,
+      compilationErrors,
+      validationErrors,
+      resourceErrors,
+      allRecoverable,
+      errors: [...this.validationErrors],
+      timeouts: [...this.patternTimeouts],
+    };
   }
 }
 

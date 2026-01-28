@@ -334,3 +334,23 @@ function getFileExtension(filePath: string): string {
 
 // Export for testing
 export { analyzeFile, parseControlFlowConfig };
+
+// Export pattern validator
+export { createPatternValidator, type PatternValidator } from './pattern-validator.js';
+export type { PatternValidatorConfig, IPatternValidator } from './pattern-validator.js';
+export {
+  hasNestedQuantifiers,
+  hasOverlappingAlternation,
+  calculateStarHeight,
+  computeRiskScore,
+  detectReDoSPatterns,
+} from './pattern-validator.js';
+
+// Export validation types for consumers
+export type {
+  PatternValidationResult,
+  ValidationError,
+  ValidationErrorType,
+  ReDoSRiskLevel,
+  ReDoSDetectionResult,
+} from './types.js';

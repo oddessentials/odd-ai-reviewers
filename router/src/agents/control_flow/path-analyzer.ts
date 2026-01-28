@@ -191,6 +191,9 @@ export class PathAnalyzer {
       patternOverrides: config?.patternOverrides ?? [],
       disabledPatterns: config?.disabledPatterns ?? [],
       patternTimeoutMs: config?.patternTimeoutMs ?? 100,
+      whitelistedPatterns: config?.whitelistedPatterns ?? [],
+      validationTimeoutMs: config?.validationTimeoutMs ?? 10,
+      rejectionThreshold: config?.rejectionThreshold ?? 'medium',
     };
     this.logger = logger ?? getLogger();
 
