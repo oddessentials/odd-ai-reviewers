@@ -2,203 +2,369 @@
   "version": 2,
   "tree": [
     {
+      "name": "architecture",
+      "type": "folder",
+      "path": "architecture",
+      "children": [
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../architecture/index.md"
+        },
+        {
+          "name": "invariants.md",
+          "type": "file",
+          "path": "../architecture/invariants.md"
+        },
+        {
+          "name": "overview.md",
+          "type": "file",
+          "path": "../architecture/overview.md"
+        },
+        {
+          "name": "scope.md",
+          "type": "file",
+          "path": "../architecture/scope.md"
+        },
+        {
+          "name": "security.md",
+          "type": "file",
+          "path": "../architecture/security.md"
+        }
+      ]
+    },
+    {
+      "name": "configuration",
+      "type": "folder",
+      "path": "configuration",
+      "children": [
+        {
+          "name": "config-schema.md",
+          "type": "file",
+          "path": "../configuration/config-schema.md"
+        },
+        {
+          "name": "cost-controls.md",
+          "type": "file",
+          "path": "../configuration/cost-controls.md"
+        },
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../configuration/index.md"
+        }
+      ]
+    },
+    {
       "name": "examples",
       "type": "folder",
       "path": "examples",
       "children": [
         {
-          "name": "ado-oscr-free.md",
+          "name": "azure-devops-enterprise.md",
           "type": "file",
-          "path": "../examples/ado-oscr-free.md"
+          "path": "../examples/azure-devops-enterprise.md"
+        },
+        {
+          "name": "azure-devops-free.md",
+          "type": "file",
+          "path": "../examples/azure-devops-free.md"
+        },
+        {
+          "name": "github-basic.md",
+          "type": "file",
+          "path": "../examples/github-basic.md"
+        },
+        {
+          "name": "github-enterprise.md",
+          "type": "file",
+          "path": "../examples/github-enterprise.md"
+        },
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../examples/index.md"
         }
       ]
     },
     {
-      "name": "ADO-IMPLEMENTATION-PLAN.md",
-      "type": "file",
-      "path": "../ADO-IMPLEMENTATION-PLAN.md"
+      "name": "getting-started",
+      "type": "folder",
+      "path": "getting-started",
+      "children": [
+        {
+          "name": "first-review.md",
+          "type": "file",
+          "path": "../getting-started/first-review.md"
+        },
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../getting-started/index.md"
+        },
+        {
+          "name": "quick-start.md",
+          "type": "file",
+          "path": "../getting-started/quick-start.md"
+        }
+      ]
     },
     {
-      "name": "ADO-SETUP.md",
-      "type": "file",
-      "path": "../ADO-SETUP.md"
+      "name": "platforms",
+      "type": "folder",
+      "path": "platforms",
+      "children": [
+        {
+          "name": "azure-devops",
+          "type": "folder",
+          "path": "platforms/azure-devops",
+          "children": [
+            {
+              "name": "implementation.md",
+              "type": "file",
+              "path": "../platforms/azure-devops/implementation.md"
+            },
+            {
+              "name": "setup.md",
+              "type": "file",
+              "path": "../platforms/azure-devops/setup.md"
+            }
+          ]
+        },
+        {
+          "name": "github",
+          "type": "folder",
+          "path": "platforms/github",
+          "children": [
+            {
+              "name": "free-tier.md",
+              "type": "file",
+              "path": "../platforms/github/free-tier.md"
+            },
+            {
+              "name": "max-tier.md",
+              "type": "file",
+              "path": "../platforms/github/max-tier.md"
+            },
+            {
+              "name": "setup.md",
+              "type": "file",
+              "path": "../platforms/github/setup.md"
+            }
+          ]
+        },
+        {
+          "name": "oscr",
+          "type": "folder",
+          "path": "platforms/oscr",
+          "children": [
+            {
+              "name": "integration.md",
+              "type": "file",
+              "path": "../platforms/oscr/integration.md"
+            },
+            {
+              "name": "local-llm-setup.md",
+              "type": "file",
+              "path": "../platforms/oscr/local-llm-setup.md"
+            },
+            {
+              "name": "model-provisioning.md",
+              "type": "file",
+              "path": "../platforms/oscr/model-provisioning.md"
+            }
+          ]
+        },
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../platforms/index.md"
+        }
+      ]
     },
     {
-      "name": "ARCHITECTURE.md",
-      "type": "file",
-      "path": "../ARCHITECTURE.md"
+      "name": "reference",
+      "type": "folder",
+      "path": "reference",
+      "children": [
+        {
+          "name": "branding.md",
+          "type": "file",
+          "path": "../reference/branding.md"
+        },
+        {
+          "name": "index.md",
+          "type": "file",
+          "path": "../reference/index.md"
+        },
+        {
+          "name": "review-team.md",
+          "type": "file",
+          "path": "../reference/review-team.md"
+        },
+        {
+          "name": "roadmap.md",
+          "type": "file",
+          "path": "../reference/roadmap.md"
+        }
+      ]
     },
     {
-      "name": "BRANDING.md",
+      "name": "index.md",
       "type": "file",
-      "path": "../BRANDING.md"
-    },
-    {
-      "name": "config-schema.md",
-      "type": "file",
-      "path": "../config-schema.md"
-    },
-    {
-      "name": "cost-controls.md",
-      "type": "file",
-      "path": "../cost-controls.md"
-    },
-    {
-      "name": "FLIGHT4-UPGRADES.md",
-      "type": "file",
-      "path": "../FLIGHT4-UPGRADES.md"
-    },
-    {
-      "name": "GITHUB-FREE.md",
-      "type": "file",
-      "path": "../GITHUB-FREE.md"
-    },
-    {
-      "name": "GITHUB-MAX.md",
-      "type": "file",
-      "path": "../GITHUB-MAX.md"
-    },
-    {
-      "name": "github-setup.md",
-      "type": "file",
-      "path": "../github-setup.md"
-    },
-    {
-      "name": "INVARIANTS.md",
-      "type": "file",
-      "path": "../INVARIANTS.md"
-    },
-    {
-      "name": "LOCAL-LLM-SETUP.md",
-      "type": "file",
-      "path": "../LOCAL-LLM-SETUP.md"
-    },
-    {
-      "name": "MODEL-PROVISIONING.md",
-      "type": "file",
-      "path": "../MODEL-PROVISIONING.md"
-    },
-    {
-      "name": "OSCR-INTEGRATION.md",
-      "type": "file",
-      "path": "../OSCR-INTEGRATION.md"
-    },
-    {
-      "name": "REVIEW_TEAM.md",
-      "type": "file",
-      "path": "../REVIEW_TEAM.md"
-    },
-    {
-      "name": "ROADMAP.md",
-      "type": "file",
-      "path": "../ROADMAP.md"
-    },
-    {
-      "name": "SCOPE.md",
-      "type": "file",
-      "path": "../SCOPE.md"
-    },
-    {
-      "name": "security.md",
-      "type": "file",
-      "path": "../security.md"
+      "path": "../index.md"
     }
   ],
   "files": [
     {
-      "name": "examples/ado-oscr-free.md",
+      "name": "architecture/index.md",
       "type": "file",
-      "path": "../examples/ado-oscr-free.md"
+      "path": "../architecture/index.md"
     },
     {
-      "name": "ADO-IMPLEMENTATION-PLAN.md",
+      "name": "architecture/invariants.md",
       "type": "file",
-      "path": "../ADO-IMPLEMENTATION-PLAN.md"
+      "path": "../architecture/invariants.md"
     },
     {
-      "name": "ADO-SETUP.md",
+      "name": "architecture/overview.md",
       "type": "file",
-      "path": "../ADO-SETUP.md"
+      "path": "../architecture/overview.md"
     },
     {
-      "name": "ARCHITECTURE.md",
+      "name": "architecture/scope.md",
       "type": "file",
-      "path": "../ARCHITECTURE.md"
+      "path": "../architecture/scope.md"
     },
     {
-      "name": "BRANDING.md",
+      "name": "architecture/security.md",
       "type": "file",
-      "path": "../BRANDING.md"
+      "path": "../architecture/security.md"
     },
     {
-      "name": "config-schema.md",
+      "name": "configuration/config-schema.md",
       "type": "file",
-      "path": "../config-schema.md"
+      "path": "../configuration/config-schema.md"
     },
     {
-      "name": "cost-controls.md",
+      "name": "configuration/cost-controls.md",
       "type": "file",
-      "path": "../cost-controls.md"
+      "path": "../configuration/cost-controls.md"
     },
     {
-      "name": "FLIGHT4-UPGRADES.md",
+      "name": "configuration/index.md",
       "type": "file",
-      "path": "../FLIGHT4-UPGRADES.md"
+      "path": "../configuration/index.md"
     },
     {
-      "name": "GITHUB-FREE.md",
+      "name": "examples/azure-devops-enterprise.md",
       "type": "file",
-      "path": "../GITHUB-FREE.md"
+      "path": "../examples/azure-devops-enterprise.md"
     },
     {
-      "name": "GITHUB-MAX.md",
+      "name": "examples/azure-devops-free.md",
       "type": "file",
-      "path": "../GITHUB-MAX.md"
+      "path": "../examples/azure-devops-free.md"
     },
     {
-      "name": "github-setup.md",
+      "name": "examples/github-basic.md",
       "type": "file",
-      "path": "../github-setup.md"
+      "path": "../examples/github-basic.md"
     },
     {
-      "name": "INVARIANTS.md",
+      "name": "examples/github-enterprise.md",
       "type": "file",
-      "path": "../INVARIANTS.md"
+      "path": "../examples/github-enterprise.md"
     },
     {
-      "name": "LOCAL-LLM-SETUP.md",
+      "name": "examples/index.md",
       "type": "file",
-      "path": "../LOCAL-LLM-SETUP.md"
+      "path": "../examples/index.md"
     },
     {
-      "name": "MODEL-PROVISIONING.md",
+      "name": "getting-started/first-review.md",
       "type": "file",
-      "path": "../MODEL-PROVISIONING.md"
+      "path": "../getting-started/first-review.md"
     },
     {
-      "name": "OSCR-INTEGRATION.md",
+      "name": "getting-started/index.md",
       "type": "file",
-      "path": "../OSCR-INTEGRATION.md"
+      "path": "../getting-started/index.md"
     },
     {
-      "name": "REVIEW_TEAM.md",
+      "name": "getting-started/quick-start.md",
       "type": "file",
-      "path": "../REVIEW_TEAM.md"
+      "path": "../getting-started/quick-start.md"
     },
     {
-      "name": "ROADMAP.md",
+      "name": "platforms/azure-devops/implementation.md",
       "type": "file",
-      "path": "../ROADMAP.md"
+      "path": "../platforms/azure-devops/implementation.md"
     },
     {
-      "name": "SCOPE.md",
+      "name": "platforms/azure-devops/setup.md",
       "type": "file",
-      "path": "../SCOPE.md"
+      "path": "../platforms/azure-devops/setup.md"
     },
     {
-      "name": "security.md",
+      "name": "platforms/github/free-tier.md",
       "type": "file",
-      "path": "../security.md"
+      "path": "../platforms/github/free-tier.md"
+    },
+    {
+      "name": "platforms/github/max-tier.md",
+      "type": "file",
+      "path": "../platforms/github/max-tier.md"
+    },
+    {
+      "name": "platforms/github/setup.md",
+      "type": "file",
+      "path": "../platforms/github/setup.md"
+    },
+    {
+      "name": "platforms/oscr/integration.md",
+      "type": "file",
+      "path": "../platforms/oscr/integration.md"
+    },
+    {
+      "name": "platforms/oscr/local-llm-setup.md",
+      "type": "file",
+      "path": "../platforms/oscr/local-llm-setup.md"
+    },
+    {
+      "name": "platforms/oscr/model-provisioning.md",
+      "type": "file",
+      "path": "../platforms/oscr/model-provisioning.md"
+    },
+    {
+      "name": "platforms/index.md",
+      "type": "file",
+      "path": "../platforms/index.md"
+    },
+    {
+      "name": "reference/branding.md",
+      "type": "file",
+      "path": "../reference/branding.md"
+    },
+    {
+      "name": "reference/index.md",
+      "type": "file",
+      "path": "../reference/index.md"
+    },
+    {
+      "name": "reference/review-team.md",
+      "type": "file",
+      "path": "../reference/review-team.md"
+    },
+    {
+      "name": "reference/roadmap.md",
+      "type": "file",
+      "path": "../reference/roadmap.md"
+    },
+    {
+      "name": "index.md",
+      "type": "file",
+      "path": "../index.md"
     }
   ]
 }

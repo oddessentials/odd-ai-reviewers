@@ -28,11 +28,11 @@ Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
 
+- 001-docs-refactor: Added Markdown documentation (no code changes) + N/A (documentation only)
+
 - 001-review-team-docs: Added Markdown (GitHub Flavored Markdown with HTML) + N/A (documentation only)
 
 - 003-dependency-updates: Added TypeScript 5.x (ESM), Node.js >=22.0.0 + ESLint 9.x, typescript-eslint 8.x, Vitest 4.x, Prettier 3.x
-
-- 001-reviewignore-docs: Added Markdown documentation (no code changes) + N/A (documentation only)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
