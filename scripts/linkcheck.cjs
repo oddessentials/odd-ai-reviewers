@@ -26,6 +26,7 @@ if (files.length === 0) {
 console.log(`Checking ${files.length} markdown files...\n`);
 
 let hasErrors = false;
+const failedFiles = [];
 
 for (const file of files) {
   const fullPath = path.join(docsPath, file);
@@ -36,13 +37,23 @@ for (const file of files) {
       stdio: 'inherit',
       cwd: path.dirname(fullPath),
     });
-  } catch {
+  } catch (error) {
     hasErrors = true;
+    failedFiles.push(file);
+
+    // Log additional error context if available
+    if (error.status) {
+      console.error(`[linkcheck] ERROR: ${file} failed with exit code ${error.status}`);
+    }
   }
 }
 
 if (hasErrors) {
-  console.log('\n[linkcheck] Some links failed validation');
+  console.log('\n[linkcheck] Link validation failed');
+  console.log(`[linkcheck] Files with broken links (${failedFiles.length}):`);
+  for (const file of failedFiles) {
+    console.log(`  - ${file}`);
+  }
   process.exit(1);
 } else {
   console.log('\n[linkcheck] All links valid');
