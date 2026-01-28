@@ -215,6 +215,18 @@
       ]
     },
     {
+      "name": "security",
+      "type": "folder",
+      "path": "security",
+      "children": [
+        {
+          "name": "regex-threat-model.md",
+          "type": "file",
+          "path": "../security/regex-threat-model.md"
+        }
+      ]
+    },
+    {
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
@@ -370,6 +382,11 @@
       "name": "reference/roadmap.md",
       "type": "file",
       "path": "../reference/roadmap.md"
+    },
+    {
+      "name": "security/regex-threat-model.md",
+      "type": "file",
+      "path": "../security/regex-threat-model.md"
     },
     {
       "name": "index.md",

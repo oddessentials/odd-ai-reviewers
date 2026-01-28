@@ -72,7 +72,10 @@ export class TimeoutRegex {
   private validationResult?: PatternValidationResult;
 
   constructor(pattern: RegExp | string, patternId: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
-    // eslint-disable-next-line security/detect-non-literal-regexp -- Pattern from validated config
+    // Trust: REPO_CONFIG - Pattern from validated repository configuration
+    // Control: TimeoutRegex enforces execution timeout preventing CPU exhaustion
+    // See docs/security/regex-threat-model.md
+    // eslint-disable-next-line security/detect-non-literal-regexp -- Validated config with timeout
     this.pattern = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     this.patternId = patternId;
     this.timeoutMs = this.validateTimeout(timeoutMs);

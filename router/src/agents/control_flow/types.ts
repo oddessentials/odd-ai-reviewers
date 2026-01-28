@@ -470,7 +470,10 @@ export function validateMitigationPattern(
   const data = result.data;
   if (data.match.namePattern) {
     try {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided pattern syntax
+      // Trust: REPO_CONFIG - Pattern from config file, validated during Zod parsing
+      // Control: Compilation test ensures syntax validity before config is accepted
+      // See docs/security/regex-threat-model.md
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Validated config pattern
       new RegExp(data.match.namePattern);
     } catch {
       return {
