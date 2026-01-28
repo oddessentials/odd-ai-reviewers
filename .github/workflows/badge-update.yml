@@ -1,0 +1,103 @@
+name: Update Badges
+
+# FR-030: Separate post-merge workflow for badge updates
+# This workflow runs after the main CI workflow completes on main branch
+# PR workflow does NOT depend on Gist availability (FR-031)
+
+on:
+  # Primary trigger: after CI workflow completes on main
+  workflow_run:
+    workflows: ['CI']
+    types:
+      - completed
+    branches:
+      - main
+
+  # Manual trigger for debugging
+  workflow_dispatch:
+
+jobs:
+  update-badges:
+    name: Update Badge Gists
+    runs-on: ubuntu-latest
+    # Only run if CI workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build router
+        run: npm run build --workspace=router
+
+      - name: Run tests with coverage
+        run: npm run test:ci:coverage --workspace=router
+        env:
+          CI: 'true'
+          CI_HAS_LSOF: 'true'
+
+      - name: Generate test badge data
+        run: |
+          PASSED=$(jq '.numPassedTests' router/test-results.json)
+          SKIPPED=$(jq '.numPendingTests' router/test-results.json)
+          FAILED=$(jq '.numFailedTests' router/test-results.json)
+
+          if [ "$FAILED" -gt 0 ]; then
+            COLOR="red"
+            MESSAGE="${PASSED} passed, ${FAILED} failed"
+          elif [ "$SKIPPED" -gt 0 ]; then
+            COLOR="green"
+            MESSAGE="${PASSED} passed, ${SKIPPED} skipped"
+          else
+            COLOR="brightgreen"
+            MESSAGE="${PASSED} passed"
+          fi
+
+          mkdir -p .github/badges
+          echo "{\"schemaVersion\":1,\"label\":\"tests\",\"message\":\"$MESSAGE\",\"color\":\"$COLOR\"}" > .github/badges/tests.json
+
+      - name: Generate coverage badge data
+        run: |
+          # Extract line coverage percentage from coverage-summary.json
+          COVERAGE=$(jq '.total.lines.pct' router/coverage/coverage-summary.json)
+
+          # Determine badge color based on coverage percentage
+          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+            COLOR="red"
+          elif (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            COLOR="yellow"
+          elif (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            COLOR="green"
+          else
+            COLOR="brightgreen"
+          fi
+
+          mkdir -p .github/badges
+          echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"$COLOR\"}" > .github/badges/coverage.json
+
+      - name: Update test badge Gist
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.GIST_TOKEN }}
+          gist_id: ${{ vars.TEST_BADGE_GIST_ID }}
+          file_path: .github/badges/tests.json
+          file_type: text
+
+      - name: Update coverage badge Gist
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.GIST_TOKEN }}
+          gist_id: ${{ vars.COVERAGE_BADGE_GIST_ID }}
+          file_path: .github/badges/coverage.json
+          file_type: text
