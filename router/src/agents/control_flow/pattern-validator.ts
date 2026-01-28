@@ -476,3 +476,63 @@ export function createPatternValidator(
 ): PatternValidator {
   return new PatternValidator(config, logger);
 }
+
+// =============================================================================
+// Mitigation Pattern Validation with ReDoS Check
+// =============================================================================
+
+import { validateMitigationPattern, type MitigationPattern } from './types.js';
+import { z } from 'zod';
+
+/**
+ * Validate a mitigation pattern configuration with ReDoS protection.
+ *
+ * This extends the basic `validateMitigationPattern` from types.ts by also
+ * checking namePattern regex for ReDoS vulnerabilities.
+ *
+ * @param pattern - The pattern configuration to validate
+ * @param rejectionThreshold - Minimum risk level to reject ('low', 'medium', 'high')
+ */
+export function validateMitigationPatternWithReDoSCheck(
+  pattern: unknown,
+  rejectionThreshold: ReDoSRiskLevel = 'medium'
+): { success: true; data: MitigationPattern } | { success: false; error: z.ZodError } {
+  // First, validate syntax
+  const syntaxResult = validateMitigationPattern(pattern);
+  if (!syntaxResult.success) {
+    return syntaxResult;
+  }
+
+  const data = syntaxResult.data;
+
+  // Check namePattern for ReDoS if present
+  if (data.match.namePattern) {
+    const score = computeRiskScore(data.match.namePattern);
+    // Convert score to risk level (mirrors scoreToRiskLevel)
+    let level: ReDoSRiskLevel;
+    if (score >= 70) level = 'high';
+    else if (score >= 40) level = 'medium';
+    else if (score > 0) level = 'low';
+    else level = 'none';
+
+    // Reject if: threshold is not 'none', level is not 'none', and level meets threshold
+    if (
+      rejectionThreshold !== 'none' &&
+      level !== 'none' &&
+      riskMeetsThreshold(level, rejectionThreshold)
+    ) {
+      return {
+        success: false,
+        error: new z.ZodError([
+          {
+            code: 'custom',
+            path: ['match', 'namePattern'],
+            message: `Pattern has ${level} ReDoS risk and may cause denial-of-service`,
+          },
+        ]),
+      };
+    }
+  }
+
+  return { success: true, data };
+}

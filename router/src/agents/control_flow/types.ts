@@ -454,6 +454,10 @@ export interface AnalysisLogEntry {
 /**
  * Validate a custom mitigation pattern configuration.
  * Ensures patterns are declarative and side-effect-free (FR-015).
+ *
+ * Note: This validates syntax only. For ReDoS protection, use
+ * `validateMitigationPatternWithReDoSCheck` from pattern-validator.ts
+ * or ensure patterns are used through `createValidatedTimeoutRegex`.
  */
 export function validateMitigationPattern(
   pattern: unknown
@@ -466,7 +470,7 @@ export function validateMitigationPattern(
   const data = result.data;
   if (data.match.namePattern) {
     try {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided pattern
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided pattern syntax
       new RegExp(data.match.namePattern);
     } catch {
       return {

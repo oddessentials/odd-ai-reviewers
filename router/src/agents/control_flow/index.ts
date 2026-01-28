@@ -344,6 +344,7 @@ export {
   calculateStarHeight,
   computeRiskScore,
   detectReDoSPatterns,
+  validateMitigationPatternWithReDoSCheck,
 } from './pattern-validator.js';
 
 // Export validation types for consumers

@@ -472,3 +472,204 @@ describe('PatternValidator', () => {
     });
   });
 });
+
+// =============================================================================
+// validateMitigationPatternWithReDoSCheck Tests
+// =============================================================================
+
+import { validateMitigationPatternWithReDoSCheck } from '../../../../src/agents/control_flow/pattern-validator.js';
+
+describe('validateMitigationPatternWithReDoSCheck', () => {
+  const validPatternBase = {
+    id: 'test-pattern',
+    name: 'Test Pattern',
+    description: 'A test pattern',
+    mitigates: ['injection'],
+    match: {
+      type: 'function_call',
+      namePattern: '\\w+',
+    },
+    confidence: 'high',
+  };
+
+  it('should accept safe patterns', () => {
+    const result = validateMitigationPatternWithReDoSCheck(validPatternBase);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe('test-pattern');
+    }
+  });
+
+  it('should reject patterns with nested quantifiers', () => {
+    const dangerousPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a+)+',
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(dangerousPattern);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('ReDoS risk');
+    }
+  });
+
+  it('should reject patterns with overlapping alternation at low threshold', () => {
+    const lowRiskPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a|ab)+', // scores 30 = low risk
+      },
+    };
+
+    // With 'low' threshold, should fail
+    const result = validateMitigationPatternWithReDoSCheck(lowRiskPattern, 'low');
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should respect custom rejection threshold', () => {
+    const lowRiskPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a|ab)+', // scores 30 = low risk
+      },
+    };
+
+    // With 'medium' threshold, low risk should pass
+    const mediumThreshold = validateMitigationPatternWithReDoSCheck(lowRiskPattern, 'medium');
+    expect(mediumThreshold.success).toBe(true);
+
+    // With 'low' threshold, low risk should fail
+    const lowThreshold = validateMitigationPatternWithReDoSCheck(lowRiskPattern, 'low');
+    expect(lowThreshold.success).toBe(false);
+  });
+
+  it('should still validate syntax errors', () => {
+    const invalidPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '[invalid', // invalid regex
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(invalidPattern);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('Invalid regex');
+    }
+  });
+
+  it('should pass patterns without namePattern', () => {
+    const noNamePattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(noNamePattern);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject medium-risk patterns at medium threshold', () => {
+    const mediumRiskPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a+)+', // scores 50 = medium risk
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(mediumRiskPattern, 'medium');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('medium');
+    }
+  });
+
+  it('should reject combined risk factors', () => {
+    // Pattern with both nested quantifiers AND high star-height
+    const combinedRiskPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '((a+)+)+', // nested quantifiers with high star-height
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(combinedRiskPattern);
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should fail on schema validation errors', () => {
+    const invalidSchema = {
+      id: 'test',
+      // missing required fields: name, description, mitigates, match, confidence
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(invalidSchema);
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should handle empty namePattern string', () => {
+    const emptyPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '',
+      },
+    };
+
+    // Empty string is a valid regex (matches empty string)
+    const result = validateMitigationPatternWithReDoSCheck(emptyPattern);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept any pattern with none threshold', () => {
+    const dangerousPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a+)+', // high risk
+      },
+    };
+
+    // 'none' threshold means accept all (no rejection)
+    const result = validateMitigationPatternWithReDoSCheck(dangerousPattern, 'none');
+
+    expect(result.success).toBe(true);
+  });
+
+  it('should provide meaningful error message with risk level', () => {
+    const riskyPattern = {
+      ...validPatternBase,
+      match: {
+        type: 'function_call',
+        namePattern: '(a+)+',
+      },
+    };
+
+    const result = validateMitigationPatternWithReDoSCheck(riskyPattern);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0]?.message ?? '';
+      expect(message).toMatch(/ReDoS risk/);
+      expect(message).toMatch(/denial-of-service/);
+    }
+  });
+});
