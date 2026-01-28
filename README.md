@@ -228,15 +228,20 @@ graph LR
 
 ## 🛠️ Development
 
+This project uses **pnpm** as its package manager. If you don't have pnpm installed, enable it via Corepack:
+
 ```bash
-npm install                           # Install dependencies
-npm run build                         # Build the router
-npm test                              # Run tests
-npm run test:coverage --workspace=router  # Run tests with coverage
-npm run lint                          # Check linting
-npm run format                        # Format code
-npm run verify                        # Run all quality gates
+corepack enable                       # Enable pnpm via Corepack
+pnpm install                          # Install dependencies
+pnpm build                            # Build the router
+pnpm test                             # Run tests
+pnpm --filter router test:ci:coverage # Run tests with coverage
+pnpm lint                             # Check linting
+pnpm format                           # Format code
+pnpm verify                           # Run all quality gates
 ```
+
+> **Note**: npm is not supported. Running `npm install` will display an error with instructions to use pnpm.
 
 ---
 
