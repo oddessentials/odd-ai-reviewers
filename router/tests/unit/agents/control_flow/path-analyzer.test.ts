@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  PathAnalyzer,
+  type PathAnalyzer,
   createPathAnalyzer,
 } from '../../../../src/agents/control_flow/path-analyzer.js';
 import {
@@ -16,6 +16,7 @@ import {
   buildCFG,
 } from '../../../../src/agents/control_flow/cfg-builder.js';
 import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flow/cfg-types.js';
+import { assertDefined } from '../../../test-utils.js';
 
 // =============================================================================
 // Helper Functions
@@ -24,10 +25,8 @@ import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flo
 function buildCFGFromCode(code: string): ControlFlowGraphRuntime {
   const sourceFile = parseSourceFile(code, 'test.ts');
   const functions = findFunctions(sourceFile);
-  if (functions.length === 0) {
-    throw new Error('No functions found in code');
-  }
-  return buildCFG(functions[0], sourceFile, 'test.ts');
+  const firstFunction = assertDefined(functions[0], 'No functions found in code');
+  return buildCFG(firstFunction, sourceFile, 'test.ts');
 }
 
 // =============================================================================

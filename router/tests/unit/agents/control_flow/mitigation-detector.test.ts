@@ -9,6 +9,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import ts from 'typescript';
 import { parseSourceFile } from '../../../../src/agents/control_flow/cfg-builder.js';
 import {
+  type MitigationDetector,
+  createMitigationDetector,
+} from '../../../../src/agents/control_flow/mitigation-detector.js';
+import {
   BUILTIN_PATTERNS,
   inputValidationPatterns,
   nullSafetyPatterns,
@@ -18,6 +22,7 @@ import {
   getPatternsForVulnerability,
   getPatternById,
 } from '../../../../src/agents/control_flow/mitigation-patterns.js';
+import { assertDefined } from '../../../test-utils.js';
 
 // =============================================================================
 // Pattern Registration Tests
@@ -177,7 +182,7 @@ describe('Input Validation Patterns', () => {
       expect(pattern).toBeDefined();
       expect(pattern?.mitigates).toContain('injection');
       expect(pattern?.match.parameters).toBeDefined();
-      expect(pattern?.match.parameters?.[0].index).toBe(1);
+      expect(pattern?.match.parameters?.[0]?.index).toBe(1);
     });
   });
 });
@@ -532,11 +537,6 @@ describe('Pattern Matching Integration', () => {
 // MitigationDetector Class Tests
 // =============================================================================
 
-import {
-  MitigationDetector,
-  createMitigationDetector,
-} from '../../../../src/agents/control_flow/mitigation-detector.js';
-
 describe('MitigationDetector', () => {
   let detector: MitigationDetector;
 
@@ -650,7 +650,7 @@ describe('MitigationDetector', () => {
 
       expect(mitigations.length).toBeGreaterThan(0);
       // Scope determination depends on AST structure
-      const mitigation = mitigations[0];
+      const mitigation = assertDefined(mitigations[0], 'Expected at least one mitigation');
       expect(['function', 'block']).toContain(mitigation.scope);
     });
 
@@ -663,7 +663,8 @@ describe('MitigationDetector', () => {
 
       // Top-level expressions have module scope
       if (mitigations.length > 0) {
-        expect(['module', 'block']).toContain(mitigations[0].scope);
+        const mitigation = assertDefined(mitigations[0], 'Expected at least one mitigation');
+        expect(['module', 'block']).toContain(mitigation.scope);
       }
     });
   });

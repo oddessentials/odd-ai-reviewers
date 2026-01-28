@@ -12,16 +12,13 @@ import {
   findFunctions,
 } from '../../../../src/agents/control_flow/cfg-builder.js';
 import {
-  PathAnalyzer,
+  type PathAnalyzer,
   createPathAnalyzer,
 } from '../../../../src/agents/control_flow/path-analyzer.js';
 import { createMitigationDetector } from '../../../../src/agents/control_flow/mitigation-detector.js';
 import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flow/cfg-types.js';
 import {
   SANITIZE_BEFORE_AWAIT,
-  SANITIZE_AFTER_AWAIT,
-  NULL_CHECK_BEFORE_AWAIT,
-  AUTH_CHECK_BEFORE_AWAIT,
   MITIGATION_BEFORE_MULTIPLE_AWAITS,
   MITIGATION_BETWEEN_AWAITS,
   TRY_CATCH_AWAIT,
@@ -32,11 +29,24 @@ import {
   NESTED_ASYNC_CALLS,
   UNMITIGATED_AWAIT,
   PARTIAL_MITIGATION_CONDITIONAL_AWAIT,
-  MITIGATION_TOO_LATE,
   INTRA_FUNCTION_CASES,
   CROSS_FUNCTION_CASES,
   UNMITIGATED_CASES,
 } from './fixtures/async-patterns.js';
+
+/**
+ * Assert a value is defined, throwing if not.
+ * Provides type narrowing for TypeScript.
+ */
+function assertDefined<T>(
+  value: T | undefined | null,
+  message = 'Expected value to be defined'
+): T {
+  if (value === undefined || value === null) {
+    throw new Error(message);
+  }
+  return value;
+}
 
 describe('Async Boundary Handling', () => {
   let analyzer: PathAnalyzer;
@@ -56,7 +66,11 @@ describe('Async Boundary Handling', () => {
 
       expect(functions.length).toBe(1);
 
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
     });
@@ -69,7 +83,11 @@ describe('Async Boundary Handling', () => {
       `;
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(false);
       expect(cfg.awaitBoundaries.length).toBe(0);
@@ -78,7 +96,11 @@ describe('Async Boundary Handling', () => {
     it('should create await nodes for await expressions', () => {
       const sourceFile = parseSourceFile(SANITIZE_BEFORE_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.awaitBoundaries.length).toBeGreaterThan(0);
 
@@ -96,7 +118,11 @@ describe('Async Boundary Handling', () => {
     it('should track multiple await boundaries', () => {
       const sourceFile = parseSourceFile(MITIGATION_BEFORE_MULTIPLE_AWAITS, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
       // Should have at least 3 awaits
@@ -112,7 +138,11 @@ describe('Async Boundary Handling', () => {
       `;
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
     });
@@ -131,7 +161,11 @@ describe('Async Boundary Handling', () => {
 
       // Should find the method
       expect(functions.length).toBeGreaterThan(0);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
       expect(cfg.isAsync).toBe(true);
     });
   });
@@ -144,7 +178,11 @@ describe('Async Boundary Handling', () => {
     it('should analyze async boundaries in a function', () => {
       const sourceFile = parseSourceFile(SANITIZE_BEFORE_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       const result = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -161,7 +199,11 @@ describe('Async Boundary Handling', () => {
       `;
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       const result = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -173,7 +215,11 @@ describe('Async Boundary Handling', () => {
     it('should find mitigations before await boundaries', () => {
       const sourceFile = parseSourceFile(SANITIZE_BEFORE_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       // Apply mitigation detection to populate mitigations
       const detector = createMitigationDetector({});
@@ -196,7 +242,11 @@ describe('Async Boundary Handling', () => {
     it('should track mitigation between awaits', () => {
       const sourceFile = parseSourceFile(MITIGATION_BETWEEN_AWAITS, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       const result = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -215,7 +265,11 @@ describe('Async Boundary Handling', () => {
       const functions = findFunctions(sourceFile);
 
       // Build CFG for the second function (processUser)
-      const cfg = buildCFG(functions[1]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[1], 'Expected at least two functions'),
+        sourceFile,
+        'test.ts'
+      );
 
       const result = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -226,7 +280,11 @@ describe('Async Boundary Handling', () => {
     it('should apply conservative fallback for cross-function async', () => {
       const sourceFile = parseSourceFile(CROSS_FUNCTION_ASYNC, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[1]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[1], 'Expected at least two functions'),
+        sourceFile,
+        'test.ts'
+      );
 
       const asyncResult = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -259,7 +317,11 @@ describe('Async Boundary Handling', () => {
       `;
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       const asyncResult = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -302,10 +364,14 @@ describe('Async Boundary Handling', () => {
     it('should perform async-aware analysis for async functions', () => {
       const sourceFile = parseSourceFile(SANITIZE_BEFORE_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       // Get an exit node as sink
-      const sinkNodeId = cfg.exitNodes[0]!;
+      const sinkNodeId = assertDefined(cfg.exitNodes[0], 'Expected at least one exit node');
 
       const result = analyzer.analyzePathsWithAsyncAwareness(cfg, sinkNodeId, 'injection');
 
@@ -316,9 +382,13 @@ describe('Async Boundary Handling', () => {
     it('should find paths through await boundaries', () => {
       const sourceFile = parseSourceFile(SANITIZE_BEFORE_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
-      const sinkNodeId = cfg.exitNodes[0]!;
+      const sinkNodeId = assertDefined(cfg.exitNodes[0], 'Expected at least one exit node');
 
       const result = analyzer.analyzePathsWithAsyncAwareness(cfg, sinkNodeId, 'injection');
 
@@ -329,7 +399,11 @@ describe('Async Boundary Handling', () => {
     it('should correctly identify unmitigated async code', () => {
       const sourceFile = parseSourceFile(UNMITIGATED_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       const asyncResult = analyzer.analyzeAsyncBoundaries(cfg);
 
@@ -346,7 +420,11 @@ describe('Async Boundary Handling', () => {
     it('should handle try-catch with await', () => {
       const sourceFile = parseSourceFile(TRY_CATCH_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
       expect(cfg.awaitBoundaries.length).toBeGreaterThan(0);
@@ -355,7 +433,11 @@ describe('Async Boundary Handling', () => {
     it('should handle conditional await', () => {
       const sourceFile = parseSourceFile(CONDITIONAL_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
     });
@@ -363,7 +445,11 @@ describe('Async Boundary Handling', () => {
     it('should handle await in loop', () => {
       const sourceFile = parseSourceFile(AWAIT_IN_LOOP, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
       expect(cfg.awaitBoundaries.length).toBeGreaterThan(0);
@@ -372,7 +458,11 @@ describe('Async Boundary Handling', () => {
     it('should handle async callback patterns', () => {
       const sourceFile = parseSourceFile(ASYNC_CALLBACK, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
     });
@@ -380,7 +470,11 @@ describe('Async Boundary Handling', () => {
     it('should handle partial mitigation in conditional async', () => {
       const sourceFile = parseSourceFile(PARTIAL_MITIGATION_CONDITIONAL_AWAIT, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
 
       expect(cfg.isAsync).toBe(true);
       // Should have multiple await nodes for conditional paths
@@ -399,7 +493,11 @@ describe('Async Boundary Handling', () => {
 
         expect(functions.length).toBeGreaterThan(0);
 
-        const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+        const cfg = buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
 
         expect(cfg.isAsync).toBe(true);
 
@@ -460,7 +558,11 @@ describe('Async Boundary Handling', () => {
 
         expect(functions.length).toBeGreaterThan(0);
 
-        const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+        const cfg = buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
 
         expect(cfg.isAsync).toBe(true);
 

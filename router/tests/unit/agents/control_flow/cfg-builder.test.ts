@@ -10,9 +10,13 @@ import {
   buildAllCFGs,
   parseSourceFile,
   findFunctions,
-  buildCFG,
 } from '../../../../src/agents/control_flow/cfg-builder.js';
-import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flow/cfg-types.js';
+import type {
+  CFGNodeRuntime,
+  CFGEdgeRuntime,
+  CallSiteRuntime,
+} from '../../../../src/agents/control_flow/cfg-types.js';
+import { assertDefined } from '../../../test-utils.js';
 
 describe('CFG Builder', () => {
   describe('parseSourceFile', () => {
@@ -87,7 +91,7 @@ describe('CFG Builder', () => {
       const cfgs = buildAllCFGs(content, 'test.ts');
       expect(cfgs).toHaveLength(1);
 
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
       expect(cfg.entryNode).toBeDefined();
       expect(cfg.exitNodes.length).toBeGreaterThan(0);
     });
@@ -101,7 +105,7 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have entry, basic blocks, and exit
       expect(cfg.nodes.size).toBeGreaterThan(2);
@@ -116,11 +120,11 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       expect(cfg.callSites.length).toBe(2);
-      expect(cfg.callSites.map((cs) => cs.calleeName)).toContain('log');
-      expect(cfg.callSites.map((cs) => cs.calleeName)).toContain('fetch');
+      expect(cfg.callSites.map((cs: CallSiteRuntime) => cs.calleeName)).toContain('log');
+      expect(cfg.callSites.map((cs: CallSiteRuntime) => cs.calleeName)).toContain('fetch');
     });
   });
 
@@ -134,16 +138,16 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have branch and merge nodes
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('branch');
       expect(nodeTypes).toContain('merge');
 
       // Should have true and false branch edges
       const branchEdges = cfg.edges.filter(
-        (e) => e.type === 'branch_true' || e.type === 'branch_false'
+        (e: CFGEdgeRuntime) => e.type === 'branch_true' || e.type === 'branch_false'
       );
       expect(branchEdges.length).toBeGreaterThanOrEqual(2);
     });
@@ -159,10 +163,10 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Both branches should have nodes
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('branch');
 
       // Should merge back
@@ -180,10 +184,12 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have multiple branch nodes
-      const branchNodes = Array.from(cfg.nodes.values()).filter((n) => n.type === 'branch');
+      const branchNodes = Array.from(cfg.nodes.values()).filter(
+        (n: CFGNodeRuntime) => n.type === 'branch'
+      );
       expect(branchNodes.length).toBe(2);
     });
 
@@ -203,10 +209,10 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have branch node for switch
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('branch');
     });
   });
@@ -221,19 +227,19 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have loop header
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('loop_header');
       expect(nodeTypes).toContain('loop_body');
 
       // Should have loop back edge
-      const loopBackEdges = cfg.edges.filter((e) => e.type === 'loop_back');
+      const loopBackEdges = cfg.edges.filter((e: CFGEdgeRuntime) => e.type === 'loop_back');
       expect(loopBackEdges.length).toBeGreaterThan(0);
 
       // Should have loop exit edge
-      const loopExitEdges = cfg.edges.filter((e) => e.type === 'loop_exit');
+      const loopExitEdges = cfg.edges.filter((e: CFGEdgeRuntime) => e.type === 'loop_exit');
       expect(loopExitEdges.length).toBeGreaterThan(0);
     });
 
@@ -246,9 +252,9 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('loop_header');
     });
 
@@ -261,9 +267,9 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('loop_header');
       expect(nodeTypes).toContain('loop_body');
     });
@@ -277,9 +283,9 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('loop_header');
     });
 
@@ -292,9 +298,9 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('loop_header');
     });
   });
@@ -311,10 +317,10 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have exception edge
-      const exceptionEdges = cfg.edges.filter((e) => e.type === 'exception');
+      const exceptionEdges = cfg.edges.filter((e: CFGEdgeRuntime) => e.type === 'exception');
       expect(exceptionEdges.length).toBeGreaterThan(0);
     });
 
@@ -331,7 +337,7 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have finally node (basic type)
       expect(cfg.nodes.size).toBeGreaterThan(3);
@@ -352,13 +358,13 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have multiple exit nodes
       expect(cfg.exitNodes.length).toBeGreaterThanOrEqual(2);
 
       // Should have return edges
-      const returnEdges = cfg.edges.filter((e) => e.type === 'return');
+      const returnEdges = cfg.edges.filter((e: CFGEdgeRuntime) => e.type === 'return');
       expect(returnEdges.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -372,10 +378,10 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Should have throw node
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes).toContain('throw');
     });
 
@@ -390,7 +396,7 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Break should connect to loop exit (merge node)
       // Check that we have the expected structure
@@ -409,10 +415,10 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Continue should have loop_back edge
-      const loopBackEdges = cfg.edges.filter((e) => e.type === 'loop_back');
+      const loopBackEdges = cfg.edges.filter((e: CFGEdgeRuntime) => e.type === 'loop_back');
       expect(loopBackEdges.length).toBeGreaterThan(0);
     });
   });
@@ -423,7 +429,7 @@ describe('CFG Builder', () => {
       const cfgs = buildAllCFGs(content, 'test.ts');
       expect(cfgs).toHaveLength(1);
 
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
       expect(cfg.functionName).toBe('double');
       expect(cfg.exitNodes.length).toBeGreaterThan(0);
     });
@@ -440,7 +446,7 @@ describe('CFG Builder', () => {
       const cfgs = buildAllCFGs(content, 'test.ts');
       expect(cfgs).toHaveLength(1);
 
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
       expect(cfg.functionName).toBe('process');
     });
   });
@@ -449,13 +455,15 @@ describe('CFG Builder', () => {
     it('should capture function name', () => {
       const content = `function myFunction() {}`;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      expect(cfgs[0].functionName).toBe('myFunction');
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
+      expect(cfg.functionName).toBe('myFunction');
     });
 
     it('should capture file path', () => {
       const content = `function foo() {}`;
       const cfgs = buildAllCFGs(content, 'src/utils/helper.ts');
-      expect(cfgs[0].filePath).toBe('src/utils/helper.ts');
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
+      expect(cfg.filePath).toBe('src/utils/helper.ts');
     });
 
     it('should capture line numbers', () => {
@@ -465,14 +473,16 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      expect(cfgs[0].startLine).toBeGreaterThan(0);
-      expect(cfgs[0].endLine).toBeGreaterThan(cfgs[0].startLine);
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
+      expect(cfg.startLine).toBeGreaterThan(0);
+      expect(cfg.endLine).toBeGreaterThan(cfg.startLine);
     });
 
     it('should generate unique function ID', () => {
       const content = `function foo() {}`;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      expect(cfgs[0].functionId).toMatch(/test\.ts:\d+:foo/);
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
+      expect(cfg.functionId).toMatch(/test\.ts:\d+:foo/);
     });
   });
 
@@ -499,9 +509,9 @@ describe('CFG Builder', () => {
       const cfgs = buildAllCFGs(content, 'test.ts');
       expect(cfgs).toHaveLength(1);
 
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
       // Should have multiple branch, loop, and merge nodes
-      const nodeTypes = Array.from(cfg.nodes.values()).map((n) => n.type);
+      const nodeTypes = Array.from(cfg.nodes.values()).map((n: CFGNodeRuntime) => n.type);
       expect(nodeTypes.filter((t) => t === 'branch').length).toBeGreaterThan(1);
       expect(nodeTypes).toContain('loop_header');
     });
@@ -519,7 +529,7 @@ describe('CFG Builder', () => {
         }
       `;
       const cfgs = buildAllCFGs(content, 'test.ts');
-      const cfg = cfgs[0];
+      const cfg = assertDefined(cfgs[0], 'Expected at least one CFG');
 
       // Multiple exit points from guards
       expect(cfg.exitNodes.length).toBeGreaterThanOrEqual(2);

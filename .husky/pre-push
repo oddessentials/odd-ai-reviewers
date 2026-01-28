@@ -1,1 +1,33 @@
+#!/usr/bin/env sh
+# Pre-push hook: Full CI-equivalent quality gates
+# Ensures nothing is pushed that will fail CI
+
+set -e
+
+echo "Running pre-push quality gates..."
+
+# 1. ESLint (zero-tolerance, matches CI)
+echo ">> Lint (strict)..."
+npm run lint:strict
+
+# 2. Prettier format check
+echo ">> Format check..."
+npm run format:check
+
+# 3. TypeScript type checking
+echo ">> TypeScript..."
+npm run typecheck
+
+# 4. Circular dependency check
+echo ">> Dependency analysis..."
 npm run depcruise
+
+# 5. Build verification
+echo ">> Build..."
+npm run build
+
+# 6. Run tests
+echo ">> Tests..."
+npm run test --workspace=router
+
+echo "All pre-push checks passed!"

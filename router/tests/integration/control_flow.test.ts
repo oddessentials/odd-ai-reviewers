@@ -9,36 +9,20 @@ import { describe, it, expect } from 'vitest';
 import { controlFlowAgent } from '../../src/agents/control_flow/index.js';
 import type { AgentContext } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
+import type { ControlFlowConfig } from '../../src/agents/control_flow/types.js';
+import { createTestAgentContext, createTestDiffFile } from '../test-utils.js';
 
 describe('Control Flow Agent Integration', () => {
   // ==========================================================================
   // Helper Functions
   // ==========================================================================
 
-  function createContext(files: DiffFile[], config: Record<string, unknown> = {}): AgentContext {
-    return {
-      files,
-      config: {
-        control_flow: {
-          enabled: true,
-          timeBudgetMs: 60000,
-          sizeBudgetLines: 5000,
-          maxCallDepth: 5,
-          ...config,
-        },
-      },
-      repoPath: '/test/repo',
-    };
+  function createContext(files: DiffFile[], config: Partial<ControlFlowConfig> = {}): AgentContext {
+    return createTestAgentContext(files, config);
   }
 
   function createDiffFile(path: string, patch: string): DiffFile {
-    return {
-      path,
-      patch,
-      additions: patch.split('\n').filter((l) => l.startsWith('+')).length,
-      deletions: patch.split('\n').filter((l) => l.startsWith('-')).length,
-      status: 'modified',
-    };
+    return createTestDiffFile(path, patch);
   }
 
   // ==========================================================================
@@ -423,11 +407,8 @@ describe('Control Flow Agent Integration', () => {
 
     it('should handle missing config gracefully', async () => {
       const file = createDiffFile('src/app.ts', 'function test() {}');
-      const context: AgentContext = {
-        files: [file],
-        config: {}, // No control_flow config
-        repoPath: '/test/repo',
-      };
+      // Test with minimal/default config - agent should use defaults
+      const context = createContext([file]);
 
       const result = await controlFlowAgent.run(context);
 

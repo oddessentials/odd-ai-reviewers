@@ -22,7 +22,7 @@ import {
   MEDIUM_PRIORITY_FILES,
   LOW_PRIORITY_FILES,
 } from './fixtures/large-codebase.js';
-import { createLogger, resetLogger } from '../../../../src/agents/control_flow/logger.js';
+import { resetLogger } from '../../../../src/agents/control_flow/logger.js';
 
 // =============================================================================
 // Test Setup
@@ -492,7 +492,7 @@ describe('AnalysisBudget', () => {
 // =============================================================================
 
 describe('getFilePriority', () => {
-  const testCases: Array<{ path: string; expected: FilePriority }> = [
+  const testCases: { path: string; expected: FilePriority }[] = [
     // High priority
     { path: 'src/auth/login.ts', expected: 'high' },
     { path: 'src/security/validate.ts', expected: 'high' },

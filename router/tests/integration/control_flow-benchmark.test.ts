@@ -18,6 +18,7 @@ import { createPathAnalyzer } from '../../src/agents/control_flow/path-analyzer.
 import { AnalysisBudget } from '../../src/agents/control_flow/budget.js';
 import type { AgentContext } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
+import { assertDefined, createTestAgentContext, createTestDiffFile } from '../test-utils.js';
 
 describe('Control Flow Agent Benchmarks (AG-003)', () => {
   // ==========================================================================
@@ -25,28 +26,11 @@ describe('Control Flow Agent Benchmarks (AG-003)', () => {
   // ==========================================================================
 
   function createContext(files: DiffFile[], timeBudgetMs = 60000): AgentContext {
-    return {
-      files,
-      config: {
-        control_flow: {
-          enabled: true,
-          timeBudgetMs,
-          sizeBudgetLines: 10000,
-          maxCallDepth: 5,
-        },
-      },
-      repoPath: '/test/repo',
-    };
+    return createTestAgentContext(files, { timeBudgetMs, sizeBudgetLines: 10000 });
   }
 
   function createDiffFile(path: string, patch: string): DiffFile {
-    return {
-      path,
-      patch,
-      additions: patch.split('\n').filter((l) => l.startsWith('+')).length,
-      deletions: patch.split('\n').filter((l) => l.startsWith('-')).length,
-      status: 'modified',
-    };
+    return createTestDiffFile(path, patch);
   }
 
   function generateLargeFunction(branches: number): string {
@@ -107,7 +91,11 @@ function func${i}(input: string) {
       const functions = findFunctions(sourceFile);
 
       const { durationMs } = measureTime(() => {
-        buildCFG(functions[0]!, sourceFile, 'test.ts');
+        buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
       });
 
       expect(durationMs).toBeLessThan(10);
@@ -119,7 +107,11 @@ function func${i}(input: string) {
       const functions = findFunctions(sourceFile);
 
       const { durationMs } = measureTime(() => {
-        buildCFG(functions[0]!, sourceFile, 'test.ts');
+        buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
       });
 
       expect(durationMs).toBeLessThan(50);
@@ -131,7 +123,11 @@ function func${i}(input: string) {
       const functions = findFunctions(sourceFile);
 
       const { durationMs } = measureTime(() => {
-        buildCFG(functions[0]!, sourceFile, 'test.ts');
+        buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
       });
 
       expect(durationMs).toBeLessThan(200);
@@ -194,11 +190,19 @@ function validate(input: string) {
       const code = `function simple(x: number) { return x * 2; }`;
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
       const analyzer = createPathAnalyzer({ maxCallDepth: 5 });
 
       const { durationMs } = measureTime(() => {
-        analyzer.analyzePathsToSink(cfg, cfg.exitNodes[0]!, 'injection');
+        analyzer.analyzePathsToSink(
+          cfg,
+          assertDefined(cfg.exitNodes[0], 'Expected at least one exit node'),
+          'injection'
+        );
       });
 
       expect(durationMs).toBeLessThan(10);
@@ -208,11 +212,19 @@ function validate(input: string) {
       const code = generateLargeFunction(10);
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
       const analyzer = createPathAnalyzer({ maxCallDepth: 5 });
 
       const { durationMs } = measureTime(() => {
-        analyzer.analyzePathsToSink(cfg, cfg.exitNodes[0]!, 'injection');
+        analyzer.analyzePathsToSink(
+          cfg,
+          assertDefined(cfg.exitNodes[0], 'Expected at least one exit node'),
+          'injection'
+        );
       });
 
       expect(durationMs).toBeLessThan(50);
@@ -223,14 +235,23 @@ function validate(input: string) {
       const code = generateLargeFunction(20);
       const sourceFile = parseSourceFile(code, 'test.ts');
       const functions = findFunctions(sourceFile);
-      const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+      const cfg = buildCFG(
+        assertDefined(functions[0], 'Expected at least one function'),
+        sourceFile,
+        'test.ts'
+      );
       const analyzer = createPathAnalyzer({ maxCallDepth: 5 });
 
       const { result, durationMs } = measureTime(() => {
-        return analyzer.analyzePathsToSink(cfg, cfg.exitNodes[0]!, 'injection', {
-          maxPaths: 100,
-          maxPathLength: 50,
-        });
+        return analyzer.analyzePathsToSink(
+          cfg,
+          assertDefined(cfg.exitNodes[0], 'Expected at least one exit node'),
+          'injection',
+          {
+            maxPaths: 100,
+            maxPathLength: 50,
+          }
+        );
       });
 
       // Should complete within reasonable time even with path limits

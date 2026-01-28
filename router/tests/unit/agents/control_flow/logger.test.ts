@@ -11,8 +11,6 @@ import {
   createLogger,
   getLogger,
   resetLogger,
-  type LogLevel,
-  type LogCategory,
 } from '../../../../src/agents/control_flow/logger.js';
 
 describe('AnalysisLogger', () => {
@@ -111,8 +109,8 @@ describe('AnalysisLogger', () => {
       logger.logPathFound('entry->a->b->exit', 4);
       const entries = logger.getEntriesByCategory('path');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.signature).toBe('entry->a->b->exit');
-      expect(entries[0]?.context?.nodeCount).toBe(4);
+      expect(entries[0]?.context?.['signature']).toBe('entry->a->b->exit');
+      expect(entries[0]?.context?.['nodeCount']).toBe(4);
     });
 
     it('should log path analysis complete', () => {
@@ -120,8 +118,8 @@ describe('AnalysisLogger', () => {
       const entries = logger.getEntriesByCategory('path');
       expect(entries.length).toBe(1);
       expect(entries[0]?.level).toBe('info');
-      expect(entries[0]?.context?.totalPaths).toBe(10);
-      expect(entries[0]?.context?.mitigatedCount).toBe(7);
+      expect(entries[0]?.context?.['totalPaths']).toBe(10);
+      expect(entries[0]?.context?.['mitigatedCount']).toBe(7);
     });
 
     it('should log path limit reached', () => {
@@ -129,14 +127,14 @@ describe('AnalysisLogger', () => {
       const entries = logger.getEntriesByCategory('path');
       expect(entries.length).toBe(1);
       expect(entries[0]?.level).toBe('warn');
-      expect(entries[0]?.context?.limit).toBe(100);
+      expect(entries[0]?.context?.['limit']).toBe(100);
     });
 
     it('should log unreachable node', () => {
       logger.logUnreachableNode('node_5', 'after return');
       const entries = logger.getEntriesByCategory('path');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.nodeId).toBe('node_5');
+      expect(entries[0]?.context?.['nodeId']).toBe('node_5');
     });
   });
 
@@ -149,22 +147,22 @@ describe('AnalysisLogger', () => {
       logger.logMitigationMatch('zod-parse', { line: 10 }, 'injection');
       const entries = logger.getEntriesByCategory('mitigation');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.patternId).toBe('zod-parse');
-      expect(entries[0]?.context?.vulnerabilityType).toBe('injection');
+      expect(entries[0]?.context?.['patternId']).toBe('zod-parse');
+      expect(entries[0]?.context?.['vulnerabilityType']).toBe('injection');
     });
 
     it('should log mitigation evaluation', () => {
       logger.logMitigationEvaluation('path1', ['zod-parse', 'validator'], 'mitigated');
       const entries = logger.getEntriesByCategory('mitigation');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.result).toBe('mitigated');
+      expect(entries[0]?.context?.['result']).toBe('mitigated');
     });
 
     it('should log custom pattern evaluation', () => {
       logger.logCustomPatternEvaluation('company-sanitize', true);
       const entries = logger.getEntriesByCategory('mitigation');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.matched).toBe(true);
+      expect(entries[0]?.context?.['matched']).toBe(true);
     });
 
     it('should log mitigation coverage', () => {
@@ -172,7 +170,7 @@ describe('AnalysisLogger', () => {
       const entries = logger.getEntriesByCategory('mitigation');
       expect(entries.length).toBe(1);
       expect(entries[0]?.level).toBe('info');
-      expect(entries[0]?.context?.status).toBe('partial');
+      expect(entries[0]?.context?.['status']).toBe('partial');
     });
   });
 
@@ -185,8 +183,8 @@ describe('AnalysisLogger', () => {
       logger.logCallDepth('processUser', 3, 5);
       const entries = logger.getEntriesByCategory('depth');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.currentDepth).toBe(3);
-      expect(entries[0]?.context?.maxDepth).toBe(5);
+      expect(entries[0]?.context?.['currentDepth']).toBe(3);
+      expect(entries[0]?.context?.['maxDepth']).toBe(5);
     });
 
     it('should log depth limit reached', () => {
@@ -200,8 +198,8 @@ describe('AnalysisLogger', () => {
       logger.logInterProceduralStart('caller', 'callee', 42);
       const entries = logger.getEntriesByCategory('depth');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.callerFunction).toBe('caller');
-      expect(entries[0]?.context?.calleeFunction).toBe('callee');
+      expect(entries[0]?.context?.['callerFunction']).toBe('caller');
+      expect(entries[0]?.context?.['calleeFunction']).toBe('callee');
     });
   });
 
@@ -215,7 +213,7 @@ describe('AnalysisLogger', () => {
       const entries = logger.getEntriesByCategory('finding');
       expect(entries.length).toBe(1);
       expect(entries[0]?.level).toBe('info');
-      expect(entries[0]?.context?.ruleId).toBe('cfa/injection');
+      expect(entries[0]?.context?.['ruleId']).toBe('cfa/injection');
     });
 
     it('should log finding suppressed', () => {
@@ -229,8 +227,8 @@ describe('AnalysisLogger', () => {
       logger.logSeverityDowngrade('error', 'warning', 60);
       const entries = logger.getEntriesByCategory('finding');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.originalSeverity).toBe('error');
-      expect(entries[0]?.context?.newSeverity).toBe('warning');
+      expect(entries[0]?.context?.['originalSeverity']).toBe('error');
+      expect(entries[0]?.context?.['newSeverity']).toBe('warning');
     });
   });
 
@@ -243,8 +241,8 @@ describe('AnalysisLogger', () => {
       logger.logBudgetUsage('time', 150000, 300000);
       const entries = logger.getEntriesByCategory('budget');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.used).toBe(150000);
-      expect(entries[0]?.context?.total).toBe(300000);
+      expect(entries[0]?.context?.['used']).toBe(150000);
+      expect(entries[0]?.context?.['total']).toBe(300000);
     });
 
     it('should log budget warning', () => {
@@ -271,8 +269,8 @@ describe('AnalysisLogger', () => {
       logger.logCFGBuilt('processData', 25, 30);
       const entries = logger.getEntriesByCategory('cfg');
       expect(entries.length).toBe(1);
-      expect(entries[0]?.context?.nodeCount).toBe(25);
-      expect(entries[0]?.context?.edgeCount).toBe(30);
+      expect(entries[0]?.context?.['nodeCount']).toBe(25);
+      expect(entries[0]?.context?.['edgeCount']).toBe(30);
     });
 
     it('should log CFG complexity', () => {
@@ -333,7 +331,7 @@ describe('AnalysisLogger', () => {
     it('should respect excludeCategories configuration', () => {
       const filteredLogger = createLogger({
         minLevel: 'debug',
-        excludeCategories: ['debug', 'depth'],
+        excludeCategories: ['path', 'depth'],
       });
 
       filteredLogger.logPathStart('a', 'b');
@@ -341,8 +339,8 @@ describe('AnalysisLogger', () => {
       filteredLogger.logMitigationCoverage('xss', 100, 'full');
 
       const entries = filteredLogger.getEntries();
-      // debug category is excluded, depth is excluded
-      expect(entries.every((e) => e.category !== 'depth')).toBe(true);
+      // path category is excluded, depth is excluded
+      expect(entries.every((e) => e.category !== 'depth' && e.category !== 'path')).toBe(true);
     });
   });
 
@@ -369,8 +367,8 @@ describe('AnalysisLogger', () => {
       }
 
       const entries = limitedLogger.getEntries();
-      expect(entries[0]?.context?.signature).toBe('path2');
-      expect(entries[2]?.context?.signature).toBe('path4');
+      expect(entries[0]?.context?.['signature']).toBe('path2');
+      expect(entries[2]?.context?.['signature']).toBe('path4');
     });
   });
 

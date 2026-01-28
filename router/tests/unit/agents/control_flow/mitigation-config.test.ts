@@ -24,8 +24,6 @@ import {
   companySanitizerPattern,
   companyAuthPattern,
   ALL_CUSTOM_PATTERNS,
-  ALL_PATTERN_OVERRIDES,
-  DISABLED_PATTERNS,
   EXAMPLE_CONFIG,
   MINIMAL_CONFIG,
   invalidRegexPattern,
@@ -567,7 +565,10 @@ describe('Integration: Full Configuration Flow', () => {
     const parseResult = parseControlFlowConfig(EXAMPLE_CONFIG);
     expect(parseResult.success).toBe(true);
 
-    const config = parseResult.config!;
+    if (!parseResult.config) {
+      throw new Error('Expected config to be defined');
+    }
+    const config = parseResult.config;
 
     // Simulate getting effective patterns with built-in
     const builtInPatterns: MitigationPattern[] = [

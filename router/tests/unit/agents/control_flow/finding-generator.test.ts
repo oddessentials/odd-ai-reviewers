@@ -19,12 +19,12 @@ import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flo
 import type {
   PotentialVulnerability,
   VulnerabilityType,
-  ControlFlowFinding,
 } from '../../../../src/agents/control_flow/types.js';
 import type {
   PathAnalysisResult,
   ExecutionPath,
 } from '../../../../src/agents/control_flow/path-analyzer.js';
+import { assertDefined } from '../../../test-utils.js';
 
 // =============================================================================
 // Helper Functions
@@ -33,20 +33,20 @@ import type {
 function buildCFGFromCode(code: string): ControlFlowGraphRuntime {
   const sourceFile = parseSourceFile(code, 'test.ts');
   const functions = findFunctions(sourceFile);
-  if (functions.length === 0) {
-    throw new Error('No functions found in code');
-  }
-  return buildCFG(functions[0], sourceFile, 'test.ts');
+  const firstFunction = assertDefined(functions[0], 'No functions found in code');
+  return buildCFG(firstFunction, sourceFile, 'test.ts');
 }
 
 function createMockVulnerability(
   type: VulnerabilityType = 'injection',
-  line: number = 5
+  line = 5
 ): PotentialVulnerability {
   return {
+    id: `vuln_${type}_${line}`,
     type,
-    sinkLocation: { line, endLine: line },
+    sinkLocation: { file: 'test.ts', line, endLine: line },
     affectedVariable: 'input',
+    requiredMitigations: [type],
     description: `Potential ${type} vulnerability`,
   };
 }
@@ -67,16 +67,19 @@ function createMockPathAnalysis(options: Partial<PathAnalysisResult> = {}): Path
 
 function createMockExecutionPath(
   signature: string,
-  mitigations: Array<{ patternId: string }> = []
+  mitigations: { patternId: string }[] = []
 ): ExecutionPath {
   return {
     nodes: ['entry', 'mid', 'exit'],
-    edges: [],
+    isComplete: true,
     signature,
     mitigations: mitigations.map((m) => ({
       patternId: m.patternId,
-      type: 'call',
-      location: { line: 1 },
+      location: { file: 'test.ts', line: 1 },
+      protectedVariables: [],
+      protectedPaths: [],
+      scope: 'function' as const,
+      confidence: 'high' as const,
     })),
   };
 }
@@ -671,15 +674,19 @@ describe('FindingGenerator', () => {
       const code = `function test(input: string) { return input; }`;
       const cfg = buildCFGFromCode(code);
       const vuln1: PotentialVulnerability = {
+        id: 'vuln_1',
         type: 'injection',
-        sinkLocation: { line: 2, endLine: 2 },
+        sinkLocation: { file: 'test.ts', line: 2, endLine: 2 },
         affectedVariable: 'input1',
+        requiredMitigations: ['injection'],
         description: 'Test',
       };
       const vuln2: PotentialVulnerability = {
+        id: 'vuln_2',
         type: 'injection',
-        sinkLocation: { line: 2, endLine: 2 },
+        sinkLocation: { file: 'test.ts', line: 2, endLine: 2 },
         affectedVariable: 'input2',
+        requiredMitigations: ['injection'],
         description: 'Test',
       };
       const pathAnalysis = createMockPathAnalysis({ status: 'none' });
@@ -772,9 +779,11 @@ describe('FindingGenerator', () => {
       const code = `function test(input: string) { return input; }`;
       const cfg = buildCFGFromCode(code);
       const vuln: PotentialVulnerability = {
+        id: 'vuln_multiline',
         type: 'injection',
-        sinkLocation: { line: 10, endLine: 15 },
+        sinkLocation: { file: 'test.ts', line: 10, endLine: 15 },
         affectedVariable: 'input',
+        requiredMitigations: ['injection'],
         description: 'Test',
       };
       const pathAnalysis = createMockPathAnalysis({ status: 'none' });
@@ -791,7 +800,7 @@ describe('FindingGenerator', () => {
   // ===========================================================================
 
   describe('generateFinding - Base Severity by Type', () => {
-    const testCases: Array<{ type: VulnerabilityType; expectedSeverity: string }> = [
+    const testCases: { type: VulnerabilityType; expectedSeverity: string }[] = [
       { type: 'injection', expectedSeverity: 'error' },
       { type: 'null_deref', expectedSeverity: 'warning' },
       { type: 'auth_bypass', expectedSeverity: 'error' },
@@ -831,15 +840,19 @@ describe('FindingGenerator', () => {
       const cfg = buildCFGFromCode(code);
       const vulns: PotentialVulnerability[] = [
         {
+          id: 'vuln_a',
           type: 'injection',
-          sinkLocation: { line: 3, endLine: 3 },
+          sinkLocation: { file: 'test.ts', line: 3, endLine: 3 },
           affectedVariable: 'a',
+          requiredMitigations: ['injection'],
           description: 'Injection 1',
         },
         {
+          id: 'vuln_b',
           type: 'injection',
-          sinkLocation: { line: 4, endLine: 4 },
+          sinkLocation: { file: 'test.ts', line: 4, endLine: 4 },
           affectedVariable: 'b',
+          requiredMitigations: ['injection'],
           description: 'Injection 2',
         },
       ];
@@ -859,9 +872,11 @@ describe('FindingGenerator', () => {
       const cfg = buildCFGFromCode(code);
       const vulns: PotentialVulnerability[] = [
         {
+          id: 'vuln_unreachable',
           type: 'injection',
-          sinkLocation: { line: 4, endLine: 4 },
+          sinkLocation: { file: 'test.ts', line: 4, endLine: 4 },
           affectedVariable: 'unreachable',
+          requiredMitigations: ['injection'],
           description: 'Unreachable vulnerability',
         },
       ];

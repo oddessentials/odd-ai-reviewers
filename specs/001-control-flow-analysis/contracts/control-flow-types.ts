@@ -317,6 +317,7 @@ export function validateMitigationPattern(
   const data = result.data;
   if (data.match.namePattern) {
     try {
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided regex pattern
       new RegExp(data.match.namePattern);
     } catch {
       return {

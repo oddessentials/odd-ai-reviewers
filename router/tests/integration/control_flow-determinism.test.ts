@@ -17,34 +17,18 @@ import { createPathAnalyzer } from '../../src/agents/control_flow/path-analyzer.
 import { serializeCFG } from '../../src/agents/control_flow/cfg-types.js';
 import type { AgentContext } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
+import { assertDefined, createTestAgentContext, createTestDiffFile } from '../test-utils.js';
 
 describe('Control Flow Agent Determinism (AG-004)', () => {
   // Number of runs for determinism verification
   const DETERMINISM_RUNS = 100;
 
   function createContext(files: DiffFile[]): AgentContext {
-    return {
-      files,
-      config: {
-        control_flow: {
-          enabled: true,
-          timeBudgetMs: 60000,
-          sizeBudgetLines: 5000,
-          maxCallDepth: 5,
-        },
-      },
-      repoPath: '/test/repo',
-    };
+    return createTestAgentContext(files);
   }
 
   function createDiffFile(path: string, patch: string): DiffFile {
-    return {
-      path,
-      patch,
-      additions: patch.split('\n').filter((l) => l.startsWith('+')).length,
-      deletions: patch.split('\n').filter((l) => l.startsWith('-')).length,
-      status: 'modified',
-    };
+    return createTestDiffFile(path, patch);
   }
 
   // ==========================================================================
@@ -133,12 +117,20 @@ describe('Control Flow Agent Determinism (AG-004)', () => {
         expect(functions.length).toBeGreaterThan(0);
 
         // Build CFG first time
-        const firstCfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+        const firstCfg = buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
         const firstSerialized = JSON.stringify(serializeCFG(firstCfg));
 
         // Verify same output across multiple runs
         for (let i = 0; i < DETERMINISM_RUNS; i++) {
-          const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+          const cfg = buildCFG(
+            assertDefined(functions[0], 'Expected at least one function'),
+            sourceFile,
+            'test.ts'
+          );
           const serialized = JSON.stringify(serializeCFG(cfg));
 
           expect(serialized).toBe(firstSerialized);
@@ -251,11 +243,15 @@ describe('Control Flow Agent Determinism (AG-004)', () => {
       it(`should produce identical path analysis for ${testCase.name} across ${DETERMINISM_RUNS} runs`, () => {
         const sourceFile = parseSourceFile(testCase.code, 'test.ts');
         const functions = findFunctions(sourceFile);
-        const cfg = buildCFG(functions[0]!, sourceFile, 'test.ts');
+        const cfg = buildCFG(
+          assertDefined(functions[0], 'Expected at least one function'),
+          sourceFile,
+          'test.ts'
+        );
         const analyzer = createPathAnalyzer({ maxCallDepth: 5 });
 
         // Get exit node as sink
-        const sinkNodeId = cfg.exitNodes[0]!;
+        const sinkNodeId = assertDefined(cfg.exitNodes[0], 'Expected at least one exit node');
 
         // Analyze first time
         const firstResult = analyzer.analyzePathsToSink(cfg, sinkNodeId, 'injection');
