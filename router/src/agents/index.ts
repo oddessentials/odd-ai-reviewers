@@ -58,6 +58,7 @@ import { reviewdogAgent } from './reviewdog.js';
 import { prAgentAgent } from './pr_agent.js';
 import { localLlmAgent } from './local_llm.js';
 import { aiSemanticReviewAgent } from './ai_semantic_review.js';
+import { controlFlowAgent } from './control_flow/index.js';
 
 registerAgent(semgrepAgent);
 registerAgent(opencodeAgent); // Uses fictional API - to be updated for real OpenCode CLI
@@ -65,3 +66,4 @@ registerAgent(reviewdogAgent);
 registerAgent(prAgentAgent);
 registerAgent(localLlmAgent);
 registerAgent(aiSemanticReviewAgent); // Direct OpenAI SDK integration
+registerAgent(controlFlowAgent); // Control flow analysis with mitigation recognition
