@@ -1,0 +1,26 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com/oddessentials/"
+    },
+    {
+      "pattern": "^https://semgrep.dev/"
+    },
+    {
+      "pattern": "^https://gist.githubusercontent.com/"
+    },
+    {
+      "pattern": "^https://platform.openai.com"
+    },
+    {
+      "pattern": "^https://learn.microsoft.com/.*/media/"
+    }
+  ],
+  "replacementPatterns": [],
+  "httpHeaders": [],
+  "timeout": "10s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "5s",
+  "aliveStatusCodes": [200, 206]
+}

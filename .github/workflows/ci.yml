@@ -41,6 +41,11 @@ jobs:
           npm run docs:manifest
           git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'npm run docs:manifest' and commit." && exit 1)
 
+      # FR-012: Documentation link integrity check
+      # FR-013: External links require allowlist entry in .linkcheckignore.yml
+      - name: Check documentation links
+        run: npm run docs:linkcheck
+
       - name: Build
         run: npm run build
 

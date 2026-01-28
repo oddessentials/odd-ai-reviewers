@@ -1,6 +1,6 @@
 # The Review Team
 
-<img src="img/odd-ai-reviewers-banner.png" alt="odd-ai-reviewers banner - AI-powered code review team" width="100%">
+<img src="../img/odd-ai-reviewers-banner.png" alt="odd-ai-reviewers banner - AI-powered code review team" width="100%">
 
 Meet the AI-powered code review team that helps maintain code quality, security, and consistency across your projects.
 
@@ -11,7 +11,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/ollama.png" width="200" alt="Ollama superhero - a llama in a green hooded suit with glasses holding a code review tablet">
+      <img src="../img/ollama.png" width="200" alt="Ollama superhero - a llama in a green hooded suit with glasses holding a code review tablet">
     </td>
     <td valign="top">
       <h3>Ollama</h3>
@@ -29,7 +29,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/opencode.png" width="200" alt="OpenCode superhero - a hooded figure with glowing glasses typing on a keyboard with holographic displays">
+      <img src="../img/opencode.png" width="200" alt="OpenCode superhero - a hooded figure with glowing glasses typing on a keyboard with holographic displays">
     </td>
     <td valign="top">
       <h3>OpenCode</h3>
@@ -47,7 +47,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/pr-agent.png" width="200" alt="PR Agent superhero - a badger in a purple cape with sunglasses and headphones holding a laptop">
+      <img src="../img/pr-agent.png" width="200" alt="PR Agent superhero - a badger in a purple cape with sunglasses and headphones holding a laptop">
     </td>
     <td valign="top">
       <h3>PR Agent</h3>
@@ -65,7 +65,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/review-dog.png" width="200" alt="Review Dog superhero - a vigilant dog with goggles and a red cape holding a laptop with a green checkmark">
+      <img src="../img/review-dog.png" width="200" alt="Review Dog superhero - a vigilant dog with goggles and a red cape holding a laptop with a green checkmark">
     </td>
     <td valign="top">
       <h3>Review Dog</h3>
@@ -83,7 +83,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/semgrep.png" width="200" alt="Semgrep superhero - a security expert in a green cape with glasses holding a laptop showing code analysis">
+      <img src="../img/semgrep.png" width="200" alt="Semgrep superhero - a security expert in a green cape with glasses holding a laptop showing code analysis">
     </td>
     <td valign="top">
       <h3>Semgrep</h3>
@@ -101,7 +101,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 <table>
   <tr>
     <td width="200">
-      <img src="img/oddessentials1.png" width="200" alt="odd-ai-reviewers - the unified AI review team mascot">
+      <img src="../img/oddessentials1.png" width="200" alt="odd-ai-reviewers - the unified AI review team mascot">
     </td>
     <td valign="top">
       <h3>Why odd-ai-reviewers?</h3>

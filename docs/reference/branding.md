@@ -63,7 +63,7 @@ This is because the workflow uses `GITHUB_TOKEN` (auto-provided by GitHub Action
 
 ### 3. Update Workflow to Use GitHub App Token
 
-#### [MODIFY] [ai-review.yml](.github/workflows/ai-review.yml)
+#### [MODIFY] ai-review.yml (`.github/workflows/ai-review.yml`)
 
 Add the GitHub App authentication step:
 
