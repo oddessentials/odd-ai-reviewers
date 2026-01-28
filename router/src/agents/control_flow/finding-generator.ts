@@ -51,6 +51,12 @@ const SEVERITY_ORDER: Severity[] = ['error', 'warning', 'info'];
  */
 const RULE_PREFIX = 'cfa/';
 
+/**
+ * Coverage thresholds for severity downgrade (FR-009).
+ */
+const HIGH_COVERAGE_THRESHOLD = 75; // >= 75% coverage: downgrade by 2 levels
+const MEDIUM_COVERAGE_THRESHOLD = 50; // >= 50% coverage: downgrade by 1 level
+
 // =============================================================================
 // Finding Generator Class
 // =============================================================================
@@ -195,10 +201,10 @@ export class FindingGenerator {
     // Downgrade by coverage percentage
     const coverage = pathAnalysis.coveragePercent;
 
-    if (coverage >= 75) {
+    if (coverage >= HIGH_COVERAGE_THRESHOLD) {
       // High coverage: downgrade by 2 levels
       return this.downgradeSeverity(baseSeverity, 2);
-    } else if (coverage >= 50) {
+    } else if (coverage >= MEDIUM_COVERAGE_THRESHOLD) {
       // Medium coverage: downgrade by 1 level
       return this.downgradeSeverity(baseSeverity, 1);
     }

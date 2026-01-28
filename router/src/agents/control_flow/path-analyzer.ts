@@ -172,6 +172,9 @@ export interface CallSiteAnalysis {
  * The analyzer explores all paths from CFG entry to a given sink node,
  * tracking which mitigations are encountered along each path.
  */
+/** Maximum number of cross-file mitigations to track per analysis session */
+const MAX_CROSS_FILE_MITIGATIONS = 100;
+
 export class PathAnalyzer {
   private config: ControlFlowConfig;
   private defaultOptions: Required<PathAnalysisOptions>;
@@ -642,14 +645,17 @@ export class PathAnalyzer {
             };
 
             // Track cross-file mitigation for finding metadata (FR-006 to FR-010)
-            const crossFileInfo: CrossFileMitigationInfo = {
-              patternId: mitigation.patternId,
-              file: calleeCfg.filePath,
-              line: mitigation.location.line,
-              depth: discoveryDepth,
-              functionName: calleeCfg.functionName,
-            };
-            this.crossFileMitigations.push(crossFileInfo);
+            // Limit array size to prevent unbounded growth
+            if (this.crossFileMitigations.length < MAX_CROSS_FILE_MITIGATIONS) {
+              const crossFileInfo: CrossFileMitigationInfo = {
+                patternId: mitigation.patternId,
+                file: calleeCfg.filePath,
+                line: mitigation.location.line,
+                depth: discoveryDepth,
+                functionName: calleeCfg.functionName,
+              };
+              this.crossFileMitigations.push(crossFileInfo);
+            }
 
             // Log cross-file mitigation detection (FR-011)
             this.logger.logCrossFileMitigation(
