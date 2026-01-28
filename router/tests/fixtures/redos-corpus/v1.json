@@ -47,9 +47,9 @@
     },
     {
       "id": "redos-005",
-      "pattern": "(.*a){x}$",
+      "pattern": "(.*a){10}$",
       "category": "nested_quantifiers",
-      "description": "Greedy quantifier inside repetition (x=10+)",
+      "description": "Greedy quantifier inside repetition",
       "attack_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
       "expected_vulnerable": true
     },

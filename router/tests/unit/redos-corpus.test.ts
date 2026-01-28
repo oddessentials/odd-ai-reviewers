@@ -29,9 +29,6 @@ const PatternEntrySchema = z.object({
   expected_vulnerable: z.boolean(),
 });
 
-// Used for type validation in tests
-type _PatternEntry = z.infer<typeof PatternEntrySchema>;
-
 /**
  * Schema for the complete corpus file
  */
@@ -145,6 +142,7 @@ describe('ReDoS Corpus Validation', () => {
   });
 
   describe('Corpus Version Assertion (FR-020a)', () => {
+    // T033: CI assertion for corpus version
     it('corpus version is 1.0.0 for this release', () => {
       // FR-020a: CI assertion for corpus version
       // Update this when corpus is updated
