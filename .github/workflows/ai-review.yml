@@ -64,20 +64,25 @@ jobs:
           path: target
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: router/package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: router/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: router/pnpm-lock.yaml
 
       - name: Install router dependencies
         working-directory: router
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build router
         working-directory: router
-        run: npm run build
+        run: pnpm build
 
       # Runtime smoke test - verify toolchain as actual job user
       - name: Verify toolchain

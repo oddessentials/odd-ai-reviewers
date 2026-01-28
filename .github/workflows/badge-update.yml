@@ -41,24 +41,29 @@ jobs:
         continue-on-error: true
 
       # Fallback: run tests if artifacts not available (e.g., workflow_dispatch)
+      - name: Setup pnpm
+        if: steps.download-artifacts.outcome == 'failure'
+        uses: pnpm/action-setup@v4
+        # Version is read from packageManager field in package.json
+
       - name: Setup Node.js
         if: steps.download-artifacts.outcome == 'failure'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
         if: steps.download-artifacts.outcome == 'failure'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build router
         if: steps.download-artifacts.outcome == 'failure'
-        run: npm run build --workspace=router
+        run: pnpm --filter router build
 
       - name: Run tests with coverage
         if: steps.download-artifacts.outcome == 'failure'
-        run: npm run test:ci:coverage --workspace=router
+        run: pnpm --filter router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true'
