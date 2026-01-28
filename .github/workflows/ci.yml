@@ -97,7 +97,8 @@ jobs:
       - name: Test commit hook with unformatted file
         run: |
           # Create a deliberately unformatted TypeScript file
-          echo 'const x=1;const y=2;' > test-format.ts
+          # Use underscore-prefixed vars to satisfy ESLint no-unused-vars rule
+          echo 'const _x=1;const _y=2;' > test-format.ts
 
           # Stage it
           git add test-format.ts
