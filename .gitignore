@@ -43,3 +43,6 @@ docs/viewer/playwright-report/
 # AI agent session data
 .claude/
 .codex/
+
+AGENTS.md
+CLAUDE.md

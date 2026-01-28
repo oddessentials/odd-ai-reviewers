@@ -18,11 +18,12 @@
 
 ## 👋 Meet the Team
 
-<a href="docs/reference/review-team.md">
-  <img src="docs/img/odd-ai-reviewers-banner.png" alt="Meet the AI Review Team" width="600">
-</a>
+![Meet the Team](docs/img/odd-ai-reviewers-trailer.gif)
 
-**[Meet the AI-powered code review team →](docs/reference/review-team.md)**
+**[Click here to meet the AI-powered code review team →](docs/reference/review-team.md)**
+
+🎥 <a href="https://youtu.be/rkDQ7ZA47XQ" target="_blank" rel="noopener noreferrer">
+Click here to watch the trailer on YouTube →</a>
 
 ---
 

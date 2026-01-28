@@ -46,6 +46,10 @@ export function createTestControlFlowConfig(
     mitigationPatterns: [],
     patternOverrides: [],
     disabledPatterns: [],
+    patternTimeoutMs: 100,
+    whitelistedPatterns: [],
+    validationTimeoutMs: 10,
+    rejectionThreshold: 'medium',
     ...overrides,
   };
 }

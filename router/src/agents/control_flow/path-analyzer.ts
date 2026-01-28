@@ -15,8 +15,11 @@ import type {
   VulnerabilityType,
   MitigationStatus,
   ControlFlowConfig,
+  CallChainEntry,
+  CrossFileMitigationInfo,
 } from './types.js';
 import type { ControlFlowGraphRuntime, CFGNodeRuntime } from './cfg-types.js';
+import { getLogger, type AnalysisLogger } from './logger.js';
 
 // =============================================================================
 // Types
@@ -169,11 +172,16 @@ export interface CallSiteAnalysis {
  * The analyzer explores all paths from CFG entry to a given sink node,
  * tracking which mitigations are encountered along each path.
  */
+/** Maximum number of cross-file mitigations to track per analysis session */
+const MAX_CROSS_FILE_MITIGATIONS = 100;
+
 export class PathAnalyzer {
   private config: ControlFlowConfig;
   private defaultOptions: Required<PathAnalysisOptions>;
+  private logger: AnalysisLogger;
+  private crossFileMitigations: CrossFileMitigationInfo[] = [];
 
-  constructor(config?: Partial<ControlFlowConfig>) {
+  constructor(config?: Partial<ControlFlowConfig>, logger?: AnalysisLogger) {
     this.config = {
       enabled: true,
       maxCallDepth: config?.maxCallDepth ?? 5,
@@ -182,7 +190,12 @@ export class PathAnalyzer {
       mitigationPatterns: config?.mitigationPatterns ?? [],
       patternOverrides: config?.patternOverrides ?? [],
       disabledPatterns: config?.disabledPatterns ?? [],
+      patternTimeoutMs: config?.patternTimeoutMs ?? 100,
+      whitelistedPatterns: config?.whitelistedPatterns ?? [],
+      validationTimeoutMs: config?.validationTimeoutMs ?? 10,
+      rejectionThreshold: config?.rejectionThreshold ?? 'medium',
     };
+    this.logger = logger ?? getLogger();
 
     this.defaultOptions = {
       maxPaths: 100,
@@ -483,7 +496,9 @@ export class PathAnalyzer {
   analyzeInterProcedural(
     cfg: ControlFlowGraphRuntime,
     cfgMap: Map<string, ControlFlowGraphRuntime>,
-    currentDepth = 0
+    currentDepth = 0,
+    callChain: CallChainEntry[] = [],
+    vulnerabilityFile?: string
   ): InterProceduralResult {
     const result: InterProceduralResult = {
       analysisDepth: currentDepth,
@@ -491,6 +506,9 @@ export class PathAnalyzer {
       reachedDepthLimit: false,
       conservativeFallback: false,
     };
+
+    // Track the vulnerability file (first CFG in the chain)
+    const vulnFile = vulnerabilityFile ?? cfg.filePath;
 
     // Check depth limit (FR-003)
     if (currentDepth >= this.config.maxCallDepth) {
@@ -501,7 +519,14 @@ export class PathAnalyzer {
 
     // Analyze each call site in the CFG
     for (const callSite of cfg.callSites) {
-      const callResult = this.analyzeCallSite(callSite, cfgMap, currentDepth);
+      const callResult = this.analyzeCallSite(
+        callSite,
+        cfgMap,
+        currentDepth,
+        cfg,
+        callChain,
+        vulnFile
+      );
       result.callsAnalyzed.push(callResult);
 
       // If any call couldn't be resolved, mark as conservative
@@ -515,11 +540,22 @@ export class PathAnalyzer {
 
   /**
    * Analyze a single call site (T039: Call site resolution).
+   *
+   * Enhanced to build call chains for cross-file mitigation tracking (FR-006 to FR-011).
    */
   private analyzeCallSite(
-    callSite: { calleeName: string; calleeFile?: string; isResolved: boolean; isDynamic: boolean },
+    callSite: {
+      calleeName: string;
+      calleeFile?: string;
+      isResolved: boolean;
+      isDynamic: boolean;
+      location?: { line: number };
+    },
     cfgMap: Map<string, ControlFlowGraphRuntime>,
-    currentDepth: number
+    currentDepth: number,
+    callerCfg: ControlFlowGraphRuntime,
+    callChain: CallChainEntry[],
+    vulnerabilityFile: string
   ): CallSiteAnalysis {
     const analysis: CallSiteAnalysis = {
       calleeName: callSite.calleeName,
@@ -553,14 +589,95 @@ export class PathAnalyzer {
       return analysis;
     }
 
-    // Recursively analyze the callee
-    analysis.resolved = true;
-    const calleeResult = this.analyzeInterProcedural(calleeCfg, cfgMap, currentDepth + 1);
+    // Build extended call chain for this call site (FR-011)
+    const callSiteLine = callSite.location?.line ?? callerCfg.startLine;
+    const extendedCallChain: CallChainEntry[] = [
+      ...callChain,
+      {
+        file: callerCfg.filePath,
+        functionName: callerCfg.functionName,
+        line: callSiteLine,
+      },
+    ];
 
-    // Collect mitigations from callee
+    // Log call chain step for verbose mode (FR-011)
+    this.logger.logCallChainStep(
+      callerCfg.filePath,
+      callerCfg.functionName,
+      calleeCfg.filePath,
+      calleeCfg.functionName,
+      currentDepth + 1
+    );
+
+    // Recursively analyze the callee with the extended call chain
+    analysis.resolved = true;
+    const calleeResult = this.analyzeInterProcedural(
+      calleeCfg,
+      cfgMap,
+      currentDepth + 1,
+      extendedCallChain,
+      vulnerabilityFile
+    );
+
+    // Collect mitigations from callee with cross-file tracking (FR-006 to FR-010)
     for (const [_nodeId, node] of calleeCfg.nodes) {
       if (node.mitigations.length > 0) {
-        analysis.mitigationsInCallee.push(...node.mitigations);
+        for (const mitigation of node.mitigations) {
+          // Check if this is a cross-file mitigation
+          const isCrossFile = calleeCfg.filePath !== vulnerabilityFile;
+
+          if (isCrossFile) {
+            // Build the complete call chain including the mitigation location
+            const mitigationCallChain: CallChainEntry[] = [
+              ...extendedCallChain,
+              {
+                file: calleeCfg.filePath,
+                functionName: calleeCfg.functionName,
+                line: mitigation.location.line,
+              },
+            ];
+
+            // Calculate discovery depth (number of calls from vulnerability to mitigation)
+            const discoveryDepth = currentDepth + 1;
+
+            // Create enhanced mitigation instance with cross-file tracking
+            const enhancedMitigation: MitigationInstance = {
+              ...mitigation,
+              callChain: mitigationCallChain,
+              discoveryDepth,
+            };
+
+            // Track cross-file mitigation for finding metadata (FR-006 to FR-010)
+            // Limit array size to prevent unbounded growth
+            if (this.crossFileMitigations.length < MAX_CROSS_FILE_MITIGATIONS) {
+              const crossFileInfo: CrossFileMitigationInfo = {
+                patternId: mitigation.patternId,
+                file: calleeCfg.filePath,
+                line: mitigation.location.line,
+                depth: discoveryDepth,
+                functionName: calleeCfg.functionName,
+              };
+              this.crossFileMitigations.push(crossFileInfo);
+            }
+
+            // Log cross-file mitigation detection (FR-011)
+            this.logger.logCrossFileMitigation(
+              vulnerabilityFile,
+              calleeCfg.filePath,
+              mitigation.location.line,
+              discoveryDepth,
+              mitigation.patternId
+            );
+
+            // Log complete call chain for verbose mode
+            this.logger.logCallChainComplete(mitigation.patternId, mitigationCallChain);
+
+            analysis.mitigationsInCallee.push(enhancedMitigation);
+          } else {
+            // Same-file mitigation, no call chain needed
+            analysis.mitigationsInCallee.push(mitigation);
+          }
+        }
       }
     }
 
@@ -795,6 +912,33 @@ export class PathAnalyzer {
 
     return result;
   }
+
+  // ===========================================================================
+  // Cross-File Mitigation Tracking (FR-006 to FR-011)
+  // ===========================================================================
+
+  /**
+   * Get cross-file mitigations collected during analysis.
+   * Used to populate finding metadata with cross-file mitigation details.
+   */
+  getCrossFileMitigations(): CrossFileMitigationInfo[] {
+    return [...this.crossFileMitigations];
+  }
+
+  /**
+   * Check if any cross-file mitigations were detected.
+   */
+  hasCrossFileMitigations(): boolean {
+    return this.crossFileMitigations.length > 0;
+  }
+
+  /**
+   * Clear collected cross-file mitigations.
+   * Call this before starting a new analysis session.
+   */
+  clearCrossFileMitigations(): void {
+    this.crossFileMitigations = [];
+  }
 }
 
 // =============================================================================
@@ -804,6 +948,9 @@ export class PathAnalyzer {
 /**
  * Create a path analyzer with the given configuration.
  */
-export function createPathAnalyzer(config?: Partial<ControlFlowConfig>): PathAnalyzer {
-  return new PathAnalyzer(config);
+export function createPathAnalyzer(
+  config?: Partial<ControlFlowConfig>,
+  logger?: AnalysisLogger
+): PathAnalyzer {
+  return new PathAnalyzer(config, logger);
 }

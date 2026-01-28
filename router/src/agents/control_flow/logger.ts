@@ -31,7 +31,12 @@ export type LogCategory =
   | 'finding'
   | 'budget'
   | 'cfg'
-  | 'vulnerability';
+  | 'vulnerability'
+  | 'pattern_timeout'
+  | 'cross_file'
+  | 'call_chain'
+  | 'pattern_validation'
+  | 'redos_detection';
 
 /**
  * Structured log entry for analysis decisions.
@@ -480,6 +485,249 @@ export class AnalysisLogger {
   }
 
   // ===========================================================================
+  // Pattern Timeout Logging (FR-003, FR-012)
+  // ===========================================================================
+
+  /**
+   * Log pattern evaluation timeout.
+   */
+  logPatternTimeout(patternId: string, inputLength: number, elapsedMs: number): void {
+    this.addEntry(
+      'warn',
+      'pattern_timeout',
+      `Pattern ${patternId} timed out after ${elapsedMs.toFixed(1)}ms (input: ${inputLength} chars)`,
+      { patternId, inputLength, elapsedMs, result: 'conservative_non_match' }
+    );
+  }
+
+  /**
+   * Log pattern evaluation completion (for debugging).
+   */
+  logPatternEvaluated(
+    patternId: string,
+    matched: boolean,
+    elapsedMs: number,
+    inputLength: number
+  ): void {
+    this.addEntry(
+      'debug',
+      'pattern_timeout',
+      `Pattern ${patternId}: ${matched ? 'matched' : 'no match'} in ${elapsedMs.toFixed(2)}ms`,
+      { patternId, matched, elapsedMs, inputLength }
+    );
+  }
+
+  // ===========================================================================
+  // Cross-File Mitigation Logging (FR-011)
+  // ===========================================================================
+
+  /**
+   * Log cross-file mitigation detection.
+   */
+  logCrossFileMitigation(
+    vulnerabilityFile: string,
+    mitigationFile: string,
+    mitigationLine: number,
+    depth: number,
+    patternId: string
+  ): void {
+    this.addEntry(
+      'info',
+      'cross_file',
+      `Cross-file mitigation: ${patternId} at ${mitigationFile}:${mitigationLine} (depth: ${depth})`,
+      { vulnerabilityFile, mitigationFile, mitigationLine, depth, patternId }
+    );
+  }
+
+  /**
+   * T053: Enhanced cross-file mitigation logging with call chain summary.
+   */
+  logCrossFileMitigationEnhanced(
+    vulnerabilityFile: string,
+    mitigationFile: string,
+    mitigationLine: number,
+    depth: number,
+    patternId: string,
+    callChain: { file: string; functionName: string; line: number }[]
+  ): void {
+    const callChainSummary = callChain
+      .map((c) => `${c.functionName}@${c.file}:${c.line}`)
+      .join(' -> ');
+
+    this.addEntry(
+      'info',
+      'cross_file',
+      `Cross-file mitigation: ${patternId} at ${mitigationFile}:${mitigationLine} (depth: ${depth}) via ${callChainSummary}`,
+      {
+        vulnerabilityFile,
+        mitigationFile,
+        mitigationLine,
+        depth,
+        patternId,
+        callChain,
+        callChainSummary,
+      }
+    );
+  }
+
+  // ===========================================================================
+  // Pattern Validation Logging (T049-T050, US4)
+  // ===========================================================================
+
+  /**
+   * T049: Log pattern validated with full context.
+   */
+  logPatternValidated(
+    patternId: string,
+    pattern: string,
+    riskLevel: string,
+    validationTimeMs: number,
+    correlationId?: string
+  ): void {
+    this.addEntry(
+      'debug',
+      'pattern_validation',
+      `Pattern ${patternId} validated: risk=${riskLevel} (${validationTimeMs.toFixed(2)}ms)`,
+      {
+        patternId,
+        pattern,
+        riskLevel,
+        validationTimeMs,
+        ...(correlationId && { correlationId }),
+      }
+    );
+  }
+
+  /**
+   * T050: Log pattern rejected with rejection reasons.
+   */
+  logPatternRejected(
+    patternId: string,
+    pattern: string,
+    rejectionReasons: string[],
+    riskLevel: string,
+    correlationId?: string
+  ): void {
+    this.addEntry(
+      'warn',
+      'pattern_validation',
+      `Pattern ${patternId} rejected: ${rejectionReasons.join(', ')} (risk=${riskLevel})`,
+      {
+        patternId,
+        pattern,
+        rejectionReasons,
+        riskLevel,
+        ...(correlationId && { correlationId }),
+      }
+    );
+  }
+
+  /**
+   * Log whitelisted pattern that bypassed validation.
+   */
+  logPatternWhitelisted(patternId: string, pattern: string, riskLevel: string): void {
+    this.addEntry(
+      'info',
+      'pattern_validation',
+      `Pattern ${patternId} whitelisted despite risk=${riskLevel}`,
+      { patternId, pattern, riskLevel }
+    );
+  }
+
+  /**
+   * Log validation timeout for a pattern.
+   */
+  logValidationTimeout(patternId: string, pattern: string, timeoutMs: number): void {
+    this.addEntry(
+      'warn',
+      'pattern_validation',
+      `Pattern ${patternId} validation timed out after ${timeoutMs}ms`,
+      { patternId, pattern, timeoutMs }
+    );
+  }
+
+  // ===========================================================================
+  // ReDoS Detection Logging (T051, US4)
+  // ===========================================================================
+
+  /**
+   * T051: Log ReDoS vulnerability detected with full details.
+   */
+  logRedosDetected(
+    patternId: string,
+    pattern: string,
+    detection: {
+      hasNestedQuantifiers: boolean;
+      hasOverlappingAlternation: boolean;
+      hasQuantifiedOverlap: boolean;
+      starHeight: number;
+      vulnerabilityScore: number;
+      detectedPatterns: string[];
+    },
+    correlationId?: string
+  ): void {
+    this.addEntry(
+      'warn',
+      'redos_detection',
+      `ReDoS vulnerability detected in ${patternId}: score=${detection.vulnerabilityScore}`,
+      {
+        patternId,
+        pattern,
+        ...detection,
+        ...(correlationId && { correlationId }),
+      }
+    );
+  }
+
+  /**
+   * Log ReDoS risk assessment summary.
+   */
+  logRedosRiskAssessment(patternId: string, riskLevel: string, score: number): void {
+    this.addEntry('info', 'redos_detection', `ReDoS risk assessment: ${patternId} = ${riskLevel}`, {
+      patternId,
+      riskLevel,
+      score,
+    });
+  }
+
+  // ===========================================================================
+  // Call Chain Logging (FR-011 verbose)
+  // ===========================================================================
+
+  /**
+   * Log call chain traversal (verbose mode).
+   */
+  logCallChainStep(
+    fromFile: string,
+    fromFunction: string,
+    toFile: string,
+    toFunction: string,
+    depth: number
+  ): void {
+    this.addEntry(
+      'debug',
+      'call_chain',
+      `Call chain: ${fromFunction} (${fromFile}) -> ${toFunction} (${toFile}) at depth ${depth}`,
+      { fromFile, fromFunction, toFile, toFunction, depth }
+    );
+  }
+
+  /**
+   * Log complete call chain for a mitigation.
+   */
+  logCallChainComplete(
+    patternId: string,
+    chain: { file: string; functionName: string; line: number }[]
+  ): void {
+    const chainStr = chain.map((c) => `${c.functionName}@${c.file}:${c.line}`).join(' -> ');
+    this.addEntry('debug', 'call_chain', `Complete call chain for ${patternId}: ${chainStr}`, {
+      patternId,
+      chain,
+      totalDepth: chain.length - 1,
+    });
+  }
+
+  // ===========================================================================
   // Log Retrieval
   // ===========================================================================
 
@@ -505,6 +753,20 @@ export class AnalysisLogger {
   }
 
   /**
+   * T054: Get entries filtered by multiple categories.
+   */
+  getEntriesByCategories(categories: LogCategory[]): AnalysisLogEntry[] {
+    return this.entries.filter((e) => categories.includes(e.category));
+  }
+
+  /**
+   * T052: Get entries filtered by correlation ID.
+   */
+  getEntriesByCorrelationId(correlationId: string): AnalysisLogEntry[] {
+    return this.entries.filter((e) => e.context?.['correlationId'] === correlationId);
+  }
+
+  /**
    * Get a summary of the analysis session.
    */
   getSummary(): {
@@ -524,6 +786,11 @@ export class AnalysisLogger {
       budget: 0,
       cfg: 0,
       vulnerability: 0,
+      pattern_timeout: 0,
+      cross_file: 0,
+      call_chain: 0,
+      pattern_validation: 0,
+      redos_detection: 0,
     };
 
     for (const entry of this.entries) {

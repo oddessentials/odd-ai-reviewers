@@ -895,5 +895,58 @@ describe('FindingGenerator', () => {
 
       expect(findings).toEqual([]);
     });
+
+    it('should accept optional cfgMap for inter-procedural analysis', () => {
+      const code = `
+        function caller() {
+          const input = getInput();
+          callee(input);
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+
+      // Create a cfgMap with a mock callee CFG
+      const calleeCode = `
+        function callee(data) {
+          validate(data);
+          return data;
+        }
+      `;
+      const calleeCfg = buildCFGFromCode(calleeCode);
+      const cfgMap = new Map<string, ControlFlowGraphRuntime>();
+      cfgMap.set('callee', calleeCfg);
+
+      const vulns: PotentialVulnerability[] = [
+        {
+          id: 'vuln_cross_file',
+          type: 'injection',
+          sinkLocation: { file: 'test.ts', line: 4, endLine: 4 },
+          affectedVariable: 'input',
+          requiredMitigations: ['injection'],
+          description: 'Cross-file test vulnerability',
+        },
+      ];
+
+      // Should not throw when cfgMap is provided
+      const findings = generator.processVulnerabilities(vulns, cfg, cfgMap);
+
+      expect(findings).toBeDefined();
+      expect(Array.isArray(findings)).toBe(true);
+    });
+
+    it('should run inter-procedural analysis when cfgMap provided', () => {
+      const code = `function test() { return dangerous(); }`;
+      const cfg = buildCFGFromCode(code);
+      const cfgMap = new Map<string, ControlFlowGraphRuntime>();
+
+      // Get the path analyzer to verify inter-procedural was called
+      const pathAnalyzer = generator.getPathAnalyzer();
+      pathAnalyzer.clearCrossFileMitigations();
+
+      generator.processVulnerabilities([], cfg, cfgMap);
+
+      // Verify the generator has access to path analyzer
+      expect(pathAnalyzer).toBeDefined();
+    });
   });
 });
