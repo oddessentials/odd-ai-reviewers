@@ -1,6 +1,8 @@
 - Fix the broken image links in review-team.md. Carefully investigate our markdown files for other broken links to see if this is a pervasive issue.
 
-- Add our `npm run format` automatically before commit or something so its not a pain for users.
+- ensure our test coverage does not fall below current state. Update thresholds locally (on hooks as needed) and in CI to enforce enterprise-grade best practices when work is complete. If the counts are different between number of tests run and coverage expectations between local and CI, ensure that we are accounting for both. Ensure badges on README.md are setup to display the latest coverage state automatically, cost-free, without manual intervention.
+
+- Add our `npm run format` automatically before commit or something so its not a pain for users. Use enterprise-grade best practices and ensure local environments have solid parity with CI where applicable. This must be a user-friendly and safe repo.
 
 * **Treat the ReDoS items as worth deeper work, but validate the actual threat model first.** Confirm whether these regexes are ever built from _repo-controlled_ config only (safe-ish) vs _PR-controlled_ input (dangerous), and document that boundary in the spec + code comments so Semgrep findings aren’t ambiguous and future contributors don’t accidentally widen the attack surface.
 
