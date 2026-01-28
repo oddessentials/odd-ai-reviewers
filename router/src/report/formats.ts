@@ -221,6 +221,8 @@ export function buildFingerprintMarker(finding: Finding): string {
 
 export function extractFingerprintMarkers(body: string): string[] {
   const markers: string[] = [];
+  // Trust: HARDCODED - Pattern uses only compile-time constant (FINGERPRINT_MARKER_PREFIX)
+  // No user input is interpolated. See docs/security/regex-threat-model.md
   const regex = new RegExp(`<!--\\s*${FINGERPRINT_MARKER_PREFIX}([^\\s]+)\\s*-->`, 'g');
 
   let match: RegExpExecArray | null;

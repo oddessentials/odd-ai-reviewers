@@ -357,7 +357,10 @@ export class PatternValidator implements IPatternValidator {
 
     // Try to compile the pattern first to catch syntax errors
     try {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided pattern
+      // Trust: REPO_CONFIG - Pattern from validated config, used for syntax validation only
+      // Control: Compilation test, pattern not executed against untrusted input here
+      // See docs/security/regex-threat-model.md
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Validated config pattern
       new RegExp(pattern);
     } catch (error) {
       const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1_000_000;

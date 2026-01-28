@@ -41,70 +41,87 @@ jobs:
           npm run docs:manifest
           git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'npm run docs:manifest' and commit." && exit 1)
 
+      # FR-012: Documentation link integrity check
+      # FR-013: External links require allowlist entry in .linkcheckignore.yml
+      - name: Check documentation links
+        run: npm run docs:linkcheck
+
       - name: Build
         run: npm run build
 
+      # FR-005: Coverage thresholds enforced via vitest.config.ts
+      # CI=true automatically triggers stricter thresholds
       - name: Test with coverage
         run: npm run test:ci:coverage --workspace=router
         env:
+          CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
 
-      - name: Generate test badge data
+      # FR-031: Upload test artifacts for badge-update workflow
+      - name: Upload test artifacts
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          PASSED=$(jq '.numPassedTests' router/test-results.json)
-          SKIPPED=$(jq '.numPendingTests' router/test-results.json)
-          FAILED=$(jq '.numFailedTests' router/test-results.json)
-
-          if [ "$FAILED" -gt 0 ]; then
-            COLOR="red"
-            MESSAGE="${PASSED} passed, ${FAILED} failed"
-          elif [ "$SKIPPED" -gt 0 ]; then
-            COLOR="green"
-            MESSAGE="${PASSED} passed, ${SKIPPED} skipped"
-          else
-            COLOR="brightgreen"
-            MESSAGE="${PASSED} passed"
-          fi
-
-          echo "{\"schemaVersion\":1,\"label\":\"tests\",\"message\":\"$MESSAGE\",\"color\":\"$COLOR\"}" > .github/badges/tests.json
-
-      - name: Generate coverage badge data
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          # Extract line coverage percentage from coverage-summary.json
-          COVERAGE=$(jq '.total.lines.pct' router/coverage/coverage-summary.json)
-
-          # Determine badge color based on coverage percentage
-          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
-            COLOR="red"
-          elif (( $(echo "$COVERAGE < 70" | bc -l) )); then
-            COLOR="yellow"
-          elif (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            COLOR="green"
-          else
-            COLOR="brightgreen"
-          fi
-
-          echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"$COLOR\"}" > .github/badges/coverage.json
-
-      - name: Update test badge Gist
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: exuanbo/actions-deploy-gist@v1
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: ${{ vars.TEST_BADGE_GIST_ID }}
-          file_path: .github/badges/tests.json
-          file_type: text
+          name: test-results
+          path: |
+            router/test-results.json
+            router/coverage/coverage-summary.json
+          retention-days: 1
 
-      - name: Update coverage badge Gist
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: exuanbo/actions-deploy-gist@v1
+      # FR-031: PR workflow does NOT depend on Gist availability
+      # Badge updates are handled by separate badge-update.yml workflow
+
+  # SC-004: Fresh clone test - verifies hooks auto-install and work correctly
+  fresh-clone-test:
+    name: Fresh Clone Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: ${{ vars.COVERAGE_BADGE_GIST_ID }}
-          file_path: .github/badges/coverage.json
-          file_type: text
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Fresh install (triggers husky prepare)
+        run: npm ci
+
+      - name: Verify husky hooks installed
+        run: |
+          test -f .husky/pre-commit || (echo "pre-commit hook not found" && exit 1)
+          echo "✓ Husky hooks verified"
+
+      - name: Test commit hook with unformatted file
+        run: |
+          # Create a deliberately unformatted TypeScript file
+          # Use underscore-prefixed vars to satisfy ESLint no-unused-vars rule
+          echo 'const _x=1;const _y=2;' > test-format.ts
+
+          # Stage it
+          git add test-format.ts
+
+          # Configure git for commit
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+          # Attempt commit - lint-staged should auto-format
+          git commit -m "test: verify formatting hook"
+
+          # Verify commit succeeded
+          echo "✓ Pre-commit hook executed successfully"
+
+          # Verify no uncommitted changes (formatting was staged)
+          git diff --exit-code test-format.ts || {
+            echo "✗ File has unstaged changes after commit"
+            exit 1
+          }
+
+          # Cleanup
+          git reset --hard HEAD~1 2>/dev/null || git reset --hard HEAD
+          rm -f test-format.ts
 
   container-security:
     name: Container Security Scan

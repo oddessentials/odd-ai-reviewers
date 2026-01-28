@@ -1,5 +1,7 @@
 # 🐝 Odd AI Reviewers
 
+**Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
+
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/2fc5b1cb256e3c48591abf95e24d3492/raw/coverage.json)
@@ -11,8 +13,6 @@
 [![Security: Trivy](https://img.shields.io/badge/security-trivy-blueviolet)](https://trivy.dev/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/oddessentials/odd-ai-reviewers/pulls)
 [![Last Commit](https://img.shields.io/github/last-commit/oddessentials/odd-ai-reviewers)](https://github.com/oddessentials/odd-ai-reviewers/commits/main)
-
-**Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
 
 ---
 
@@ -248,6 +248,18 @@ npm run verify                        # Run all quality gates
 | Azure DevOps   | ✅ Complete | [ADO Setup](docs/platforms/azure-devops/setup.md) |
 | GitLab CI      | 🔴 Planned  | [Roadmap](docs/reference/roadmap.md)              |
 | Gitea Actions  | 🔴 Planned  | [Roadmap](docs/reference/roadmap.md)              |
+
+---
+
+## 📛 Odd AI Reviewer Custom badges
+
+[![AI Review](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
+[![AI Review (main)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ai-review.yml/badge.svg?branch=main)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml?query=branch%3Amain)
+[![AI Review](https://img.shields.io/github/actions/workflow/status/oddessentials/odd-ai-reviewers/ai-review.yml)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
+[![AI Review (PR)](https://img.shields.io/github/actions/workflow/status/oddessentials/odd-ai-reviewers/dogfood-review.yml?event=pull_request)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
+[![Odd AI Reviewers Verdict](https://img.shields.io/github/check-runs/oddessentials/odd-ai-reviewers/main?nameFilter=main)](https://github.com/oddessentials/odd-ai-reviewers/actions)
+
+**[Click here to see custom badge templates →](docs/reference/custom-badges.md)**
 
 ---
 

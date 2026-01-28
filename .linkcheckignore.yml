@@ -1,0 +1,40 @@
+# Link Check Ignore Configuration
+#
+# Patterns for external URLs that should be excluded from link validation.
+# Each entry requires a reason to ensure allowlist decisions are documented.
+#
+# @see specs/006-quality-enforcement/contracts/linkcheck-allowlist.ts
+# @see FR-013, FR-013a
+
+version: '1.0.0'
+
+entries:
+  # GitHub repository links - may be private or rate-limited
+  - pattern: 'https://github.com/oddessentials/*'
+    reason: 'Organization repositories may have varying access levels'
+    added_at: '2026-01-28T00:00:00Z'
+    added_by: '#006-quality-enforcement'
+
+  # External tool documentation - stable but may have transient availability
+  - pattern: 'https://semgrep.dev/*'
+    reason: 'Semgrep documentation - occasionally unavailable during deployments'
+    added_at: '2026-01-28T00:00:00Z'
+    added_by: '#006-quality-enforcement'
+
+  # Gist URLs for badges - dynamic content
+  - pattern: 'https://gist.githubusercontent.com/*'
+    reason: 'Dynamic badge content that changes frequently'
+    added_at: '2026-01-28T00:00:00Z'
+    added_by: '#006-quality-enforcement'
+
+  # OpenAI platform - blocks automated link checkers (403)
+  - pattern: 'https://platform.openai.com*'
+    reason: 'OpenAI blocks automated requests with 403, but links are valid'
+    added_at: '2026-01-28T00:00:00Z'
+    added_by: '#006-quality-enforcement'
+
+  # Microsoft Learn media assets - may be reorganized periodically
+  - pattern: 'https://learn.microsoft.com/*/media/*'
+    reason: 'Microsoft documentation media assets may be reorganized'
+    added_at: '2026-01-28T00:00:00Z'
+    added_by: '#006-quality-enforcement'

@@ -144,7 +144,9 @@ export function validatePatternIsDeclarative(pattern: MitigationPattern): Patter
     }
 
     try {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- Validating user-provided pattern syntax at config time
+      // Trust: REPO_CONFIG - Pattern from repository configuration, validated at config load time
+      // Control: Try-catch validates syntax before use. See docs/security/regex-threat-model.md
+      // eslint-disable-next-line security/detect-non-literal-regexp -- Validated config pattern
       new RegExp(pattern.match.namePattern);
     } catch (e) {
       errors.push({
