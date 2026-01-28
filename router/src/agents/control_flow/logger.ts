@@ -24,7 +24,14 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 /**
  * Categories of analysis decisions.
  */
-export type LogCategory = 'path' | 'mitigation' | 'depth' | 'finding' | 'budget' | 'cfg';
+export type LogCategory =
+  | 'path'
+  | 'mitigation'
+  | 'depth'
+  | 'finding'
+  | 'budget'
+  | 'cfg'
+  | 'vulnerability';
 
 /**
  * Structured log entry for analysis decisions.
@@ -516,6 +523,7 @@ export class AnalysisLogger {
       finding: 0,
       budget: 0,
       cfg: 0,
+      vulnerability: 0,
     };
 
     for (const entry of this.entries) {
@@ -531,6 +539,22 @@ export class AnalysisLogger {
       warnings: byLevel.warn,
       errors: byLevel.error,
     };
+  }
+
+  // ===========================================================================
+  // Generic Logging
+  // ===========================================================================
+
+  /**
+   * Generic log method for arbitrary categories.
+   */
+  log(
+    level: LogLevel,
+    category: LogCategory,
+    message: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.addEntry(level, category, message, context);
   }
 
   /**

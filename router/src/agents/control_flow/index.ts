@@ -9,9 +9,14 @@ import type { DiffFile } from '../../diff.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding } from '../types.js';
 import { AnalysisBudget } from './budget.js';
 import { parseSourceFile, findFunctions, buildCFG } from './cfg-builder.js';
-import type { ControlFlowConfig } from './types.js';
+import type { ControlFlowConfig, ControlFlowFinding } from './types.js';
 import { ControlFlowConfigSchema } from './types.js';
 import { createMitigationDetector, type MitigationDetector } from './mitigation-detector.js';
+import {
+  createVulnerabilityDetector,
+  type VulnerabilityDetector,
+} from './vulnerability-detector.js';
+import { createFindingGenerator, type FindingGenerator } from './finding-generator.js';
 
 /**
  * Supported file extensions for control flow analysis
@@ -69,6 +74,10 @@ export const controlFlowAgent: ReviewAgent = {
       // Initialize mitigation detector with config
       const mitigationDetector = createMitigationDetector(cfConfig);
 
+      // Initialize vulnerability detector and finding generator
+      const vulnerabilityDetector = createVulnerabilityDetector();
+      const findingGenerator = createFindingGenerator(cfConfig);
+
       // Filter to supported files and sort by priority (T063, T066)
       // High priority files (auth, security, api) are analyzed first
       const supportedFiles = context.files.filter((f) => this.supports(f));
@@ -102,7 +111,9 @@ export const controlFlowAgent: ReviewAgent = {
             context,
             budget,
             cfConfig,
-            mitigationDetector
+            mitigationDetector,
+            vulnerabilityDetector,
+            findingGenerator
           );
           findings.push(...fileFindings);
           filesProcessed++;
@@ -163,10 +174,12 @@ export const controlFlowAgent: ReviewAgent = {
  */
 async function analyzeFile(
   file: DiffFile,
-  context: AgentContext,
+  _context: AgentContext,
   budget: AnalysisBudget,
-  config: ControlFlowConfig,
-  mitigationDetector: MitigationDetector
+  _config: ControlFlowConfig,
+  mitigationDetector: MitigationDetector,
+  vulnerabilityDetector: VulnerabilityDetector,
+  findingGenerator: FindingGenerator
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
 
@@ -193,6 +206,13 @@ async function analyzeFile(
   const fileMitigations = mitigationDetector.detectInFile(sourceFile, file.path);
   budget.addLog('debug', `Detected ${fileMitigations.length} mitigations in ${file.path}`);
 
+  // Detect potential vulnerabilities in the file
+  const fileVulnerabilities = vulnerabilityDetector.detectInFile(sourceFile, file.path);
+  budget.addLog(
+    'debug',
+    `Detected ${fileVulnerabilities.length} potential vulnerabilities in ${file.path}`
+  );
+
   for (const fn of functions) {
     if (!budget.shouldContinue()) {
       break;
@@ -218,8 +238,29 @@ async function analyzeFile(
         ).length,
       });
 
-      // TODO: Integrate path analysis (US2) - analyze paths and generate findings
-      // TODO: Generate findings with reasoning (US3) - use FindingGenerator
+      // Filter vulnerabilities to those within this function
+      const functionVulns = fileVulnerabilities.filter(
+        (v) => v.sinkLocation.line >= cfg.startLine && v.sinkLocation.line <= cfg.endLine
+      );
+
+      // Generate findings for vulnerabilities in this function (US2 + US3)
+      if (functionVulns.length > 0) {
+        const cfgFindings = findingGenerator.processVulnerabilities(functionVulns, cfg);
+        budget.addLog(
+          'debug',
+          `Generated ${cfgFindings.length} findings for function: ${cfg.functionName}`,
+          {
+            vulnerabilities: functionVulns.length,
+            findingsGenerated: cfgFindings.length,
+            findingsSuppressed: functionVulns.length - cfgFindings.length,
+          }
+        );
+
+        // Convert ControlFlowFinding to router Finding format
+        for (const cfgFinding of cfgFindings) {
+          findings.push(convertControlFlowFinding(cfgFinding));
+        }
+      }
     } catch (error) {
       budget.addLog('error', `Error building CFG for function in ${file.path}`, {
         error: error instanceof Error ? error.message : String(error),
@@ -254,6 +295,32 @@ function parseControlFlowConfig(config: AgentContext['config']): ControlFlowConf
 function convertToRouterFinding(finding: Finding): Finding {
   // The internal format already matches the router format
   return finding;
+}
+
+/**
+ * Convert ControlFlowFinding to router Finding format
+ */
+function convertControlFlowFinding(cfFinding: ControlFlowFinding): Finding {
+  return {
+    severity: cfFinding.severity,
+    file: cfFinding.file,
+    line: cfFinding.line,
+    endLine: cfFinding.endLine,
+    message: cfFinding.message,
+    suggestion: cfFinding.suggestion,
+    ruleId: cfFinding.ruleId,
+    sourceAgent: 'control_flow',
+    fingerprint: cfFinding.fingerprint,
+    // Include metadata as additional context
+    ...(cfFinding.metadata && {
+      metadata: {
+        mitigationStatus: cfFinding.metadata.mitigationStatus,
+        pathsCovered: cfFinding.metadata.pathsCovered,
+        pathsTotal: cfFinding.metadata.pathsTotal,
+        degraded: cfFinding.metadata.degraded,
+      },
+    }),
+  };
 }
 
 /**
