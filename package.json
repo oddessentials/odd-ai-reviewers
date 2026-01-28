@@ -53,7 +53,7 @@
       "node scripts/regenerate-docs-manifest.cjs"
     ],
     "*.{js,cjs,ts,mjs,json,md,yml,yaml}": [
-      "prettier --check"
+      "prettier --write"
     ],
     "*.{js,cjs,ts,mjs}": [
       "eslint --max-warnings 0 --no-warn-ignored"

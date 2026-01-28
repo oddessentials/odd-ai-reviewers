@@ -55,6 +55,57 @@ jobs:
       # FR-031: PR workflow does NOT depend on Gist availability
       # Badge updates are handled by separate badge-update.yml workflow
 
+  # SC-004: Fresh clone test - verifies hooks auto-install and work correctly
+  fresh-clone-test:
+    name: Fresh Clone Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Fresh install (triggers husky prepare)
+        run: npm ci
+
+      - name: Verify husky hooks installed
+        run: |
+          test -f .husky/pre-commit || (echo "pre-commit hook not found" && exit 1)
+          echo "✓ Husky hooks verified"
+
+      - name: Test commit hook with unformatted file
+        run: |
+          # Create a deliberately unformatted TypeScript file
+          echo 'const x=1;const y=2;' > test-format.ts
+
+          # Stage it
+          git add test-format.ts
+
+          # Configure git for commit
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+          # Attempt commit - lint-staged should auto-format
+          git commit -m "test: verify formatting hook" || true
+
+          # Check if file was formatted (prettier adds newlines and spacing)
+          if grep -q "const x = 1;" test-format.ts; then
+            echo "✓ File was auto-formatted by pre-commit hook"
+          else
+            echo "✗ File was not formatted"
+            cat test-format.ts
+            exit 1
+          fi
+
+          # Cleanup
+          git reset --hard HEAD~1 2>/dev/null || git reset --hard HEAD
+          rm -f test-format.ts
+
   container-security:
     name: Container Security Scan
     runs-on: ubuntu-latest
