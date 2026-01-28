@@ -16,17 +16,17 @@
 
 ---
 
-## Meet the Team
+## 👋 Meet the Team
 
-<a href="docs/REVIEW_TEAM.md">
+<a href="docs/reference/review-team.md">
   <img src="docs/img/odd-ai-reviewers-banner.png" alt="Meet the AI Review Team" width="600">
 </a>
 
-**[Meet the AI-powered code review team →](docs/REVIEW_TEAM.md)**
+**[Meet the AI-powered code review team →](docs/reference/review-team.md)**
 
 ---
 
-## Features
+## ✨ Features
 
 - 🔍 **Multi-Pass Review** — Static analysis first (free), then AI semantic review
 - 🔌 **Pluggable Agents** — Semgrep, OpenCode, PR-Agent, local LLMs (Ollama)
@@ -39,7 +39,7 @@
 
 ---
 
-## Quick Start (GitHub)
+## 🚀 Quick Start (GitHub)
 
 ### 1. Add the workflow
 
@@ -93,11 +93,11 @@ limits:
 | `OPENAI_API_KEY`    | GPT/O1 models | OpenAI API key    |
 | `OLLAMA_BASE_URL`   | Local LLM     | Ollama endpoint   |
 
-> **⚠️ Model-Provider Match**: The router validates that your model matches your API key. See [Model-Provider Matching](#model-provider-matching) below.
+> **⚠️ Model-Provider Match**: The router validates that your model matches your API key. See [Model-Provider Matching](#-model-provider-matching) below.
 
 ---
 
-## Model-Provider Matching
+## 🔗 Model-Provider Matching
 
 The router **does not auto-switch providers**. Your `MODEL` setting must match the API key you provide.
 
@@ -148,7 +148,7 @@ If you see a 404 error during AI code review:
 
 ---
 
-## Available Agents
+## 🤖 Available Agents
 
 | Agent                | Type   | Deterministic | Network | Cost    |
 | -------------------- | ------ | ------------- | ------- | ------- |
@@ -159,46 +159,46 @@ If you see a 404 error during AI code review:
 | `local_llm`          | AI     | ❌            | ❌      | Compute |
 | `ai_semantic_review` | AI     | ❌            | ✅      | Medium  |
 
-See [config-schema.md](docs/config-schema.md) for the full Agent Capability Matrix.
+See [config-schema.md](docs/configuration/config-schema.md) for the full Agent Capability Matrix.
 
 ---
 
-## Documentation
+## 📚 Documentation
 
 📖 **[Browse Documentation Online](https://oddessentials.github.io/odd-ai-reviewers/)**
 
 ### Using with GitHub
 
-- [GitHub Setup Guide](docs/github-setup.md) — Complete setup instructions
-- [Configuration Schema](docs/config-schema.md) — All YAML options
+- [GitHub Setup Guide](docs/platforms/github/setup.md) — Complete setup instructions
+- [Configuration Schema](docs/configuration/config-schema.md) — All YAML options
 
 ### Using with Azure DevOps
 
-- [Azure DevOps Setup Guide](docs/ADO-SETUP.md) — Complete setup instructions
-- [ADO + OSCR Free Example](docs/examples/ado-oscr-free.md) — Free tier with Ollama
-- [Roadmap](docs/ROADMAP.md) — Platform support status
+- [Azure DevOps Setup Guide](docs/platforms/azure-devops/setup.md) — Complete setup instructions
+- [ADO + OSCR Free Example](docs/examples/azure-devops-free.md) — Free tier with Ollama
+- [Roadmap](docs/reference/roadmap.md) — Platform support status
 
 ### Using with OSCR (Self-Hosted CI)
 
-- [OSCR Integration](docs/OSCR-INTEGRATION.md) — Conceptual overview
-- [Local LLM Setup](docs/LOCAL-LLM-SETUP.md) — Ollama configuration
-- [Model Provisioning](docs/MODEL-PROVISIONING.md) — Air-gap deployment
+- [OSCR Integration](docs/platforms/oscr/integration.md) — Conceptual overview
+- [Local LLM Setup](docs/platforms/oscr/local-llm-setup.md) — Ollama configuration
+- [Model Provisioning](docs/platforms/oscr/model-provisioning.md) — Air-gap deployment
 
 ### Controlling What Gets Reviewed
 
-- [Configuration Schema](docs/config-schema.md) — Passes, agents, limits, path filters, `.reviewignore`
-- [Cost Controls](docs/cost-controls.md) — Budget management
+- [Configuration Schema](docs/configuration/config-schema.md) — Passes, agents, limits, path filters, `.reviewignore`
+- [Cost Controls](docs/configuration/cost-controls.md) — Budget management
 
 ### Architecture & Security
 
-- [Architecture](docs/ARCHITECTURE.md) — Execution flow diagrams
-- [Security Model](docs/security.md) — Trust model and threat mitigation
-- [Invariants](docs/INVARIANTS.md) — Non-negotiable design constraints
-- [Scope](docs/SCOPE.md) — What this project does and doesn't do
+- [Architecture](docs/architecture/overview.md) — Execution flow diagrams
+- [Security Model](docs/architecture/security.md) — Trust model and threat mitigation
+- [Invariants](docs/architecture/invariants.md) — Non-negotiable design constraints
+- [Scope](docs/architecture/scope.md) — What this project does and doesn't do
 
 ---
 
-## How It Works
+## ⚙️ How It Works
 
 ```mermaid
 graph LR
@@ -216,7 +216,7 @@ graph LR
 
 1. **Trigger** — PR is opened or updated
 2. **Trust Check** — Fork PRs blocked by default
-3. **Filter Files** — Apply `.reviewignore` and `path_filters` exclusions (see [Architecture](docs/ARCHITECTURE.md#file-filtering) for details)
+3. **Filter Files** — Apply `.reviewignore` and `path_filters` exclusions (see [Architecture](docs/architecture/overview.md#file-filtering) for details)
 4. **Preflight** — Validates model config and API keys
 5. **Budget Check** — Enforces file, line, token, and cost limits
 6. **Static Pass** — Free tools like Semgrep run first
@@ -225,7 +225,7 @@ graph LR
 
 ---
 
-## Development
+## 🛠️ Development
 
 ```bash
 npm install                           # Install dependencies
@@ -239,17 +239,17 @@ npm run verify                        # Run all quality gates
 
 ---
 
-## Platform Support
+## 🌐 Platform Support
 
-| Platform       | Status      | Documentation                        |
-| -------------- | ----------- | ------------------------------------ |
-| GitHub Actions | ✅ Complete | [GitHub Setup](docs/github-setup.md) |
-| Azure DevOps   | ✅ Complete | [ADO Setup](docs/ADO-SETUP.md)       |
-| GitLab CI      | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
-| Gitea Actions  | 🔴 Planned  | [Roadmap](docs/ROADMAP.md)           |
+| Platform       | Status      | Documentation                                     |
+| -------------- | ----------- | ------------------------------------------------- |
+| GitHub Actions | ✅ Complete | [GitHub Setup](docs/platforms/github/setup.md)    |
+| Azure DevOps   | ✅ Complete | [ADO Setup](docs/platforms/azure-devops/setup.md) |
+| GitLab CI      | 🔴 Planned  | [Roadmap](docs/reference/roadmap.md)              |
+| Gitea Actions  | 🔴 Planned  | [Roadmap](docs/reference/roadmap.md)              |
 
 ---
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.

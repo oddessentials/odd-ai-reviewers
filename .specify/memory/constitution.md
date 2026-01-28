@@ -18,10 +18,10 @@ Follow-up TODOs:
 - None - all placeholders resolved
 
 Source documents:
-- docs/INVARIANTS.md (33 invariants → 8 principles)
-- docs/ARCHITECTURE.md (execution flow)
-- docs/security.md (trust model)
-- docs/SCOPE.md (boundaries)
+- docs/architecture/invariants.md (33 invariants → 8 principles)
+- docs/architecture/overview.md (execution flow)
+- docs/architecture/security.md (trust model)
+- docs/architecture/scope.md (boundaries)
 - NEXT_STEPS.md (documentation optimizations considered)
 ==================
 -->
@@ -222,9 +222,9 @@ Constitution versions follow semantic versioning:
 
 For development guidance, see:
 
-- `docs/INVARIANTS.md` — Detailed invariant specifications
-- `docs/ARCHITECTURE.md` — Execution flow and component relationships
-- `docs/security.md` — Trust model and threat mitigation
-- `docs/SCOPE.md` — Project boundaries
+- `docs/architecture/invariants.md` — Detailed invariant specifications
+- `docs/architecture/overview.md` — Execution flow and component relationships
+- `docs/architecture/security.md` — Trust model and threat mitigation
+- `docs/architecture/scope.md` — Project boundaries
 
 **Version**: 1.0.0 | **Ratified**: 2026-01-18 | **Last Amended**: 2026-01-27
