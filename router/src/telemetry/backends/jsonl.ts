@@ -145,8 +145,3 @@ export function createJsonlBackend(options: JsonlBackendOptions): TelemetryBacke
     },
   };
 }
-
-/**
- * Factory function for creating JSONL backend (for testability).
- */
-export type JsonlBackendFactory = (options: JsonlBackendOptions) => TelemetryBackend;

@@ -25,7 +25,7 @@ export class TelemetryHook {
    * Configures telemetry with the given settings.
    * Creates backends based on the configuration.
    */
-  configure(config: Partial<TelemetryConfig>): void {
+  async configure(config: Partial<TelemetryConfig>): Promise<void> {
     // Merge with defaults and validate
     const merged = TelemetryConfigSchema.parse({
       ...this.config,
@@ -33,11 +33,9 @@ export class TelemetryHook {
     });
 
     // Close existing backends if reconfiguring
+    // Await close() to prevent race condition - close() already clears backends
     if (this.initialized) {
-      this.emitter.close().catch(() => {
-        // Swallow close errors
-      });
-      this.emitter.clearBackends();
+      await this.emitter.close();
     }
 
     this.config = merged;

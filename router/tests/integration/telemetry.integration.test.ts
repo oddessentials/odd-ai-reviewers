@@ -48,7 +48,7 @@ describe('Telemetry Integration', () => {
   describe('Full Pipeline', () => {
     it('should emit event to JSONL file', async () => {
       // Configure with JSONL backend
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: testFilePath,
@@ -79,7 +79,7 @@ describe('Telemetry Integration', () => {
     });
 
     it('should emit multiple events', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: testFilePath,
@@ -105,7 +105,7 @@ describe('Telemetry Integration', () => {
     });
 
     it('should not emit when disabled', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: false,
         backends: ['jsonl'],
         jsonl_path: testFilePath,
@@ -125,7 +125,7 @@ describe('Telemetry Integration', () => {
     });
 
     it('should support console backend (no errors)', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['console'],
         verbosity: 'minimal',
@@ -138,7 +138,7 @@ describe('Telemetry Integration', () => {
     });
 
     it('should support multiple backends', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['console', 'jsonl'],
         jsonl_path: testFilePath,
@@ -157,7 +157,7 @@ describe('Telemetry Integration', () => {
 
   describe('Verbosity Levels', () => {
     it('should respect minimal verbosity', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: testFilePath,
@@ -180,7 +180,7 @@ describe('Telemetry Integration', () => {
     });
 
     it('should respect verbose verbosity', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: testFilePath,
@@ -261,7 +261,7 @@ describe('Telemetry Integration', () => {
 
   describe('Error Handling', () => {
     it('should handle invalid JSONL path gracefully', async () => {
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: '/nonexistent/deeply/nested/path/file.jsonl',
@@ -276,7 +276,7 @@ describe('Telemetry Integration', () => {
 
     it('should continue after reconfiguration', async () => {
       // First config - use console to avoid file complications
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['console'],
         verbosity: 'minimal',
@@ -289,7 +289,7 @@ describe('Telemetry Integration', () => {
       await closeTelemetry();
 
       // Reconfigure with jsonl
-      configureTelemetry({
+      await configureTelemetry({
         enabled: true,
         backends: ['jsonl'],
         jsonl_path: testFilePath,

@@ -118,18 +118,18 @@ export function parseEnvConfig(): Partial<TelemetryConfig> {
  *
  * @param config - Telemetry configuration
  */
-export function configureTelemetry(config: Partial<TelemetryConfig>): void {
-  getGlobalHook().configure(config);
+export async function configureTelemetry(config: Partial<TelemetryConfig>): Promise<void> {
+  await getGlobalHook().configure(config);
 }
 
 /**
  * Configures telemetry from environment variables.
  * Convenience function that parses env vars and applies config.
  */
-export function configureFromEnv(): void {
+export async function configureFromEnv(): Promise<void> {
   const config = parseEnvConfig();
   if (Object.keys(config).length > 0) {
-    configureTelemetry(config);
+    await configureTelemetry(config);
   }
 }
 
