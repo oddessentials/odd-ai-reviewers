@@ -19,8 +19,7 @@ import type {
   ControlFlowConfig,
 } from './types.js';
 import type { ControlFlowGraphRuntime } from './cfg-types.js';
-import type { PathAnalysisResult } from './path-analyzer.js';
-import { createPathAnalyzer } from './path-analyzer.js';
+import { type PathAnalysisResult, type PathAnalyzer, createPathAnalyzer } from './path-analyzer.js';
 import { createHash } from 'crypto';
 
 // =============================================================================

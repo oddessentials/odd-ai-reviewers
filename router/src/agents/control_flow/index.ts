@@ -141,10 +141,6 @@ export const controlFlowAgent: ReviewAgent = {
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: finalStats.filesAnalyzed,
-          filesSkipped: finalStats.filesSkipped,
-          linesAnalyzed: finalStats.linesAnalyzed,
-          budgetStatus: finalStats.status,
-          degraded: finalStats.degraded,
         },
       };
     } catch (error) {
