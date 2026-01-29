@@ -76,24 +76,24 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add error code reference table (FR-006):
+- [x] T011 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add error code reference table (FR-006):
   - TF401027 with message pattern and resolution
   - TF401444 with message pattern and resolution
   - 403 PullRequestThread errors with resolution
   - 401 general authorization errors with resolution
   - Git Repositories authorization errors with resolution
 
-- [ ] T012 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add detailed resolution steps for TF401027:
+- [x] T012 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add detailed resolution steps for TF401027:
   - Expand existing content with step-by-step fix
   - Reference verification checklist from Section 4
   - Add common cause explanation
 
-- [ ] T013 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add TF401444 resolution:
+- [x] T013 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add TF401444 resolution:
   - Add new subsection for first-login-required error
   - Include PAT scope requirements
   - Add directory synchronization wait time guidance
 
-- [ ] T014 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add REST API error resolutions:
+- [x] T014 [US2] In docs/platforms/azure-devops/setup.md Troubleshooting section, add REST API error resolutions:
   - 403 Unauthorized for PullRequestThread
   - 401 general authorization
   - Include token format guidance (Bearer vs Basic)

@@ -242,38 +242,126 @@ The router uses these ADO environment variables (automatically set by Azure Pipe
 
 ## Troubleshooting
 
-### Comments not appearing
+### Permission Error Reference
 
-1. Verify `System.AccessToken` is available in the pipeline
-2. Check Build Service has **Contribute to pull requests** permission (see [Configure Repository Permissions](#4-configure-repository-permissions))
-3. Review pipeline logs for `[ado]` entries
+| Error Code | Message Pattern                                        | Resolution                          |
+| ---------- | ------------------------------------------------------ | ----------------------------------- |
+| TF401027   | "You need the Git 'PullRequestContribute' permission"  | Grant both Contribute permissions   |
+| TF401027   | "You need the Git 'GenericContribute' permission"      | Grant "Contribute" permission       |
+| TF401444   | "Please sign-in at least once as [user]"               | Identity needs first web login      |
+| 403        | "Unauthorized" when calling `pullRequests/.../threads` | Check token scope and permissions   |
+| 401        | "Unauthorized" or "Invalid credentials"                | Verify Authorization header format  |
+| 401/403    | "You are not authorized to access this Git repository" | Add identity to repository security |
 
-### 403 PullRequestContribute Error
+### TF401027 - Permission Required
 
 ```
-Failed to create summary thread: 403 TF401027: You need the Git 'PullRequestContribute' permission
+TF401027: You need the Git 'PullRequestContribute' permission to perform this action.
+TF401027: You need the Git 'GenericContribute' permission to perform this action.
 ```
 
-This means the Build Service identity doesn't have permission to comment on PRs:
+**Root Cause**: Build service identity lacks required permissions for PR commenting.
 
-1. Go to **Project Settings** → **Repositories** → **[Your Repo]** → **Security**
-2. Find `[Project] Build Service ([Org])`
-3. Set **"Contribute to pull requests"** to **Allow**
+**Resolution**:
+
+1. Go to **Project Settings** → **Repositories** → **Security**
+2. Search for your pipeline identity (see [Identify Your Pipeline Identity](#identify-your-pipeline-identity))
+3. Set **"Contribute"** to **Allow**
+4. Set **"Contribute to pull requests"** to **Allow**
+5. Check for "Inherited Deny" blocking access - if present, fix at project level
+6. Re-run the pipeline
+
+> [!TIP]
+> Use the [Verification Checklist](#verification-checklist) to confirm permissions are correctly configured.
+
+### TF401444 - First Login Required
+
+```
+TF401444: Please sign-in at least once as [{user}] in a web browser to enable access to the service.
+```
+
+**Root Cause**: The identity has never authenticated via browser, which is required for initial account activation.
+
+**Resolution**:
+
+1. Sign in to Azure DevOps via web browser at least once with the identity
+2. For PAT-based auth: Verify PAT is created with "Code (Read & Write)" scope
+3. Wait 5-7 minutes for directory synchronization to complete
 4. Re-run the pipeline
 
-> [!NOTE]
-> Commit status updates may still work even when PR comments fail, because they require different permissions.
+**Common with**:
 
-### Authentication errors
+- Newly created service accounts
+- Service principals that have never interacted with Azure DevOps
+- PATs created for accounts that haven't logged in recently
+
+### 403 Unauthorized - PullRequestThread
 
 ```
-Failed to start build status: 401 Unauthorized
+403 Unauthorized when calling POST /_apis/git/repositories/{repo}/pullRequests/{pr}/threads
 ```
 
-- Verify the pipeline has access to the target repository
-- Check if cross-organization access is needed (use `AZURE_DEVOPS_PAT`)
+**Root Causes**:
 
-### Missing PR context
+- Token lacks "Contribute to pull requests" permission
+- Token expired (`SYSTEM_ACCESSTOKEN` is job-scoped with ~60 minute lifetime)
+- Job authorization scope restricted to current project but accessing cross-project repo
+
+**Resolution**:
+
+1. Verify both permissions are set to **Allow** (see [Verification Checklist](#verification-checklist))
+2. Check PAT has not expired (if using `AZURE_DEVOPS_PAT`)
+3. For cross-project access: Disable "Limit job authorization scope to current project" in Project Settings → Pipelines → Settings
+
+### 401 Unauthorized - General Authorization
+
+```
+401 Unauthorized
+Invalid credentials
+```
+
+**Root Causes**:
+
+- Missing Authorization header in API calls
+- Token not in correct format (Basic vs Bearer)
+- Token has expired or been revoked
+
+**Resolution**:
+
+1. Verify `SYSTEM_ACCESSTOKEN` is available in the pipeline context
+2. For PAT-based auth: Ensure Authorization header format is `Bearer {token}`
+3. Check if PAT has been revoked or expired
+4. Verify the pipeline has access to the target repository
+
+### Git Repositories Authorization Errors
+
+```
+401 Unauthorized: You are not authorized to access this Git repository
+403 Forbidden: Access denied to repository
+```
+
+**Root Causes**:
+
+- Build service not added to repository security
+- Repository inheritance is disabled and no explicit permission granted
+- Inherited Deny policy blocking access
+
+**Resolution**:
+
+1. Go to **Project Settings** → **Repositories** → **Security**
+2. Search for your pipeline identity
+3. If not found: Click **"+ Add"** and search for "Build Service"
+4. Grant required permissions at the appropriate level
+5. Check if inheritance is disabled - if so, add explicit Allow
+
+### Comments Not Appearing
+
+1. Verify `System.AccessToken` is available in the pipeline
+2. Check Build Service has **both** "Contribute" and "Contribute to pull requests" permissions
+3. Review pipeline logs for `[ado]` entries
+4. Verify the PR is not a draft (drafts may be skipped)
+
+### Missing PR Context
 
 ```
 [router] Not running in ADO PR context - skipping review
@@ -281,6 +369,7 @@ Failed to start build status: 401 Unauthorized
 
 - This is expected for push builds (not PRs)
 - Ensure the build is triggered by a pull request
+- Check `SYSTEM_PULLREQUEST_PULLREQUESTID` is set
 
 ## Local Testing
 
