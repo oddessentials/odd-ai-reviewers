@@ -438,11 +438,14 @@ const DocsViewer = {
       }
     });
 
-    // 5. Image Rewriting: Resolve relative images from parent docs dir
+    // 5. Image Rewriting: Resolve relative images from current document's location
+    // Uses the same resolvePath() logic as markdown links to handle nested documents
     container.querySelectorAll('img').forEach((img) => {
       const src = img.getAttribute('src');
       if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('/')) {
-        img.src = `${this.basePath}${src}`;
+        // Resolve path relative to current document (e.g., "../img/foo.png" from "reference/review-team.md")
+        const resolvedPath = currentFile ? this.resolvePath(currentFile, src) : src;
+        img.src = `${this.basePath}${resolvedPath}`;
       }
     });
 
