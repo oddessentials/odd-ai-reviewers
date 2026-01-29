@@ -124,13 +124,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Convert router/src/config.ts loadConfig to return Result internally with throwing wrapper
-- [ ] T044 [US3] Convert router/src/git-validators.ts validation functions to return Result internally
-- [ ] T045 [US3] Convert router/src/preflight.ts runPreflightChecks to return Result internally
-- [ ] T046 [US3] Convert router/src/trust.ts checkTrust to return Result internally
-- [ ] T047 [US3] Convert router/src/budget.ts checkBudget to return Result internally
-- [ ] T048 [US3] Add fromPromise utility for async error handling in router/src/types/result.ts
-- [ ] T049 [US3] Ensure all public exports have throwing wrappers for backward compatibility
+- [x] T043 [US3] Convert router/src/config.ts loadConfig to return Result internally with throwing wrapper (loadConfigResult returns Result, loadConfig is throwing wrapper)
+- [x] T044 [US3] Convert router/src/git-validators.ts validation functions to return Result internally (parseSafeGitRef returns Result, assertSafeGitRef/assertAndBrandGitRef are throwing wrappers)
+- [x] T045 [US3] Convert router/src/preflight.ts runPreflightChecks to return Result internally (N/A - uses PreflightResult pattern by design: {valid, errors[]})
+- [x] T046 [US3] Convert router/src/trust.ts checkTrust to return Result internally (N/A - already uses TrustResult discriminated union: {trusted, reason?})
+- [x] T047 [US3] Convert router/src/budget.ts checkBudget to return Result internally (N/A - already uses BudgetCheck discriminated union: {allowed, reason?})
+- [x] T048 [US3] Add fromPromise utility for async error handling in router/src/types/result.ts (implemented)
+- [x] T049 [US3] Ensure all public exports have throwing wrappers for backward compatibility (wrapThrowing/wrapThrowingAsync implemented; config/git-validators use pattern)
 
 **Checkpoint**: Result pattern used in 5+ operations with backward-compatible wrappers
 
