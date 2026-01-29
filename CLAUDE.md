@@ -51,4 +51,76 @@ Markdown documentation (no code changes): Follow standard conventions
 
 
 <!-- MANUAL ADDITIONS START -->
+
+## Type Utilities (router/src/types/)
+
+The `router/src/types/` directory contains shared type utilities for type-safe error handling and validation.
+
+### Custom Errors (errors.ts)
+
+Four error categories with canonical wire format for serialization:
+
+- `ConfigError` - Configuration validation failures (CONFIG_* codes)
+- `AgentError` - Agent execution failures (AGENT_* codes)
+- `NetworkError` - API/network failures (NETWORK_* codes)
+- `ValidationError` - Input validation failures (VALIDATION_* codes)
+
+Usage:
+```typescript
+import { ConfigError, ConfigErrorCode } from './types/errors.js';
+
+throw new ConfigError('Invalid config', ConfigErrorCode.INVALID_SCHEMA, {
+  path: configPath,
+  field: 'passes',
+});
+```
+
+### Result Type (result.ts)
+
+Discriminated union for explicit error handling:
+
+```typescript
+import { Ok, Err, isOk, match } from './types/result.js';
+
+function parseConfig(input: string): Result<Config, ValidationError> {
+  // ... returns Ok(config) or Err(error)
+}
+
+const result = parseConfig(input);
+if (isOk(result)) {
+  console.log(result.value); // TypeScript knows value exists
+}
+```
+
+### Branded Types (branded.ts)
+
+Compile-time validation guarantees:
+
+- `SafeGitRef` - Validated git reference (no shell injection)
+- `ValidatedConfig<T>` - Configuration that passed Zod validation
+- `CanonicalPath` - Normalized, validated file path
+
+```typescript
+import { SafeGitRefHelpers } from './types/branded.js';
+
+const result = SafeGitRefHelpers.parse(userInput);
+if (isOk(result)) {
+  checkoutBranch(result.value); // Guaranteed safe
+}
+```
+
+### assertNever (assert-never.ts)
+
+Exhaustive switch enforcement:
+
+```typescript
+import { assertNever } from './types/assert-never.js';
+
+switch (status) {
+  case 'success': return handleSuccess();
+  case 'failure': return handleFailure();
+  default: assertNever(status); // Compile error if case missing
+}
+```
+
 <!-- MANUAL ADDITIONS END -->

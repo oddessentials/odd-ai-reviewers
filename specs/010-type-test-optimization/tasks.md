@@ -213,14 +213,16 @@
 
 **Independent Test**: Create switch on AgentResult; verify compile error if case missing
 
+**⚠️ PLANNING REQUIRED**: This phase requires careful planning as it affects 16 files and changes a core interface. Recommend implementing in a separate PR to minimize risk.
+
 ### Tests for User Story 7
 
-- [ ] T076 [P] [US7] Unit test for AgentResult discriminated union in router/src/\_\_tests\_\_/agents/types.test.ts
-- [ ] T077 [P] [US7] Unit test for assertNever enforcement in router/src/\_\_tests\_\_/types/assert-never.test.ts
+- [ ] T076 [P] [US7] Unit test for AgentResult discriminated union in router/src/\_\_tests\_\_/agents/types.test.ts (BLOCKED: requires T078 first)
+- [x] T077 [P] [US7] Unit test for assertNever enforcement in router/src/\_\_tests\_\_/types/assert-never.test.ts (6 tests exist)
 
 ### Implementation for User Story 7
 
-- [ ] T078 [US7] Refactor AgentResult in router/src/agents/types.ts to use discriminated union with status field
+- [ ] T078 [US7] Refactor AgentResult in router/src/agents/types.ts to use discriminated union with status field (REQUIRES PLANNING: affects 16 files)
 - [ ] T079 [US7] Add AgentSuccess, AgentFailure, AgentSkipped constructors in router/src/agents/types.ts
 - [ ] T080 [US7] Update all agent implementations to return new AgentResult variants
 - [ ] T081 [US7] Update router/src/phases/execute.ts to use assertNever in switch on AgentResult
@@ -235,14 +237,14 @@
 
 **Purpose**: Record<string, unknown> migration, Zod enforcement, final validation
 
-- [ ] T084 [P] Migrate Finding.metadata from Record<string, unknown> to typed schema in router/src/agents/types.ts
-- [ ] T085 [P] Migrate AgentContext.env from Record<string, unknown> to typed helpers in router/src/agents/types.ts
-- [ ] T086 Add compile-time type tests for Zod schema consistency in router/src/\_\_tests\_\_/types/schema-consistency.test.ts
-- [ ] T087 Audit all z.infer<> usages; remove any hand-duplicated interfaces
-- [ ] T088 Run full test suite and verify all 58+ existing tests still pass
-- [ ] T089 Run coverage report and verify overall coverage >= 45%
-- [ ] T090 Validate quickstart.md examples compile and work correctly
-- [ ] T091 Update CLAUDE.md with new types/ documentation
+- [ ] T084 [P] Migrate Finding.metadata from Record<string, unknown> to typed schema in router/src/agents/types.ts (lower priority - current pattern works)
+- [ ] T085 [P] Migrate AgentContext.env from Record<string, unknown> to typed helpers in router/src/agents/types.ts (lower priority - current pattern works)
+- [ ] T086 Add compile-time type tests for Zod schema consistency in router/src/\_\_tests\_\_/types/schema-consistency.test.ts (N/A - inference tests in inference.test.ts cover this)
+- [x] T087 Audit all z.infer<> usages; remove any hand-duplicated interfaces (verified - all types derive from Zod schemas)
+- [x] T088 Run full test suite and verify all 58+ existing tests still pass (1819 tests pass)
+- [x] T089 Run coverage report and verify overall coverage >= 45% (77.59% achieved)
+- [x] T090 Validate quickstart.md examples compile and work correctly (10 tests in quickstart-validation.test.ts)
+- [x] T091 Update CLAUDE.md with new types/ documentation (added Type Utilities section)
 
 ---
 
