@@ -25,10 +25,10 @@
 
 **Purpose**: Create new types/ directory structure and foundational utilities
 
-- [ ] T001 Create types directory structure at router/src/types/
-- [ ] T002 [P] Create assertNever utility in router/src/types/assert-never.ts per data-model.md
-- [ ] T003 [P] Create test utilities for hermetic tests in router/src/\_\_tests\_\_/test-utils/hermetic.ts
-- [ ] T004 [P] Add CI toolchain version check step to .github/workflows/ci.yml per research.md R-009
+- [x] T001 Create types directory structure at router/src/types/
+- [x] T002 [P] Create assertNever utility in router/src/types/assert-never.ts per data-model.md
+- [x] T003 [P] Create test utilities for hermetic tests in router/src/\_\_tests\_\_/test-utils/hermetic.ts
+- [x] T004 [P] Add CI toolchain version check step to .github/workflows/ci.yml per research.md R-009
 
 ---
 
@@ -38,16 +38,16 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Implement ErrorWireFormatSchema Zod schema in router/src/types/errors.ts per data-model.md
-- [ ] T006 Implement BaseError abstract class in router/src/types/errors.ts with toWireFormat() and fromWireFormat()
-- [ ] T007 [P] Implement ConfigError class in router/src/types/errors.ts with CONFIG\_ code prefix
-- [ ] T008 [P] Implement AgentError class in router/src/types/errors.ts with AGENT\_ code prefix
-- [ ] T009 [P] Implement NetworkError class in router/src/types/errors.ts with NETWORK\_ code prefix
-- [ ] T010 [P] Implement ValidationError class in router/src/types/errors.ts with VALIDATION\_ code prefix
-- [ ] T011 Implement Result type and utilities (Ok, Err, isOk, isErr, map, flatMap, match) in router/src/types/result.ts per contracts/result.ts
-- [ ] T012 Implement wrapThrowing and wrapThrowingAsync utilities in router/src/types/result.ts for backward compatibility
-- [ ] T013 Implement Brand generic type and createBrandHelpers factory in router/src/types/branded.ts per contracts/branded.ts
-- [ ] T014 Create types/index.ts barrel export in router/src/types/index.ts
+- [x] T005 Implement ErrorWireFormatSchema Zod schema in router/src/types/errors.ts per data-model.md
+- [x] T006 Implement BaseError abstract class in router/src/types/errors.ts with toWireFormat() and fromWireFormat()
+- [x] T007 [P] Implement ConfigError class in router/src/types/errors.ts with CONFIG\_ code prefix
+- [x] T008 [P] Implement AgentError class in router/src/types/errors.ts with AGENT\_ code prefix
+- [x] T009 [P] Implement NetworkError class in router/src/types/errors.ts with NETWORK\_ code prefix
+- [x] T010 [P] Implement ValidationError class in router/src/types/errors.ts with VALIDATION\_ code prefix
+- [x] T011 Implement Result type and utilities (Ok, Err, isOk, isErr, map, flatMap, match) in router/src/types/result.ts per contracts/result.ts
+- [x] T012 Implement wrapThrowing and wrapThrowingAsync utilities in router/src/types/result.ts for backward compatibility
+- [x] T013 Implement Brand generic type and createBrandHelpers factory in router/src/types/branded.ts per contracts/branded.ts
+- [x] T014 Create types/index.ts barrel export in router/src/types/index.ts
 
 **Checkpoint**: Foundation ready - all type utilities available for user story implementation
 
