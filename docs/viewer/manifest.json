@@ -57,6 +57,11 @@
           "name": "index.md",
           "type": "file",
           "path": "../configuration/index.md"
+        },
+        {
+          "name": "team-configurations.md",
+          "type": "file",
+          "path": "../configuration/team-configurations.md"
         }
       ]
     },
@@ -282,6 +287,11 @@
       "name": "configuration/index.md",
       "type": "file",
       "path": "../configuration/index.md"
+    },
+    {
+      "name": "configuration/team-configurations.md",
+      "type": "file",
+      "path": "../configuration/team-configurations.md"
     },
     {
       "name": "examples/azure-devops-enterprise.md",

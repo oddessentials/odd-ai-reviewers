@@ -112,3 +112,53 @@ Meet the AI-powered code review team that helps maintain code quality, security,
     </td>
   </tr>
 </table>
+
+---
+
+# Stats
+
+### 🧠 **Ollama — The Local AI Engine**
+
+- Foundation layer
+- Runs LLMs locally
+- Privacy-preserving, deterministic-friendly inference
+- Powers AI reasoning without code leaving the environment
+
+### 🧑‍💻 **OpenCode — The AI Coding Assistant**
+
+- Deep code understanding
+- Refactors, explains, suggests improvements
+- Provides developer-centric insights during review
+- Activated _within_ the review pipeline, not as a standalone IDE toy
+
+### 🐺 **PR Agent — The Code Review Commander**
+
+- Orchestrates PR-level review flow
+- Generates summaries, descriptions, and actionable review comments
+- Owns the PR interaction surface
+- Context-aware and automation-first
+
+### 🦊 **Review Dog — The Linter Liaison**
+
+- Bridges deterministic tooling → PR comments
+- Converts linters/tests into inline feedback
+- Multi-language, multi-tool glue
+- Keeps mechanical feedback fast, cheap, and precise
+
+### 🛡 **Semgrep — The Security Sentinel**
+
+- Static analysis and semantic security scanning
+- Catches vulnerabilities, insecure patterns, and policy violations
+- Deterministic signal that complements LLM reasoning
+- First-line defense for security posture
+
+---
+
+## Why odd-ai-reviewers
+
+- This is **not** a single AI reviewer
+- This is a **team**, each member with a clear specialty
+- Tools are intentionally _composed_, not duplicated
+- The value is the **pre-configured, battle-tested integration**
+- Outcome:
+  **One cohesive workflow → comprehensive, layered, AI-assisted code review**
