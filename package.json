@@ -12,7 +12,7 @@
     "build": "pnpm --filter router build",
     "test": "pnpm --filter router test",
     "test:ci": "pnpm --filter router test:ci",
-    "test:docs-viewer": "vitest run tests/docs-viewer/ --reporter=verbose",
+    "test:docs-viewer": "pnpm exec vitest run tests/docs-viewer/ --reporter=verbose",
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",
     "format": "prettier --write .",

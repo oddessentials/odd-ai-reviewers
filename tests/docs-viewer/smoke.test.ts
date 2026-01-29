@@ -72,7 +72,7 @@ describe('Documentation Dev Server', () => {
 
     afterAll(async () => {
       if (server) {
-        server.kill('SIGTERM');
+        server.kill();
         await setTimeout(200); // Give server time to clean up
       }
     });
@@ -159,7 +159,7 @@ describe('Documentation Dev Server', () => {
 
     afterAll(async () => {
       if (server) {
-        server.kill('SIGTERM');
+        server.kill();
         await setTimeout(200);
       }
     });

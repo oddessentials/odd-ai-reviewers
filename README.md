@@ -20,7 +20,7 @@
 
 ## 👋 Meet the Team
 
-![Meet the Team](docs/img/odd-ai-reviewers-trailer.gif)
+[![Meet the Team](docs/img/odd-ai-reviewers-trailer.gif)](docs/reference/review-team.md)
 
 **[Click here to meet the AI-powered code review team →](docs/reference/review-team.md)**
 
