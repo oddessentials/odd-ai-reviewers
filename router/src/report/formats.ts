@@ -281,15 +281,74 @@ export function generateAgentStatusTable(
 }
 
 /**
+ * Render partial findings section (T021)
+ *
+ * FR-007: Partial findings from failed agents are rendered in a dedicated section
+ * with clear provenance indicators. These findings are advisory and NOT used for gating.
+ */
+export function renderPartialFindingsSection(partialFindings: Finding[]): string {
+  if (partialFindings.length === 0) {
+    return '';
+  }
+
+  const counts = countBySeverity(partialFindings);
+  const grouped = groupByFile(partialFindings);
+
+  const lines: string[] = [
+    '',
+    '## ⚠️ Partial Findings (from failed agents)',
+    '',
+    '> **Note:** These findings are from agents that did not complete successfully.',
+    '> They may be incomplete and are shown for informational purposes only.',
+    '> **Partial findings do NOT affect gating decisions.**',
+    '',
+    `| Severity | Count |`,
+    `|----------|-------|`,
+    `| 🔴 Errors | ${counts.error} |`,
+    `| 🟡 Warnings | ${counts.warning} |`,
+    `| 🔵 Info | ${counts.info} |`,
+    '',
+  ];
+
+  for (const [file, fileFindings] of grouped) {
+    lines.push(`#### \`${file}\``);
+    lines.push('');
+
+    for (const finding of fileFindings) {
+      const emoji =
+        finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
+      const lineInfo = finding.line ? ` (line ${finding.line})` : '';
+      const agent = finding.sourceAgent ? ` [${finding.sourceAgent}]` : '';
+
+      lines.push(`- ${emoji}${lineInfo}${agent}: ${finding.message}`);
+
+      if (finding.suggestion) {
+        lines.push(`  - 💡 Suggestion: ${finding.suggestion}`);
+      }
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Generate complete summary markdown with agent status table
+ *
+ * (012-fix-agent-result-regressions) - Updated to include partial findings section
  */
 export function generateFullSummaryMarkdown(
   findings: Finding[],
+  partialFindings: Finding[],
   results: { agentId: string; success: boolean; findings: unknown[]; error?: string }[],
   skipped: SkippedAgent[]
 ): string {
-  // Start with the findings summary
+  // Start with the findings summary (complete findings)
   let summary = generateSummaryMarkdown(findings);
+
+  // Add partial findings section if any exist
+  summary += renderPartialFindingsSection(partialFindings);
 
   // Append agent status table
   summary += generateAgentStatusTable(results, skipped);

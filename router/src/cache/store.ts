@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlink
 import { join } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
+import { AgentResultSchema } from '../agents/types.js';
 import { AI_REVIEW_CACHE_PATH, CACHE_KEY_PREFIX, generateRestoreKeyPrefix } from './key.js';
 import { buildRouterEnv } from '../agents/security.js';
 
@@ -58,6 +59,23 @@ function getCacheFilePath(key: string): string {
 }
 
 /**
+ * Validate a cached result against AgentResultSchema
+ *
+ * (012-fix-agent-result-regressions) - Validates cache entries to handle:
+ * - Legacy cache entries (success: boolean format) → return null (cache miss)
+ * - Malformed/corrupted entries → return null (cache miss)
+ * - New-format entries (status: 'success'|'failure'|'skipped') → return result
+ */
+function validateCachedResult(result: unknown): AgentResult | null {
+  const parseResult = AgentResultSchema.safeParse(result);
+  if (!parseResult.success) {
+    // Legacy or malformed cache entry - treat as cache miss
+    return null;
+  }
+  return parseResult.data;
+}
+
+/**
  * Get a cached result
  */
 export async function getCached(key: string): Promise<AgentResult | null> {
@@ -65,10 +83,18 @@ export async function getCached(key: string): Promise<AgentResult | null> {
   const memEntry = memoryCache.get(key);
   if (memEntry) {
     if (new Date(memEntry.expiresAt) > new Date()) {
-      console.log(`[cache] Memory hit: ${key}`);
-      return memEntry.result;
+      // Validate the cached result (012-fix-agent-result-regressions)
+      const validated = validateCachedResult(memEntry.result);
+      if (validated) {
+        console.log(`[cache] Memory hit: ${key}`);
+        return validated;
+      }
+      // Invalid format - treat as cache miss
+      console.log(`[cache] Memory entry invalid format, treating as miss: ${key}`);
+      memoryCache.delete(key);
+    } else {
+      memoryCache.delete(key);
     }
-    memoryCache.delete(key);
   }
 
   // Check file cache
@@ -79,10 +105,18 @@ export async function getCached(key: string): Promise<AgentResult | null> {
       const entry = JSON.parse(content) as CacheEntry;
 
       if (new Date(entry.expiresAt) > new Date()) {
-        console.log(`[cache] File hit: ${key}`);
-        // Populate memory cache
-        memoryCache.set(key, entry);
-        return entry.result;
+        // Validate the cached result (012-fix-agent-result-regressions)
+        const validated = validateCachedResult(entry.result);
+        if (validated) {
+          console.log(`[cache] File hit: ${key}`);
+          // Populate memory cache with validated result
+          memoryCache.set(key, { ...entry, result: validated });
+          return validated;
+        }
+        // Invalid format - treat as cache miss (remove stale file)
+        console.log(`[cache] File entry invalid format, treating as miss: ${key}`);
+        unlinkSync(filePath);
+        return null;
       }
 
       // Expired, remove file

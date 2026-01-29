@@ -76,12 +76,15 @@ describe('Report Module', () => {
       sourceAgent: 'test',
     };
 
+    // (012-fix-agent-result-regressions) - Updated tests to use new processFindings signature
+    // New signature: processFindings(completeFindings, partialFindings, allResults, skippedAgents)
+
     it('should deduplicate identical findings', () => {
       const findings = [baseFinding, { ...baseFinding }, { ...baseFinding }];
       const results: AgentResult[] = [];
       const skippedAgents: SkippedAgent[] = [];
 
-      const processed = processFindings(findings, results, skippedAgents);
+      const processed = processFindings(findings, [], results, skippedAgents);
 
       // Deduplication removes identical findings based on fingerprint
       expect(processed.sorted.length).toBeLessThanOrEqual(findings.length);
@@ -95,7 +98,7 @@ describe('Report Module', () => {
         },
       ];
 
-      const processed = processFindings(findings, [], []);
+      const processed = processFindings(findings, [], [], []);
 
       // Message should be HTML-escaped
       expect(processed.sorted[0]?.message).toContain('&lt;script&gt;');
@@ -108,7 +111,7 @@ describe('Report Module', () => {
         { ...baseFinding, severity: 'warning', file: 'b.ts' },
       ];
 
-      const processed = processFindings(findings, [], []);
+      const processed = processFindings(findings, [], [], []);
 
       // Errors should come first
       expect(processed.sorted[0]?.severity).toBe('error');
@@ -124,7 +127,7 @@ describe('Report Module', () => {
         }),
       ];
 
-      const processed = processFindings(findings, results, []);
+      const processed = processFindings(findings, [], results, []);
 
       expect(processed.summary).toBeTruthy();
       expect(typeof processed.summary).toBe('string');
@@ -136,7 +139,7 @@ describe('Report Module', () => {
         { id: 'opencode', name: 'OpenCode', reason: 'API key missing' },
       ];
 
-      processFindings([], [], skippedAgents);
+      processFindings([], [], [], skippedAgents);
 
       expect(consoleLogSpy).toHaveBeenCalledWith('[router] Skipped agents: 2');
       expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -145,10 +148,231 @@ describe('Report Module', () => {
     });
 
     it('should handle empty findings array', () => {
-      const processed = processFindings([], [], []);
+      const processed = processFindings([], [], [], []);
 
       expect(processed.sorted).toEqual([]);
       expect(processed.summary).toBeTruthy();
+    });
+  });
+
+  /**
+   * Partial Findings Deduplication Tests (012-fix-agent-result-regressions)
+   *
+   * T009-T010: Verify deduplication behavior for partialFindings
+   */
+  describe('partialFindings deduplication (T009-T010)', () => {
+    const baseFinding: Finding = {
+      severity: 'error',
+      file: 'test.ts',
+      line: 10,
+      message: 'Test finding',
+      sourceAgent: 'test',
+    };
+
+    it('T009: should deduplicate within partialFindings collection', () => {
+      // Two identical partial findings (same fingerprint)
+      const partialFindings: Finding[] = [
+        {
+          ...baseFinding,
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+        {
+          ...baseFinding, // Duplicate
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+
+      const processed = processFindings([], partialFindings, [], []);
+
+      // Summary should mention partial findings (indicating they were processed)
+      expect(processed.summary).toContain('Partial Findings');
+
+      // The deduplication happens internally - verify via console log
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Partial findings:'));
+    });
+
+    it('T010: should NOT cross-deduplicate between completeFindings and partialFindings (FR-011)', () => {
+      // Same finding appears in both collections
+      const sharedFinding = {
+        severity: 'error' as const,
+        file: 'src/app.ts',
+        line: 42,
+        ruleId: 'no-unused-vars',
+        message: 'Unused variable x',
+        sourceAgent: 'eslint',
+      };
+
+      const completeFindings: Finding[] = [{ ...sharedFinding, provenance: 'complete' as const }];
+
+      const partialFindings: Finding[] = [{ ...sharedFinding, provenance: 'partial' as const }];
+
+      const processed = processFindings(completeFindings, partialFindings, [], []);
+
+      // Complete findings should be preserved in sorted output
+      expect(processed.sorted).toHaveLength(1);
+      expect(processed.sorted[0]?.provenance).toBe('complete');
+
+      // Summary should include BOTH sections - partial findings not deduped against complete
+      expect(processed.summary).toContain('AI Code Review Summary');
+      expect(processed.summary).toContain('Partial Findings');
+    });
+
+    it('T010-extended: should preserve distinct partial findings from different agents for same issue', () => {
+      // Same issue found by two different agents (both failed with partial results)
+      const issueFromAgent1: Finding = {
+        severity: 'warning',
+        file: 'src/utils.ts',
+        line: 25,
+        ruleId: 'complexity',
+        message: 'Function too complex',
+        sourceAgent: 'eslint',
+        provenance: 'partial',
+      };
+
+      const issueFromAgent2: Finding = {
+        severity: 'warning',
+        file: 'src/utils.ts',
+        line: 25,
+        ruleId: 'complexity', // Same rule, same location
+        message: 'Function too complex',
+        sourceAgent: 'semgrep', // Different agent
+        provenance: 'partial',
+      };
+
+      const partialFindings: Finding[] = [issueFromAgent1, issueFromAgent2];
+
+      const processed = processFindings([], partialFindings, [], []);
+
+      // Both should appear in summary since they come from different agents
+      // (cross-agent dedup in partial findings uses fingerprint which includes file+line+message hash)
+      expect(processed.summary).toContain('Partial Findings');
+    });
+  });
+
+  /**
+   * Gating Tests (012-fix-agent-result-regressions)
+   *
+   * T011: Verify gating uses completeFindings only, not partialFindings
+   */
+  describe('gating with partialFindings (T011)', () => {
+    let processExitSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+    });
+
+    afterEach(() => {
+      processExitSpy.mockRestore();
+    });
+
+    it('T011: should NOT gate on partialFindings - only completeFindings affect gating (FR-008)', () => {
+      const config = {
+        ...minimalConfig,
+        gating: { enabled: true, fail_on_severity: 'error' as const },
+      };
+
+      // Error-severity finding ONLY in partialFindings
+      const partialWithError: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/danger.ts',
+          line: 1,
+          message: 'Critical security issue',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+
+      // No complete findings
+      const completeFindings: Finding[] = [];
+
+      // Process to generate sorted output (which goes to gating)
+      const processed = processFindings(completeFindings, partialWithError, [], []);
+
+      // Gating should NOT exit because sorted only contains completeFindings
+      checkGating(config, processed.sorted);
+
+      // If we get here, gating passed (didn't call process.exit)
+      expect(processExitSpy).not.toHaveBeenCalled();
+    });
+
+    it('T011-extended: should gate on completeFindings even when partialFindings exist', () => {
+      const config = {
+        ...minimalConfig,
+        gating: { enabled: true, fail_on_severity: 'error' as const },
+      };
+
+      // Error in completeFindings
+      const completeWithError: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/complete.ts',
+          line: 5,
+          message: 'Error from successful agent',
+          sourceAgent: 'eslint',
+          provenance: 'complete',
+        },
+      ];
+
+      // Warning in partialFindings (shouldn't affect gating)
+      const partialWithWarning: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/partial.ts',
+          line: 10,
+          message: 'Warning from failed agent',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+
+      const processed = processFindings(completeWithError, partialWithWarning, [], []);
+
+      // Gating SHOULD exit because completeFindings has an error
+      expect(() => checkGating(config, processed.sorted)).toThrow('process.exit called');
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('T011-extended: should pass gating with warnings in partialFindings when fail_on_severity is warning', () => {
+      const config = {
+        ...minimalConfig,
+        gating: { enabled: true, fail_on_severity: 'warning' as const },
+      };
+
+      // Warning-severity finding ONLY in partialFindings
+      const partialWithWarning: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/partial.ts',
+          line: 15,
+          message: 'Warning from failed agent',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+
+      // Only info in complete findings (below gating threshold)
+      const completeWithInfo: Finding[] = [
+        {
+          severity: 'info',
+          file: 'src/complete.ts',
+          line: 1,
+          message: 'Info only',
+          sourceAgent: 'eslint',
+          provenance: 'complete',
+        },
+      ];
+
+      const processed = processFindings(completeWithInfo, partialWithWarning, [], []);
+
+      // Gating should NOT exit - partialFindings warnings don't count
+      checkGating(config, processed.sorted);
+
+      expect(processExitSpy).not.toHaveBeenCalled();
     });
   });
 

@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import {
   SafeGitRefHelpers,
@@ -427,6 +428,121 @@ describe('Branded Types', () => {
 
       const invalidResult = PositiveHelpers.parse(-5);
       expect(isErr(invalidResult)).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // BrandHelpers.is() Consistency Tests (012-fix-agent-result-regressions)
+  // FR-006, FR-009: Verify is() and parse() always agree
+  // ============================================================================
+
+  describe('BrandHelpers.is() consistency (012-fix-agent-result-regressions)', () => {
+    describe('T033: is() returns false for forbidden patterns', () => {
+      it('should return false for path traversal pattern', () => {
+        expect(SafeGitRefHelpers.is('refs/../main')).toBe(false);
+      });
+
+      it('should return false for shell injection attempts', () => {
+        expect(SafeGitRefHelpers.is('$(whoami)')).toBe(false);
+        expect(SafeGitRefHelpers.is('branch`id`')).toBe(false);
+        expect(SafeGitRefHelpers.is('ref;echo pwned')).toBe(false);
+      });
+
+      it('should return false for leading dash (option injection)', () => {
+        expect(SafeGitRefHelpers.is('-malicious')).toBe(false);
+      });
+    });
+
+    describe('T034: is() returns true for valid inputs', () => {
+      it('should return true for simple branch names', () => {
+        expect(SafeGitRefHelpers.is('main')).toBe(true);
+        expect(SafeGitRefHelpers.is('develop')).toBe(true);
+      });
+
+      it('should return true for feature branches', () => {
+        expect(SafeGitRefHelpers.is('feature/my-branch')).toBe(true);
+        expect(SafeGitRefHelpers.is('feature/JIRA-123')).toBe(true);
+      });
+
+      it('should return true for tag refs', () => {
+        expect(SafeGitRefHelpers.is('v1.0.0')).toBe(true);
+        expect(SafeGitRefHelpers.is('release/2.0')).toBe(true);
+      });
+    });
+
+    describe('T035: fixed wide corpus - is() agrees with parse() for all entries (FR-009)', () => {
+      // Fixed corpus covering known edge cases
+      const corpus: unknown[] = [
+        // Valid refs
+        'main',
+        'refs/heads/feature',
+        'feature/my-branch',
+        'valid/branch/name',
+        'refs/tags/v1.0.0',
+        'abc123',
+        'a',
+        // Invalid - forbidden patterns
+        'refs/../main', // Path traversal
+        'feature--name/../etc', // Embedded traversal
+        '', // Empty
+        null,
+        undefined,
+        // Length limits
+        'a'.repeat(256), // Max length - valid
+        'a'.repeat(257), // Over max - invalid
+        // Invalid start
+        '-leading-dash',
+        // Shell injection attempts
+        '$(whoami)',
+        'branch`id`',
+        'ref;echo pwned',
+        'ref|cat /etc/passwd',
+        'ref&whoami',
+        'ref$PATH',
+        // Whitespace
+        'branch with spaces',
+        'branch\ttab',
+        'branch\nnewline',
+        // Non-string types
+        123,
+        { foo: 'bar' },
+        ['array'],
+        true,
+        false,
+      ];
+
+      it.each(corpus)('is() agrees with parse() for corpus entry: %p', (input) => {
+        const isResult = SafeGitRefHelpers.is(input);
+        const parseResult = isOk(SafeGitRefHelpers.parse(input));
+        expect(isResult).toBe(parseResult);
+      });
+    });
+
+    describe('T036: fuzz loop with crypto.randomBytes - is() agrees with parse() (FR-009)', () => {
+      it('is() agrees with parse() for 100 random fuzz inputs', () => {
+        for (let i = 0; i < 100; i++) {
+          // Generate random bytes of varying lengths (0-64)
+          const length = Math.floor(Math.random() * 64);
+          const fuzzInput = randomBytes(length).toString('base64');
+
+          const isResult = SafeGitRefHelpers.is(fuzzInput);
+          const parseResult = isOk(SafeGitRefHelpers.parse(fuzzInput));
+
+          expect(isResult, `Failed for fuzz input: ${fuzzInput}`).toBe(parseResult);
+        }
+      });
+
+      it('is() agrees with parse() for random binary inputs', () => {
+        for (let i = 0; i < 50; i++) {
+          // Test with raw binary (may contain null bytes, etc.)
+          const fuzzInput = randomBytes(Math.floor(Math.random() * 32)).toString('binary');
+
+          const isResult = SafeGitRefHelpers.is(fuzzInput);
+          const parseResult = isOk(SafeGitRefHelpers.parse(fuzzInput));
+
+          expect(isResult, `Failed for binary input: ${fuzzInput}`).toBe(parseResult);
+        }
+      });
     });
   });
 });

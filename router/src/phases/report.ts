@@ -46,16 +46,27 @@ export interface ProcessedFindings {
 
 /**
  * Process findings: deduplicate, sanitize, sort, and generate summary.
+ *
+ * (012-fix-agent-result-regressions) - Updated to handle completeFindings and partialFindings
+ * separately. Partial findings are rendered in a dedicated section but NOT used for gating.
  */
 export function processFindings(
-  allFindings: Finding[],
+  completeFindings: Finding[],
+  partialFindings: Finding[],
   allResults: AgentResult[],
   skippedAgents: SkippedAgent[]
 ): ProcessedFindings {
-  const deduplicated = deduplicateFindings(allFindings);
+  // Process complete findings (from successful agents)
+  const deduplicated = deduplicateFindings(completeFindings);
   // Sanitize findings before sorting/posting (defense-in-depth)
   const sanitized = sanitizeFindings(deduplicated);
   const sorted = sortFindings(sanitized);
+
+  // Process partial findings (from failed agents) separately
+  // FR-011: No cross-collection deduplication - partial findings stay separate
+  const partialDeduplicated = deduplicateFindings(partialFindings);
+  const partialSanitized = sanitizeFindings(partialDeduplicated);
+  const partialSorted = sortFindings(partialSanitized);
 
   // Transform AgentResult[] to the format expected by generateFullSummaryMarkdown
   // This adapts the new discriminated union to the legacy format
@@ -81,11 +92,21 @@ export function processFindings(
       return assertNever(r);
     });
 
-  const summary = generateFullSummaryMarkdown(sorted, resultsForSummary, skippedAgents);
+  const summary = generateFullSummaryMarkdown(
+    sorted,
+    partialSorted,
+    resultsForSummary,
+    skippedAgents
+  );
 
   console.log(
-    `[router] Total findings: ${sorted.length} (deduplicated from ${allFindings.length})`
+    `[router] Complete findings: ${sorted.length} (deduplicated from ${completeFindings.length})`
   );
+  if (partialFindings.length > 0) {
+    console.log(
+      `[router] Partial findings: ${partialSorted.length} (deduplicated from ${partialFindings.length})`
+    );
+  }
 
   // Log skipped agents summary
   if (skippedAgents.length > 0) {
@@ -170,13 +191,17 @@ export async function dispatchReport(
 
 /**
  * Check gating and exit if blocking findings present.
+ *
+ * FR-008: Gating uses ONLY completeFindings (from successful agents).
+ * Partial findings from failed agents are rendered in reports but do NOT block merges.
+ * This ensures that agent failures don't cause unexpected CI failures.
  */
-export function checkGating(config: Config, findings: Finding[]): void {
+export function checkGating(config: Config, completeFindings: Finding[]): void {
   if (!config.gating.enabled) {
     return;
   }
 
-  const hasBlockingFindings = findings.some((f) => {
+  const hasBlockingFindings = completeFindings.some((f) => {
     if (config.gating.fail_on_severity === 'error') return f.severity === 'error';
     if (config.gating.fail_on_severity === 'warning')
       return f.severity === 'error' || f.severity === 'warning';

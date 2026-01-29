@@ -321,8 +321,10 @@ export async function runReview(
   });
 
   // === PHASE 6: Process & Report Findings ===
+  // (012-fix-agent-result-regressions) - Now passing completeFindings and partialFindings separately
   const { sorted } = processFindings(
-    executeResult.allFindings,
+    executeResult.completeFindings,
+    executeResult.partialFindings,
     executeResult.allResults,
     executeResult.skippedAgents
   );
@@ -338,6 +340,7 @@ export async function runReview(
   });
 
   // === PHASE 7: Gating ===
+  // FR-008: checkGating receives only completeFindings (sorted) - partial findings don't affect gating
   checkGating(config, sorted);
 
   console.log('[router] Review complete');

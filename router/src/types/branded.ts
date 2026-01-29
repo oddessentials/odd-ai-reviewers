@@ -146,8 +146,9 @@ export function createBrandHelpers<T, B extends string>(
     },
 
     is(value: unknown): value is Brand<T, B> {
-      // At runtime, check if value passes validation
-      return schema.safeParse(value).success;
+      // At runtime, check if value passes FULL validation including additionalValidation
+      // FR-006 (012-fix-agent-result-regressions): is() MUST agree with parse()
+      return isOk(this.parse(value));
     },
   };
 }

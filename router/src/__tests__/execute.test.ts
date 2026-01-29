@@ -151,7 +151,7 @@ describe('executeAllPasses', () => {
         { configHash: 'hash123' }
       );
 
-      expect(result.allFindings).toEqual([]);
+      expect(result.completeFindings).toEqual([]);
       expect(result.allResults).toEqual([]);
       expect(consoleLogSpy).toHaveBeenCalledWith('[router] Skipping disabled pass: disabled-pass');
     });
@@ -190,8 +190,9 @@ describe('executeAllPasses', () => {
         { configHash: 'hash123' }
       );
 
-      expect(result.allFindings).toHaveLength(1);
-      expect(result.allFindings[0]).toEqual(mockFinding);
+      expect(result.completeFindings).toHaveLength(1);
+      // FR-002: Complete findings have provenance: 'complete' added
+      expect(result.completeFindings[0]).toEqual({ ...mockFinding, provenance: 'complete' });
       expect(result.allResults).toHaveLength(1);
       expect(mockAgent.run).toHaveBeenCalled();
     });
@@ -334,8 +335,8 @@ describe('executeAllPasses', () => {
       );
 
       expect(mockAgent.run).not.toHaveBeenCalled();
-      expect(result.allFindings).toHaveLength(1);
-      expect(result.allFindings[0]?.file).toBe('cached.ts');
+      expect(result.completeFindings).toHaveLength(1);
+      expect(result.completeFindings[0]?.file).toBe('cached.ts');
       expect(consoleLogSpy).toHaveBeenCalledWith('[router] Cache hit for semgrep');
     });
 
@@ -406,6 +407,303 @@ describe('executeAllPasses', () => {
   // Note: Policy enforcement (isMainBranchPush, isAgentForbiddenOnMain) is tested in policy.test.ts
   // The integration of policy with executeAllPasses cannot be reliably unit tested due to
   // vitest module mock hoisting not working correctly with cross-directory imports.
+
+  /**
+   * Partial Findings Collection Tests (012-fix-agent-result-regressions)
+   *
+   * T006-T008: Verify that partialFindings from failed agents are correctly
+   * collected into the partialFindings array with provenance: 'partial'.
+   */
+  describe('partialFindings collection (T006-T008)', () => {
+    it('T006: should collect partialFindings from AgentResultFailure (single failure case)', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const partialFinding = {
+        severity: 'warning' as const,
+        file: 'src/partial.ts',
+        line: 42,
+        message: 'Partial finding before timeout',
+        sourceAgent: 'semgrep',
+      };
+
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Process timeout after 30s',
+          failureStage: 'exec',
+          partialFindings: [partialFinding],
+          metrics: { durationMs: 30000, filesProcessed: 5 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
+
+      const config = createConfig([
+        { name: 'security', agents: ['semgrep'], enabled: true, required: false },
+      ]);
+
+      const result = await executeAllPasses(
+        config,
+        createAgentContext(),
+        {},
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify partialFindings are collected
+      expect(result.partialFindings).toHaveLength(1);
+      expect(result.partialFindings[0]).toEqual({
+        ...partialFinding,
+        provenance: 'partial',
+      });
+
+      // Verify completeFindings is empty (no successful agents)
+      expect(result.completeFindings).toHaveLength(0);
+
+      // Verify agent is in skippedAgents
+      expect(result.skippedAgents).toHaveLength(1);
+      expect(result.skippedAgents[0]?.reason).toBe('Process timeout after 30s');
+    });
+
+    it('T007: should not add phantom findings when partialFindings array is empty', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Binary not found',
+          failureStage: 'preflight',
+          partialFindings: [], // Empty array - no partial findings
+          metrics: { durationMs: 10, filesProcessed: 0 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
+
+      const config = createConfig([
+        { name: 'security', agents: ['semgrep'], enabled: true, required: false },
+      ]);
+
+      const result = await executeAllPasses(
+        config,
+        createAgentContext(),
+        {},
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify no phantom findings are created
+      expect(result.partialFindings).toHaveLength(0);
+      expect(result.completeFindings).toHaveLength(0);
+
+      // Agent should still be in skippedAgents
+      expect(result.skippedAgents).toHaveLength(1);
+    });
+
+    it('T008: should collect partialFindings from multiple failed agents', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const semgrepPartial = {
+        severity: 'error' as const,
+        file: 'src/vuln.ts',
+        line: 10,
+        message: 'SQL injection risk',
+        sourceAgent: 'semgrep',
+      };
+
+      const reviewdogPartial = {
+        severity: 'warning' as const,
+        file: 'src/utils.ts',
+        line: 25,
+        message: 'Unused variable',
+        sourceAgent: 'reviewdog',
+      };
+
+      const prAgentPartials = [
+        {
+          severity: 'info' as const,
+          file: 'src/app.ts',
+          line: 1,
+          message: 'Consider adding docs',
+          sourceAgent: 'pr_agent',
+        },
+        {
+          severity: 'warning' as const,
+          file: 'src/app.ts',
+          line: 50,
+          message: 'Complex function',
+          sourceAgent: 'pr_agent',
+        },
+      ];
+
+      const mockSemgrep = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Timeout',
+          failureStage: 'exec',
+          partialFindings: [semgrepPartial],
+          metrics: { durationMs: 30000, filesProcessed: 3 },
+        })
+      );
+
+      const mockReviewdog = createMockAgent(
+        'reviewdog',
+        'Reviewdog',
+        false,
+        AgentFailure({
+          agentId: 'reviewdog',
+          error: 'Out of memory',
+          failureStage: 'postprocess',
+          partialFindings: [reviewdogPartial],
+          metrics: { durationMs: 15000, filesProcessed: 10 },
+        })
+      );
+
+      const mockPrAgent = createMockAgent(
+        'pr_agent',
+        'PR Agent',
+        true,
+        AgentFailure({
+          agentId: 'pr_agent',
+          error: 'API rate limit',
+          failureStage: 'exec',
+          partialFindings: prAgentPartials,
+          metrics: { durationMs: 5000, filesProcessed: 2 },
+        })
+      );
+
+      // Mock getAgentsByIds to return different agents for different passes
+      vi.mocked(getAgentsByIds)
+        .mockReturnValueOnce([mockSemgrep])
+        .mockReturnValueOnce([mockReviewdog])
+        .mockReturnValueOnce([mockPrAgent]);
+
+      const config = createConfig([
+        { name: 'security', agents: ['semgrep'], enabled: true, required: false },
+        { name: 'lint', agents: ['reviewdog'], enabled: true, required: false },
+        { name: 'ai-review', agents: ['pr_agent'], enabled: true, required: false },
+      ]);
+
+      const result = await executeAllPasses(
+        config,
+        createAgentContext(),
+        {},
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify all partialFindings from all failed agents are collected
+      expect(result.partialFindings).toHaveLength(4);
+
+      // Verify each finding has provenance: 'partial'
+      for (const finding of result.partialFindings) {
+        expect(finding.provenance).toBe('partial');
+      }
+
+      // Verify findings from each agent are present
+      const semgrepFindings = result.partialFindings.filter((f) => f.sourceAgent === 'semgrep');
+      const reviewdogFindings = result.partialFindings.filter((f) => f.sourceAgent === 'reviewdog');
+      const prAgentFindings = result.partialFindings.filter((f) => f.sourceAgent === 'pr_agent');
+
+      expect(semgrepFindings).toHaveLength(1);
+      expect(reviewdogFindings).toHaveLength(1);
+      expect(prAgentFindings).toHaveLength(2);
+
+      // Verify all agents are in skippedAgents
+      expect(result.skippedAgents).toHaveLength(3);
+
+      // Verify no complete findings (all agents failed)
+      expect(result.completeFindings).toHaveLength(0);
+    });
+
+    it('T006-extended: should keep partialFindings and completeFindings separate when mixed results', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const completeFinding = {
+        severity: 'error' as const,
+        file: 'src/success.ts',
+        line: 5,
+        message: 'From successful agent',
+        sourceAgent: 'reviewdog',
+      };
+
+      const partialFinding = {
+        severity: 'warning' as const,
+        file: 'src/partial.ts',
+        line: 10,
+        message: 'From failed agent',
+        sourceAgent: 'semgrep',
+      };
+
+      const mockReviewdog = createMockAgent(
+        'reviewdog',
+        'Reviewdog',
+        false,
+        AgentSuccess({
+          agentId: 'reviewdog',
+          findings: [completeFinding],
+          metrics: { durationMs: 100, filesProcessed: 5 },
+        })
+      );
+
+      const mockSemgrep = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Timeout',
+          failureStage: 'exec',
+          partialFindings: [partialFinding],
+          metrics: { durationMs: 30000, filesProcessed: 2 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds)
+        .mockReturnValueOnce([mockReviewdog])
+        .mockReturnValueOnce([mockSemgrep]);
+
+      const config = createConfig([
+        { name: 'lint', agents: ['reviewdog'], enabled: true, required: false },
+        { name: 'security', agents: ['semgrep'], enabled: true, required: false },
+      ]);
+
+      const result = await executeAllPasses(
+        config,
+        createAgentContext(),
+        {},
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify complete findings have provenance: 'complete'
+      expect(result.completeFindings).toHaveLength(1);
+      expect(result.completeFindings[0]).toEqual({
+        ...completeFinding,
+        provenance: 'complete',
+      });
+
+      // Verify partial findings have provenance: 'partial'
+      expect(result.partialFindings).toHaveLength(1);
+      expect(result.partialFindings[0]).toEqual({
+        ...partialFinding,
+        provenance: 'partial',
+      });
+
+      // Verify only failed agent is in skippedAgents
+      expect(result.skippedAgents).toHaveLength(1);
+      expect(result.skippedAgents[0]?.id).toBe('semgrep');
+    });
+  });
 
   describe('error handling', () => {
     it('should skip optional agent on failure and continue', async () => {

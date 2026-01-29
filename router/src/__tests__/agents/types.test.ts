@@ -17,6 +17,8 @@ import {
   AgentResultSuccessSchema,
   AgentResultFailureSchema,
   AgentResultSkippedSchema,
+  FindingSchema,
+  CACHE_SCHEMA_VERSION,
   type AgentResult,
   type AgentResultSuccess,
   type AgentResultFailure,
@@ -388,6 +390,78 @@ describe('Zod Schemas', () => {
         expect(result.data).toEqual(original);
       }
     });
+  });
+});
+
+describe('FindingSchema provenance field (012-fix-agent-result-regressions)', () => {
+  it('accepts provenance: complete', () => {
+    const data = {
+      severity: 'warning',
+      file: 'test.ts',
+      message: 'test message',
+      sourceAgent: 'test-agent',
+      provenance: 'complete',
+    };
+
+    const result = FindingSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.provenance).toBe('complete');
+    }
+  });
+
+  it('accepts provenance: partial', () => {
+    const data = {
+      severity: 'error',
+      file: 'test.ts',
+      message: 'test message',
+      sourceAgent: 'test-agent',
+      provenance: 'partial',
+    };
+
+    const result = FindingSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.provenance).toBe('partial');
+    }
+  });
+
+  it('accepts omitted provenance (optional field)', () => {
+    const data = {
+      severity: 'info',
+      file: 'test.ts',
+      message: 'test message',
+      sourceAgent: 'test-agent',
+    };
+
+    const result = FindingSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.provenance).toBeUndefined();
+    }
+  });
+
+  it('rejects invalid provenance values', () => {
+    const data = {
+      severity: 'warning',
+      file: 'test.ts',
+      message: 'test message',
+      sourceAgent: 'test-agent',
+      provenance: 'invalid',
+    };
+
+    const result = FindingSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('CACHE_SCHEMA_VERSION (012-fix-agent-result-regressions)', () => {
+  it('is exported and equals 2', () => {
+    expect(CACHE_SCHEMA_VERSION).toBe(2);
+  });
+
+  it('is a number type', () => {
+    expect(typeof CACHE_SCHEMA_VERSION).toBe('number');
   });
 });
 
