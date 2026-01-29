@@ -27,7 +27,7 @@
 
 - [ ] T001 Create types directory structure at router/src/types/
 - [ ] T002 [P] Create assertNever utility in router/src/types/assert-never.ts per data-model.md
-- [ ] T003 [P] Create test utilities for hermetic tests in router/src/**tests**/test-utils/hermetic.ts
+- [ ] T003 [P] Create test utilities for hermetic tests in router/src/\_\_tests\_\_/test-utils/hermetic.ts
 - [ ] T004 [P] Add CI toolchain version check step to .github/workflows/ci.yml per research.md R-009
 
 ---
@@ -61,9 +61,9 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Unit test for error serialization round-trip in router/src/**tests**/types/errors.test.ts
-- [ ] T016 [P] [US1] Unit test for error cause chaining in router/src/**tests**/types/errors.test.ts
-- [ ] T017 [P] [US1] Unit test for error type guards (isConfigError, isAgentError, etc.) in router/src/**tests**/types/errors.test.ts
+- [ ] T015 [P] [US1] Unit test for error serialization round-trip in router/src/\_\_tests\_\_/types/errors.test.ts
+- [ ] T016 [P] [US1] Unit test for error cause chaining in router/src/\_\_tests\_\_/types/errors.test.ts
+- [ ] T017 [P] [US1] Unit test for error type guards (isConfigError, isAgentError, etc.) in router/src/\_\_tests\_\_/types/errors.test.ts
 
 ### Implementation for User Story 1
 
@@ -90,10 +90,10 @@
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Unit test for SafeGitRef brand helpers in router/src/**tests**/types/branded.test.ts
-- [ ] T029 [P] [US2] Unit test for ValidatedConfig brand helpers in router/src/**tests**/types/branded.test.ts
-- [ ] T030 [P] [US2] Unit test for CanonicalPath brand helpers in router/src/**tests**/types/branded.test.ts
-- [ ] T031 [P] [US2] Unit test for serialization round-trip (brand → unbrand → parse) in router/src/**tests**/types/branded.test.ts
+- [ ] T028 [P] [US2] Unit test for SafeGitRef brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [ ] T029 [P] [US2] Unit test for ValidatedConfig brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [ ] T030 [P] [US2] Unit test for CanonicalPath brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [ ] T031 [P] [US2] Unit test for serialization round-trip (brand → unbrand → parse) in router/src/\_\_tests\_\_/types/branded.test.ts
 
 ### Implementation for User Story 2
 
@@ -118,9 +118,9 @@
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Unit test for Result type narrowing in router/src/**tests**/types/result.test.ts
-- [ ] T041 [P] [US3] Unit test for Result utilities (map, flatMap, collect, partition) in router/src/**tests**/types/result.test.ts
-- [ ] T042 [P] [US3] Unit test for wrapThrowing backward compatibility in router/src/**tests**/types/result.test.ts
+- [ ] T040 [P] [US3] Unit test for Result type narrowing in router/src/\_\_tests\_\_/types/result.test.ts
+- [ ] T041 [P] [US3] Unit test for Result utilities (map, flatMap, collect, partition) in router/src/\_\_tests\_\_/types/result.test.ts
+- [ ] T042 [P] [US3] Unit test for wrapThrowing backward compatibility in router/src/\_\_tests\_\_/types/result.test.ts
 
 ### Implementation for User Story 3
 
@@ -144,10 +144,10 @@
 
 ### Tests for User Story 4
 
-- [ ] T050 [P] [US4] Unit tests for main.ts run(argv, env) with valid arguments in router/src/**tests**/main.test.ts
-- [ ] T051 [P] [US4] Unit tests for main.ts run(argv, env) with invalid arguments in router/src/**tests**/main.test.ts
-- [ ] T052 [P] [US4] Unit tests for config.ts loadConfig edge cases in router/src/**tests**/config-coverage.test.ts
-- [ ] T053 [P] [US4] Unit tests for budget.ts checkBudget scenarios in router/src/**tests**/budget-coverage.test.ts
+- [ ] T050 [P] [US4] Unit tests for main.ts run(argv, env) with valid arguments in router/src/\_\_tests\_\_/main.test.ts
+- [ ] T051 [P] [US4] Unit tests for main.ts run(argv, env) with invalid arguments in router/src/\_\_tests\_\_/main.test.ts
+- [ ] T052 [P] [US4] Unit tests for config.ts loadConfig edge cases in router/src/\_\_tests\_\_/config-coverage.test.ts
+- [ ] T053 [P] [US4] Unit tests for budget.ts checkBudget scenarios in router/src/\_\_tests\_\_/budget-coverage.test.ts
 
 ### Implementation for User Story 4
 
@@ -169,22 +169,22 @@
 
 ### Tests for User Story 5
 
-- [ ] T059 [P] [US5] Integration test for successful pipeline execution in router/src/**tests**/integration/pipeline.test.ts
-- [ ] T060 [P] [US5] Integration test for agent failure isolation in router/src/**tests**/integration/agent-failure.test.ts
-- [ ] T061 [P] [US5] Integration test for cache hit behavior in router/src/**tests**/integration/cache.test.ts
-- [ ] T062 [P] [US5] Integration test for cache miss behavior in router/src/**tests**/integration/cache.test.ts
-- [ ] T063 [P] [US5] Integration test for GitHub reporter in router/src/**tests**/integration/multi-reporter.test.ts
-- [ ] T064 [P] [US5] Integration test for ADO reporter in router/src/**tests**/integration/multi-reporter.test.ts
-- [ ] T065 [P] [US5] Integration test for combined reporters in router/src/**tests**/integration/multi-reporter.test.ts
+- [ ] T059 [P] [US5] Integration test for successful pipeline execution in router/src/\_\_tests\_\_/integration/pipeline.test.ts
+- [ ] T060 [P] [US5] Integration test for agent failure isolation in router/src/\_\_tests\_\_/integration/agent-failure.test.ts
+- [ ] T061 [P] [US5] Integration test for cache hit behavior in router/src/\_\_tests\_\_/integration/cache.test.ts
+- [ ] T062 [P] [US5] Integration test for cache miss behavior in router/src/\_\_tests\_\_/integration/cache.test.ts
+- [ ] T063 [P] [US5] Integration test for GitHub reporter in router/src/\_\_tests\_\_/integration/multi-reporter.test.ts
+- [ ] T064 [P] [US5] Integration test for ADO reporter in router/src/\_\_tests\_\_/integration/multi-reporter.test.ts
+- [ ] T065 [P] [US5] Integration test for combined reporters in router/src/\_\_tests\_\_/integration/multi-reporter.test.ts
 
 ### Implementation for User Story 5
 
-- [ ] T066 [US5] Create mock repository fixtures in router/src/**tests**/fixtures/mock-repos/
-- [ ] T067 [US5] Create stubbed LLM provider responses in router/src/**tests**/fixtures/llm-responses/
-- [ ] T068 [US5] Create stubbed GitHub/ADO API responses in router/src/**tests**/fixtures/api-responses/
+- [ ] T066 [US5] Create mock repository fixtures in router/src/\_\_tests\_\_/fixtures/mock-repos/
+- [ ] T067 [US5] Create stubbed LLM provider responses in router/src/\_\_tests\_\_/fixtures/llm-responses/
+- [ ] T068 [US5] Create stubbed GitHub/ADO API responses in router/src/\_\_tests\_\_/fixtures/api-responses/
 - [ ] T069 [US5] Implement hermetic test setup with frozen time/UUID in all integration tests
-- [ ] T070 [US5] Add integration tests for malformed input handling in router/src/**tests**/integration/error-paths.test.ts
-- [ ] T071 [US5] Add integration tests for timeout scenarios in router/src/**tests**/integration/error-paths.test.ts
+- [ ] T070 [US5] Add integration tests for malformed input handling in router/src/\_\_tests\_\_/integration/error-paths.test.ts
+- [ ] T071 [US5] Add integration tests for timeout scenarios in router/src/\_\_tests\_\_/integration/error-paths.test.ts
 
 **Checkpoint**: 10+ hermetic integration tests; no real network/git/time dependencies
 
@@ -201,7 +201,7 @@
 - [ ] T072 [US6] Add const type parameters to generic functions in router/src/types/result.ts
 - [ ] T073 [US6] Add const type parameters to generic functions in router/src/types/branded.ts
 - [ ] T074 [US6] Add satisfies operator usage for config defaults in router/src/config.ts
-- [ ] T075 [US6] Add type tests for literal type preservation in router/src/**tests**/types/inference.test.ts
+- [ ] T075 [US6] Add type tests for literal type preservation in router/src/\_\_tests\_\_/types/inference.test.ts
 
 **Checkpoint**: Generic functions preserve literal types; improved inference across codebase
 
@@ -215,8 +215,8 @@
 
 ### Tests for User Story 7
 
-- [ ] T076 [P] [US7] Unit test for AgentResult discriminated union in router/src/**tests**/agents/types.test.ts
-- [ ] T077 [P] [US7] Unit test for assertNever enforcement in router/src/**tests**/types/assert-never.test.ts
+- [ ] T076 [P] [US7] Unit test for AgentResult discriminated union in router/src/\_\_tests\_\_/agents/types.test.ts
+- [ ] T077 [P] [US7] Unit test for assertNever enforcement in router/src/\_\_tests\_\_/types/assert-never.test.ts
 
 ### Implementation for User Story 7
 
@@ -237,7 +237,7 @@
 
 - [ ] T084 [P] Migrate Finding.metadata from Record<string, unknown> to typed schema in router/src/agents/types.ts
 - [ ] T085 [P] Migrate AgentContext.env from Record<string, unknown> to typed helpers in router/src/agents/types.ts
-- [ ] T086 Add compile-time type tests for Zod schema consistency in router/src/**tests**/types/schema-consistency.test.ts
+- [ ] T086 Add compile-time type tests for Zod schema consistency in router/src/\_\_tests\_\_/types/schema-consistency.test.ts
 - [ ] T087 Audit all z.infer<> usages; remove any hand-duplicated interfaces
 - [ ] T088 Run full test suite and verify all 58+ existing tests still pass
 - [ ] T089 Run coverage report and verify overall coverage >= 45%
