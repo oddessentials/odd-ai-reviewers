@@ -262,6 +262,12 @@ pnpm verify                           # Run all quality gates
 
 [![AI Review](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
 
+```
+
+[![AI Review](https://github.com/<OWNER>/<REPO>/actions/workflows/ai-review.yml/badge.svg)](https://github.com/<OWNER>/<REPO>/actions/workflows/ai-review.yml)
+
+```
+
 **[Click here to see custom badge templates →](docs/reference/custom-badges.md)**
 
 ---
