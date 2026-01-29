@@ -359,6 +359,18 @@ const DocsViewer = {
       const href = link.getAttribute('href');
       if (!href || href.startsWith('http')) return;
 
+      // FR-002: Anchor-only hashes should scroll within the current document
+      if (href.startsWith('#')) {
+        const anchorId = href.slice(1);
+        if (anchorId) {
+          link.onclick = (e) => {
+            e.preventDefault();
+            this.scrollToAnchor(anchorId);
+          };
+        }
+        return;
+      }
+
       // Check if this is an internal markdown link (with or without anchor)
       // Patterns: ./x.md, ../x.md, x.md, path/x.md, x.md#anchor
       const mdMatch = href.match(/^([^#]*\.md)(#.*)?$/i);
@@ -507,15 +519,45 @@ const DocsViewer = {
     return hash;
   },
 
+  // Decode hash values without throwing on malformed encoding
+  safeDecodeHash(value) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  },
+
+  // Scroll to a heading anchor within the current document
+  scrollToAnchor(anchorId) {
+    if (!anchorId) return;
+    const targetId = anchorId.startsWith('#') ? anchorId.slice(1) : anchorId;
+    const targetElement = document.getElementById(targetId);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
+
   // Parse URL hash
   parseHash() {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return null;
+    const rawHash = window.location.hash.slice(1);
+    if (!rawHash) return null;
 
+    const hash = this.safeDecodeHash(rawHash);
     const parts = hash.split('|');
+    const primary = parts[0] || null;
+    const secondary = parts[1] || null;
+    const primaryIsDoc = primary ? /\.md$/i.test(primary) : false;
+    const secondaryIsDoc = secondary ? /\.md$/i.test(secondary) : false;
+
+    if (!primaryIsDoc && !secondaryIsDoc) {
+      return { primary: null, secondary: null, anchor: hash };
+    }
+
     return {
-      primary: parts[0] || null,
-      secondary: parts[1] || null,
+      primary: primaryIsDoc ? primary : null,
+      secondary: secondaryIsDoc ? secondary : null,
+      anchor: null,
     };
   },
 
@@ -592,11 +634,21 @@ const DocsViewer = {
       this.showNotFound(targetDoc);
     }
 
+    if (hashState?.anchor) {
+      this.scrollToAnchor(hashState.anchor);
+    }
+
     // Handle hash changes
     window.onhashchange = async () => {
       const state = this.parseHash();
-      const target = state?.primary || 'index.md';
+      if (!state) return;
 
+      if (state.anchor) {
+        this.scrollToAnchor(state.anchor);
+        return;
+      }
+
+      const target = state.primary || 'index.md';
       if (target !== this.state.currentFile) {
         if (this.isValidPath(target)) {
           await this.loadFile(target, 'primary');

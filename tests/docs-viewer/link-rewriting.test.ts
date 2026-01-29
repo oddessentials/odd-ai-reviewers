@@ -123,6 +123,55 @@ describe('Link Rewriting Logic', () => {
     });
   });
 
+  describe('Hash Parsing', () => {
+    function parseHash(hash: string): {
+      primary: string | null;
+      secondary: string | null;
+      anchor: string | null;
+    } | null {
+      if (!hash) return null;
+      const parts = hash.split('|');
+      const primary = parts[0] || null;
+      const secondary = parts[1] || null;
+      const primaryIsDoc = primary ? /\.md$/i.test(primary) : false;
+      const secondaryIsDoc = secondary ? /\.md$/i.test(secondary) : false;
+
+      if (!primaryIsDoc && !secondaryIsDoc) {
+        return { primary: null, secondary: null, anchor: hash };
+      }
+
+      return {
+        primary: primaryIsDoc ? primary : null,
+        secondary: secondaryIsDoc ? secondary : null,
+        anchor: null,
+      };
+    }
+
+    it('should treat anchor-only hashes as in-doc anchors', () => {
+      const result = parseHash('section-1');
+      expect(result).not.toBeNull();
+      expect(result?.primary).toBeNull();
+      expect(result?.secondary).toBeNull();
+      expect(result?.anchor).toBe('section-1');
+    });
+
+    it('should parse primary and secondary doc hashes', () => {
+      const result = parseHash('index.md|overview.md');
+      expect(result).not.toBeNull();
+      expect(result?.primary).toBe('index.md');
+      expect(result?.secondary).toBe('overview.md');
+      expect(result?.anchor).toBeNull();
+    });
+
+    it('should treat non-doc hashes as anchors', () => {
+      const result = parseHash('not-a-doc');
+      expect(result).not.toBeNull();
+      expect(result?.primary).toBeNull();
+      expect(result?.secondary).toBeNull();
+      expect(result?.anchor).toBe('not-a-doc');
+    });
+  });
+
   describe('Path Resolution', () => {
     /**
      * Helper to resolve relative paths
