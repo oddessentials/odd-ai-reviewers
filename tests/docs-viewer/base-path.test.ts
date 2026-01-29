@@ -50,6 +50,16 @@ async function waitForServerUrl(server: ChildProcess, timeoutMs = 10000): Promis
   });
 }
 
+function getViewerUrl(port: number, basePath: string): string {
+  let normalized = basePath;
+  if (!normalized.startsWith('/')) normalized = '/' + normalized;
+  if (!normalized.endsWith('/')) normalized += '/';
+  if (!normalized.endsWith('/docs/viewer/')) {
+    normalized = `${normalized}docs/viewer/`;
+  }
+  return `http://localhost:${port}${normalized}`;
+}
+
 describe('GitHub Pages Base Path Compatibility', () => {
   describe('Relative Path Verification (FR-011)', () => {
     it('should use relative paths in app.js basePath', async () => {
@@ -93,6 +103,20 @@ describe('GitHub Pages Base Path Compatibility', () => {
 
   describe('Subpath Simulation (FR-011a)', () => {
     let server: ChildProcess | null = null;
+    const basePath = '/odd-ai-reviewers/docs/viewer/';
+    const port = 3001;
+
+    async function ensureServer() {
+      if (server) return;
+      server = spawn('node', [
+        'scripts/docs-dev-server.mjs',
+        '--base-path',
+        basePath,
+        '--port',
+        String(port),
+      ]);
+      await waitForServerUrl(server);
+    }
 
     afterAll(async () => {
       if (server) {
@@ -101,18 +125,10 @@ describe('GitHub Pages Base Path Compatibility', () => {
       }
     });
 
-    it.skip('should serve manifest.json under fake base path', async () => {
+    it('should serve manifest.json under fake base path', async () => {
       // Note: This test requires the dev server to support --base-path flag
-      // Skipped until dev server is implemented (T028)
-      server = spawn('node', [
-        'scripts/docs-dev-server.mjs',
-        '--base-path',
-        '/odd-ai-reviewers/docs/viewer/',
-        '--port',
-        '3001',
-      ]);
-
-      const baseUrl = await waitForServerUrl(server);
+      await ensureServer();
+      const baseUrl = getViewerUrl(port, basePath);
 
       // Fetch manifest
       const manifestRes = await fetch(`${baseUrl}manifest.json`);
@@ -124,22 +140,14 @@ describe('GitHub Pages Base Path Compatibility', () => {
       expect(Array.isArray(manifest.files)).toBe(true);
     });
 
-    it.skip('should serve documents under fake base path', async () => {
+    it('should serve documents under fake base path', async () => {
       // Note: Requires running dev server with --base-path
-      // Skipped until dev server is implemented (T028)
-      if (!server) {
-        server = spawn('node', [
-          'scripts/docs-dev-server.mjs',
-          '--base-path',
-          '/odd-ai-reviewers/docs/viewer/',
-          '--port',
-          '3002',
-        ]);
-        await waitForServerUrl(server);
-      }
+      await ensureServer();
 
       // Fetch a known doc (relative from viewer)
-      const docRes = await fetch('http://localhost:3002/../index.md');
+      const baseUrl = getViewerUrl(port, basePath);
+      const docUrl = new URL('../index.md', baseUrl).toString();
+      const docRes = await fetch(docUrl);
       expect(docRes.ok).toBe(true);
 
       const content = await docRes.text();

@@ -117,6 +117,32 @@ Options:
   return config;
 }
 
+function normalizeBasePath(basePath) {
+  if (!basePath || basePath === '/') return '/';
+  let normalized = basePath;
+  if (!normalized.startsWith('/')) normalized = '/' + normalized;
+  if (!normalized.endsWith('/')) normalized += '/';
+  return normalized;
+}
+
+function getRepoBasePath(basePath) {
+  const viewerSuffix = '/docs/viewer/';
+  const normalized = normalizeBasePath(basePath);
+  if (normalized.endsWith(viewerSuffix)) {
+    const trimmed = normalized.slice(0, -viewerSuffix.length);
+    return trimmed ? normalizeBasePath(trimmed) : '/';
+  }
+  return normalized;
+}
+
+function getViewerMountPath(basePath) {
+  const normalized = normalizeBasePath(basePath);
+  if (normalized.endsWith('/docs/viewer/')) {
+    return normalized;
+  }
+  return `${normalized}docs/viewer/`;
+}
+
 // SSE clients for live reload
 const sseClients = new Set();
 
@@ -207,6 +233,7 @@ function handleSSE(req, res) {
 
 // Create HTTP server (T019)
 function createServer(config) {
+  const repoBasePath = getRepoBasePath(config.basePath);
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${config.port}`);
     let pathname = url.pathname;
@@ -217,9 +244,10 @@ function createServer(config) {
       return;
     }
 
-    // Strip base path if configured
-    if (config.basePath !== '/' && pathname.startsWith(config.basePath)) {
-      pathname = pathname.slice(config.basePath.length - 1);
+    // Strip repository base path if configured
+    if (pathname.startsWith(repoBasePath)) {
+      const stripped = pathname.slice(repoBasePath.length);
+      pathname = `/${stripped.replace(/^\/+/, '')}`;
     }
 
     // Route to appropriate directory
@@ -388,7 +416,8 @@ async function main() {
   });
 
   server.listen(config.port, () => {
-    const viewerUrl = `http://localhost:${config.port}${config.basePath}docs/viewer/`;
+    const viewerPath = getViewerMountPath(config.basePath);
+    const viewerUrl = `http://localhost:${config.port}${viewerPath}`;
 
     // T027: Print URL on successful start
     console.log(`\n[dev-server] Server running at http://localhost:${config.port}/`);
