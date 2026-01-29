@@ -157,8 +157,37 @@ const DocsViewer = {
     link.appendChild(nameSpan);
   },
 
+  /**
+   * Normalize a manifest path into a docs-relative file id.
+   * @param {string} rawPath - Path from manifest (e.g., "../architecture/index.md")
+   * @returns {string} Normalized path (e.g., "architecture/index.md")
+   */
+  normalizeDocPath(rawPath) {
+    if (!rawPath) return '';
+    let normalized = rawPath.replace(/\\/g, '/');
+    normalized = normalized.replace(/^(\.\.\/)+/, '');
+    normalized = normalized.replace(/^\.\/+/, '');
+    normalized = normalized.replace(/^\/+/, '');
+    return normalized;
+  },
+
+  /**
+   * Resolve the file id for a manifest item.
+   * @param {Object} item - Manifest item
+   * @returns {string} Normalized file id
+   */
+  getItemFileId(item) {
+    if (!item) return '';
+    return this.normalizeDocPath(item.path || item.name);
+  },
+
   // Build file tree with folder support
   buildTree(items, parentUl, paneId = 'primary') {
+    if (!Array.isArray(items) || !parentUl) return;
+    if (parentUl.dataset.built === 'true') return;
+    parentUl.dataset.built = 'true';
+    parentUl.innerHTML = '';
+
     for (const item of items) {
       const li = document.createElement('li');
 
@@ -190,12 +219,16 @@ const DocsViewer = {
       } else {
         // Create file item
         const a = document.createElement('a');
+        const fileId = this.getItemFileId(item);
         a.href = '#';
         a.className = 'file-link';
+        a.dataset.file = fileId;
         this.setLinkContent(a, 'markdown', item.name);
         a.onclick = (e) => {
           e.preventDefault();
-          this.loadFile(item.name, paneId);
+          if (fileId) {
+            this.loadFile(fileId, paneId);
+          }
         };
         li.appendChild(a);
       }
@@ -473,7 +506,8 @@ const DocsViewer = {
 
     tree.querySelectorAll('.file-link').forEach((link) => {
       link.classList.remove('active');
-      if (link.textContent.trim() === fileId) {
+      const linkFile = link.dataset.file || '';
+      if (linkFile.toLowerCase() === (fileId || '').toLowerCase()) {
         link.classList.add('active');
       }
     });
