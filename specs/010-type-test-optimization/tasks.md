@@ -90,10 +90,10 @@
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Unit test for SafeGitRef brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
-- [ ] T029 [P] [US2] Unit test for ValidatedConfig brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
-- [ ] T030 [P] [US2] Unit test for CanonicalPath brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
-- [ ] T031 [P] [US2] Unit test for serialization round-trip (brand → unbrand → parse) in router/src/\_\_tests\_\_/types/branded.test.ts
+- [x] T028 [P] [US2] Unit test for SafeGitRef brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [x] T029 [P] [US2] Unit test for ValidatedConfig brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [x] T030 [P] [US2] Unit test for CanonicalPath brand helpers in router/src/\_\_tests\_\_/types/branded.test.ts
+- [x] T031 [P] [US2] Unit test for serialization round-trip (brand → unbrand → parse) in router/src/\_\_tests\_\_/types/branded.test.ts
 
 ### Implementation for User Story 2
 
@@ -118,9 +118,9 @@
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Unit test for Result type narrowing in router/src/\_\_tests\_\_/types/result.test.ts
-- [ ] T041 [P] [US3] Unit test for Result utilities (map, flatMap, collect, partition) in router/src/\_\_tests\_\_/types/result.test.ts
-- [ ] T042 [P] [US3] Unit test for wrapThrowing backward compatibility in router/src/\_\_tests\_\_/types/result.test.ts
+- [x] T040 [P] [US3] Unit test for Result type narrowing in router/src/\_\_tests\_\_/types/result.test.ts
+- [x] T041 [P] [US3] Unit test for Result utilities (map, flatMap, collect, partition) in router/src/\_\_tests\_\_/types/result.test.ts
+- [x] T042 [P] [US3] Unit test for wrapThrowing backward compatibility in router/src/\_\_tests\_\_/types/result.test.ts
 
 ### Implementation for User Story 3
 
