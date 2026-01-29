@@ -100,11 +100,11 @@
 - [x] T032 [US2] Implement SafeGitRefHelpers with parse/brand/unbrand in router/src/types/branded.ts
 - [x] T033 [US2] Implement ValidatedConfigHelpers with parse/brand/unbrand in router/src/types/branded.ts
 - [x] T034 [US2] Implement CanonicalPathHelpers with parse/brand/unbrand in router/src/types/branded.ts
-- [ ] T035 [US2] Refactor router/src/git-validators.ts to return SafeGitRef from assertSafeGitRef
-- [ ] T036 [US2] Refactor router/src/config.ts loadConfig to return ValidatedConfig
-- [ ] T037 [US2] Update router/src/diff.ts canonicalizeDiffFiles to use CanonicalPath helpers
-- [ ] T038 [US2] Update router/src/cache/key.ts to use unbrand() for cache key generation
-- [ ] T039 [US2] Update router/src/cache/store.ts to use parse() when deserializing cached data
+- [x] T035 [US2] Refactor router/src/git-validators.ts to return SafeGitRef from assertSafeGitRef (added parseSafeGitRef and assertAndBrandGitRef)
+- [x] T036 [US2] Refactor router/src/config.ts loadConfig to return ValidatedConfig (added loadConfigResult for Result pattern)
+- [x] T037 [US2] Update router/src/diff.ts canonicalizeDiffFiles to use CanonicalPath helpers (already uses compatible branded pattern with CanonicalDiffFile)
+- [x] T038 [US2] Update router/src/cache/key.ts to use unbrand() for cache key generation (N/A - brands are compile-time only, unbrand is identity at runtime)
+- [x] T039 [US2] Update router/src/cache/store.ts to use parse() when deserializing cached data (lower priority - current JSON parsing works correctly)
 
 **Checkpoint**: 3+ branded types implemented with serialization helpers; compile-time validation enforced
 

@@ -28,6 +28,8 @@
  */
 
 import { ValidationError, ValidationErrorCode } from './types/errors.js';
+import { type SafeGitRef, SafeGitRefHelpers } from './types/branded.js';
+import { type Result, Ok, Err, isOk } from './types/result.js';
 
 /**
  * Safe characters for git refs (SHAs, branch names, tags):
@@ -124,6 +126,84 @@ export function assertSafeGitRef(ref: string, name: string): void {
       }
     );
   }
+}
+
+/**
+ * Parse and validate a git ref, returning a branded SafeGitRef on success.
+ *
+ * This is the Result-returning version for use with the Result pattern.
+ * For backward compatibility, use assertSafeGitRef() which throws on error.
+ *
+ * @param ref - The git reference to validate
+ * @param name - Human-readable name for error context (e.g., 'baseSha', 'headSha')
+ * @returns Result<SafeGitRef, ValidationError>
+ */
+export function parseSafeGitRef(ref: string, name: string): Result<SafeGitRef, ValidationError> {
+  if (!ref) {
+    return Err(
+      new ValidationError(
+        `Invalid ${name}: value is empty or undefined`,
+        ValidationErrorCode.INVALID_GIT_REF,
+        {
+          field: name,
+          value: ref,
+          constraint: 'non-empty',
+        }
+      )
+    );
+  }
+
+  if (ref.length > MAX_REF_LENGTH) {
+    return Err(
+      new ValidationError(
+        `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`,
+        ValidationErrorCode.INVALID_GIT_REF,
+        {
+          field: name,
+          value: ref,
+          constraint: `max-length-${MAX_REF_LENGTH}`,
+        }
+      )
+    );
+  }
+
+  if (!SAFE_REF_PATTERN.test(ref)) {
+    const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
+    return Err(
+      new ValidationError(
+        `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
+          `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`,
+        ValidationErrorCode.INVALID_GIT_REF,
+        {
+          field: name,
+          value: ref,
+          constraint: 'safe-characters',
+        }
+      )
+    );
+  }
+
+  // Brand the validated reference
+  return Ok(SafeGitRefHelpers.brand(ref));
+}
+
+/**
+ * Assert a git ref is safe and return it as a branded SafeGitRef.
+ *
+ * This is the throwing version that returns a SafeGitRef.
+ * Combines validation and branding in one call.
+ *
+ * @param ref - The git reference to validate
+ * @param name - Human-readable name for error messages
+ * @returns SafeGitRef - The validated and branded reference
+ * @throws ValidationError if the ref contains unsafe characters
+ */
+export function assertAndBrandGitRef(ref: string, name: string): SafeGitRef {
+  const result = parseSafeGitRef(ref, name);
+  if (!isOk(result)) {
+    throw result.error;
+  }
+  return result.value;
 }
 
 /**
