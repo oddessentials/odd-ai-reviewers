@@ -61,6 +61,12 @@ CVE-2026-23745
 # Risk: LOW - Only used during npm ci in Docker build, not at runtime
 CVE-2026-23950
 
+# node-tar - Hardlink path traversal (CVE-2026-24842)
+# tar 6.2.1 bundled in npm (node:22-slim), tar 7.4.3 bundled in OpenCode 1.1.40
+# Fixed in node-tar 7.5.7 | Waiting for upstream releases
+# Risk: LOW - Only used during Docker build, not at runtime
+CVE-2026-24842
+
 # golang.org/x/crypto/ssh - Authorization bypass in SSH handshake
 # Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
 # Risk: LOW - OpenCode doesn't use SSH for LLM API calls
