@@ -9,7 +9,12 @@
  *
  * SECURITY ANALYSIS:
  * ==================
- * 1. SAFE_REF_PATTERN is an ALLOWLIST - only permits [a-zA-Z0-9\-_/.]+
+ * 1. SafeGitRefHelpers.parse() validates git refs using an ALLOWLIST pattern:
+ *    - Max 256 characters
+ *    - Must start with alphanumeric (no option injection via leading -)
+ *    - Only permits [a-zA-Z0-9][a-zA-Z0-9\-_/.]*
+ *    - Forbids path traversal (..)
+ *    - Forbids shell metacharacters (; | & $ ` etc.)
  *    This EXCLUDES all shell metacharacters by design.
  *
  * 2. UNSAFE_PATH_CHARS is a BLOCKLIST - explicitly rejects ; | & $ ` \ ! < > ( ) { } [ ] ' " * ? \n \r \0
@@ -29,24 +34,7 @@
 
 import { ValidationError, ValidationErrorCode } from './types/errors.js';
 import { type SafeGitRef, SafeGitRefHelpers } from './types/branded.js';
-import { type Result, Ok, Err, isOk } from './types/result.js';
-
-/**
- * Safe characters for git refs (SHAs, branch names, tags):
- * - Hexadecimal digits (for SHAs)
- * - Alphanumeric (for branch/tag names)
- * - Forward slash (for refs/heads/main, origin/main)
- * - Hyphen, underscore, dot (common in branch names)
- *
- * This explicitly EXCLUDES shell metacharacters: ; | & $ ` \ ! < > ( ) { } [ ] ' " * ? \n \r
- */
-const SAFE_REF_PATTERN = /^[a-zA-Z0-9\-_/.]+$/;
-
-/**
- * Maximum length for git refs (defensive limit)
- * Git allows up to 256 bytes, but refs/heads/... can be longer
- */
-const MAX_REF_LENGTH = 512;
+import { type Result, Err, isOk } from './types/result.js';
 
 /**
  * Shell metacharacters that MUST NOT appear in paths passed to execSync
@@ -83,53 +71,55 @@ export function getUnsafeCharsInPath(path: string): string {
 /**
  * Validate a git ref (SHA, branch name, tag, refs/heads/...) for safe shell use.
  *
+ * Uses SafeGitRefHelpers validation to ensure consistent security checks:
+ * - Max 256 characters
+ * - Must start with alphanumeric
+ * - No path traversal (..)
+ * - No shell metacharacters
+ *
  * @param ref - The git reference to validate
  * @param name - Human-readable name for error messages (e.g., 'baseSha', 'headSha')
- * @throws Error if the ref contains unsafe characters
+ * @throws ValidationError if the ref contains unsafe characters or patterns
  */
 export function assertSafeGitRef(ref: string, name: string): void {
-  if (!ref) {
-    throw new ValidationError(
-      `Invalid ${name}: value is empty or undefined`,
-      ValidationErrorCode.INVALID_GIT_REF,
-      {
-        field: name,
-        value: ref,
-        constraint: 'non-empty',
-      }
-    );
-  }
+  const result = SafeGitRefHelpers.parse(ref);
 
-  if (ref.length > MAX_REF_LENGTH) {
-    throw new ValidationError(
-      `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`,
-      ValidationErrorCode.INVALID_GIT_REF,
-      {
-        field: name,
-        value: ref,
-        constraint: `max-length-${MAX_REF_LENGTH}`,
-      }
-    );
-  }
+  if (!isOk(result)) {
+    // Construct user-friendly error message with field name
+    const originalMsg = result.error.message;
+    let message: string;
 
-  if (!SAFE_REF_PATTERN.test(ref)) {
-    // Find the first invalid character for helpful error message
-    const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
-    throw new ValidationError(
-      `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
-        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`,
-      ValidationErrorCode.INVALID_GIT_REF,
-      {
-        field: name,
-        value: ref,
-        constraint: 'safe-characters',
-      }
-    );
+    if (originalMsg.includes('cannot exceed')) {
+      message = `Invalid ${name}: length ${ref.length} exceeds maximum allowed characters`;
+    } else if (originalMsg.includes('empty')) {
+      message = `Invalid ${name}: value is empty or undefined`;
+    } else if (
+      originalMsg.includes('invalid characters') ||
+      originalMsg.includes('forbidden pattern')
+    ) {
+      // Find the first invalid character for helpful error message
+      const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
+      message =
+        `Invalid ${name}: contains unsafe character '${invalidChar ?? 'unknown'}'. ` +
+        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`;
+    } else {
+      message = `Invalid ${name}: ${originalMsg}`;
+    }
+
+    throw new ValidationError(message, ValidationErrorCode.INVALID_GIT_REF, {
+      field: name,
+      value: ref,
+      constraint: result.error.context['constraint'] as string | undefined,
+    });
   }
 }
 
 /**
  * Parse and validate a git ref, returning a branded SafeGitRef on success.
+ *
+ * This delegates to SafeGitRefHelpers.parse() to ensure all SafeGitRef
+ * invariants are properly enforced (max 256 chars, no leading dash,
+ * no path traversal, no shell metacharacters).
  *
  * This is the Result-returning version for use with the Result pattern.
  * For backward compatibility, use assertSafeGitRef() which throws on error.
@@ -139,52 +129,41 @@ export function assertSafeGitRef(ref: string, name: string): void {
  * @returns Result<SafeGitRef, ValidationError>
  */
 export function parseSafeGitRef(ref: string, name: string): Result<SafeGitRef, ValidationError> {
-  if (!ref) {
-    return Err(
-      new ValidationError(
-        `Invalid ${name}: value is empty or undefined`,
-        ValidationErrorCode.INVALID_GIT_REF,
-        {
-          field: name,
-          value: ref,
-          constraint: 'non-empty',
-        }
-      )
-    );
+  // Delegate to SafeGitRefHelpers.parse() to ensure all SafeGitRef invariants are enforced
+  const result = SafeGitRefHelpers.parse(ref);
+
+  if (isOk(result)) {
+    return result;
   }
 
-  if (ref.length > MAX_REF_LENGTH) {
-    return Err(
-      new ValidationError(
-        `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`,
-        ValidationErrorCode.INVALID_GIT_REF,
-        {
-          field: name,
-          value: ref,
-          constraint: `max-length-${MAX_REF_LENGTH}`,
-        }
-      )
-    );
-  }
+  // Construct user-friendly error message with field name
+  const originalMsg = result.error.message;
+  let message: string;
 
-  if (!SAFE_REF_PATTERN.test(ref)) {
+  if (originalMsg.includes('cannot exceed')) {
+    message = `Invalid ${name}: length ${ref.length} exceeds maximum allowed characters`;
+  } else if (originalMsg.includes('empty')) {
+    message = `Invalid ${name}: value is empty or undefined`;
+  } else if (
+    originalMsg.includes('invalid characters') ||
+    originalMsg.includes('forbidden pattern')
+  ) {
+    // Find the first invalid character for helpful error message
     const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
-    return Err(
-      new ValidationError(
-        `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
-          `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`,
-        ValidationErrorCode.INVALID_GIT_REF,
-        {
-          field: name,
-          value: ref,
-          constraint: 'safe-characters',
-        }
-      )
-    );
+    message =
+      `Invalid ${name}: contains unsafe character '${invalidChar ?? 'unknown'}'. ` +
+      `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`;
+  } else {
+    message = `Invalid ${name}: ${originalMsg}`;
   }
 
-  // Brand the validated reference
-  return Ok(SafeGitRefHelpers.brand(ref));
+  return Err(
+    new ValidationError(message, ValidationErrorCode.INVALID_GIT_REF, {
+      field: name,
+      value: ref,
+      constraint: result.error.context['constraint'] as string | undefined,
+    })
+  );
 }
 
 /**

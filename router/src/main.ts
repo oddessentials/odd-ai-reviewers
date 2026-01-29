@@ -11,6 +11,7 @@
 
 import { Command } from 'commander';
 import { fileURLToPath } from 'url';
+import { realpathSync } from 'fs';
 import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
@@ -344,6 +345,26 @@ export async function runReview(
 
 // Only parse arguments when run directly (not when imported for testing)
 // This allows tests to import runReview without triggering CLI parsing
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Use realpathSync to resolve npm bin shims (symlinks) to their real paths
+function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+
+  try {
+    const scriptPath = fileURLToPath(import.meta.url);
+    const argvPath = process.argv[1];
+
+    // Try resolving symlinks for both paths
+    const realScriptPath = realpathSync(scriptPath);
+    const realArgvPath = realpathSync(argvPath);
+
+    return realScriptPath === realArgvPath;
+  } catch {
+    // If realpathSync fails (e.g., path doesn't exist during testing),
+    // fall back to direct comparison
+    return fileURLToPath(import.meta.url) === process.argv[1];
+  }
+}
+
+if (isMainModule()) {
   program.parse();
 }
