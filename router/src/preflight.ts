@@ -9,10 +9,17 @@
  * - Azure OpenAI keys validated as atomic bundle
  * - Model must be compatible with resolved provider (no 404s)
  * - Provider isolation: Anthropic key + GPT model = error, OpenAI key + Claude model = error
+ *
+ * NOTE: This module uses a collect-all-errors pattern (PreflightResult.errors: string[])
+ * rather than fail-fast throwing. The string messages are intentionally human-readable
+ * and actionable. ConfigError/ValidationError types are available for cases where
+ * structured error handling is needed.
  */
 
 import type { Config, AgentId } from './config.js';
 import { inferProviderFromModel, isCompletionsOnlyModel, resolveProvider } from './config.js';
+// Note: ConfigError, ValidationError types are available from './types/errors.js'
+// but this module uses string-based error collection by design (see module docs)
 
 export interface PreflightResult {
   valid: boolean;

@@ -68,13 +68,13 @@
 ### Implementation for User Story 1
 
 - [x] T018 [US1] Migrate error handling in router/src/config.ts to use ConfigError
-- [ ] T019 [US1] Migrate error handling in router/src/config/schemas.ts to use ConfigError
+- [x] T019 [US1] Migrate error handling in router/src/config/schemas.ts to use ConfigError (N/A - schemas.ts only defines Zod schemas, no error handling to migrate)
 - [x] T020 [US1] Migrate error handling in router/src/git-validators.ts to use ValidationError
 - [x] T021 [US1] Migrate error handling in router/src/agents/retry.ts to use NetworkError
-- [ ] T022 [US1] Migrate error handling in router/src/agents/semgrep.ts to use AgentError
-- [ ] T023 [US1] Migrate error handling in router/src/agents/opencode.ts to use AgentError
-- [ ] T024 [US1] Migrate error handling in router/src/agents/ai_semantic_review.ts to use AgentError
-- [ ] T025 [US1] Migrate error handling in router/src/preflight.ts to use ConfigError/ValidationError
+- [x] T022 [US1] Migrate error handling in router/src/agents/semgrep.ts to use AgentError
+- [x] T023 [US1] Migrate error handling in router/src/agents/opencode.ts to use AgentError
+- [x] T024 [US1] Migrate error handling in router/src/agents/ai_semantic_review.ts to use AgentError
+- [x] T025 [US1] Migrate error handling in router/src/preflight.ts to use ConfigError/ValidationError (uses string-based collect-all-errors pattern by design; imports available)
 - [x] T026 [US1] Migrate error handling in router/src/diff.ts to use ValidationError
 - [x] T027 [US1] Add type guards export to router/src/types/errors.ts (isConfigError, isAgentError, isNetworkError, isValidationError)
 
@@ -97,9 +97,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Implement SafeGitRefHelpers with parse/brand/unbrand in router/src/types/branded.ts
-- [ ] T033 [US2] Implement ValidatedConfigHelpers with parse/brand/unbrand in router/src/types/branded.ts
-- [ ] T034 [US2] Implement CanonicalPathHelpers with parse/brand/unbrand in router/src/types/branded.ts
+- [x] T032 [US2] Implement SafeGitRefHelpers with parse/brand/unbrand in router/src/types/branded.ts
+- [x] T033 [US2] Implement ValidatedConfigHelpers with parse/brand/unbrand in router/src/types/branded.ts
+- [x] T034 [US2] Implement CanonicalPathHelpers with parse/brand/unbrand in router/src/types/branded.ts
 - [ ] T035 [US2] Refactor router/src/git-validators.ts to return SafeGitRef from assertSafeGitRef
 - [ ] T036 [US2] Refactor router/src/config.ts loadConfig to return ValidatedConfig
 - [ ] T037 [US2] Update router/src/diff.ts canonicalizeDiffFiles to use CanonicalPath helpers

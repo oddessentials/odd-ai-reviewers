@@ -8,6 +8,7 @@ import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from '
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { filterSafePaths } from './path-filter.js';
+import { AgentError, AgentErrorCode } from '../types/errors.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -168,11 +169,21 @@ export const semgrepAgent: ReviewAgent = {
         }
       }
 
+      // Convert to AgentError for consistent error handling
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : new AgentError(
+              error instanceof Error ? error.message : 'Unknown semgrep error',
+              AgentErrorCode.EXECUTION_FAILED,
+              { agentId: this.id }
+            );
+
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: agentError.message,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,

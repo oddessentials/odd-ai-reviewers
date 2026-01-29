@@ -20,6 +20,7 @@ import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { parseJsonResponse } from './json-utils.js';
 import { withRetry } from './retry.js';
+import { AgentError, AgentErrorCode } from '../types/errors.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -107,7 +108,14 @@ async function runWithAnthropic(
     // Extract text content
     const textContent = response.content.find((c) => c.type === 'text');
     if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text content in Anthropic response');
+      throw new AgentError(
+        'No text content in Anthropic response',
+        AgentErrorCode.EXECUTION_FAILED,
+        {
+          agentId,
+          phase: 'response-extraction',
+        }
+      );
     }
 
     // Parse and validate JSON (handles Claude's code fence wrapping)
@@ -115,7 +123,11 @@ async function runWithAnthropic(
 
     const result = SemanticResponseSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(`Schema validation failed: ${result.error.message}`);
+      throw new AgentError(
+        `Schema validation failed: ${result.error.message}`,
+        AgentErrorCode.PARSE_ERROR,
+        { agentId, phase: 'schema-validation' }
+      );
     }
 
     const findings: Finding[] = result.data.findings.map((f) => ({
@@ -148,13 +160,21 @@ async function runWithAnthropic(
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Convert to AgentError for consistent error handling
+    const agentError =
+      error instanceof AgentError
+        ? error
+        : new AgentError(
+            error instanceof Error ? error.message : 'Unknown Anthropic error',
+            AgentErrorCode.EXECUTION_FAILED,
+            { agentId, phase: 'anthropic-call' }
+          );
 
     return {
       agentId,
       success: false,
       findings: [],
-      error: errorMessage,
+      error: agentError.message,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
@@ -316,7 +336,12 @@ Analyze this code and return JSON:
       );
 
       const content = response.choices[0]?.message?.content;
-      if (!content) throw new Error('Empty response from OpenAI');
+      if (!content) {
+        throw new AgentError('Empty response from OpenAI', AgentErrorCode.EXECUTION_FAILED, {
+          agentId: this.id,
+          phase: 'response-extraction',
+        });
+      }
 
       const result = JSON.parse(content) as SemanticReviewResponse;
       const findings: Finding[] = [];
@@ -350,11 +375,21 @@ Analyze this code and return JSON:
         },
       };
     } catch (error) {
+      // Convert to AgentError for consistent error handling
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : new AgentError(
+              error instanceof Error ? error.message : 'Unknown OpenAI error',
+              AgentErrorCode.EXECUTION_FAILED,
+              { agentId: this.id, phase: 'openai-call' }
+            );
+
       return {
         agentId: this.id,
         success: false,
         findings: [],
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: agentError.message,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,

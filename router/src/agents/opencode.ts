@@ -24,6 +24,7 @@ import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
 import { getCurrentDateUTC } from './date-utils.js';
+import { AgentError, AgentErrorCode } from '../types/errors.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -182,7 +183,10 @@ async function runWithOpenAI(
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      throw new Error('Empty response from OpenAI');
+      throw new AgentError('Empty response from OpenAI', AgentErrorCode.EXECUTION_FAILED, {
+        agentId,
+        phase: 'response-extraction',
+      });
     }
 
     const result = JSON.parse(content) as OpencodeResponse;
@@ -222,13 +226,21 @@ async function runWithOpenAI(
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Convert to AgentError for consistent error handling
+    const agentError =
+      error instanceof AgentError
+        ? error
+        : new AgentError(
+            error instanceof Error ? error.message : 'Unknown OpenAI error',
+            AgentErrorCode.EXECUTION_FAILED,
+            { agentId, phase: 'openai-call' }
+          );
 
     return {
       agentId,
       success: false,
       findings: [],
-      error: errorMessage,
+      error: agentError.message,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
@@ -303,7 +315,14 @@ async function runWithAnthropic(
     // Extract text content from response
     const textContent = response.content.find((c) => c.type === 'text');
     if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text content in Anthropic response');
+      throw new AgentError(
+        'No text content in Anthropic response',
+        AgentErrorCode.EXECUTION_FAILED,
+        {
+          agentId,
+          phase: 'response-extraction',
+        }
+      );
     }
 
     // Parse and validate JSON response (handles Claude's code fence wrapping)
@@ -311,7 +330,11 @@ async function runWithAnthropic(
 
     const result = AnthropicResponseSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(`Schema validation failed: ${result.error.message}`);
+      throw new AgentError(
+        `Schema validation failed: ${result.error.message}`,
+        AgentErrorCode.PARSE_ERROR,
+        { agentId, phase: 'schema-validation' }
+      );
     }
 
     const findings: Finding[] = result.data.findings.map((raw) => ({
@@ -348,13 +371,21 @@ async function runWithAnthropic(
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Convert to AgentError for consistent error handling
+    const agentError =
+      error instanceof AgentError
+        ? error
+        : new AgentError(
+            error instanceof Error ? error.message : 'Unknown Anthropic error',
+            AgentErrorCode.EXECUTION_FAILED,
+            { agentId, phase: 'anthropic-call' }
+          );
 
     return {
       agentId,
       success: false,
       findings: [],
-      error: errorMessage,
+      error: agentError.message,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
