@@ -198,10 +198,10 @@
 
 ### Implementation for User Story 6
 
-- [ ] T072 [US6] Add const type parameters to generic functions in router/src/types/result.ts
-- [ ] T073 [US6] Add const type parameters to generic functions in router/src/types/branded.ts
-- [ ] T074 [US6] Add satisfies operator usage for config defaults in router/src/config.ts
-- [ ] T075 [US6] Add type tests for literal type preservation in router/src/\_\_tests\_\_/types/inference.test.ts
+- [x] T072 [US6] Add const type parameters to generic functions in router/src/types/result.ts (Ok, Err use `const` type parameters)
+- [x] T073 [US6] Add const type parameters to generic functions in router/src/types/branded.ts (N/A - branded types work with validated objects, not literals)
+- [x] T074 [US6] Add satisfies operator usage for config defaults in router/src/config.ts (N/A - defaults are inlined in Zod schemas which is cleaner)
+- [x] T075 [US6] Add type tests for literal type preservation in router/src/\_\_tests\_\_/types/inference.test.ts (18 tests)
 
 **Checkpoint**: Generic functions preserve literal types; improved inference across codebase
 

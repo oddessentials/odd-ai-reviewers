@@ -49,21 +49,25 @@ export interface Err<E> {
 /**
  * Create a success result
  *
+ * Uses `const` type parameter (TypeScript 5.0+) to preserve literal types.
+ *
  * @param value - The success value
  * @returns A Result with ok: true and the value
  *
  * @example
  * ```typescript
  * const result = Ok(42);
- * // result: Result<number, never>
+ * // result: Result<42, never> (literal type preserved)
  * ```
  */
-export function Ok<T>(value: T): Result<T, never> {
+export function Ok<const T>(value: T): Result<T, never> {
   return { ok: true, value } as const;
 }
 
 /**
  * Create a failure result
+ *
+ * Uses `const` type parameter (TypeScript 5.0+) to preserve literal types.
  *
  * @param error - The error value
  * @returns A Result with ok: false and the error
@@ -74,7 +78,7 @@ export function Ok<T>(value: T): Result<T, never> {
  * // result: Result<never, ValidationError>
  * ```
  */
-export function Err<E>(error: E): Result<never, E> {
+export function Err<const E>(error: E): Result<never, E> {
   return { ok: false, error } as const;
 }
 
