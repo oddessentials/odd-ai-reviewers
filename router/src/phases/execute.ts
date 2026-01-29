@@ -8,6 +8,7 @@
 import type { Config } from '../config.js';
 import type { AgentContext, AgentResult, Finding } from '../agents/types.js';
 import { isSuccess, isFailure, isSkipped } from '../agents/types.js';
+import { assertNever } from '../types/assert-never.js';
 import { getAgentsByIds } from '../agents/index.js';
 import { resolveProvider } from '../config.js';
 import { buildAgentEnv, isKnownAgentId } from '../agents/security.js';
@@ -161,6 +162,9 @@ export async function executeAllPasses(
             name: agent.name,
             reason: result.reason,
           });
+        } else {
+          // Exhaustive check - compile error if new variant added (FR-003)
+          assertNever(result);
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);

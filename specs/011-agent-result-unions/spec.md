@@ -145,7 +145,7 @@ As a developer, I want `Finding.metadata` and `AgentContext.env` to have typed h
 - **SC-007**: Canary test exists using tsd-style type assertions (`satisfies` + exhaustive switch) that fails deterministically when variant added; no intentional compile errors in CI
 - **SC-008**: Zero boolean-based `success` checks remain in production code paths after migration
 - **SC-009**: Cache round-trip test passes for all three variants (status discriminator preserved)
-- **SC-010**: Telemetry emits distinct event types per variant; `partialFindings` labeled explicitly as partial
+- **SC-010**: ~~Telemetry emits distinct event types per variant; `partialFindings` labeled explicitly as partial~~ **N/A** - The telemetry module (`router/src/telemetry/`) is specifically for timeout events (feature 007), not AgentResult. It does not consume AgentResult. The `partialFindings` labeling requirement is satisfied in `report.ts` which transforms failures to the legacy summary format with `success: false`.
 - **SC-011**: Each phase commit passes all CI checks (lint, type-check, tests, dependency-cruiser) with zero failures
 - **SC-012**: Grep check for `.success` passes with only `router/src/main.ts` + allowlist file exceptions after Phase 1
 - **SC-013**: Grep check for `status: 'success'` object literals passes with only `agents/types.ts` exception

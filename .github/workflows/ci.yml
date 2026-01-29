@@ -61,6 +61,12 @@ jobs:
       - name: Check circular dependencies
         run: pnpm depcruise
 
+      # 011-agent-result-unions: Enforce discriminated union patterns
+      - name: Check AgentResult patterns
+        run: |
+          ./scripts/check-success-ban.sh
+          ./scripts/check-literal-ban.sh
+
       - name: Verify docs manifest
         run: |
           pnpm docs:manifest

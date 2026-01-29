@@ -13,6 +13,7 @@ import {
   type Finding,
   type AgentResult,
 } from '../agents/types.js';
+import { assertNever } from '../types/assert-never.js';
 import type { DiffFile } from '../diff.js';
 import { reportToGitHub, type GitHubContext } from '../report/github.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
@@ -76,8 +77,8 @@ export function processFindings(
           error: r.error,
         };
       }
-      // TypeScript exhaustiveness - shouldn't reach here after filter
-      throw new Error(`Unexpected result status: ${(r as AgentResult).status}`);
+      // Exhaustive check - compile error if new variant added (FR-003)
+      return assertNever(r);
     });
 
   const summary = generateFullSummaryMarkdown(sorted, resultsForSummary, skippedAgents);
