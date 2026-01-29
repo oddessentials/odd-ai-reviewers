@@ -33,7 +33,7 @@ This feature completes the remaining work from the 010-type-test-optimization fe
 
 As a developer working on the router, I want `AgentResult` to use a discriminated union pattern so that the compiler catches any missing cases when handling agent outcomes, preventing runtime errors from unhandled states.
 
-**Why this priority**: This is the core change that affects 17 files and provides compile-time safety for all agent result handling. Without this, new result states could be added without updating all handlers.
+**Why this priority**: This is the core change that affects 13 production files (7 agent implementations + 6 consumers) and provides compile-time safety for all agent result handling. Without this, new result states could be added without updating all handlers.
 
 **Independent Test**: Create a switch statement on `AgentResult.status` and verify the compiler emits an error if a case is missing. Verify existing tests continue to pass after migration.
 
@@ -92,7 +92,7 @@ As a developer, I want `Finding.metadata` and `AgentContext.env` to have typed h
 - **FR-002**: System MUST provide `AgentSuccess`, `AgentFailure`, and `AgentSkipped` constructor functions that enforce valid field combinations
 - **FR-003**: System MUST use `assertNever` utility in all switch default cases for exhaustive checking
 - **FR-004**: All switch statements on AgentResult MUST handle all three status variants (no `default` fallthrough allowed)
-- **FR-005**: System MUST update all 17 files that reference AgentResult to use the new discriminated union pattern
+- **FR-005**: System MUST update all 13 production files that reference AgentResult to use the new discriminated union pattern (7 agent implementations + 6 consumers)
 - **FR-006**: System MAY provide a temporary deprecated `success` getter for incremental migration only; getter MUST be deleted before PR series merges (not kept for external compatibility)
 - **FR-007**: System MUST provide typed helpers for common Finding.metadata fields (cwe, owasp, confidence)
 - **FR-008**: System MUST provide typed helpers for common AgentContext.env fields (GITHUB_TOKEN, AZURE_DEVOPS_PAT, SYSTEM_ACCESSTOKEN)
@@ -136,7 +136,7 @@ As a developer, I want `Finding.metadata` and `AgentContext.env` to have typed h
 
 ### Measurable Outcomes
 
-- **SC-001**: All 17 files referencing AgentResult are migrated to use the discriminated union pattern
+- **SC-001**: All 13 production files referencing AgentResult are migrated to use the discriminated union pattern (7 agent implementations + 6 consumers)
 - **SC-002**: Compiler catches 100% of missing switch cases when handling AgentResult
 - **SC-003**: All existing tests continue to pass with equivalent assertions and outcomes after migration
 - **SC-004**: Zero runtime errors from unhandled AgentResult states after deployment

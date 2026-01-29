@@ -12,7 +12,7 @@ Refactor the `AgentResult` interface from a boolean-flagged struct (`success: bo
 - Replace `AgentResult` interface with `AgentResult` union type
 - Add `AgentSuccess`, `AgentFailure`, `AgentSkipped` constructor helpers (locked as only factory path)
 - `AgentFailure` uses `partialFindings` (not `findings`) + `failureStage` field
-- Migrate 17 files that consume or produce `AgentResult`
+- Migrate 13 production files that consume or produce `AgentResult` (7 agents + 6 consumers)
 - Add typed metadata helpers in isolated module (`agents/metadata.ts`)
 - Add serialization contract (Zod schema) + round-trip tests
 - Add lint/CI check to ban `result.success` **unconditionally after Phase 1**
@@ -28,7 +28,7 @@ Refactor the `AgentResult` interface from a boolean-flagged struct (`success: bo
 **Project Type**: Single project (router package)
 **Performance Goals**: Zero runtime overhead from type changes (compile-time only)
 **Constraints**: Each phase must pass all CI checks before commit (FR-022/023/024)
-**Scale/Scope**: 17 files to migrate, 8 agent implementations
+**Scale/Scope**: 13 production files to migrate (7 agent implementations + 6 consumers), plus types.ts refactor
 
 ## Constitution Check
 

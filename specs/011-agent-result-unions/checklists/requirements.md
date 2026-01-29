@@ -59,7 +59,7 @@ The `/speckit.clarify` input identified several additional gaps. Analysis:
 
 - Specification is complete and ready for `/speckit.plan`
 - This feature completes 010-type-test-optimization Phase 9 + partial Phase 10
-- 17 files will need migration - recommend incremental approach in planning
+- 13 production files will need migration (7 agents + 6 consumers) - recommend incremental approach in planning
 - User Story 3 (Typed Metadata) upgraded to P1 - ships with discriminated unions
 - Security hardening items split to 012 to maintain focused scope
 - **Process directive added**: Each phase must be committed after CI/quality checks pass; fix any failures (pre-existing or new) before proceeding
