@@ -31,37 +31,37 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] In docs/platforms/azure-devops/setup.md Section 4, add both required permissions (FR-001, FR-002):
+- [x] T004 [US1] In docs/platforms/azure-devops/setup.md Section 4, add both required permissions (FR-001, FR-002):
   - Add "Contribute - Allow" requirement
   - Add "Contribute to pull requests - Allow" requirement
   - Create permissions table with Permission Name and Purpose columns
 
-- [ ] T005 [US1] In docs/platforms/azure-devops/setup.md Section 4, add identity decision tree (FR-004, FR-004a):
+- [x] T005 [US1] In docs/platforms/azure-devops/setup.md Section 4, add identity decision tree (FR-004, FR-004a):
   - Document all four identity types with name formats and examples
   - Add decision tree flowchart from research.md Section 7
   - Include "how to identify which applies to you" guidance
 
-- [ ] T006 [US1] In docs/platforms/azure-devops/setup.md Section 4, add step-by-step granting instructions (FR-003, FR-005):
+- [x] T006 [US1] In docs/platforms/azure-devops/setup.md Section 4, add step-by-step granting instructions (FR-003, FR-005):
   - Document navigation path: Project Settings → Repositories → Security
   - Add numbered steps for granting each permission
   - Include tips for finding Build Service identity
 
-- [ ] T007 [US1] In docs/platforms/azure-devops/setup.md Section 4, add verification checklist (FR-009):
+- [x] T007 [US1] In docs/platforms/azure-devops/setup.md Section 4, add verification checklist (FR-009):
   - 5-step checklist from research.md Section 6
   - Include status meanings (Allow, Not set, Inherited Deny)
   - Add effective permissions checking guidance
 
-- [ ] T008 [US1] In docs/platforms/azure-devops/setup.md Section 4, add scope decision guide (FR-007):
+- [x] T008 [US1] In docs/platforms/azure-devops/setup.md Section 4, add scope decision guide (FR-007):
   - Decision rule: "multi-repo pipeline → project-level; single-repo → repo-level for least-privilege"
   - Add inheritance warning about project-level deny policies
   - Add note: "Organization-level security policies may override project/repo settings; contact your Azure DevOps admin if permissions appear correct but errors persist"
   - Add guidance for checking effective permissions
 
-- [ ] T009 [US1] In docs/platforms/azure-devops/setup.md Section 4, add branch policy clarification (FR-008):
+- [x] T009 [US1] In docs/platforms/azure-devops/setup.md Section 4, add branch policy clarification (FR-008):
   - Add NOTE callout: "These permissions enable PR thread/comment posting; they do NOT bypass branch policies..."
   - List what permissions do NOT enable (merge restrictions, required reviewers, etc.)
 
-- [ ] T010 [US1] In docs/platforms/azure-devops/setup.md, add Search Terms section (FR-011):
+- [x] T010 [US1] In docs/platforms/azure-devops/setup.md, add Search Terms section (FR-011):
   - Add searchable keywords: "Contribute to pull requests", "Build Service", "Project Collection Build Service", "TF401027", "TF401444"
 
 **Checkpoint**: User Story 1 complete - DevOps engineers can now configure permissions using the documentation

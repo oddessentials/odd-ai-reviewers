@@ -62,19 +62,125 @@ extends:
 > [!IMPORTANT]
 > This step is **required** for PR commenting. Unlike GitHub Actions where `GITHUB_TOKEN` automatically has PR write access, Azure DevOps requires explicit permission grants.
 
-For the pipeline to post PR comments:
+#### Required Permissions
 
-1. Go to **Project Settings** → **Repositories** → **[Your Repository Name]**
-2. Click the **Security** tab
-3. Find the **Build Service** account:
-   - Format: `[Project Name] Build Service ([Organization Name])`
-   - Example: `MyProject Build Service (myorg)`
-4. Set **"Contribute to pull requests"** to **Allow**
+The pipeline identity needs **both** of these permissions to post PR comments:
 
-![ADO Permission Setting](https://learn.microsoft.com/azure/devops/repos/git/media/pull-requests/pr-policies.png?view=azure-devops)
+| Permission                      | Purpose                                 |
+| ------------------------------- | --------------------------------------- |
+| **Contribute**                  | Required for Git operations             |
+| **Contribute to pull requests** | Required for posting PR thread comments |
 
-> [!TIP]
-> If you can't find the Build Service, click **"Add"** and search for "Build Service". There may be two entries - grant permission to the project-scoped one.
+#### Identify Your Pipeline Identity
+
+Before granting permissions, identify which identity your pipeline uses. Azure DevOps supports four identity types:
+
+**1. Project-Scoped Build Service (Recommended)**
+
+- **Format**: `{ProjectName} Build Service ({OrgName})`
+- **Example**: `MyProject Build Service (myorg)`
+- **When used**: When "Limit job authorization scope to current project" is **enabled** (default for new projects)
+- **Security**: Recommended - limits access to current project only
+
+**2. Collection-Scoped Build Service**
+
+- **Format**: `Project Collection Build Service ({OrgName})`
+- **Example**: `Project Collection Build Service (myorg)`
+- **When used**: When "Limit job authorization scope" is **disabled** at organization level
+- **Security**: Higher risk - can access all projects in the organization
+
+**3. Self-Hosted Agent Service Account**
+
+- **Format**: Varies (e.g., `NT AUTHORITY\NETWORK SERVICE`, custom account, or gMSA)
+- **When used**: On-premises or self-hosted agents
+- **Finding it**: Check the Windows service identity running the agent
+
+**4. Service Connection or PAT User**
+
+- **Format**: The user account that owns the PAT or service connection
+- **When used**: When using `AZURE_DEVOPS_PAT` instead of `SYSTEM_ACCESSTOKEN`
+- **Finding it**: Check who created the PAT or service principal
+
+**Decision Tree: Which identity is my pipeline using?**
+
+```
+Is this a Microsoft-hosted agent?
+├─ YES → Is "Limit job authorization scope" enabled?
+│   ├─ YES → Use: "{ProjectName} Build Service ({OrgName})"
+│   └─ NO  → Use: "Project Collection Build Service ({OrgName})"
+│
+└─ NO (Self-hosted) → How does the agent authenticate?
+    ├─ Default service account → Check agent's Windows service identity
+    ├─ Custom service account → Use that account name
+    └─ PAT/Service Connection → Use the PAT owner's identity
+
+To find your identity: Check pipeline logs for "Job authorization" or go to
+Project Settings → Agent Pools → [Your Pool] → Security
+```
+
+#### Granting Permissions
+
+1. Go to **Project Settings** → **Repositories** → **Security**
+   - For project-level: Stay at top-level "Git Repositories"
+   - For repository-level: Select your specific repository first
+2. Search for your pipeline identity (see above)
+3. If not found, click **"+ Add"** and search for "Build Service"
+4. Set **"Contribute"** to **Allow**
+5. Set **"Contribute to pull requests"** to **Allow**
+6. Verify neither shows "Inherited Deny" (see troubleshooting if so)
+
+#### Verification Checklist
+
+After granting permissions, verify the configuration:
+
+- [ ] **Step 1**: Identify exact identity name using decision tree above
+- [ ] **Step 2**: Navigate to Project Settings → Repositories → Security
+- [ ] **Step 3**: Search for identity (Add if not present)
+- [ ] **Step 4**: Verify "Contribute" permission shows:
+  - ✅ "Allow" = Correct
+  - ⚠️ "Not set" = Set to Allow
+  - ❌ "Inherited Deny" = Fix at project level or override
+  - ❌ "Deny" = Remove explicit deny
+- [ ] **Step 5**: Verify "Contribute to pull requests" shows "Allow" (same checks as Step 4)
+- [ ] **Step 6**: If inheritance issues exist, check project-level permissions
+- [ ] **Step 7**: Re-run pipeline to verify
+
+#### Scope Decision Guide
+
+**When to use project-level permissions:**
+
+- Pipeline runs against multiple repositories in the same project
+- Easier maintenance (one place to manage)
+- Service account shared across many pipelines
+
+**When to use repository-level permissions:**
+
+- Pipeline accesses only one repository (least privilege)
+- Repository requires different security posture
+- Need to isolate permissions for sensitive repos
+
+**Decision rule**: If pipeline runs across multiple repos in the same project, grant at project-level; otherwise repo-level is least-privilege.
+
+> [!WARNING]
+> Repository-level permissions can be overridden by inherited project-level **Deny** policies. If you set "Allow" at repo level but still get errors, check project-level settings.
+>
+> Organization-level security policies may also override project/repo settings. Contact your Azure DevOps admin if permissions appear correct but errors persist.
+
+#### What These Permissions Do NOT Enable
+
+> [!NOTE]
+> These permissions enable PR thread/comment posting. They do **NOT** bypass branch policies, including:
+>
+> - Required reviewers and minimum approval counts
+> - Merge restrictions (enforce complete builds before merge)
+> - Required work items (linked work item requirements)
+> - Path filters and merge type restrictions
+>
+> If you need to bypass policies, you need the separate "Bypass policies" permission.
+
+#### Search Terms
+
+For quick navigation, search for: `Contribute to pull requests`, `Build Service`, `Project Collection Build Service`, `TF401027`, `TF401444`
 
 ## Configuration Options
 
