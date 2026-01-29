@@ -23,12 +23,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install semgrep for static analysis (pinned version)
-ARG SEMGREP_VERSION=1.56.0
+# Keep in sync with .github/workflows/ai-review.yml
+ARG SEMGREP_VERSION=1.149.0
 RUN pip3 install semgrep==${SEMGREP_VERSION} --break-system-packages
 
 # Install reviewdog (direct binary download with checksum verification)
 # Version pinned and verified - no curl|bash installer
-ARG REVIEWDOG_VERSION=0.20.3
+ARG REVIEWDOG_VERSION=0.21.0
 RUN curl -fsSL -o /tmp/reviewdog.tar.gz \
     "https://github.com/reviewdog/reviewdog/releases/download/v${REVIEWDOG_VERSION}/reviewdog_${REVIEWDOG_VERSION}_Linux_x86_64.tar.gz" && \
     tar -xzf /tmp/reviewdog.tar.gz -C /usr/local/bin reviewdog && \
@@ -40,8 +41,9 @@ RUN curl -fsSL -o /tmp/reviewdog.tar.gz \
 # SECURITY: Post-CVE version (CVE-2026-22812 fixed in v0.8.0+)
 # Direct binary download with SHA256 verification - no curl|bash per INVARIANTS.md
 # GitHub org moved from sst/opencode to anomalyco/opencode
-ARG OPENCODE_VERSION=1.1.26
-ARG OPENCODE_SHA256=ac5f426b82bf9d7a89d857d5fe9bb75cb2fd670804e03e97e5dda9373bf47be4
+# v1.1.40 fixes CVE-2026-24842 (node-tar hardlink path traversal)
+ARG OPENCODE_VERSION=1.1.40
+ARG OPENCODE_SHA256=13f6c35fc5c0d3243e2d29beaf52c566645cfdea2c7d82267aba898230697cac
 RUN curl -fsSL -o /tmp/opencode.tar.gz \
     "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-x64.tar.gz" && \
     echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - && \
@@ -90,7 +92,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install semgrep (runtime needed)
-ARG SEMGREP_VERSION=1.56.0
+ARG SEMGREP_VERSION=1.149.0
 RUN pip3 install semgrep==${SEMGREP_VERSION} --break-system-packages
 
 # Copy tools from builder
