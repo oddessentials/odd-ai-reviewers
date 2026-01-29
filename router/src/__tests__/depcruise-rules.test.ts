@@ -14,7 +14,6 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'child_process';
 import { join } from 'path';
-import { readFileSync } from 'fs';
 
 // Project root (two levels up from __tests__)
 const projectRoot = join(__dirname, '..', '..', '..');
@@ -56,60 +55,35 @@ function runDepcruise(args: string): { exitCode: number; output: string } {
 }
 
 /**
- * Load and parse the dependency-cruiser configuration
+ * Dependency-cruiser config type (subset we care about)
  */
-function loadDepcruiseConfig(): {
-  forbidden: { name: string; from?: { pathNot?: string | string[] } }[];
-} {
-  const configPath = join(projectRoot, '.dependency-cruiser.cjs');
-  const configContent = readFileSync(configPath, 'utf-8');
-
-  // Find the not-to-dev-dep rule section
-  const ruleStart = configContent.indexOf("name: 'not-to-dev-dep'");
-  if (ruleStart === -1) {
-    throw new Error('Could not find not-to-dev-dep rule in .dependency-cruiser.cjs');
-  }
-
-  // Extract the section from the rule start to the next rule (or end)
-  const ruleSection = configContent.slice(ruleStart, ruleStart + 1000);
-
-  // Find pathNot array - look for pathNot: [ ... ],
-  const pathNotStart = ruleSection.indexOf('pathNot:');
-  if (pathNotStart === -1) {
-    throw new Error('Could not find pathNot in not-to-dev-dep rule');
-  }
-
-  // Extract from pathNot to the closing ],
-  const afterPathNot = ruleSection.slice(pathNotStart);
-  const arrayStart = afterPathNot.indexOf('[');
-  const arrayEnd = afterPathNot.indexOf('],');
-
-  if (arrayStart === -1 || arrayEnd === -1) {
-    // Single string value
-    const singleMatch = afterPathNot.match(/pathNot:\s*['"]([^'"]+)['"]/);
-    if (singleMatch?.[1]) {
-      return {
-        forbidden: [{ name: 'not-to-dev-dep', from: { pathNot: [singleMatch[1]] } }],
-      };
-    }
-    throw new Error('Could not parse pathNot value');
-  }
-
-  // Extract the array content
-  const arrayContent = afterPathNot.slice(arrayStart, arrayEnd + 1);
-
-  // Extract all string values from the array
-  const stringMatches = arrayContent.match(/'([^']+)'/g);
-  const pathNot = stringMatches ? stringMatches.map((s) => s.slice(1, -1)) : [];
-
-  return {
-    forbidden: [
-      {
-        name: 'not-to-dev-dep',
-        from: { pathNot },
-      },
-    ],
+interface DepcruiseRule {
+  name: string;
+  from?: {
+    path?: string;
+    pathNot?: string | string[];
   };
+}
+
+interface DepcruiseConfig {
+  forbidden: DepcruiseRule[];
+}
+
+/**
+ * Load the dependency-cruiser configuration by requiring it directly.
+ * This is robust to formatting changes unlike regex parsing.
+ */
+function loadDepcruiseConfig(): DepcruiseConfig {
+  const configPath = join(projectRoot, '.dependency-cruiser.cjs');
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const config = require(configPath) as DepcruiseConfig;
+
+  if (!config.forbidden || !Array.isArray(config.forbidden)) {
+    throw new Error('Invalid dependency-cruiser config: missing forbidden array');
+  }
+
+  return config;
 }
 
 describe('Dependency Cruiser Rule Validation', () => {
@@ -196,16 +170,17 @@ describe('Dependency Cruiser Rule Validation', () => {
     });
 
     it('should keep production path anchor unchanged (^router/src)', () => {
-      const configPath = join(projectRoot, '.dependency-cruiser.cjs');
-      const configContent = readFileSync(configPath, 'utf-8');
+      const config = loadDepcruiseConfig();
+      const notToDevDep = config.forbidden.find((r) => r.name === 'not-to-dev-dep');
 
-      // Verify the production path is still anchored to router/src
-      const pathMatch = configContent.match(
-        /name:\s*['"]not-to-dev-dep['"][\s\S]*?path:\s*['"]\^?\(?(router\/src)\)?['"]/
-      );
+      expect(notToDevDep).toBeDefined();
+      expect(notToDevDep?.from?.path).toBeDefined();
 
-      expect(pathMatch).not.toBeNull();
-      expect(pathMatch?.[1]).toBe('router/src');
+      // Verify the production path is anchored to router/src
+      // The pattern should be ^(router/src) or similar
+      const path = notToDevDep?.from?.path;
+      expect(path).toMatch(/router\/src/);
+      expect(path).toMatch(/^\^/); // Must start with anchor
     });
   });
 
