@@ -15,11 +15,13 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { parseJsonResponse } from './json-utils.js';
 import { withRetry } from './retry.js';
+import { AgentError, AgentErrorCode } from '../types/errors.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -107,7 +109,14 @@ async function runWithAnthropic(
     // Extract text content
     const textContent = response.content.find((c) => c.type === 'text');
     if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text content in Anthropic response');
+      throw new AgentError(
+        'No text content in Anthropic response',
+        AgentErrorCode.EXECUTION_FAILED,
+        {
+          agentId,
+          phase: 'response-extraction',
+        }
+      );
     }
 
     // Parse and validate JSON (handles Claude's code fence wrapping)
@@ -115,7 +124,11 @@ async function runWithAnthropic(
 
     const result = SemanticResponseSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(`Schema validation failed: ${result.error.message}`);
+      throw new AgentError(
+        `Schema validation failed: ${result.error.message}`,
+        AgentErrorCode.PARSE_ERROR,
+        { agentId, phase: 'schema-validation' }
+      );
     }
 
     const findings: Finding[] = result.data.findings.map((f) => ({
@@ -136,9 +149,8 @@ async function runWithAnthropic(
     const estimatedCostUsd =
       response.usage.input_tokens * 0.000015 + response.usage.output_tokens * 0.000075;
 
-    return {
+    return AgentSuccess({
       agentId,
-      success: true,
       findings,
       metrics: {
         durationMs: Date.now() - startTime,
@@ -146,21 +158,28 @@ async function runWithAnthropic(
         tokensUsed,
         estimatedCostUsd,
       },
-    };
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Convert to AgentError for consistent error handling
+    const agentError =
+      error instanceof AgentError
+        ? error
+        : new AgentError(
+            error instanceof Error ? error.message : 'Unknown Anthropic error',
+            AgentErrorCode.EXECUTION_FAILED,
+            { agentId, phase: 'anthropic-call' }
+          );
 
-    return {
+    return AgentFailure({
       agentId,
-      success: false,
-      findings: [],
-      error: errorMessage,
+      error: agentError.message,
+      failureStage: 'exec',
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
         tokensUsed: estimatedInputTokens,
       },
-    };
+    });
   }
 }
 
@@ -186,12 +205,11 @@ export const aiSemanticReviewAgent: ReviewAgent = {
     // Get files that this agent supports (shared by all providers)
     const supportedFiles = context.files.filter((f) => this.supports(f));
     if (supportedFiles.length === 0) {
-      return {
+      return AgentSkipped({
         agentId: this.id,
-        success: true,
-        findings: [],
+        reason: 'No supported files to process',
         metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-      };
+      });
     }
 
     // Load prompt template (shared by all providers)
@@ -250,13 +268,12 @@ Analyze this code and return JSON:
     if (provider === 'anthropic') {
       const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
       if (!anthropicKey) {
-        return {
+        return AgentFailure({
           agentId: this.id,
-          success: false,
-          findings: [],
           error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+          failureStage: 'preflight',
           metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-        };
+        });
       }
       return runWithAnthropic(
         context,
@@ -276,16 +293,15 @@ Analyze this code and return JSON:
     const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
     if (!apiKey && !azureApiKey) {
-      return {
+      return AgentFailure({
         agentId: this.id,
-        success: false,
-        findings: [],
         error: 'No API key configured (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
+        failureStage: 'preflight',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Initialize OpenAI client
@@ -316,7 +332,12 @@ Analyze this code and return JSON:
       );
 
       const content = response.choices[0]?.message?.content;
-      if (!content) throw new Error('Empty response from OpenAI');
+      if (!content) {
+        throw new AgentError('Empty response from OpenAI', AgentErrorCode.EXECUTION_FAILED, {
+          agentId: this.id,
+          phase: 'response-extraction',
+        });
+      }
 
       const result = JSON.parse(content) as SemanticReviewResponse;
       const findings: Finding[] = [];
@@ -338,9 +359,8 @@ Analyze this code and return JSON:
       const completionTokens = response.usage?.completion_tokens || 0;
       const estimatedCostUsd = (promptTokens / 1000) * 0.00015 + (completionTokens / 1000) * 0.0006;
 
-      return {
+      return AgentSuccess({
         agentId: this.id,
-        success: true,
         findings,
         metrics: {
           durationMs: Date.now() - startTime,
@@ -348,19 +368,28 @@ Analyze this code and return JSON:
           tokensUsed,
           estimatedCostUsd,
         },
-      };
+      });
     } catch (error) {
-      return {
+      // Convert to AgentError for consistent error handling
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : new AgentError(
+              error instanceof Error ? error.message : 'Unknown OpenAI error',
+              AgentErrorCode.EXECUTION_FAILED,
+              { agentId: this.id, phase: 'openai-call' }
+            );
+
+      return AgentFailure({
         agentId: this.id,
-        success: false,
-        findings: [],
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: agentError.message,
+        failureStage: 'exec',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
           tokensUsed: estimatedInputTokens,
         },
-      };
+      });
     }
   },
 };

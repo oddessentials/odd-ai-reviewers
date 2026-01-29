@@ -7,6 +7,7 @@ import { execFileSync } from 'child_process';
 import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 import { shouldIgnoreFile, type ReviewIgnorePattern } from './reviewignore.js';
+import { ValidationError, ValidationErrorCode } from './types/errors.js';
 
 // Re-export for convenience
 export type { ReviewIgnorePattern } from './reviewignore.js';
@@ -258,8 +259,14 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
 
     // Hard guard: output size
     if (diffStat.length > MAX_OUTPUT_BYTES) {
-      throw new Error(
-        `Diff output exceeds ${MAX_OUTPUT_BYTES / 1024 / 1024}MB - likely invalid base/head refs`
+      throw new ValidationError(
+        `Diff output exceeds ${MAX_OUTPUT_BYTES / 1024 / 1024}MB - likely invalid base/head refs`,
+        ValidationErrorCode.CONSTRAINT_VIOLATED,
+        {
+          field: 'diffOutput',
+          value: diffStat.length,
+          constraint: `max-bytes-${MAX_OUTPUT_BYTES}`,
+        }
       );
     }
 
@@ -279,8 +286,14 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
 
     // Hard guard: file count
     if (files.length > MAX_FILES) {
-      throw new Error(
-        `Diff contains ${files.length} files (max ${MAX_FILES}) - check base/head refs or use shallow clone with sufficient depth`
+      throw new ValidationError(
+        `Diff contains ${files.length} files (max ${MAX_FILES}) - check base/head refs or use shallow clone with sufficient depth`,
+        ValidationErrorCode.CONSTRAINT_VIOLATED,
+        {
+          field: 'fileCount',
+          value: files.length,
+          constraint: `max-files-${MAX_FILES}`,
+        }
       );
     }
 
@@ -347,11 +360,22 @@ export function getDiff(repoPath: string, baseSha: string, headSha: string): Dif
       source: 'local-git',
     };
   } catch (error) {
-    // Provide actionable error message
+    // Re-throw validation errors as-is
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    // Provide actionable error message for other errors
     const errorMsg = error instanceof Error ? error.message : String(error);
-    throw new Error(
+    throw new ValidationError(
       `Failed to get diff between ${baseSha} and ${headSha}: ${errorMsg}\n` +
-        `Possible causes: shallow clone, invalid refs, or cross-repo diff`
+        `Possible causes: shallow clone, invalid refs, or cross-repo diff`,
+      ValidationErrorCode.INVALID_INPUT,
+      {
+        field: 'diff',
+        value: { baseSha, headSha },
+        constraint: 'valid-refs',
+      },
+      error instanceof Error ? { cause: error } : undefined
     );
   }
 }

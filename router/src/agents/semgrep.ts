@@ -5,9 +5,11 @@
 
 import { execFileSync } from 'child_process';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { filterSafePaths } from './path-filter.js';
+import { AgentError, AgentErrorCode } from '../types/errors.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -68,15 +70,14 @@ export const semgrepAgent: ReviewAgent = {
     const supportedFiles = context.files.filter((f) => this.supports(f));
 
     if (supportedFiles.length === 0) {
-      return {
+      return AgentSkipped({
         agentId: this.id,
-        success: true,
-        findings: [],
+        reason: 'No supported files in diff',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     try {
@@ -87,15 +88,14 @@ export const semgrepAgent: ReviewAgent = {
       const { safePaths } = filterSafePaths(filePaths, 'semgrep');
 
       if (safePaths.length === 0) {
-        return {
+        return AgentSkipped({
           agentId: this.id,
-          success: true,
-          findings: [],
+          reason: 'All files filtered out by path safety checks',
           metrics: {
             durationMs: Date.now() - startTime,
             filesProcessed: 0,
           },
-        };
+        });
       }
 
       // Run Semgrep with auto config - shell-free execution
@@ -124,15 +124,14 @@ export const semgrepAgent: ReviewAgent = {
         });
       }
 
-      return {
+      return AgentSuccess({
         agentId: this.id,
-        success: true,
         findings,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: supportedFiles.length,
         },
-      };
+      });
     } catch (error) {
       // Semgrep exits with non-zero if it finds issues, but still produces JSON output
       const errorOutput =
@@ -154,30 +153,39 @@ export const semgrepAgent: ReviewAgent = {
             });
           }
 
-          return {
+          return AgentSuccess({
             agentId: this.id,
-            success: true,
             findings,
             metrics: {
               durationMs: Date.now() - startTime,
               filesProcessed: supportedFiles.length,
             },
-          };
+          });
         } catch {
           // JSON parse failed, treat as error
         }
       }
 
-      return {
+      // Convert to AgentError for consistent error handling
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : new AgentError(
+              error instanceof Error ? error.message : 'Unknown semgrep error',
+              AgentErrorCode.EXECUTION_FAILED,
+              { agentId: this.id }
+            );
+
+      return AgentFailure({
         agentId: this.id,
-        success: false,
-        findings: [],
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: agentError.message,
+        failureStage: 'exec',
+        partialFindings: findings,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
   },
 };

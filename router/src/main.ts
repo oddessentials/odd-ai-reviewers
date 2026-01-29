@@ -4,9 +4,14 @@
  *
  * Orchestrates multi-pass AI code review using phase modules.
  * This is the orchestrator - actual logic lives in ./phases/*.ts
+ *
+ * To run tests against this module, use the exported `run()` function
+ * with a custom ExitHandler to avoid process.exit() calls.
  */
 
 import { Command } from 'commander';
+import { fileURLToPath } from 'url';
+import { realpathSync } from 'fs';
 import { loadConfig, resolveEffectiveModel } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
@@ -32,6 +37,27 @@ import {
   type Platform,
 } from './phases/index.js';
 
+// =============================================================================
+// Exit Handler (for testability)
+// =============================================================================
+
+/**
+ * Function type for handling exit codes
+ * Allows tests to capture exit codes without calling process.exit
+ */
+export type ExitHandler = (code: number) => never | void;
+
+/**
+ * Default exit handler that calls process.exit
+ */
+export const defaultExitHandler: ExitHandler = (code: number): never => {
+  process.exit(code);
+};
+
+// =============================================================================
+// CLI Program
+// =============================================================================
+
 const program = new Command();
 
 program.name('ai-review').description('AI Code Review Router').version('1.0.0');
@@ -51,7 +77,7 @@ program
       await runReview(options);
     } catch (error) {
       console.error('[router] Fatal error:', error);
-      process.exit(1);
+      defaultExitHandler(1);
     }
   });
 
@@ -66,11 +92,14 @@ program
       console.log(JSON.stringify(config, null, 2));
     } catch (error) {
       console.error('[validate] Invalid configuration:', error);
-      process.exit(1);
+      defaultExitHandler(1);
     }
   });
 
-interface ReviewOptions {
+/**
+ * Options for the review command
+ */
+export interface ReviewOptions {
   repo: string;
   base: string;
   head: string;
@@ -83,10 +112,20 @@ interface ReviewOptions {
 /**
  * Detect the CI platform from environment variables
  */
-function detectPlatform(env: Record<string, string | undefined>): Platform {
+export function detectPlatform(env: Record<string, string | undefined>): Platform {
   if (env['GITHUB_ACTIONS'] === 'true') return 'github';
   if (env['TF_BUILD'] === 'True' || env['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI']) return 'ado';
   return 'unknown';
+}
+
+/**
+ * Dependencies that can be injected for testing
+ */
+export interface ReviewDependencies {
+  /** Environment variables (defaults to process.env) */
+  env?: Record<string, string | undefined>;
+  /** Exit handler for error termination (defaults to process.exit) */
+  exitHandler?: ExitHandler;
 }
 
 /**
@@ -99,14 +138,22 @@ function detectPlatform(env: Record<string, string | undefined>): Platform {
  * 4. Execute agent passes
  * 5. Process and report findings
  * 6. Check gating
+ *
+ * @param options - Review options (repo, base, head, etc.)
+ * @param deps - Injectable dependencies for testing
  */
-async function runReview(options: ReviewOptions): Promise<void> {
+export async function runReview(
+  options: ReviewOptions,
+  deps: ReviewDependencies = {}
+): Promise<void> {
+  const env = deps.env ?? (process.env as Record<string, string | undefined>);
+  const exitHandler = deps.exitHandler ?? defaultExitHandler;
   console.log('[router] Starting AI Review');
   console.log(`[router] Repository: ${options.repo}`);
   console.log(`[router] Diff: ${options.base}...${options.head}`);
 
   // === PHASE 1: Setup & Context Building ===
-  const routerEnv = buildRouterEnv(process.env as Record<string, string | undefined>);
+  const routerEnv = buildRouterEnv(env);
   const config = await loadConfig(options.repo);
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
   const configHash = hashConfig(config);
@@ -256,17 +303,14 @@ async function runReview(options: ReviewOptions): Promise<void> {
   };
 
   // === PHASE 4: Preflight Validation ===
-  const preflightResult = runPreflightChecks(
-    config,
-    agentContext,
-    process.env as Record<string, string | undefined>
-  );
+  const preflightResult = runPreflightChecks(config, agentContext, env);
   if (!preflightResult.valid) {
     console.error('[router] ❌ Preflight validation failed:');
     for (const error of preflightResult.errors) {
       console.error(`[router]   - ${error}`);
     }
-    process.exit(1);
+    exitHandler(1);
+    return; // For type safety when exitHandler doesn't terminate
   }
 
   // === PHASE 5: Execute Agent Passes ===
@@ -299,4 +343,28 @@ async function runReview(options: ReviewOptions): Promise<void> {
   console.log('[router] Review complete');
 }
 
-program.parse();
+// Only parse arguments when run directly (not when imported for testing)
+// This allows tests to import runReview without triggering CLI parsing
+// Use realpathSync to resolve npm bin shims (symlinks) to their real paths
+function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+
+  try {
+    const scriptPath = fileURLToPath(import.meta.url);
+    const argvPath = process.argv[1];
+
+    // Try resolving symlinks for both paths
+    const realScriptPath = realpathSync(scriptPath);
+    const realArgvPath = realpathSync(argvPath);
+
+    return realScriptPath === realArgvPath;
+  } catch {
+    // If realpathSync fails (e.g., path doesn't exist during testing),
+    // fall back to direct comparison
+    return fileURLToPath(import.meta.url) === process.argv[1];
+  }
+}
+
+if (isMainModule()) {
+  program.parse();
+}

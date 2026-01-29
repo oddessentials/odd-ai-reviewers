@@ -17,6 +17,7 @@ import { createMitigationDetector } from '../../src/agents/control_flow/mitigati
 import { createPathAnalyzer } from '../../src/agents/control_flow/path-analyzer.js';
 import { AnalysisBudget } from '../../src/agents/control_flow/budget.js';
 import type { AgentContext } from '../../src/agents/types.js';
+import { isSuccess } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
 import { assertDefined, createTestAgentContext, createTestDiffFile } from '../test-utils.js';
 
@@ -372,7 +373,7 @@ function validate(input: string) {
 
       // Should complete within budget (with some margin for overhead)
       expect(durationMs).toBeLessThan(timeBudget * 1.5);
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should enter degraded mode for large workloads', async () => {
@@ -386,9 +387,11 @@ function validate(input: string) {
 
       const { result } = await measureTimeAsync(() => controlFlowAgent.run(context));
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       // Should have processed at least some files
-      expect(result.metrics?.filesProcessed).toBeGreaterThanOrEqual(0);
+      if (isSuccess(result)) {
+        expect(result.metrics?.filesProcessed).toBeGreaterThanOrEqual(0);
+      }
     });
   });
 
@@ -415,7 +418,7 @@ function validate(input: string) {
 
         const { result, durationMs } = await measureTimeAsync(() => controlFlowAgent.run(context));
 
-        expect(result.success).toBe(true);
+        expect(isSuccess(result)).toBe(true);
         expect(durationMs).toBeLessThan(5000);
       });
     }
@@ -473,7 +476,7 @@ function validate(input: string) {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 });

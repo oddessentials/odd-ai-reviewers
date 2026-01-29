@@ -7,6 +7,8 @@
 
 import type { Config } from '../config.js';
 import type { AgentContext, AgentResult, Finding } from '../agents/types.js';
+import { isSuccess, isFailure, isSkipped } from '../agents/types.js';
+import { assertNever } from '../types/assert-never.js';
 import { getAgentsByIds } from '../agents/index.js';
 import { resolveProvider } from '../config.js';
 import { buildAgentEnv, isKnownAgentId } from '../agents/security.js';
@@ -122,7 +124,7 @@ export async function executeAllPasses(
           result = await agent.run(scopedContext);
 
           // Cache successful results
-          if (options.pr && options.head && result.success) {
+          if (options.pr && options.head && isSuccess(result)) {
             const cacheKey = generateCacheKey({
               prNumber: options.pr,
               headSha: options.head,
@@ -134,12 +136,12 @@ export async function executeAllPasses(
         }
         allResults.push(result);
 
-        if (result.success) {
+        if (isSuccess(result)) {
           console.log(
             `[router] ${agent.name}: ${result.findings.length} findings in ${result.metrics.durationMs}ms`
           );
           allFindings.push(...result.findings);
-        } else {
+        } else if (isFailure(result)) {
           // Agent failed - check if pass is required
           if (pass.required) {
             console.error(`[router] ❌ Required agent ${agent.name} failed: ${result.error}`);
@@ -150,8 +152,19 @@ export async function executeAllPasses(
           skippedAgents.push({
             id: agent.id,
             name: agent.name,
-            reason: result.error || 'Unknown error',
+            reason: result.error,
           });
+        } else if (isSkipped(result)) {
+          // Agent skipped itself - log and continue
+          console.log(`[router] ⏭️  Agent ${agent.name} skipped: ${result.reason}`);
+          skippedAgents.push({
+            id: agent.id,
+            name: agent.name,
+            reason: result.reason,
+          });
+        } else {
+          // Exhaustive check - compile error if new variant added (FR-003)
+          assertNever(result);
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);

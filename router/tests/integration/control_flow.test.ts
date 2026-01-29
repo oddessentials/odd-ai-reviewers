@@ -11,6 +11,7 @@ import type { AgentContext } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
 import type { ControlFlowConfig } from '../../src/agents/control_flow/types.js';
 import { createTestAgentContext, createTestDiffFile } from '../test-utils.js';
+import { isSuccess, isSkipped } from '../../src/agents/types.js';
 
 describe('Control Flow Agent Integration', () => {
   // ==========================================================================
@@ -99,19 +100,24 @@ describe('Control Flow Agent Integration', () => {
       const context = createContext([]);
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       expect(result.agentId).toBe('control_flow');
-      expect(result.findings).toEqual([]);
+      if (isSuccess(result)) {
+        expect(result.findings).toEqual([]);
+      }
     });
 
-    it('should return success when disabled', async () => {
+    it('should return skipped when disabled', async () => {
       const file = createDiffFile('src/app.ts', 'function test() {}');
       const context = createContext([file], { enabled: false });
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
+      // When disabled, agent should be skipped
+      expect(isSkipped(result)).toBe(true);
+      if (isSkipped(result)) {
+        expect(result.reason).toContain('disabled');
+      }
       expect(result.metrics?.filesProcessed).toBe(0);
     });
 
@@ -127,7 +133,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       expect(result.agentId).toBe('control_flow');
       expect(result.metrics?.filesProcessed).toBeGreaterThanOrEqual(0);
     });
@@ -139,7 +145,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       // Only the TS file should be processed
     });
 
@@ -149,7 +155,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 
@@ -172,7 +178,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should analyze functions with loops', async () => {
@@ -191,7 +197,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should analyze functions with try-catch', async () => {
@@ -211,7 +217,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should analyze async functions', async () => {
@@ -227,7 +233,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should analyze arrow functions', async () => {
@@ -244,7 +250,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should analyze class methods', async () => {
@@ -264,7 +270,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 
@@ -285,7 +291,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should recognize null checks', async () => {
@@ -302,7 +308,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should recognize auth checks', async () => {
@@ -319,7 +325,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should recognize output encoding', async () => {
@@ -334,7 +340,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 
@@ -349,7 +355,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       expect(result.metrics).toBeDefined();
       expect(typeof result.metrics?.durationMs).toBe('number');
     });
@@ -360,7 +366,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should respect size budget configuration', async () => {
@@ -369,7 +375,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should prioritize security-sensitive files', async () => {
@@ -381,7 +387,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 
@@ -412,7 +418,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 
@@ -444,7 +450,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should handle React component with hooks', async () => {
@@ -478,7 +484,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should handle authentication middleware', async () => {
@@ -504,7 +510,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
 
     it('should handle database query with sanitization', async () => {
@@ -531,7 +537,7 @@ describe('Control Flow Agent Integration', () => {
 
       const result = await controlFlowAgent.run(context);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
     });
   });
 });

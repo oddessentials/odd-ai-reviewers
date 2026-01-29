@@ -7,6 +7,7 @@
 
 import type { DiffFile } from '../../diff.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding } from '../types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from '../types.js';
 import { AnalysisBudget } from './budget.js';
 import { parseSourceFile, findFunctions, buildCFG } from './cfg-builder.js';
 import type { ControlFlowConfig, ControlFlowFinding } from './types.js';
@@ -53,15 +54,14 @@ export const controlFlowAgent: ReviewAgent = {
       const cfConfig = parseControlFlowConfig(context.config);
 
       if (!cfConfig.enabled) {
-        return {
+        return AgentSkipped({
           agentId: 'control_flow',
-          success: true,
-          findings: [],
+          reason: 'Control flow analysis is disabled in configuration',
           metrics: {
             durationMs: Date.now() - startTime,
             filesProcessed: 0,
           },
-        };
+        });
       }
 
       // Initialize budget
@@ -145,26 +145,24 @@ export const controlFlowAgent: ReviewAgent = {
       // Get final budget stats for metrics
       const finalStats = budget.stats;
 
-      return {
+      return AgentSuccess({
         agentId: 'control_flow',
-        success: true,
         findings: routerFindings,
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: finalStats.filesAnalyzed,
         },
-      };
+      });
     } catch (error) {
-      return {
+      return AgentFailure({
         agentId: 'control_flow',
-        success: false,
-        findings: [],
+        error: error instanceof Error ? error.message : String(error),
+        failureStage: 'exec',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed,
         },
-        error: error instanceof Error ? error.message : String(error),
-      };
+      });
     }
   },
 };

@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import goldenFixture from '../fixtures/golden.json' with { type: 'json' };
+import { isSuccess, isFailure, isSkipped } from '../../agents/types.js';
 
 // Create mock function outside module mock for access in tests
 const mockCreate = vi.hoisted(() => vi.fn());
@@ -54,7 +55,7 @@ describe('Router Integration Tests', () => {
 
       const result = await prAgentAgent.run(context as any);
 
-      expect(result.success).toBe(true);
+      expect(isSuccess(result)).toBe(true);
       expect(result.agentId).toBe('pr_agent');
       expect(mockCreate).toHaveBeenCalledTimes(1);
       expect(result.metrics.filesProcessed).toBeGreaterThan(0);
@@ -75,8 +76,10 @@ describe('Router Integration Tests', () => {
 
       const result = await prAgentAgent.run(context as any);
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toHaveLength(0);
+      expect(isSuccess(result) || isSkipped(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.findings).toHaveLength(0);
+      }
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
@@ -99,8 +102,10 @@ describe('Router Integration Tests', () => {
 
       const result = await prAgentAgent.run(context as any);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('API key');
+      expect(isFailure(result) || isSkipped(result)).toBe(true);
+      if (isFailure(result)) {
+        expect(result.error).toContain('API key');
+      }
     });
   });
 

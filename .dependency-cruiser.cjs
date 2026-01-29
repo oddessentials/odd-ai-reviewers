@@ -141,7 +141,10 @@ module.exports = {
         'from.pathNot re of the not-to-dev-dep rule in the dependency-cruiser configuration',
       from: {
         path: '^(router/src)',
-        pathNot: '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$',
+        pathNot: [
+          '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$', // Test files (*.test.ts, *.spec.ts)
+          '^router/src/__tests__/', // Test infrastructure directory only
+        ],
       },
       to: {
         dependencyTypes: ['npm-dev'],
@@ -175,6 +178,21 @@ module.exports = {
       from: {},
       to: {
         dependencyTypes: ['npm-peer'],
+      },
+    },
+    // 011-agent-result-unions: Enforce metadata.ts isolation (FR-028)
+    {
+      name: 'no-metadata-back-edges',
+      comment:
+        'agents/metadata.ts must not import agent implementations. ' +
+        'Only allowed imports: ./types.ts, ./index.ts. ' +
+        'This prevents circular dependencies from typed metadata helpers.',
+      severity: 'error',
+      from: {
+        path: '^router/src/agents/metadata\\.ts$',
+      },
+      to: {
+        path: '^router/src/agents/(?!types\\.ts$|index\\.ts$).*\\.ts$',
       },
     },
   ],

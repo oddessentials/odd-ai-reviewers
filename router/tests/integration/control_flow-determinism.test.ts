@@ -15,7 +15,7 @@ import {
 import { createMitigationDetector } from '../../src/agents/control_flow/mitigation-detector.js';
 import { createPathAnalyzer } from '../../src/agents/control_flow/path-analyzer.js';
 import { serializeCFG } from '../../src/agents/control_flow/cfg-types.js';
-import type { AgentContext } from '../../src/agents/types.js';
+import { isSuccess, type Finding, type AgentContext } from '../../src/agents/types.js';
 import type { DiffFile } from '../../src/diff.js';
 import { assertDefined, createTestAgentContext, createTestDiffFile } from '../test-utils.js';
 
@@ -350,30 +350,48 @@ export function multiply(a: number, b: number) {
 
         // Run first time
         const firstResult = await controlFlowAgent.run(context);
-        const firstSerialized = JSON.stringify({
-          success: firstResult.success,
-          findingCount: firstResult.findings.length,
-          findings: firstResult.findings.map((f) => ({
-            severity: f.severity,
-            message: f.message,
-            file: f.file,
-            line: f.line,
-          })),
-        });
-
-        // Verify same output across multiple runs
-        for (let i = 0; i < DETERMINISM_RUNS; i++) {
-          const result = await controlFlowAgent.run(context);
-          const serialized = JSON.stringify({
-            success: result.success,
-            findingCount: result.findings.length,
-            findings: result.findings.map((f) => ({
+        let firstSerialized: string;
+        if (isSuccess(firstResult)) {
+          firstSerialized = JSON.stringify({
+            success: true,
+            findingCount: firstResult.findings.length,
+            findings: firstResult.findings.map((f: Finding) => ({
               severity: f.severity,
               message: f.message,
               file: f.file,
               line: f.line,
             })),
           });
+        } else {
+          firstSerialized = JSON.stringify({
+            success: false,
+            findingCount: 0,
+            findings: [],
+          });
+        }
+
+        // Verify same output across multiple runs
+        for (let i = 0; i < DETERMINISM_RUNS; i++) {
+          const result = await controlFlowAgent.run(context);
+          let serialized: string;
+          if (isSuccess(result)) {
+            serialized = JSON.stringify({
+              success: true,
+              findingCount: result.findings.length,
+              findings: result.findings.map((f: Finding) => ({
+                severity: f.severity,
+                message: f.message,
+                file: f.file,
+                line: f.line,
+              })),
+            });
+          } else {
+            serialized = JSON.stringify({
+              success: false,
+              findingCount: 0,
+              findings: [],
+            });
+          }
 
           expect(serialized).toBe(firstSerialized);
         }
@@ -390,17 +408,33 @@ export function multiply(a: number, b: number) {
       const context = createContext([]);
 
       const firstResult = await controlFlowAgent.run(context);
-      const firstSerialized = JSON.stringify({
-        success: firstResult.success,
-        findingCount: firstResult.findings.length,
-      });
+      let firstSerialized: string;
+      if (isSuccess(firstResult)) {
+        firstSerialized = JSON.stringify({
+          success: true,
+          findingCount: firstResult.findings.length,
+        });
+      } else {
+        firstSerialized = JSON.stringify({
+          success: false,
+          findingCount: 0,
+        });
+      }
 
       for (let i = 0; i < DETERMINISM_RUNS; i++) {
         const result = await controlFlowAgent.run(context);
-        const serialized = JSON.stringify({
-          success: result.success,
-          findingCount: result.findings.length,
-        });
+        let serialized: string;
+        if (isSuccess(result)) {
+          serialized = JSON.stringify({
+            success: true,
+            findingCount: result.findings.length,
+          });
+        } else {
+          serialized = JSON.stringify({
+            success: false,
+            findingCount: 0,
+          });
+        }
         expect(serialized).toBe(firstSerialized);
       }
     });
@@ -414,17 +448,33 @@ export function multiply(a: number, b: number) {
       const context = createContext(files);
 
       const firstResult = await controlFlowAgent.run(context);
-      const firstSerialized = JSON.stringify({
-        success: firstResult.success,
-        findingCount: firstResult.findings.length,
-      });
+      let firstSerialized: string;
+      if (isSuccess(firstResult)) {
+        firstSerialized = JSON.stringify({
+          success: true,
+          findingCount: firstResult.findings.length,
+        });
+      } else {
+        firstSerialized = JSON.stringify({
+          success: false,
+          findingCount: 0,
+        });
+      }
 
       for (let i = 0; i < DETERMINISM_RUNS; i++) {
         const result = await controlFlowAgent.run(context);
-        const serialized = JSON.stringify({
-          success: result.success,
-          findingCount: result.findings.length,
-        });
+        let serialized: string;
+        if (isSuccess(result)) {
+          serialized = JSON.stringify({
+            success: true,
+            findingCount: result.findings.length,
+          });
+        } else {
+          serialized = JSON.stringify({
+            success: false,
+            findingCount: 0,
+          });
+        }
         expect(serialized).toBe(firstSerialized);
       }
     });
@@ -434,10 +484,11 @@ export function multiply(a: number, b: number) {
       const context = createContext([file]);
 
       const firstResult = await controlFlowAgent.run(context);
+      const firstIsSuccess = isSuccess(firstResult);
 
       for (let i = 0; i < DETERMINISM_RUNS; i++) {
         const result = await controlFlowAgent.run(context);
-        expect(result.success).toBe(firstResult.success);
+        expect(isSuccess(result)).toBe(firstIsSuccess);
       }
     });
   });

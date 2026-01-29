@@ -9,6 +9,9 @@ import { readFile } from 'fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { ConfigError, ConfigErrorCode } from './types/errors.js';
+import { type ValidatedConfig, createValidatedConfigHelpers } from './types/branded.js';
+import { type Result, Err } from './types/result.js';
 
 // Re-export everything from config submodules for backward compatibility
 export {
@@ -31,14 +34,22 @@ export {
 // Import for internal use
 import { ConfigSchema, type Config, type AgentId } from './config/schemas.js';
 
+// Create ValidatedConfig helpers for Config type
+const ValidatedConfigHelpers = createValidatedConfigHelpers(ConfigSchema);
+
+/** Validated configuration type - branded to guarantee validation has occurred */
+export type ValidatedReviewConfig = ValidatedConfig<Config>;
+
 const CONFIG_FILENAME = '.ai-review.yml';
 const DEFAULTS_PATH = join(import.meta.dirname, '../../config/defaults.ai-review.yml');
 
 /**
  * Load configuration from the target repository
  * Falls back to defaults if no config file exists
+ *
+ * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
  */
-export async function loadConfig(repoRoot: string): Promise<Config> {
+export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Config>> {
   const configPath = join(repoRoot, CONFIG_FILENAME);
 
   let userConfig: Record<string, unknown> = {};
@@ -67,13 +78,52 @@ export async function loadConfig(repoRoot: string): Promise<Config> {
 
   const merged = deepMerge(defaults, userConfig);
 
-  // Validate and return
+  // Validate and return branded config
   const result = ConfigSchema.safeParse(merged);
   if (!result.success) {
-    throw new Error(`Invalid configuration: ${result.error.message}`);
+    const issues = result.error.issues;
+    throw new ConfigError(
+      `Invalid configuration: ${result.error.message}`,
+      ConfigErrorCode.INVALID_SCHEMA,
+      {
+        path: configPath,
+        field: issues[0]?.path?.join('.'),
+        expected: issues[0]?.message,
+      }
+    );
   }
 
-  return result.data;
+  // Brand the validated config - guarantees it passed schema validation
+  return ValidatedConfigHelpers.brand(result.data);
+}
+
+/**
+ * Load configuration, returning a Result instead of throwing.
+ *
+ * This is the Result-returning version for explicit error handling.
+ *
+ * @param repoRoot - Repository root path
+ * @returns Result<ValidatedConfig<Config>, ConfigError>
+ */
+export async function loadConfigResult(
+  repoRoot: string
+): Promise<Result<ValidatedConfig<Config>, ConfigError>> {
+  try {
+    const config = await loadConfig(repoRoot);
+    return { ok: true, value: config };
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      return Err(error);
+    }
+    // Wrap unexpected errors
+    return Err(
+      new ConfigError(
+        error instanceof Error ? error.message : 'Unknown configuration error',
+        ConfigErrorCode.PARSE_ERROR,
+        {}
+      )
+    );
+  }
 }
 
 /**

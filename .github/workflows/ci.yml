@@ -28,6 +28,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # FR-025: Verify toolchain versions match declared requirements
+      - name: Verify toolchain versions
+        run: |
+          echo "Checking TypeScript version..."
+          TS_VERSION=$(npx tsc --version | grep -oP '\d+\.\d+')
+          echo "TypeScript version: $TS_VERSION"
+          if [[ ! "$TS_VERSION" =~ ^5\.9 ]]; then
+            echo "ERROR: TypeScript must be 5.9.x, got $TS_VERSION"
+            exit 1
+          fi
+          echo "✓ TypeScript version OK"
+
+          echo "Checking Vitest version..."
+          VITEST_VERSION=$(npx vitest --version 2>/dev/null | head -1 | grep -oP '\d+' | head -1)
+          echo "Vitest major version: $VITEST_VERSION"
+          if [[ "$VITEST_VERSION" != "4" ]]; then
+            echo "ERROR: Vitest must be 4.x, got major version $VITEST_VERSION"
+            exit 1
+          fi
+          echo "✓ Vitest version OK"
+
       - name: Lint (zero-tolerance)
         run: pnpm lint --max-warnings 0
 
@@ -39,6 +60,16 @@ jobs:
 
       - name: Check circular dependencies
         run: pnpm depcruise
+
+      # Guard: Ensure scripts have executable bit (prevents Windows->Linux issues)
+      - name: Check script permissions
+        run: ./scripts/check-executable-modes.sh
+
+      # 011-agent-result-unions: Enforce discriminated union patterns
+      - name: Check AgentResult patterns
+        run: |
+          ./scripts/check-success-ban.sh
+          ./scripts/check-literal-ban.sh
 
       - name: Verify docs manifest
         run: |

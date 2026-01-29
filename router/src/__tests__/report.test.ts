@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processFindings, dispatchReport, checkGating } from '../phases/report.js';
 import type { Config } from '../config/schemas.js';
 import type { Finding, AgentResult } from '../agents/types.js';
+import { AgentSuccess } from '../agents/types.js';
 import type { SkippedAgent } from '../phases/execute.js';
 
 // Mock the report modules
@@ -116,12 +117,11 @@ describe('Report Module', () => {
     it('should generate summary markdown', () => {
       const findings: Finding[] = [baseFinding];
       const results: AgentResult[] = [
-        {
+        AgentSuccess({
           agentId: 'test',
-          success: true,
           findings: [baseFinding],
           metrics: { durationMs: 100, filesProcessed: 1 },
-        },
+        }),
       ];
 
       const processed = processFindings(findings, results, []);

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { NetworkError, NetworkErrorCode } from '../types/errors.js';
 
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
@@ -65,5 +66,7 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  throw new Error('Retry exhausted');
+  throw new NetworkError('Retry exhausted after maximum attempts', NetworkErrorCode.TIMEOUT, {
+    provider: 'openai',
+  });
 }

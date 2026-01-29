@@ -9,7 +9,12 @@
  *
  * SECURITY ANALYSIS:
  * ==================
- * 1. SAFE_REF_PATTERN is an ALLOWLIST - only permits [a-zA-Z0-9\-_/.]+
+ * 1. SafeGitRefHelpers.parse() validates git refs using an ALLOWLIST pattern:
+ *    - Max 256 characters
+ *    - Must start with alphanumeric (no option injection via leading -)
+ *    - Only permits [a-zA-Z0-9][a-zA-Z0-9\-_/.]*
+ *    - Forbids path traversal (..)
+ *    - Forbids shell metacharacters (; | & $ ` etc.)
  *    This EXCLUDES all shell metacharacters by design.
  *
  * 2. UNSAFE_PATH_CHARS is a BLOCKLIST - explicitly rejects ; | & $ ` \ ! < > ( ) { } [ ] ' " * ? \n \r \0
@@ -27,22 +32,9 @@
  *    These validators are DEFENSE-IN-DEPTH.
  */
 
-/**
- * Safe characters for git refs (SHAs, branch names, tags):
- * - Hexadecimal digits (for SHAs)
- * - Alphanumeric (for branch/tag names)
- * - Forward slash (for refs/heads/main, origin/main)
- * - Hyphen, underscore, dot (common in branch names)
- *
- * This explicitly EXCLUDES shell metacharacters: ; | & $ ` \ ! < > ( ) { } [ ] ' " * ? \n \r
- */
-const SAFE_REF_PATTERN = /^[a-zA-Z0-9\-_/.]+$/;
-
-/**
- * Maximum length for git refs (defensive limit)
- * Git allows up to 256 bytes, but refs/heads/... can be longer
- */
-const MAX_REF_LENGTH = 512;
+import { ValidationError, ValidationErrorCode } from './types/errors.js';
+import { type SafeGitRef, SafeGitRefHelpers } from './types/branded.js';
+import { type Result, Err, isOk } from './types/result.js';
 
 /**
  * Shell metacharacters that MUST NOT appear in paths passed to execSync
@@ -79,29 +71,118 @@ export function getUnsafeCharsInPath(path: string): string {
 /**
  * Validate a git ref (SHA, branch name, tag, refs/heads/...) for safe shell use.
  *
+ * Uses SafeGitRefHelpers validation to ensure consistent security checks:
+ * - Max 256 characters
+ * - Must start with alphanumeric
+ * - No path traversal (..)
+ * - No shell metacharacters
+ *
  * @param ref - The git reference to validate
  * @param name - Human-readable name for error messages (e.g., 'baseSha', 'headSha')
- * @throws Error if the ref contains unsafe characters
+ * @throws ValidationError if the ref contains unsafe characters or patterns
  */
 export function assertSafeGitRef(ref: string, name: string): void {
-  if (!ref) {
-    throw new Error(`Invalid ${name}: value is empty or undefined`);
+  const result = SafeGitRefHelpers.parse(ref);
+
+  if (!isOk(result)) {
+    // Construct user-friendly error message with field name
+    const originalMsg = result.error.message;
+    let message: string;
+
+    if (originalMsg.includes('cannot exceed')) {
+      message = `Invalid ${name}: length ${ref.length} exceeds maximum allowed characters`;
+    } else if (originalMsg.includes('empty')) {
+      message = `Invalid ${name}: value is empty or undefined`;
+    } else if (
+      originalMsg.includes('invalid characters') ||
+      originalMsg.includes('forbidden pattern')
+    ) {
+      // Find the first invalid character for helpful error message
+      const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
+      message =
+        `Invalid ${name}: contains unsafe character '${invalidChar ?? 'unknown'}'. ` +
+        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`;
+    } else {
+      message = `Invalid ${name}: ${originalMsg}`;
+    }
+
+    throw new ValidationError(message, ValidationErrorCode.INVALID_GIT_REF, {
+      field: name,
+      value: ref,
+      constraint: result.error.context['constraint'] as string | undefined,
+    });
+  }
+}
+
+/**
+ * Parse and validate a git ref, returning a branded SafeGitRef on success.
+ *
+ * This delegates to SafeGitRefHelpers.parse() to ensure all SafeGitRef
+ * invariants are properly enforced (max 256 chars, no leading dash,
+ * no path traversal, no shell metacharacters).
+ *
+ * This is the Result-returning version for use with the Result pattern.
+ * For backward compatibility, use assertSafeGitRef() which throws on error.
+ *
+ * @param ref - The git reference to validate
+ * @param name - Human-readable name for error context (e.g., 'baseSha', 'headSha')
+ * @returns Result<SafeGitRef, ValidationError>
+ */
+export function parseSafeGitRef(ref: string, name: string): Result<SafeGitRef, ValidationError> {
+  // Delegate to SafeGitRefHelpers.parse() to ensure all SafeGitRef invariants are enforced
+  const result = SafeGitRefHelpers.parse(ref);
+
+  if (isOk(result)) {
+    return result;
   }
 
-  if (ref.length > MAX_REF_LENGTH) {
-    throw new Error(
-      `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`
-    );
-  }
+  // Construct user-friendly error message with field name
+  const originalMsg = result.error.message;
+  let message: string;
 
-  if (!SAFE_REF_PATTERN.test(ref)) {
+  if (originalMsg.includes('cannot exceed')) {
+    message = `Invalid ${name}: length ${ref.length} exceeds maximum allowed characters`;
+  } else if (originalMsg.includes('empty')) {
+    message = `Invalid ${name}: value is empty or undefined`;
+  } else if (
+    originalMsg.includes('invalid characters') ||
+    originalMsg.includes('forbidden pattern')
+  ) {
     // Find the first invalid character for helpful error message
     const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
-    throw new Error(
-      `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
-        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`
-    );
+    message =
+      `Invalid ${name}: contains unsafe character '${invalidChar ?? 'unknown'}'. ` +
+      `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`;
+  } else {
+    message = `Invalid ${name}: ${originalMsg}`;
   }
+
+  return Err(
+    new ValidationError(message, ValidationErrorCode.INVALID_GIT_REF, {
+      field: name,
+      value: ref,
+      constraint: result.error.context['constraint'] as string | undefined,
+    })
+  );
+}
+
+/**
+ * Assert a git ref is safe and return it as a branded SafeGitRef.
+ *
+ * This is the throwing version that returns a SafeGitRef.
+ * Combines validation and branding in one call.
+ *
+ * @param ref - The git reference to validate
+ * @param name - Human-readable name for error messages
+ * @returns SafeGitRef - The validated and branded reference
+ * @throws ValidationError if the ref contains unsafe characters
+ */
+export function assertAndBrandGitRef(ref: string, name: string): SafeGitRef {
+  const result = parseSafeGitRef(ref, name);
+  if (!isOk(result)) {
+    throw result.error;
+  }
+  return result.value;
 }
 
 /**
@@ -113,20 +194,40 @@ export function assertSafeGitRef(ref: string, name: string): void {
  */
 export function assertSafePath(filePath: string, name: string): void {
   if (!filePath) {
-    throw new Error(`Invalid ${name}: value is empty or undefined`);
+    throw new ValidationError(
+      `Invalid ${name}: value is empty or undefined`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: 'non-empty',
+      }
+    );
   }
 
   if (filePath.length > MAX_PATH_LENGTH) {
-    throw new Error(
-      `Invalid ${name}: length ${filePath.length} exceeds maximum ${MAX_PATH_LENGTH} characters`
+    throw new ValidationError(
+      `Invalid ${name}: length ${filePath.length} exceeds maximum ${MAX_PATH_LENGTH} characters`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: `max-length-${MAX_PATH_LENGTH}`,
+      }
     );
   }
 
   if (UNSAFE_PATH_CHARS.test(filePath)) {
     const unsafeChars = getUnsafeCharsInPath(filePath);
-    throw new Error(
+    throw new ValidationError(
       `Invalid ${name}: contains unsafe characters [${unsafeChars}]. ` +
-        `Shell metacharacters ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`
+        `Shell metacharacters ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: 'safe-characters',
+      }
     );
   }
 }
