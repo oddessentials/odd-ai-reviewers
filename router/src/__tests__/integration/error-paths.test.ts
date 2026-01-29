@@ -6,20 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Hermetic test setup - frozen time for deterministic behavior
-const FROZEN_TIMESTAMP = '2026-01-29T00:00:00.000Z';
-const FROZEN_DATE = new Date(FROZEN_TIMESTAMP);
-
-function setupHermeticTest(): void {
-  vi.useFakeTimers();
-  vi.setSystemTime(FROZEN_DATE);
-}
-
-function teardownHermeticTest(): void {
-  vi.useRealTimers();
-  vi.restoreAllMocks();
-}
+import { FROZEN_TIMESTAMP, setupHermeticTest, teardownHermeticTest } from '../hermetic-setup.js';
 import { ValidationError, ConfigError, AgentError, ConfigErrorCode } from '../../types/errors.js';
 
 describe('Error Path Integration Tests', () => {
