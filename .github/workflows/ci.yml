@@ -61,6 +61,10 @@ jobs:
       - name: Check circular dependencies
         run: pnpm depcruise
 
+      # Guard: Ensure scripts have executable bit (prevents Windows->Linux issues)
+      - name: Check script permissions
+        run: ./scripts/check-executable-modes.sh
+
       # 011-agent-result-unions: Enforce discriminated union patterns
       - name: Check AgentResult patterns
         run: |
