@@ -8,15 +8,16 @@
     "router"
   ],
   "scripts": {
-    "build": "npm run build --workspace=router",
-    "test": "npm run test --workspace=router",
-    "test:ci": "npm run test:ci --workspace=router",
+    "preinstall": "node scripts/preinstall-guard.cjs",
+    "build": "pnpm --filter router build",
+    "test": "pnpm --filter router test",
+    "test:ci": "pnpm --filter router test:ci",
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run format:check && npm run typecheck && npm run depcruise && npm run build",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm depcruise && pnpm build",
     "depcruise": "depcruise router/src --config .dependency-cruiser.cjs",
     "prepare": "husky",
     "docs:manifest": "node scripts/generate-docs-manifest.cjs",
@@ -64,6 +65,7 @@
   "engines": {
     "node": ">=22.0.0"
   },
+  "packageManager": "pnpm@10.28.2",
   "overrides": {
     "@actions/glob": {
       "@actions/core": {

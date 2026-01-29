@@ -17,5 +17,5 @@
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true
   },
-  "exclude": ["node_modules", "dist", "**/dist"]
+  "exclude": ["node_modules", "dist", "**/dist", "specs"]
 }

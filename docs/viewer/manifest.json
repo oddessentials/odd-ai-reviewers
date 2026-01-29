@@ -30,6 +30,11 @@
           "name": "security.md",
           "type": "file",
           "path": "../architecture/security.md"
+        },
+        {
+          "name": "worker-timeout-design.md",
+          "type": "file",
+          "path": "../architecture/worker-timeout-design.md"
         }
       ]
     },
@@ -257,6 +262,11 @@
       "name": "architecture/security.md",
       "type": "file",
       "path": "../architecture/security.md"
+    },
+    {
+      "name": "architecture/worker-timeout-design.md",
+      "type": "file",
+      "path": "../architecture/worker-timeout-design.md"
     },
     {
       "name": "configuration/config-schema.md",

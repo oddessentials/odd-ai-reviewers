@@ -50,13 +50,16 @@ RUN curl -fsSL -o /tmp/opencode.tar.gz \
     rm /tmp/opencode.tar.gz && \
     opencode --version
 
+# Enable corepack for pnpm support (pnpm version defined in package.json)
+RUN corepack enable
+
 # Copy package files for monorepo workspace setup
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY router/package.json ./router/
 
 # Install dependencies (production only) for router workspace
 # --ignore-scripts skips prepare hooks (husky) not needed in container
-RUN npm ci --omit=dev --ignore-scripts --workspace=@odd-ai-reviewers/router
+RUN pnpm install --prod --ignore-scripts --filter=@odd-ai-reviewers/router
 
 # Copy built source and config
 COPY router/dist/ ./dist/

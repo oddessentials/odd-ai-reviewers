@@ -15,44 +15,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        # Version is read from packageManager field in package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint (zero-tolerance)
-        run: npm run lint -- --max-warnings 0
+        run: pnpm lint --max-warnings 0
 
       - name: Format check
-        run: npm run format:check
+        run: pnpm format:check
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm typecheck
 
       - name: Check circular dependencies
-        run: npm run depcruise
+        run: pnpm depcruise
 
       - name: Verify docs manifest
         run: |
-          npm run docs:manifest
-          git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'npm run docs:manifest' and commit." && exit 1)
+          pnpm docs:manifest
+          git diff --exit-code docs/viewer/manifest.json || (echo "Docs manifest is out of sync. Run 'pnpm docs:manifest' and commit." && exit 1)
 
       # FR-012: Documentation link integrity check
       # FR-013: External links require allowlist entry in .linkcheckignore.yml
       - name: Check documentation links
-        run: npm run docs:linkcheck
+        run: pnpm docs:linkcheck
 
       - name: Build
-        run: npm run build
+        run: pnpm build
 
       # FR-005: Coverage thresholds enforced via vitest.config.ts
       # CI=true automatically triggers stricter thresholds
       - name: Test with coverage
-        run: npm run test:ci:coverage --workspace=router
+        run: pnpm --filter router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
@@ -80,14 +84,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Fresh install (triggers husky prepare)
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Verify husky hooks installed
         run: |
@@ -132,17 +139,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build router
-        run: npm run build --workspace=router
+        run: pnpm --filter router build
 
       - name: Build container image
         run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .
