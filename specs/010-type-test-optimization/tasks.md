@@ -241,7 +241,7 @@
 - [ ] T085 [P] Migrate AgentContext.env from Record<string, unknown> to typed helpers in router/src/agents/types.ts (lower priority - current pattern works)
 - [ ] T086 Add compile-time type tests for Zod schema consistency in router/src/\_\_tests\_\_/types/schema-consistency.test.ts (N/A - inference tests in inference.test.ts cover this)
 - [x] T087 Audit all z.infer<> usages; remove any hand-duplicated interfaces (verified - all types derive from Zod schemas)
-- [x] T088 Run full test suite and verify all 58+ existing tests still pass (1819 tests pass)
+- [x] T088 Run full test suite and verify all 58+ existing tests still pass (1829 tests pass)
 - [x] T089 Run coverage report and verify overall coverage >= 45% (77.59% achieved)
 - [x] T090 Validate quickstart.md examples compile and work correctly (10 tests in quickstart-validation.test.ts)
 - [x] T091 Update CLAUDE.md with new types/ documentation (added Type Utilities section)
@@ -328,3 +328,19 @@ Task: "Implement ValidationError class in router/src/types/errors.ts"
 - Backward compatibility maintained via throwing wrappers per clarification
 - Hermetic tests only per clarification (no network, no git, frozen time/UUID)
 - Total: 91 tasks across 10 phases
+
+---
+
+## Post-Implementation Fixes
+
+### P1: CLI Entry Check for Symlinked Binaries (2026-01-29)
+
+**File**: `router/src/main.ts`
+**Issue**: CLI entry guard failed when invoked via npm bin shims (symlinks)
+**Fix**: Use `realpathSync` to resolve both paths before comparison
+
+### P2: SafeGitRef Invariant Preservation (2026-01-29)
+
+**File**: `router/src/git-validators.ts`
+**Issue**: `parseSafeGitRef` used looser validation than `SafeGitRefHelpers.parse()`, allowing refs like `-bad` or `refs/../x` to be branded as SafeGitRef
+**Fix**: Delegate to `SafeGitRefHelpers.parse()` for consistent validation (max 256 chars, no leading dash, no path traversal, no shell metacharacters)
