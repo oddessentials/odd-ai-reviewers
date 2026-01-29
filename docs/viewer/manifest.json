@@ -240,6 +240,11 @@
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
+    },
+    {
+      "name": "troubleshooting.md",
+      "type": "file",
+      "path": "../troubleshooting.md"
     }
   ],
   "files": [
@@ -412,6 +417,11 @@
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
+    },
+    {
+      "name": "troubleshooting.md",
+      "type": "file",
+      "path": "../troubleshooting.md"
     }
   ]
 }

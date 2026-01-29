@@ -128,13 +128,13 @@
 
 **Purpose**: Create central troubleshooting location for discoverability
 
-- [ ] T017 Create docs/troubleshooting.md as central troubleshooting hub:
+- [x] T017 Create docs/troubleshooting.md as central troubleshooting hub:
   - Add Azure DevOps section with links to setup.md troubleshooting
   - Add quick fix checklist (3 items)
   - Add placeholder for GitHub troubleshooting section
   - Add search terms for cross-platform discoverability
 
-- [ ] T018 [P] Verify internal anchor links work in docs/troubleshooting.md:
+- [x] T018 [P] Verify internal anchor links work in docs/troubleshooting.md:
   - Test links to setup.md#troubleshooting sections
   - Verify cross-file references render correctly
 
