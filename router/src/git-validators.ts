@@ -27,6 +27,8 @@
  *    These validators are DEFENSE-IN-DEPTH.
  */
 
+import { ValidationError, ValidationErrorCode } from './types/errors.js';
+
 /**
  * Safe characters for git refs (SHAs, branch names, tags):
  * - Hexadecimal digits (for SHAs)
@@ -85,21 +87,41 @@ export function getUnsafeCharsInPath(path: string): string {
  */
 export function assertSafeGitRef(ref: string, name: string): void {
   if (!ref) {
-    throw new Error(`Invalid ${name}: value is empty or undefined`);
+    throw new ValidationError(
+      `Invalid ${name}: value is empty or undefined`,
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: name,
+        value: ref,
+        constraint: 'non-empty',
+      }
+    );
   }
 
   if (ref.length > MAX_REF_LENGTH) {
-    throw new Error(
-      `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`
+    throw new ValidationError(
+      `Invalid ${name}: length ${ref.length} exceeds maximum ${MAX_REF_LENGTH} characters`,
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: name,
+        value: ref,
+        constraint: `max-length-${MAX_REF_LENGTH}`,
+      }
     );
   }
 
   if (!SAFE_REF_PATTERN.test(ref)) {
     // Find the first invalid character for helpful error message
     const invalidChar = ref.split('').find((c) => !/[a-zA-Z0-9\-_/.]/.test(c));
-    throw new Error(
+    throw new ValidationError(
       `Invalid ${name}: contains unsafe character '${invalidChar}'. ` +
-        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`
+        `Only alphanumeric, hyphen, underscore, forward slash, and dot are allowed.`,
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: name,
+        value: ref,
+        constraint: 'safe-characters',
+      }
     );
   }
 }
@@ -113,20 +135,40 @@ export function assertSafeGitRef(ref: string, name: string): void {
  */
 export function assertSafePath(filePath: string, name: string): void {
   if (!filePath) {
-    throw new Error(`Invalid ${name}: value is empty or undefined`);
+    throw new ValidationError(
+      `Invalid ${name}: value is empty or undefined`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: 'non-empty',
+      }
+    );
   }
 
   if (filePath.length > MAX_PATH_LENGTH) {
-    throw new Error(
-      `Invalid ${name}: length ${filePath.length} exceeds maximum ${MAX_PATH_LENGTH} characters`
+    throw new ValidationError(
+      `Invalid ${name}: length ${filePath.length} exceeds maximum ${MAX_PATH_LENGTH} characters`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: `max-length-${MAX_PATH_LENGTH}`,
+      }
     );
   }
 
   if (UNSAFE_PATH_CHARS.test(filePath)) {
     const unsafeChars = getUnsafeCharsInPath(filePath);
-    throw new Error(
+    throw new ValidationError(
       `Invalid ${name}: contains unsafe characters [${unsafeChars}]. ` +
-        `Shell metacharacters ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`
+        `Shell metacharacters ; | & $ \` \\ ! < > ( ) { } [ ] ' " * ? are not allowed.`,
+      ValidationErrorCode.INVALID_PATH,
+      {
+        field: name,
+        value: filePath,
+        constraint: 'safe-characters',
+      }
     );
   }
 }

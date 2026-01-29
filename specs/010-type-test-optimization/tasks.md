@@ -61,22 +61,22 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Unit test for error serialization round-trip in router/src/\_\_tests\_\_/types/errors.test.ts
-- [ ] T016 [P] [US1] Unit test for error cause chaining in router/src/\_\_tests\_\_/types/errors.test.ts
-- [ ] T017 [P] [US1] Unit test for error type guards (isConfigError, isAgentError, etc.) in router/src/\_\_tests\_\_/types/errors.test.ts
+- [x] T015 [P] [US1] Unit test for error serialization round-trip in router/src/\_\_tests\_\_/types/errors.test.ts
+- [x] T016 [P] [US1] Unit test for error cause chaining in router/src/\_\_tests\_\_/types/errors.test.ts
+- [x] T017 [P] [US1] Unit test for error type guards (isConfigError, isAgentError, etc.) in router/src/\_\_tests\_\_/types/errors.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Migrate error handling in router/src/config.ts to use ConfigError
+- [x] T018 [US1] Migrate error handling in router/src/config.ts to use ConfigError
 - [ ] T019 [US1] Migrate error handling in router/src/config/schemas.ts to use ConfigError
-- [ ] T020 [US1] Migrate error handling in router/src/git-validators.ts to use ValidationError
-- [ ] T021 [US1] Migrate error handling in router/src/agents/retry.ts to use NetworkError
+- [x] T020 [US1] Migrate error handling in router/src/git-validators.ts to use ValidationError
+- [x] T021 [US1] Migrate error handling in router/src/agents/retry.ts to use NetworkError
 - [ ] T022 [US1] Migrate error handling in router/src/agents/semgrep.ts to use AgentError
 - [ ] T023 [US1] Migrate error handling in router/src/agents/opencode.ts to use AgentError
 - [ ] T024 [US1] Migrate error handling in router/src/agents/ai_semantic_review.ts to use AgentError
 - [ ] T025 [US1] Migrate error handling in router/src/preflight.ts to use ConfigError/ValidationError
-- [ ] T026 [US1] Migrate error handling in router/src/diff.ts to use ValidationError
-- [ ] T027 [US1] Add type guards export to router/src/types/errors.ts (isConfigError, isAgentError, isNetworkError, isValidationError)
+- [x] T026 [US1] Migrate error handling in router/src/diff.ts to use ValidationError
+- [x] T027 [US1] Add type guards export to router/src/types/errors.ts (isConfigError, isAgentError, isNetworkError, isValidationError)
 
 **Checkpoint**: All 16+ error handling locations now use typed custom errors with wire format
 

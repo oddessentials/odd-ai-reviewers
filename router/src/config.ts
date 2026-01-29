@@ -9,6 +9,7 @@ import { readFile } from 'fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { ConfigError, ConfigErrorCode } from './types/errors.js';
 
 // Re-export everything from config submodules for backward compatibility
 export {
@@ -70,7 +71,16 @@ export async function loadConfig(repoRoot: string): Promise<Config> {
   // Validate and return
   const result = ConfigSchema.safeParse(merged);
   if (!result.success) {
-    throw new Error(`Invalid configuration: ${result.error.message}`);
+    const issues = result.error.issues;
+    throw new ConfigError(
+      `Invalid configuration: ${result.error.message}`,
+      ConfigErrorCode.INVALID_SCHEMA,
+      {
+        path: configPath,
+        field: issues[0]?.path?.join('.'),
+        expected: issues[0]?.message,
+      }
+    );
   }
 
   return result.data;
