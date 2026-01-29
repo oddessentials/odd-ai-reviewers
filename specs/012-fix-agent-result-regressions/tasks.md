@@ -28,7 +28,7 @@
 - [ ] T002 Update FindingSchema Zod schema to include optional provenance field in router/src/agents/types.ts
 - [ ] T003 Add `CACHE_SCHEMA_VERSION = 2` constant co-located with AgentResultSchema in router/src/agents/types.ts
 - [ ] T004 Export CACHE_SCHEMA_VERSION from router/src/agents/types.ts barrel
-- [ ] T004a Add test for provenance field in FindingSchema in router/src/**tests**/agents/types.test.ts (validates 'complete'|'partial' enum)
+- [ ] T005 Add test for provenance field in FindingSchema in router/src/**tests**/agents/types.test.ts (validates 'complete'|'partial' enum)
 
 **Checkpoint**: Type foundation ready - user story implementation can begin
 
@@ -44,27 +44,27 @@
 
 **Test Organization**: Schema/type validation (provenance enum) in `types.test.ts`; collection/flow tests in `execute.test.ts`.
 
-- [ ] T005 [P] [US1] Add test: partialFindings collected from AgentResultFailure in router/src/**tests**/phases/execute.test.ts
-- [ ] T006 [P] [US1] Add test: empty partialFindings array does not add phantom findings in router/src/**tests**/phases/execute.test.ts
-- [ ] T007 [P] [US1] Add test: multiple failed agents' partialFindings all collected in router/src/**tests**/phases/execute.test.ts
-- [ ] T008 [P] [US1] Add test: dedup within partialFindings using sourceAgent+file+line+ruleId in router/src/**tests**/phases/report.test.ts
-- [ ] T009 [P] [US1] Add test: no cross-collection deduplication (FR-011) in router/src/**tests**/phases/report.test.ts
-- [ ] T010 [P] [US1] Add test: gating uses completeFindings only in router/src/**tests**/phases/report.test.ts
+- [ ] T006 [P] [US1] Add test: partialFindings collected from AgentResultFailure in router/src/**tests**/phases/execute.test.ts
+- [ ] T007 [P] [US1] Add test: empty partialFindings array does not add phantom findings in router/src/**tests**/phases/execute.test.ts
+- [ ] T008 [P] [US1] Add test: multiple failed agents' partialFindings all collected in router/src/**tests**/phases/execute.test.ts
+- [ ] T009 [P] [US1] Add test: dedup within partialFindings using sourceAgent+file+line+ruleId in router/src/**tests**/phases/report.test.ts
+- [ ] T010 [P] [US1] Add test: no cross-collection deduplication (FR-011) in router/src/**tests**/phases/report.test.ts
+- [ ] T011 [P] [US1] Add test: gating uses completeFindings only in router/src/**tests**/phases/report.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Change ExecuteResult interface from `allFindings` to `completeFindings` + `partialFindings` in router/src/phases/execute.ts
-- [ ] T012 [US1] Update executeAllPasses to collect partialFindings from AgentResultFailure into separate array in router/src/phases/execute.ts
-- [ ] T013 [US1] Set `provenance: 'complete'` on findings from successful agents in router/src/phases/execute.ts
-- [ ] T013a [US1] Add assertion `finding.provenance === 'complete'` in existing success result tests (no new test suite)
-- [ ] T014 [US1] Set `provenance: 'partial'` on partialFindings from failed agents in router/src/phases/execute.ts
-- [ ] T015 [US1] Add getPartialDedupeKey function (sourceAgent+file+line+ruleId) in router/src/report/formats.ts
-- [ ] T016 [US1] Add deduplicatePartialFindings function using getPartialDedupeKey in router/src/report/formats.ts
-- [ ] T017 [US1] Update dispatchReport signature to accept completeFindings + partialFindings in router/src/phases/report.ts
-- [ ] T018 [US1] Update checkGating to use completeFindings only (FR-008) in router/src/phases/report.ts
-- [ ] T019 [US1] Add renderPartialFindingsSection function in router/src/report/formats.ts
-- [ ] T020 [US1] Update generateFullSummaryMarkdown to include partial findings section in router/src/report/formats.ts
-- [ ] T021 [US1] Update router/src/index.ts to pass both finding collections to reporting
+- [ ] T012 [US1] Change ExecuteResult interface from `allFindings` to `completeFindings` + `partialFindings` in router/src/phases/execute.ts
+- [ ] T013 [US1] Update executeAllPasses to collect partialFindings from AgentResultFailure into separate array in router/src/phases/execute.ts
+- [ ] T014 [US1] Set `provenance: 'complete'` on findings from successful agents in router/src/phases/execute.ts
+- [ ] T015 [US1] Add assertion `finding.provenance === 'complete'` in existing success result tests (no new test suite)
+- [ ] T016 [US1] Set `provenance: 'partial'` on partialFindings from failed agents in router/src/phases/execute.ts
+- [ ] T017 [US1] Add getPartialDedupeKey function (sourceAgent+file+line+ruleId) in router/src/report/formats.ts
+- [ ] T018 [US1] Add deduplicatePartialFindings function using getPartialDedupeKey in router/src/report/formats.ts
+- [ ] T019 [US1] Update dispatchReport signature to accept completeFindings + partialFindings in router/src/phases/report.ts
+- [ ] T020 [US1] Update checkGating to use completeFindings only (FR-008) in router/src/phases/report.ts
+- [ ] T021 [US1] Add renderPartialFindingsSection function in router/src/report/formats.ts
+- [ ] T022 [US1] Update generateFullSummaryMarkdown to include partial findings section in router/src/report/formats.ts
+- [ ] T023 [US1] Update router/src/index.ts to pass both finding collections to reporting
 
 **Checkpoint**: User Story 1 complete - partial findings visible in reports
 
@@ -78,18 +78,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Add test: legacy cache entry (no status field) returns null (cache miss) in router/src/**tests**/cache/store.test.ts
-- [ ] T023 [P] [US2] Add test: new-format cache entry passes validation and returns result in router/src/**tests**/cache/store.test.ts
-- [ ] T024 [P] [US2] Add test: malformed/corrupted entry returns null in router/src/**tests**/cache/store.test.ts
-- [ ] T025 [P] [US2] Add test: cache key includes version prefix in router/src/**tests**/cache/key.test.ts
+- [ ] T024 [P] [US2] Add test: legacy cache entry (no status field) returns null (cache miss) in router/src/**tests**/cache/store.test.ts
+- [ ] T025 [P] [US2] Add test: new-format cache entry passes validation and returns result in router/src/**tests**/cache/store.test.ts
+- [ ] T026 [P] [US2] Add test: malformed/corrupted entry returns null in router/src/**tests**/cache/store.test.ts
+- [ ] T027 [P] [US2] Add test: cache key includes version prefix in router/src/**tests**/cache/key.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Import CACHE_SCHEMA_VERSION in router/src/cache/key.ts
-- [ ] T027 [US2] Update generateCacheKey to include version: `ai-review-v${CACHE_SCHEMA_VERSION}-${prNumber}-${hash}` in router/src/cache/key.ts
-- [ ] T028 [US2] Import AgentResultSchema in router/src/cache/store.ts
-- [ ] T029 [US2] Update getCached to validate with AgentResultSchema.safeParse() before returning in router/src/cache/store.ts
-- [ ] T030 [US2] Return null on schema validation failure (cache miss) in router/src/cache/store.ts
+- [ ] T028 [US2] Import CACHE_SCHEMA_VERSION in router/src/cache/key.ts
+- [ ] T029 [US2] Update generateCacheKey to include version: `ai-review-v${CACHE_SCHEMA_VERSION}-${prNumber}-${hash}` in router/src/cache/key.ts
+- [ ] T030 [US2] Import AgentResultSchema in router/src/cache/store.ts
+- [ ] T031 [US2] Update getCached to validate with AgentResultSchema.safeParse() before returning in router/src/cache/store.ts
+- [ ] T032 [US2] Return null on schema validation failure (cache miss) in router/src/cache/store.ts
 
 **Checkpoint**: User Story 2 complete - legacy caches handled gracefully
 
@@ -105,15 +105,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T031 [P] [US3] Add test: is() returns false for forbidden patterns in router/src/**tests**/types/branded.test.ts
-- [ ] T032 [P] [US3] Add test: is() returns true for valid inputs in router/src/**tests**/types/branded.test.ts
-- [ ] T033 [P] [US3] Add test: fixed wide corpus - is() agrees with parse() for all entries (FR-009) in router/src/**tests**/types/branded.test.ts
-- [ ] T034 [P] [US3] Add test: fuzz loop with crypto.randomBytes - is() agrees with parse() (FR-009) in router/src/**tests**/types/branded.test.ts
+- [ ] T033 [P] [US3] Add test: is() returns false for forbidden patterns in router/src/**tests**/types/branded.test.ts
+- [ ] T034 [P] [US3] Add test: is() returns true for valid inputs in router/src/**tests**/types/branded.test.ts
+- [ ] T035 [P] [US3] Add test: fixed wide corpus - is() agrees with parse() for all entries (FR-009) in router/src/**tests**/types/branded.test.ts
+- [ ] T036 [P] [US3] Add test: fuzz loop with crypto.randomBytes - is() agrees with parse() (FR-009) in router/src/**tests**/types/branded.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Import isOk from result module in router/src/types/branded.ts
-- [ ] T036 [US3] Change is() implementation from `schema.safeParse(value).success` to `isOk(this.parse(value))` in router/src/types/branded.ts
+- [ ] T037 [US3] Import isOk from result module in router/src/types/branded.ts
+- [ ] T038 [US3] Change is() implementation from `schema.safeParse(value).success` to `isOk(this.parse(value))` in router/src/types/branded.ts
 
 **Checkpoint**: User Story 3 complete - BrandHelpers.is validates fully
 
@@ -123,12 +123,12 @@
 
 **Purpose**: Final validation, existing test updates, documentation
 
-- [ ] T037 Update existing tests that use ExecuteResult.allFindings to use completeFindings in router/src/**tests**/
-- [ ] T038 Run full test suite and fix any regressions (pnpm test)
-- [ ] T039 Run lint check (pnpm lint --max-warnings 0)
-- [ ] T040 Run typecheck (pnpm typecheck)
-- [ ] T041 Run depcruise circular dependency check (pnpm depcruise)
-- [ ] T042 Validate quickstart.md examples work as documented
+- [ ] T039 Update existing tests that use ExecuteResult.allFindings to use completeFindings in router/src/**tests**/
+- [ ] T040 Run full test suite and fix any regressions (pnpm test)
+- [ ] T041 Run lint check (pnpm lint --max-warnings 0)
+- [ ] T042 Run typecheck (pnpm typecheck)
+- [ ] T043 Run depcruise circular dependency check (pnpm depcruise)
+- [ ] T044 Validate quickstart.md examples work as documented
 
 ---
 
@@ -150,37 +150,37 @@
 
 ### Within Each User Story
 
-- Tests FIRST (T005-T010, T022-T025, T031-T034) - ensure they FAIL
+- Tests FIRST (T006-T011, T024-T027, T033-T036) - ensure they FAIL
 - Implementation SECOND
 - Verify tests PASS after implementation
 
 ### Parallel Opportunities
 
-**Phase 1 (Sequential)**: T001 → T002 → T003 → T004 (same file, ordered)
+**Phase 1 (Sequential)**: T001 → T002 → T003 → T004 → T005 (same file, ordered)
 
 **Phase 2 Tests (Parallel)**:
 
-```
-T005, T006, T007  # execute.test.ts (same file but independent test cases)
-T008, T009, T010  # report.test.ts (same file but independent test cases)
+```text
+T006, T007, T008  # execute.test.ts (same file but independent test cases)
+T009, T010, T011  # report.test.ts (same file but independent test cases)
 ```
 
-**Phase 2 Implementation**: T011 → T012-T014 → T015-T016 → T017-T018 → T019-T020 → T021
+**Phase 2 Implementation**: T012 → T013-T016 → T017-T018 → T019-T020 → T021-T022 → T023
 
 **Phase 3 Tests (Parallel)**:
 
+```text
+T024, T025, T026  # store.test.ts
+T027              # key.test.ts (different file)
 ```
-T022, T023, T024  # store.test.ts
-T025              # key.test.ts (different file)
-```
 
-**Phase 3 Implementation**: T026 → T027, then T028 → T029 → T030
+**Phase 3 Implementation**: T028 → T029, then T030 → T031 → T032
 
-**Phase 4 Tests (Parallel)**: T031, T032, T033, T034 (same file but independent)
+**Phase 4 Tests (Parallel)**: T033, T034, T035, T036 (same file but independent)
 
-**Phase 4 Implementation**: T035 → T036
+**Phase 4 Implementation**: T037 → T038
 
-**Cross-Story Parallelism**: US2 and US3 can run in parallel after Phase 1 completes
+**Cross-Story Parallelism**: US2 and US3 can run in parallel after Phase 1 completes (or US3 can start immediately)
 
 ---
 
@@ -188,8 +188,8 @@ T025              # key.test.ts (different file)
 
 ```bash
 # Launch all US1 tests together (all should FAIL before implementation):
-router/src/__tests__/phases/execute.test.ts  # T005, T006, T007
-router/src/__tests__/phases/report.test.ts   # T008, T009, T010
+router/src/__tests__/phases/execute.test.ts  # T006, T007, T008
+router/src/__tests__/phases/report.test.ts   # T009, T010, T011
 ```
 
 ---
@@ -198,8 +198,8 @@ router/src/__tests__/phases/report.test.ts   # T008, T009, T010
 
 ### MVP First (User Story 1 Only)
 
-1. Complete Phase 1: Setup (T001-T004)
-2. Complete Phase 2: User Story 1 (T005-T021)
+1. Complete Phase 1: Setup (T001-T005)
+2. Complete Phase 2: User Story 1 (T006-T023)
 3. **STOP and VALIDATE**: Test partial findings appear in report
 4. Deploy if ready - partial findings now visible
 
@@ -229,3 +229,4 @@ With 2 developers after Phase 1:
 - Commit after each task or logical group
 - US1 is recommended MVP - most user impact
 - US2 and US3 can be done in any order after Phase 1
+- US3 can start immediately (no Phase 1 dependency)
