@@ -25,9 +25,9 @@
 
 **Purpose**: Add chokidar dependency and create test directory structure
 
-- [ ] T001 Add chokidar as devDependency in package.json
-- [ ] T002 [P] Create tests/docs-viewer/ directory for new test files
-- [ ] T003 [P] Add `docs:dev` script to package.json pointing to scripts/docs-dev-server.mjs
+- [x] T001 Add chokidar as devDependency in package.json
+- [x] T002 [P] Create tests/docs-viewer/ directory for new test files
+- [x] T003 [P] Add `docs:dev` script to package.json pointing to scripts/docs-dev-server.mjs
 
 ---
 
@@ -37,11 +37,11 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Refactor docs/viewer/app.js init() to single-pass render architecture (parse hash first, load manifest, render once - no showIntro() on initial load)
-- [ ] T005 [P] Add showNotFound(docPath) method to docs/viewer/app.js for consistent "document not found" display across all entry points
-- [ ] T006 Refactor loadFile() in docs/viewer/app.js to call showNotFound() for invalid paths instead of silent failure
-- [ ] T007 [P] Add isValidPath(path) helper method to docs/viewer/app.js for manifest validation
-- [ ] T008 Update hashchange handler in docs/viewer/app.js to use showNotFound() for invalid hashes
+- [x] T004 Refactor docs/viewer/app.js init() to single-pass render architecture (parse hash first, load manifest, render once - no showIntro() on initial load)
+- [x] T005 [P] Add showNotFound(docPath) method to docs/viewer/app.js for consistent "document not found" display across all entry points
+- [x] T006 Refactor loadFile() in docs/viewer/app.js to call showNotFound() for invalid paths instead of silent failure
+- [x] T007 [P] Add isValidPath(path) helper method to docs/viewer/app.js for manifest validation
+- [x] T008 Update hashchange handler in docs/viewer/app.js to use showNotFound() for invalid hashes
 
 **Checkpoint**: Foundation ready - single-pass render architecture in place, error handling consistent
 
@@ -55,18 +55,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Create sanitization test with 5 adversarial fixtures in tests/docs-viewer/sanitization.test.ts
-- [ ] T010 [P] [US1] Create base-path test for GitHub Pages subpath compatibility in tests/docs-viewer/base-path.test.ts
+- [x] T009 [P] [US1] Create sanitization test with 5 adversarial fixtures in tests/docs-viewer/sanitization.test.ts
+- [x] T010 [P] [US1] Create base-path test for GitHub Pages subpath compatibility in tests/docs-viewer/base-path.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Modify init() in docs/viewer/app.js to default to 'index.md' when no hash present (instead of calling showIntro())
-- [ ] T012 [US1] Remove showIntro() method entirely from docs/viewer/app.js (no longer needed)
-- [ ] T013 [US1] Update attachContentListeners() in docs/viewer/app.js to handle internal link rewriting with anchor stripping per FR-014
-- [ ] T014 [P] [US1] Add attachHeadingAnchors() method to docs/viewer/app.js for scroll-to-id without URL hash change per FR-002a
-- [ ] T015 [US1] Call attachHeadingAnchors() from loadFile() after content render in docs/viewer/app.js
-- [ ] T016 [US1] Add graceful fallback in loadFile() for missing index.md per FR-013 in docs/viewer/app.js
-- [ ] T017 [US1] Verify all fetch paths in docs/viewer/app.js are relative (no absolute `/docs/...` paths) per FR-011
+- [x] T011 [US1] Modify init() in docs/viewer/app.js to default to 'index.md' when no hash present (instead of calling showIntro())
+- [x] T012 [US1] Remove showIntro() method entirely from docs/viewer/app.js (no longer needed)
+- [x] T013 [US1] Update attachContentListeners() in docs/viewer/app.js to handle internal link rewriting with anchor stripping per FR-014
+- [x] T014 [P] [US1] Add attachHeadingAnchors() method to docs/viewer/app.js for scroll-to-id without URL hash change per FR-002a
+- [x] T015 [US1] Call attachHeadingAnchors() from loadFile() after content render in docs/viewer/app.js
+- [x] T016 [US1] Add graceful fallback in loadFile() for missing index.md per FR-013 in docs/viewer/app.js
+- [x] T017 [US1] Verify all fetch paths in docs/viewer/app.js are relative (no absolute `/docs/...` paths) per FR-011
 
 **Checkpoint**: User Story 1 complete - viewer loads index.md by default, links work, anchors scroll without URL change
 
@@ -80,21 +80,21 @@
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Create smoke test for dev server boot and content serving in tests/docs-viewer/smoke.test.ts
+- [x] T018 [P] [US2] Create smoke test for dev server boot and content serving in tests/docs-viewer/smoke.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Create scripts/docs-dev-server.mjs with HTTP server serving docs/viewer/ and docs/
-- [ ] T020 [US2] Add SSE endpoint (/\_\_reload) to scripts/docs-dev-server.mjs for live reload signaling
-- [ ] T021 [US2] Add response-time SSE client script injection in scripts/docs-dev-server.mjs (inject before </body> only for index.html requests)
-- [ ] T022 [US2] Add chokidar file watcher to scripts/docs-dev-server.mjs watching docs/\*_/_.md and docs/viewer/\*
-- [ ] T023 [US2] Configure watcher exclusions in scripts/docs-dev-server.mjs: **/node_modules/**, **/manifest.json, **/.git/\*\*
-- [ ] T024 [US2] Add manifest regeneration on file add/remove in scripts/docs-dev-server.mjs (call generate-docs-manifest.cjs)
-- [ ] T025 [US2] Add startup manifest regeneration in scripts/docs-dev-server.mjs
-- [ ] T026 [US2] Add port conflict handling in scripts/docs-dev-server.mjs with clear error message including port number per FR-017
-- [ ] T027 [US2] Add URL printing on successful server start in scripts/docs-dev-server.mjs
-- [ ] T028 [P] [US2] Add --port and --base-path CLI argument parsing to scripts/docs-dev-server.mjs
-- [ ] T029 [US2] Add browser auto-open on server start in scripts/docs-dev-server.mjs (optional, can be disabled with --no-open)
+- [x] T019 [US2] Create scripts/docs-dev-server.mjs with HTTP server serving docs/viewer/ and docs/
+- [x] T020 [US2] Add SSE endpoint (/\_\_reload) to scripts/docs-dev-server.mjs for live reload signaling
+- [x] T021 [US2] Add response-time SSE client script injection in scripts/docs-dev-server.mjs (inject before </body> only for index.html requests)
+- [x] T022 [US2] Add chokidar file watcher to scripts/docs-dev-server.mjs watching docs/\*_/_.md and docs/viewer/\*
+- [x] T023 [US2] Configure watcher exclusions in scripts/docs-dev-server.mjs: **/node_modules/**, **/manifest.json, **/.git/\*\*
+- [x] T024 [US2] Add manifest regeneration on file add/remove in scripts/docs-dev-server.mjs (call generate-docs-manifest.cjs)
+- [x] T025 [US2] Add startup manifest regeneration in scripts/docs-dev-server.mjs
+- [x] T026 [US2] Add port conflict handling in scripts/docs-dev-server.mjs with clear error message including port number per FR-017
+- [x] T027 [US2] Add URL printing on successful server start in scripts/docs-dev-server.mjs
+- [x] T028 [P] [US2] Add --port and --base-path CLI argument parsing to scripts/docs-dev-server.mjs
+- [x] T029 [US2] Add browser auto-open on server start in scripts/docs-dev-server.mjs (optional, can be disabled with --no-open)
 
 **Checkpoint**: User Story 2 complete - `npm run dev` starts server with live reload, files watched, manifest regenerated
 
@@ -108,13 +108,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T030 [P] [US3] Add link rewriting test for internal/external link handling in tests/docs-viewer/link-rewriting.test.ts
+- [x] T030 [P] [US3] Add link rewriting test for internal/external link handling in tests/docs-viewer/link-rewriting.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Fix document count in docs/viewer/app.js to use manifest.files.length (currently incorrectly counts tree top-level items)
-- [ ] T032 [US3] Verify manifest.json has correct file count after running npm run docs:manifest
-- [ ] T033 [US3] Update any remaining statistics display in docs/viewer/app.js to use manifest data correctly
+- [x] T031 [US3] Fix document count in docs/viewer/app.js to use manifest.files.length (currently incorrectly counts tree top-level items)
+- [x] T032 [US3] Verify manifest.json has correct file count after running npm run docs:manifest
+- [x] T033 [US3] Update any remaining statistics display in docs/viewer/app.js to use manifest data correctly
 
 **Checkpoint**: User Story 3 complete - viewer shows correct document count matching actual files
 
@@ -124,14 +124,14 @@
 
 **Purpose**: Final validation and cleanup
 
-- [ ] T034 Run all tests in tests/docs-viewer/ and verify they pass
-- [ ] T035 Run eslint on new scripts/docs-dev-server.mjs file
-- [ ] T036 [P] Test dev server on Windows (path normalization, file watching)
+- [x] T034 Run all tests in tests/docs-viewer/ and verify they pass
+- [x] T035 Run eslint on new scripts/docs-dev-server.mjs file
+- [x] T036 [P] Test dev server on Windows (path normalization, file watching)
 - [ ] T037 [P] Test dev server on Unix/macOS
-- [ ] T038 Verify production viewer (docs/viewer/index.html) has NO SSE reload code
+- [x] T038 Verify production viewer (docs/viewer/index.html) has NO SSE reload code
 - [ ] T039 Test viewer under GitHub Pages subpath simulation (--base-path flag)
 - [ ] T040 Update specs/008-docs-viewer-refactor/quickstart.md if any setup steps changed
-- [ ] T041 Run npm run docs:linkcheck to verify all documentation links still work
+- [x] T041 Run npm run docs:linkcheck to verify all documentation links still work
 
 ---
 

@@ -26,6 +26,76 @@ const DocsViewer = {
     return this.fileTree.map((item) => item.name);
   },
 
+  /**
+   * Check if a path is valid (exists in manifest).
+   * @param {string} path - The document path to validate
+   * @returns {boolean} True if path is in manifest
+   */
+  isValidPath(path) {
+    if (!path) return false;
+    const allowed = this.getAllowedPaths();
+    return allowed.some((p) => p.toLowerCase() === path.toLowerCase());
+  },
+
+  /**
+   * Display a consistent "document not found" message.
+   * Used for all three entry points: direct hash, link click, back/forward.
+   * @param {string} docPath - The path that was not found
+   */
+  showNotFound(docPath) {
+    const headerDiv = document.querySelector('#content-primary .content-header');
+    const bodyDiv = document.querySelector('#content-primary .content-body');
+
+    if (headerDiv) {
+      const slot = headerDiv.querySelector('.file-path-slot');
+      if (slot) slot.textContent = 'Not Found';
+    }
+
+    if (bodyDiv) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error not-found';
+      errorDiv.innerHTML = `
+        <h2>Document Not Found</h2>
+        <p>The requested document could not be found:</p>
+        <code>${DOMPurify.sanitize(docPath)}</code>
+        <p>Please check the URL or select a document from the sidebar.</p>
+      `;
+      bodyDiv.innerHTML = '';
+      bodyDiv.appendChild(errorDiv);
+    }
+
+    // Clear current file state
+    this.state.currentFile = null;
+  },
+
+  // FR-013: Graceful fallback when index.md doesn't exist
+  showWelcome() {
+    const headerDiv = document.querySelector('#content-primary .content-header');
+    const bodyDiv = document.querySelector('#content-primary .content-body');
+
+    if (headerDiv) {
+      const slot = headerDiv.querySelector('.file-path-slot');
+      if (slot) slot.textContent = 'Welcome';
+    }
+
+    if (bodyDiv) {
+      const welcomeDiv = document.createElement('div');
+      welcomeDiv.className = 'welcome markdown-body';
+      const fileCount = this.fileTree?.length || 0;
+      welcomeDiv.innerHTML = `
+        <h1>Documentation Viewer</h1>
+        <p>Welcome to the documentation viewer. Select a document from the sidebar to get started.</p>
+        <p><strong>${fileCount}</strong> document${fileCount !== 1 ? 's' : ''} available.</p>
+        <p><em>Tip: Create an <code>index.md</code> file in the docs folder to customize this landing page.</em></p>
+      `;
+      bodyDiv.innerHTML = '';
+      bodyDiv.appendChild(welcomeDiv);
+    }
+
+    // Clear current file state
+    this.state.currentFile = null;
+  },
+
   // Application state
   state: {
     currentFile: null,
@@ -137,10 +207,12 @@ const DocsViewer = {
   // Load file content with security validation
   async loadFile(fileId, paneId = 'primary') {
     // 1. Path Traversal Defense: Validate against allowlist
-    const allowed = this.getAllowedPaths();
-    if (!allowed.includes(fileId)) {
+    if (!this.isValidPath(fileId)) {
       console.error('Blocked attempt to load unauthorized file:', fileId);
-      return;
+      if (paneId === 'primary') {
+        this.showNotFound(fileId);
+      }
+      return false;
     }
 
     const contentDiv = document.getElementById(
@@ -175,6 +247,7 @@ const DocsViewer = {
     if (this.contentCache.has(fileId)) {
       bodyDiv.innerHTML = this.contentCache.get(fileId);
       this.attachContentListeners(bodyDiv, paneId);
+      this.attachHeadingAnchors(bodyDiv);
       return true;
     }
 
@@ -231,6 +304,7 @@ const DocsViewer = {
       this.contentCache.set(fileId, finalHtml);
 
       this.attachContentListeners(bodyDiv, paneId);
+      this.attachHeadingAnchors(bodyDiv);
       return true;
     } catch (error) {
       console.error(error);
@@ -280,24 +354,42 @@ const DocsViewer = {
     const currentFile = paneId === 'primary' ? this.state.currentFile : this.state.compareFile;
 
     // 4. Link Rewriting: Intercept internal .md links (case-insensitive)
+    // FR-014: Strip #anchor suffix before path resolution
     container.querySelectorAll('a').forEach((link) => {
       const href = link.getAttribute('href');
-      if (href && href.endsWith('.md') && !href.startsWith('http')) {
-        // Resolve the relative path from the current document
-        const resolvedPath = currentFile
-          ? this.resolvePath(currentFile, href)
-          : href.split('/').pop();
+      if (!href || href.startsWith('http')) return;
 
-        // Case-insensitive lookup: find the matching file in allowlist
-        const matchedFile = this.getAllowedPaths().find(
-          (allowed) => allowed.toLowerCase() === resolvedPath.toLowerCase()
-        );
-        if (matchedFile) {
-          link.onclick = (e) => {
-            e.preventDefault();
-            this.loadFile(matchedFile, paneId);
-          };
-        }
+      // Check if this is an internal markdown link (with or without anchor)
+      // Patterns: ./x.md, ../x.md, x.md, path/x.md, x.md#anchor
+      const mdMatch = href.match(/^([^#]*\.md)(#.*)?$/i);
+      if (!mdMatch) return;
+
+      const mdPath = mdMatch[1]; // The .md path without anchor
+      const anchor = mdMatch[2] || ''; // The #anchor part (if any)
+
+      // Resolve the relative path from the current document
+      const resolvedPath = currentFile
+        ? this.resolvePath(currentFile, mdPath)
+        : mdPath.split('/').pop();
+
+      // Case-insensitive lookup: find the matching file in allowlist
+      const matchedFile = this.getAllowedPaths().find(
+        (allowed) => allowed.toLowerCase() === resolvedPath.toLowerCase()
+      );
+      if (matchedFile) {
+        link.onclick = (e) => {
+          e.preventDefault();
+          this.loadFile(matchedFile, paneId).then(() => {
+            // If there's an anchor, scroll to that element after load
+            if (anchor) {
+              const targetId = anchor.substring(1); // Remove leading #
+              const targetElement = document.getElementById(targetId);
+              if (targetElement) {
+                targetElement.scrollIntoView({ behavior: 'smooth' });
+              }
+            }
+          });
+        };
       }
     });
 
@@ -327,6 +419,38 @@ const DocsViewer = {
       // Re-run mermaid to render the new diagrams
       mermaid.run();
     }
+  },
+
+  // FR-002a: Attach click handlers to heading anchors for scroll-to-id without URL hash change
+  attachHeadingAnchors(container) {
+    // Find all headings with IDs (generated by marked with headerIds: true)
+    container
+      .querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')
+      .forEach((heading) => {
+        const headingId = heading.id;
+        if (!headingId) return;
+
+        // Check if anchor link already exists
+        if (heading.querySelector('.heading-anchor')) return;
+
+        // Create anchor link element
+        const anchor = document.createElement('a');
+        anchor.className = 'heading-anchor';
+        anchor.href = `#${headingId}`;
+        anchor.textContent = '#';
+        anchor.title = 'Link to this section';
+
+        // Prevent default and scroll without changing URL hash
+        anchor.onclick = (e) => {
+          e.preventDefault();
+          heading.scrollIntoView({ behavior: 'smooth' });
+          // Optionally copy link to clipboard for sharing
+          // navigator.clipboard.writeText(window.location.href.split('#')[0] + '#' + headingId);
+        };
+
+        // Append anchor to heading
+        heading.appendChild(anchor);
+      });
   },
 
   // Highlight active file in tree
@@ -395,39 +519,6 @@ const DocsViewer = {
     };
   },
 
-  // Show intro content
-  showIntro() {
-    const headerDiv = document.querySelector('#content-primary .content-header');
-    const bodyDiv = document.querySelector('#content-primary .content-body');
-
-    if (headerDiv) {
-      const slot = headerDiv.querySelector('.file-path-slot');
-      if (slot) slot.textContent = 'Welcome';
-    }
-
-    if (bodyDiv) {
-      bodyDiv.innerHTML = `
-        <div class="intro">
-          <h1>📚 Documentation Viewer</h1>
-          <p>
-            Explore and compare documentation for <strong>odd-ai-reviewers</strong>. 
-            Use the sidebar to browse or the <strong>Compare</strong> button for side-by-side review.
-          </p>
-          <div class="stats">
-            <div class="stat">
-              <span class="stat-value">${this.fileTree.length}</span>
-              <span class="stat-label">Documents</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">100%</span>
-              <span class="stat-label">Markdown</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-  },
-
   // Load manifest file
   async loadManifest() {
     try {
@@ -452,13 +543,17 @@ const DocsViewer = {
 
   // Initialize application
   async init() {
-    // Load manifest first
+    // 1. Parse hash synchronously BEFORE any rendering (single-pass architecture)
+    const hashState = this.parseHash();
+    const targetDoc = hashState?.primary || 'index.md';
+
+    // 2. Load manifest (async)
     await this.loadManifest();
 
     // Basic marked setup
     if (typeof marked !== 'undefined') {
       marked.setOptions({
-        headerIds: false,
+        headerIds: true, // Enable header IDs for heading anchors
         mangle: false,
       });
     }
@@ -483,27 +578,31 @@ const DocsViewer = {
     this.setupMobileMenu();
     this.setupPaneNavButtons();
 
-    const hashState = this.parseHash();
-    let loaded = false;
-
-    if (hashState && hashState.primary) {
-      loaded = await this.loadFile(hashState.primary, 'primary');
-      if (loaded && hashState.secondary) {
+    // 3. Single render pass - load target doc or show not found
+    if (this.isValidPath(targetDoc)) {
+      const loaded = await this.loadFile(targetDoc, 'primary');
+      if (loaded && hashState?.secondary) {
         this.toggleCompareMode();
         await this.loadFile(hashState.secondary, 'secondary');
       }
+    } else if (targetDoc === 'index.md') {
+      // FR-013: Graceful fallback when index.md doesn't exist
+      this.showWelcome();
+    } else {
+      this.showNotFound(targetDoc);
     }
 
-    if (!loaded) {
-      this.showIntro();
-    }
-
+    // Handle hash changes
     window.onhashchange = async () => {
       const state = this.parseHash();
-      if (state && state.primary && state.primary !== this.state.currentFile) {
-        await this.loadFile(state.primary, 'primary');
-      } else if (!state || !state.primary) {
-        this.showIntro();
+      const target = state?.primary || 'index.md';
+
+      if (target !== this.state.currentFile) {
+        if (this.isValidPath(target)) {
+          await this.loadFile(target, 'primary');
+        } else {
+          this.showNotFound(target);
+        }
       }
     };
   },

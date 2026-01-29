@@ -230,20 +230,75 @@ graph LR
 
 ## 🛠️ Development
 
-This project uses **pnpm** as its package manager. If you don't have pnpm installed, enable it via Corepack:
+### Prerequisites
+
+- **Node.js** ≥22.0.0
+- **pnpm** ≥9 (via Corepack)
 
 ```bash
-corepack enable                       # Enable pnpm via Corepack
-pnpm install                          # Install dependencies
-pnpm build                            # Build the router
-pnpm test                             # Run tests
-pnpm --filter router test:ci:coverage # Run tests with coverage
-pnpm lint                             # Check linting
-pnpm format                           # Format code
-pnpm verify                           # Run all quality gates
+corepack enable    # Enable pnpm via Corepack
+pnpm install       # Install dependencies
 ```
 
 > **Note**: npm is not supported. Running `npm install` will display an error with instructions to use pnpm.
+
+### Project Structure
+
+```
+router/           # Core review router (TypeScript)
+├── src/          # Source code
+└── tests/        # Unit tests
+docs/             # Documentation (Markdown)
+├── viewer/       # Documentation viewer (GitHub Pages)
+└── *.md          # Documentation files
+scripts/          # Build and dev tooling
+tests/            # Integration tests
+└── docs-viewer/  # Documentation viewer tests
+specs/            # Feature specifications
+```
+
+### Common Commands
+
+| Command          | Description              |
+| ---------------- | ------------------------ |
+| `pnpm build`     | Build the router         |
+| `pnpm test`      | Run unit tests           |
+| `pnpm lint`      | Check linting (ESLint)   |
+| `pnpm format`    | Format code (Prettier)   |
+| `pnpm typecheck` | TypeScript type checking |
+| `pnpm verify`    | Run all quality gates    |
+
+### Testing
+
+```bash
+pnpm test                             # Run unit tests
+pnpm --filter router test:ci:coverage # Run tests with coverage
+pnpm test:docs-viewer                 # Run documentation viewer tests
+```
+
+### Documentation Development
+
+The documentation viewer supports live reload during development:
+
+```bash
+pnpm docs:dev        # Start dev server with live reload (http://localhost:3000)
+pnpm docs:manifest   # Regenerate docs manifest
+pnpm docs:linkcheck  # Verify documentation links
+```
+
+The dev server watches for changes to `docs/**/*.md` and `docs/viewer/*`, automatically regenerating the manifest and reloading the browser.
+
+### Quality Gates
+
+All PRs must pass these checks (enforced by CI):
+
+- **Linting**: `pnpm lint` (ESLint with security rules)
+- **Formatting**: `pnpm format:check` (Prettier)
+- **Type Safety**: `pnpm typecheck` (TypeScript strict mode)
+- **Tests**: `pnpm test` (Vitest with coverage thresholds)
+- **Dependencies**: `pnpm depcruise` (circular dependency detection)
+
+Run all gates locally with: `pnpm verify`
 
 ---
 
