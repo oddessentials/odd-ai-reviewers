@@ -244,17 +244,53 @@ const DocsViewer = {
     }
   },
 
+  /**
+   * Resolve a relative path from a base path.
+   * Handles ./, ../, and bare filenames.
+   * @param {string} basePath - The current file path (e.g., "configuration/config-schema.md")
+   * @param {string} relativePath - The link href (e.g., "../architecture/overview.md")
+   * @returns {string} Resolved path (e.g., "architecture/overview.md")
+   */
+  resolvePath(basePath, relativePath) {
+    // Get directory of current file
+    const parts = basePath.split('/');
+    parts.pop(); // Remove filename, keep directory parts
+
+    // Handle the relative path
+    const relParts = relativePath.split('/');
+    for (const part of relParts) {
+      if (part === '.' || part === '') {
+        // Current directory, skip
+        continue;
+      } else if (part === '..') {
+        // Parent directory
+        parts.pop();
+      } else {
+        // Normal path segment
+        parts.push(part);
+      }
+    }
+
+    return parts.join('/');
+  },
+
   // Attach listeners for link/image rewriting
   attachContentListeners(container, paneId) {
+    // Get current file path for resolving relative links
+    const currentFile = paneId === 'primary' ? this.state.currentFile : this.state.compareFile;
+
     // 4. Link Rewriting: Intercept internal .md links (case-insensitive)
     container.querySelectorAll('a').forEach((link) => {
       const href = link.getAttribute('href');
       if (href && href.endsWith('.md') && !href.startsWith('http')) {
-        // Simplify link (remove ./ or ../ prefix if present for matching)
-        const cleanHref = href.split('/').pop();
+        // Resolve the relative path from the current document
+        const resolvedPath = currentFile
+          ? this.resolvePath(currentFile, href)
+          : href.split('/').pop();
+
         // Case-insensitive lookup: find the matching file in allowlist
         const matchedFile = this.getAllowedPaths().find(
-          (allowed) => allowed.toLowerCase() === cleanHref.toLowerCase()
+          (allowed) => allowed.toLowerCase() === resolvedPath.toLowerCase()
         );
         if (matchedFile) {
           link.onclick = (e) => {
