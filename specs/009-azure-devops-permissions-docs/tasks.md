@@ -144,22 +144,22 @@
 
 **Purpose**: Final verification against all functional requirements
 
-- [ ] T019 Validate FR-001 through FR-011 compliance in docs/platforms/azure-devops/setup.md:
-  - [ ] FR-001: "Contribute - Allow" clearly stated
-  - [ ] FR-002: "Contribute to pull requests - Allow" clearly stated
-  - [ ] FR-003: Navigation path documented
-  - [ ] FR-004: All four identity types documented
-  - [ ] FR-004a: Decision tree present
-  - [ ] FR-005: Step-by-step instructions present
-  - [ ] FR-006: Error mapping table complete
-  - [ ] FR-007: Scope decision rule with inheritance warning
-  - [ ] FR-008: Branch policy clarification statement
-  - [ ] FR-009: Verification checklist with 5 steps
-  - [ ] FR-010: Content in discoverable locations
-  - [ ] FR-011: Search terms section present
+- [x] T019 Validate FR-001 through FR-011 compliance in docs/platforms/azure-devops/setup.md:
+  - [x] FR-001: "Contribute - Allow" clearly stated
+  - [x] FR-002: "Contribute to pull requests - Allow" clearly stated
+  - [x] FR-003: Navigation path documented
+  - [x] FR-004: All four identity types documented
+  - [x] FR-004a: Decision tree present
+  - [x] FR-005: Step-by-step instructions present
+  - [x] FR-006: Error mapping table complete
+  - [x] FR-007: Scope decision rule with inheritance warning
+  - [x] FR-008: Branch policy clarification statement
+  - [x] FR-009: Verification checklist with 7 steps
+  - [x] FR-010: Content in discoverable locations
+  - [x] FR-011: Search terms section present
 
-- [ ] T020 [P] Proofread all documentation changes for clarity and consistency
-- [ ] T021 [P] Verify markdown renders correctly in docs viewer
+- [x] T020 [P] Proofread all documentation changes for clarity and consistency
+- [x] T021 [P] Verify markdown renders correctly in docs viewer
 
 ---
 
