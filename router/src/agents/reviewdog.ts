@@ -14,6 +14,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { filterSafePaths } from './path-filter.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { generateFingerprint } from '../report/formats.js';
@@ -218,30 +219,28 @@ export const reviewdogAgent: ReviewAgent = {
     // Check if semgrep is available (primary requirement)
     if (!isSemgrepAvailable()) {
       console.log('[reviewdog] Semgrep binary not found, skipping');
-      return {
-        agentId: this.id,
-        success: true,
-        findings: [],
+      return AgentSkipped({
+        agentId: 'reviewdog',
+        reason: 'Semgrep binary not found',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Get file paths
     const filePaths = context.files.filter((f) => this.supports(f)).map((f) => f.path);
 
     if (filePaths.length === 0) {
-      return {
-        agentId: this.id,
-        success: true,
-        findings: [],
+      return AgentSkipped({
+        agentId: 'reviewdog',
+        reason: 'No files to process',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     console.log(`[reviewdog] Processing ${filePaths.length} files via semgrep`);
@@ -254,16 +253,16 @@ export const reviewdogAgent: ReviewAgent = {
     const result = await runSemgrepStructured(context.repoPath, filePaths, cleanEnv);
 
     if (!result.success) {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: result.error,
+      return AgentFailure({
+        agentId: 'reviewdog',
+        error: result.error ?? 'Unknown semgrep error',
+        failureStage: 'exec',
+        partialFindings: [],
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Optional: If reviewdog is available, run it in local mode for validation
@@ -309,14 +308,13 @@ export const reviewdogAgent: ReviewAgent = {
 
     // Return structured findings for router to post
     // Router owns all GitHub API interactions per INVARIANTS.md #1
-    return {
-      agentId: this.id,
-      success: true,
+    return AgentSuccess({
+      agentId: 'reviewdog',
       findings: result.findings,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: filePaths.length,
       },
-    };
+    });
   },
 };

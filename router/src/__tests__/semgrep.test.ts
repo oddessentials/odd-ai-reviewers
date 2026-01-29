@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { semgrepAgent, mapSeverity } from '../agents/semgrep.js';
 import type { AgentContext } from '../agents/types.js';
+import { isSuccess, isFailure, isSkipped } from '../agents/types.js';
 import type { DiffFile } from '../diff.js';
 
 // Mock child_process - Node core modules work well with vitest
@@ -197,13 +198,16 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(true);
-    expect(result.findings).toHaveLength(0);
+    // When no supported files, agent should be skipped
+    expect(isSkipped(result)).toBe(true);
+    if (isSkipped(result)) {
+      expect(result.reason).toContain('No supported files');
+    }
     expect(result.metrics.filesProcessed).toBe(0);
     expect(vi.mocked(execFileSync)).not.toHaveBeenCalled();
   });
 
-  it('should return empty result when all paths are filtered out', async () => {
+  it('should return skipped when all paths are filtered out', async () => {
     vi.mocked(filterSafePaths).mockReturnValue({
       safePaths: [],
       skippedCount: 2,
@@ -216,8 +220,11 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(true);
-    expect(result.findings).toHaveLength(0);
+    // When all paths filtered out, agent should be skipped
+    expect(isSkipped(result)).toBe(true);
+    if (isSkipped(result)) {
+      expect(result.reason).toContain('All files filtered out');
+    }
     expect(result.metrics.filesProcessed).toBe(0);
     expect(vi.mocked(execFileSync)).not.toHaveBeenCalled();
   });
@@ -287,28 +294,30 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(true);
-    expect(result.findings).toHaveLength(2);
-    expect(result.findings[0]).toEqual({
-      severity: 'error',
-      file: 'src/app.ts',
-      line: 10,
-      endLine: 12,
-      message: 'Potential XSS vulnerability',
-      suggestion: 'Use escapeHtml()',
-      ruleId: 'typescript.security.xss',
-      sourceAgent: 'semgrep',
-    });
-    expect(result.findings[1]).toEqual({
-      severity: 'warning',
-      file: 'lib/util.js',
-      line: 5,
-      endLine: 5,
-      message: 'Unused variable',
-      suggestion: undefined,
-      ruleId: 'typescript.best-practices.unused-var',
-      sourceAgent: 'semgrep',
-    });
+    expect(isSuccess(result)).toBe(true);
+    if (isSuccess(result)) {
+      expect(result.findings).toHaveLength(2);
+      expect(result.findings[0]).toEqual({
+        severity: 'error',
+        file: 'src/app.ts',
+        line: 10,
+        endLine: 12,
+        message: 'Potential XSS vulnerability',
+        suggestion: 'Use escapeHtml()',
+        ruleId: 'typescript.security.xss',
+        sourceAgent: 'semgrep',
+      });
+      expect(result.findings[1]).toEqual({
+        severity: 'warning',
+        file: 'lib/util.js',
+        line: 5,
+        endLine: 5,
+        message: 'Unused variable',
+        suggestion: undefined,
+        ruleId: 'typescript.best-practices.unused-var',
+        sourceAgent: 'semgrep',
+      });
+    }
   });
 
   it('should handle semgrep exit with non-zero but valid JSON in stdout', async () => {
@@ -340,9 +349,11 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(true);
-    expect(result.findings).toHaveLength(1);
-    expect(result.findings[0]?.message).toBe('Finding message');
+    expect(isSuccess(result)).toBe(true);
+    if (isSuccess(result)) {
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0]?.message).toBe('Finding message');
+    }
   });
 
   it('should return error result when semgrep fails without valid output', async () => {
@@ -357,9 +368,11 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(false);
-    expect(result.error).toBe('Semgrep binary not found');
-    expect(result.findings).toHaveLength(0);
+    expect(isFailure(result)).toBe(true);
+    if (isFailure(result)) {
+      expect(result.error).toBe('Semgrep binary not found');
+      expect(result.partialFindings).toHaveLength(0);
+    }
   });
 
   it('should return error result when stdout contains invalid JSON', async () => {
@@ -376,8 +389,10 @@ describe('semgrepAgent.run()', () => {
 
     const result = await semgrepAgent.run(context);
 
-    expect(result.success).toBe(false);
-    expect(result.error).toBe('Process failed');
+    expect(isFailure(result)).toBe(true);
+    if (isFailure(result)) {
+      expect(result.error).toBe('Process failed');
+    }
   });
 
   it('should include metrics in result', async () => {

@@ -10,6 +10,7 @@
  */
 
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { buildAgentEnv } from './security.js';
 import { estimateTokens } from '../budget.js';
@@ -563,15 +564,14 @@ export const localLlmAgent: ReviewAgent = {
     const supportedFiles = context.files.filter((f) => this.supports(f));
 
     if (supportedFiles.length === 0) {
-      return {
-        agentId: this.id,
-        success: true,
-        findings: [],
+      return AgentSkipped({
+        agentId: 'local_llm',
+        reason: 'No supported files to process',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Warm up model for consistent first-run behavior (requirement 7)
@@ -589,24 +589,22 @@ export const localLlmAgent: ReviewAgent = {
           console.log(
             `[local_llm] Ollama unavailable at ${ollamaUrl}, skipping gracefully (LOCAL_LLM_OPTIONAL=true)`
           );
-          return {
-            agentId: this.id,
-            success: true,
-            findings: [],
+          return AgentSkipped({
+            agentId: 'local_llm',
+            reason: `Ollama unavailable at ${ollamaUrl} (LOCAL_LLM_OPTIONAL=true)`,
             metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-          };
+          });
         } else {
           console.error(
             `[local_llm] Cannot connect to Ollama at ${ollamaUrl}. ` +
               `Verify: (1) Ollama container is running, (2) OLLAMA_BASE_URL is set correctly.`
           );
-          return {
-            agentId: this.id,
-            success: false,
-            findings: [],
+          return AgentFailure({
+            agentId: 'local_llm',
             error: `Ollama unavailable: ${warmupResult.error}`,
+            failureStage: 'preflight',
             metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-          };
+          });
         }
       }
       // Non-connection warmup failures are warnings, continue anyway
@@ -629,16 +627,15 @@ export const localLlmAgent: ReviewAgent = {
     // Estimate tokens on COMPLETE prompt (not just diff body)
     const estimatedTokens = estimateTokens(prompt);
     if (estimatedTokens > MAX_TOKENS) {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
+      return AgentFailure({
+        agentId: 'local_llm',
         error: `Input too large: ${estimatedTokens} tokens exceeds limit of ${MAX_TOKENS}`,
+        failureStage: 'preflight',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Build Ollama request
@@ -664,16 +661,15 @@ export const localLlmAgent: ReviewAgent = {
 
     if (!result.ok) {
       // Other errors are real failures (connection failures handled in warmup)
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: result.error,
+      return AgentFailure({
+        agentId: 'local_llm',
+        error: result.error ?? 'Unknown Ollama error',
+        failureStage: 'exec',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Parse response
@@ -695,16 +691,15 @@ export const localLlmAgent: ReviewAgent = {
     }
 
     if (!parseResult.ok) {
-      return {
-        agentId: this.id,
-        success: false,
-        findings: [],
-        error: parseResult.error,
+      return AgentFailure({
+        agentId: 'local_llm',
+        error: parseResult.error ?? 'Unknown parse error',
+        failureStage: 'postprocess',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Bound and dedupe findings for deterministic output (requirement 6)
@@ -718,14 +713,13 @@ export const localLlmAgent: ReviewAgent = {
 
     console.log(`[local_llm] Found ${included} findings`);
 
-    return {
-      agentId: this.id,
-      success: true,
+    return AgentSuccess({
+      agentId: 'local_llm',
       findings: boundedFindings,
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: supportedFiles.length,
       },
-    };
+    });
   },
 };

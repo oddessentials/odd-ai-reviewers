@@ -180,6 +180,21 @@ module.exports = {
         dependencyTypes: ['npm-peer'],
       },
     },
+    // 011-agent-result-unions: Enforce metadata.ts isolation (FR-028)
+    {
+      name: 'no-metadata-back-edges',
+      comment:
+        'agents/metadata.ts must not import agent implementations. ' +
+        'Only allowed imports: ./types.ts, ./index.ts. ' +
+        'This prevents circular dependencies from typed metadata helpers.',
+      severity: 'error',
+      from: {
+        path: '^router/src/agents/metadata\\.ts$',
+      },
+      to: {
+        path: '^router/src/agents/(?!types\\.ts$|index\\.ts$).*\\.ts$',
+      },
+    },
   ],
   options: {
     // Which modules not to follow further when encountered

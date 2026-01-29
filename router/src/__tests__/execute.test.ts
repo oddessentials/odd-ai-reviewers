@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { executeAllPasses } from '../phases/execute.js';
 import type { Config } from '../config/schemas.js';
 import type { AgentContext, AgentResult, ReviewAgent } from '../agents/types.js';
+import { AgentSuccess, AgentFailure } from '../agents/types.js';
 
 // Mock dependencies
 vi.mock('../agents/index.js', () => ({
@@ -164,12 +165,16 @@ describe('executeAllPasses', () => {
         sourceAgent: 'semgrep',
       };
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: true,
-        findings: [mockFinding],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentSuccess({
+          agentId: 'semgrep',
+          findings: [mockFinding],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -194,12 +199,16 @@ describe('executeAllPasses', () => {
 
   describe('budget enforcement', () => {
     it('should skip optional paid LLM passes when over budget', async () => {
-      const mockAgent = createMockAgent('opencode', 'OpenCode', true, {
-        agentId: 'opencode',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'opencode',
+        'OpenCode',
+        true,
+        AgentSuccess({
+          agentId: 'opencode',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -225,12 +234,16 @@ describe('executeAllPasses', () => {
     });
 
     it('should exit when required paid LLM pass is over budget', async () => {
-      const mockAgent = createMockAgent('opencode', 'OpenCode', true, {
-        agentId: 'opencode',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'opencode',
+        'OpenCode',
+        true,
+        AgentSuccess({
+          agentId: 'opencode',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -252,12 +265,16 @@ describe('executeAllPasses', () => {
     });
 
     it('should allow local_llm even when over budget (free)', async () => {
-      const mockAgent = createMockAgent('local_llm', 'Local LLM', true, {
-        agentId: 'local_llm',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'local_llm',
+        'Local LLM',
+        true,
+        AgentSuccess({
+          agentId: 'local_llm',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -281,23 +298,26 @@ describe('executeAllPasses', () => {
 
   describe('caching', () => {
     it('should use cached results when available', async () => {
-      const cachedResult: AgentResult = {
+      const cachedResult = AgentSuccess({
         agentId: 'semgrep',
-        success: true,
         findings: [
           { severity: 'warning', file: 'cached.ts', message: 'Cached', sourceAgent: 'semgrep' },
         ],
         metrics: { durationMs: 50, filesProcessed: 1 },
-      };
+      });
 
       vi.mocked(getCached).mockResolvedValue(cachedResult);
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentSuccess({
+          agentId: 'semgrep',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -322,12 +342,16 @@ describe('executeAllPasses', () => {
     it('should cache successful results', async () => {
       vi.mocked(getCached).mockResolvedValue(null);
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentSuccess({
+          agentId: 'semgrep',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -349,12 +373,16 @@ describe('executeAllPasses', () => {
     it('should not cache when pr/head not provided', async () => {
       vi.mocked(getCached).mockResolvedValue(null);
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentSuccess({
+          agentId: 'semgrep',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -384,13 +412,17 @@ describe('executeAllPasses', () => {
       // Ensure mock is reset for this test
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: false,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 0 },
-        error: 'Binary not found',
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Binary not found',
+          failureStage: 'preflight',
+          metrics: { durationMs: 100, filesProcessed: 0 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -418,13 +450,17 @@ describe('executeAllPasses', () => {
       // Ensure mock is reset for this test
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
-      const mockAgent = createMockAgent('semgrep', 'Semgrep', false, {
-        agentId: 'semgrep',
-        success: false,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 0 },
-        error: 'Binary not found',
-      });
+      const mockAgent = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentFailure({
+          agentId: 'semgrep',
+          error: 'Binary not found',
+          failureStage: 'preflight',
+          metrics: { durationMs: 100, filesProcessed: 0 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 
@@ -515,12 +551,16 @@ describe('executeAllPasses', () => {
     it('should reject unknown agent IDs', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(false);
 
-      const mockAgent = createMockAgent('unknown-agent', 'Unknown', false, {
-        agentId: 'unknown-agent',
-        success: true,
-        findings: [],
-        metrics: { durationMs: 100, filesProcessed: 1 },
-      });
+      const mockAgent = createMockAgent(
+        'unknown-agent',
+        'Unknown',
+        false,
+        AgentSuccess({
+          agentId: 'unknown-agent',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
 
       vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
 

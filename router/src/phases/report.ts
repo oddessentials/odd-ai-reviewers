@@ -6,7 +6,13 @@
  */
 
 import type { Config } from '../config.js';
-import type { Finding, AgentResult } from '../agents/types.js';
+import {
+  isSuccess,
+  isFailure,
+  isSkipped,
+  type Finding,
+  type AgentResult,
+} from '../agents/types.js';
 import type { DiffFile } from '../diff.js';
 import { reportToGitHub, type GitHubContext } from '../report/github.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
@@ -49,7 +55,32 @@ export function processFindings(
   // Sanitize findings before sorting/posting (defense-in-depth)
   const sanitized = sanitizeFindings(deduplicated);
   const sorted = sortFindings(sanitized);
-  const summary = generateFullSummaryMarkdown(sorted, allResults, skippedAgents);
+
+  // Transform AgentResult[] to the format expected by generateFullSummaryMarkdown
+  // This adapts the new discriminated union to the legacy format
+  const resultsForSummary = allResults
+    .filter((r) => !isSkipped(r))
+    .map((r) => {
+      if (isSuccess(r)) {
+        return {
+          agentId: r.agentId,
+          success: true as const,
+          findings: r.findings,
+          error: undefined,
+        };
+      } else if (isFailure(r)) {
+        return {
+          agentId: r.agentId,
+          success: false as const,
+          findings: r.partialFindings,
+          error: r.error,
+        };
+      }
+      // TypeScript exhaustiveness - shouldn't reach here after filter
+      throw new Error(`Unexpected result status: ${(r as AgentResult).status}`);
+    });
+
+  const summary = generateFullSummaryMarkdown(sorted, resultsForSummary, skippedAgents);
 
   console.log(
     `[router] Total findings: ${sorted.length} (deduplicated from ${allFindings.length})`

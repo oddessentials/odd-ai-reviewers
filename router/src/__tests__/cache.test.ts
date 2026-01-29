@@ -11,7 +11,7 @@ import {
   CACHE_KEY_PREFIX,
 } from '../cache/key.js';
 import { getCached, setCache, clearCache } from '../cache/store.js';
-import type { AgentResult } from '../agents/index.js';
+import { AgentSuccess, isSuccess } from '../agents/types.js';
 
 describe('generateCacheKey', () => {
   it('should produce consistent keys for same inputs', () => {
@@ -274,31 +274,31 @@ describe('Cache Store', () => {
   });
 
   it('should store and retrieve value', async () => {
-    const agentResult: AgentResult = {
+    const agentResult = AgentSuccess({
       agentId: 'test',
-      success: true,
       findings: [],
       metrics: {
         durationMs: 100,
         filesProcessed: 5,
       },
-    };
+    });
 
     await setCache('test-key', agentResult);
     const retrieved = await getCached('test-key');
 
     expect(retrieved).not.toBeNull();
     expect(retrieved?.agentId).toBe('test');
-    expect(retrieved?.success).toBe(true);
+    if (retrieved) {
+      expect(isSuccess(retrieved)).toBe(true);
+    }
   });
 
   it('should expire after TTL', async () => {
-    const agentResult: AgentResult = {
+    const agentResult = AgentSuccess({
       agentId: 'test',
-      success: true,
       findings: [],
       metrics: { durationMs: 100, filesProcessed: 1 },
-    };
+    });
 
     // Set with 0 second TTL (immediate expiry)
     await setCache('expire-key', agentResult, 0);

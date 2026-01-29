@@ -15,6 +15,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
@@ -148,9 +149,8 @@ async function runWithAnthropic(
     const estimatedCostUsd =
       response.usage.input_tokens * 0.000015 + response.usage.output_tokens * 0.000075;
 
-    return {
+    return AgentSuccess({
       agentId,
-      success: true,
       findings,
       metrics: {
         durationMs: Date.now() - startTime,
@@ -158,7 +158,7 @@ async function runWithAnthropic(
         tokensUsed,
         estimatedCostUsd,
       },
-    };
+    });
   } catch (error) {
     // Convert to AgentError for consistent error handling
     const agentError =
@@ -170,17 +170,16 @@ async function runWithAnthropic(
             { agentId, phase: 'anthropic-call' }
           );
 
-    return {
+    return AgentFailure({
       agentId,
-      success: false,
-      findings: [],
       error: agentError.message,
+      failureStage: 'exec',
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
         tokensUsed: estimatedInputTokens,
       },
-    };
+    });
   }
 }
 
@@ -206,12 +205,11 @@ export const aiSemanticReviewAgent: ReviewAgent = {
     // Get files that this agent supports (shared by all providers)
     const supportedFiles = context.files.filter((f) => this.supports(f));
     if (supportedFiles.length === 0) {
-      return {
+      return AgentSkipped({
         agentId: this.id,
-        success: true,
-        findings: [],
+        reason: 'No supported files to process',
         metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-      };
+      });
     }
 
     // Load prompt template (shared by all providers)
@@ -270,13 +268,12 @@ Analyze this code and return JSON:
     if (provider === 'anthropic') {
       const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
       if (!anthropicKey) {
-        return {
+        return AgentFailure({
           agentId: this.id,
-          success: false,
-          findings: [],
           error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+          failureStage: 'preflight',
           metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-        };
+        });
       }
       return runWithAnthropic(
         context,
@@ -296,16 +293,15 @@ Analyze this code and return JSON:
     const azureDeployment = agentEnv['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4';
 
     if (!apiKey && !azureApiKey) {
-      return {
+      return AgentFailure({
         agentId: this.id,
-        success: false,
-        findings: [],
         error: 'No API key configured (set OPENAI_API_KEY or AZURE_OPENAI_API_KEY)',
+        failureStage: 'preflight',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
         },
-      };
+      });
     }
 
     // Initialize OpenAI client
@@ -363,9 +359,8 @@ Analyze this code and return JSON:
       const completionTokens = response.usage?.completion_tokens || 0;
       const estimatedCostUsd = (promptTokens / 1000) * 0.00015 + (completionTokens / 1000) * 0.0006;
 
-      return {
+      return AgentSuccess({
         agentId: this.id,
-        success: true,
         findings,
         metrics: {
           durationMs: Date.now() - startTime,
@@ -373,7 +368,7 @@ Analyze this code and return JSON:
           tokensUsed,
           estimatedCostUsd,
         },
-      };
+      });
     } catch (error) {
       // Convert to AgentError for consistent error handling
       const agentError =
@@ -385,17 +380,16 @@ Analyze this code and return JSON:
               { agentId: this.id, phase: 'openai-call' }
             );
 
-      return {
+      return AgentFailure({
         agentId: this.id,
-        success: false,
-        findings: [],
         error: agentError.message,
+        failureStage: 'exec',
         metrics: {
           durationMs: Date.now() - startTime,
           filesProcessed: 0,
           tokensUsed: estimatedInputTokens,
         },
-      };
+      });
     }
   },
 };

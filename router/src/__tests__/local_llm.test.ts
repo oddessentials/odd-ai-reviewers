@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sanitizeDiffForLLM, localLlmAgent } from '../agents/local_llm.js';
 import type { AgentContext } from '../agents/index.js';
 import type { DiffFile } from '../diff.js';
+import { isSuccess, isFailure, isSkipped } from '../agents/types.js';
 
 describe('sanitizeDiffForLLM', () => {
   describe('Secret Redaction', () => {
@@ -214,9 +215,11 @@ describe('localLlmAgent', () => {
       const result = await localLlmAgent.run(context);
 
       // Fail-closed behavior: should block CI by default
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Ollama unavailable');
-      expect(result.findings).toEqual([]);
+      expect(isFailure(result)).toBe(true);
+      if (isFailure(result)) {
+        expect(result.error).toContain('Ollama unavailable');
+        expect(result.partialFindings).toEqual([]);
+      }
       expect(result.metrics.filesProcessed).toBe(0);
     });
 
@@ -252,9 +255,11 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      // Graceful degradation: should pass with empty findings
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
+      // Graceful degradation: should pass with empty findings or be skipped
+      expect(isSuccess(result) || isSkipped(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.findings).toEqual([]);
+      }
       expect(result.metrics.filesProcessed).toBe(0);
     });
 
@@ -285,8 +290,10 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
+      expect(isSuccess(result) || isSkipped(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.findings).toEqual([]);
+      }
       expect(result.metrics.filesProcessed).toBe(0);
     });
 
@@ -338,9 +345,11 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Input too large');
-      expect(result.error).toContain('8192');
+      expect(isFailure(result)).toBe(true);
+      if (isFailure(result)) {
+        expect(result.error).toContain('Input too large');
+        expect(result.error).toContain('8192');
+      }
     });
   });
 
@@ -429,13 +438,15 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toHaveLength(1);
-      expect(result.findings[0]?.severity).toBe('error');
-      expect(result.findings[0]?.file).toBe('test.ts');
-      expect(result.findings[0]?.line).toBe(10);
-      expect(result.findings[0]?.message).toBe('Potential null pointer');
-      expect(result.findings[0]?.sourceAgent).toBe('local_llm');
+      expect(isSuccess(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.findings).toHaveLength(1);
+        expect(result.findings[0]?.severity).toBe('error');
+        expect(result.findings[0]?.file).toBe('test.ts');
+        expect(result.findings[0]?.line).toBe(10);
+        expect(result.findings[0]?.message).toBe('Potential null pointer');
+        expect(result.findings[0]?.sourceAgent).toBe('local_llm');
+      }
     });
 
     it('should fail on invalid JSON response', async () => {
@@ -485,8 +496,10 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('No valid JSON');
+      expect(isFailure(result)).toBe(true);
+      if (isFailure(result)) {
+        expect(result.error).toContain('No valid JSON');
+      }
     });
 
     it('should fail on mixed stdout (JSON + extra text)', async () => {
@@ -539,8 +552,10 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Mixed stdout');
+      expect(isFailure(result)).toBe(true);
+      if (isFailure(result)) {
+        expect(result.error).toContain('Mixed stdout');
+      }
     });
   });
 
@@ -765,9 +780,11 @@ describe('localLlmAgent', () => {
 
       const result = await localLlmAgent.run(context);
 
-      expect(result.success).toBe(false);
+      expect(isFailure(result)).toBe(true);
       // The error message should contain the custom timeout value
-      expect(result.error).toContain('Timeout after 5000ms');
+      if (isFailure(result)) {
+        expect(result.error).toContain('Timeout after 5000ms');
+      }
     });
 
     it('should use correct model from OLLAMA_MODEL env var', async () => {

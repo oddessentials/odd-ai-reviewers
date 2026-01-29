@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
+import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import { parseJsonResponse } from './json-utils.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
@@ -155,12 +156,11 @@ async function runWithOpenAI(
   );
 
   if (supportedFiles.length === 0) {
-    return {
+    return AgentSkipped({
       agentId,
-      success: true,
-      findings: [],
+      reason: 'No supported files to review',
       metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-    };
+    });
   }
 
   const openai = new OpenAI({ apiKey });
@@ -214,9 +214,8 @@ async function runWithOpenAI(
     const completionTokens = response.usage?.completion_tokens || 0;
     const estimatedCostUsd = (promptTokens / 1000) * 0.00015 + (completionTokens / 1000) * 0.0006;
 
-    return {
+    return AgentSuccess({
       agentId,
-      success: true,
       findings,
       metrics: {
         durationMs: Date.now() - startTime,
@@ -224,7 +223,7 @@ async function runWithOpenAI(
         tokensUsed,
         estimatedCostUsd,
       },
-    };
+    });
   } catch (error) {
     // Convert to AgentError for consistent error handling
     const agentError =
@@ -236,17 +235,16 @@ async function runWithOpenAI(
             { agentId, phase: 'openai-call' }
           );
 
-    return {
+    return AgentFailure({
       agentId,
-      success: false,
-      findings: [],
       error: agentError.message,
+      failureStage: 'exec',
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
         tokensUsed: estimatedInputTokens,
       },
-    };
+    });
   }
 }
 
@@ -286,12 +284,11 @@ async function runWithAnthropic(
   });
 
   if (supportedFiles.length === 0) {
-    return {
+    return AgentSkipped({
       agentId,
-      success: true,
-      findings: [],
+      reason: 'No supported files to review',
       metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-    };
+    });
   }
 
   const { system, user } = buildReviewPrompt(context);
@@ -359,9 +356,8 @@ async function runWithAnthropic(
 
     console.log(`[opencode] Completed. Tokens: ${tokensUsed}, Findings: ${findings.length}`);
 
-    return {
+    return AgentSuccess({
       agentId,
-      success: true,
       findings,
       metrics: {
         durationMs: Date.now() - startTime,
@@ -369,7 +365,7 @@ async function runWithAnthropic(
         tokensUsed,
         estimatedCostUsd,
       },
-    };
+    });
   } catch (error) {
     // Convert to AgentError for consistent error handling
     const agentError =
@@ -381,17 +377,16 @@ async function runWithAnthropic(
             { agentId, phase: 'anthropic-call' }
           );
 
-    return {
+    return AgentFailure({
       agentId,
-      success: false,
-      findings: [],
       error: agentError.message,
+      failureStage: 'exec',
       metrics: {
         durationMs: Date.now() - startTime,
         filesProcessed: 0,
         tokensUsed: estimatedInputTokens,
       },
-    };
+    });
   }
 }
 
@@ -420,13 +415,12 @@ export const opencodeAgent: ReviewAgent = {
         const anthropicKey = agentEnv['ANTHROPIC_API_KEY'];
         if (!anthropicKey) {
           // This should never happen due to preflight, but fail-closed
-          return {
+          return AgentFailure({
             agentId: this.id,
-            success: false,
-            findings: [],
             error: 'ANTHROPIC_API_KEY not found despite provider=anthropic',
+            failureStage: 'preflight',
             metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-          };
+          });
         }
         return runWithAnthropic(context, anthropicKey, effectiveModel);
       }
@@ -434,36 +428,33 @@ export const opencodeAgent: ReviewAgent = {
       case 'openai': {
         const openaiKey = agentEnv['OPENAI_API_KEY'];
         if (!openaiKey) {
-          return {
+          return AgentFailure({
             agentId: this.id,
-            success: false,
-            findings: [],
             error: 'OPENAI_API_KEY not found despite provider=openai',
+            failureStage: 'preflight',
             metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-          };
+          });
         }
         return runWithOpenAI(context, openaiKey, effectiveModel);
       }
 
       case 'azure-openai':
         // TODO: Implement Azure OpenAI path
-        return {
+        return AgentFailure({
           agentId: this.id,
-          success: false,
-          findings: [],
           error: 'Azure OpenAI support not yet implemented for opencode',
+          failureStage: 'preflight',
           metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-        };
+        });
 
       default:
         // No valid provider resolved - this is a preflight failure
-        return {
+        return AgentFailure({
           agentId: this.id,
-          success: false,
-          findings: [],
           error: `No valid provider configured. Provider resolved to: ${provider}`,
+          failureStage: 'preflight',
           metrics: { durationMs: Date.now() - startTime, filesProcessed: 0 },
-        };
+        });
     }
   },
 };

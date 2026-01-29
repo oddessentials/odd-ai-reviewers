@@ -23,13 +23,13 @@
 
 **Purpose**: Define discriminated union types and enforcement infrastructure
 
-- [ ] T001 [US1] [US2] Define AgentResult discriminated union types in `router/src/agents/types.ts`
-- [ ] T002 [P] [US1] Add Zod serialization schema for AgentResult in `router/src/agents/types.ts`
-- [ ] T003 [P] [US2] Add AgentSuccess/AgentFailure/AgentSkipped constructor helpers in `router/src/agents/types.ts`
-- [ ] T004 [P] [US1] Add isSuccess/isFailure/isSkipped type guards in `router/src/agents/types.ts`
-- [ ] T005 [US1] Add temporary deprecated success getter for migration in `router/src/agents/types.ts`
-- [ ] T006 [P] [US3] Create metadata helpers module in `router/src/agents/metadata.ts`
-- [ ] T007 [US3] Add depcruise rule for metadata isolation in `.dependency-cruiser.cjs`
+- [x] T001 [US1] [US2] Define AgentResult discriminated union types in `router/src/agents/types.ts`
+- [x] T002 [P] [US1] Add Zod serialization schema for AgentResult in `router/src/agents/types.ts`
+- [x] T003 [P] [US2] Add AgentSuccess/AgentFailure/AgentSkipped constructor helpers in `router/src/agents/types.ts`
+- [x] T004 [P] [US1] Add isSuccess/isFailure/isSkipped type guards in `router/src/agents/types.ts`
+- [x] T005 [US1] Add temporary deprecated success getter for migration in `router/src/agents/types.ts`
+- [x] T006 [P] [US3] Create metadata helpers module in `router/src/agents/metadata.ts`
+- [x] T007 [US3] Add depcruise rule for metadata isolation in `.dependency-cruiser.cjs`
 
 ---
 
@@ -37,9 +37,9 @@
 
 **Purpose**: CI checks that MUST be in place before migration begins
 
-- [ ] T008 [P] Create migration allowlist file at `migration-allowlist.txt`
-- [ ] T009 Add grep check for .success ban in `scripts/check-success-ban.sh`
-- [ ] T010 [P] Add grep check for object literal ban in `scripts/check-literal-ban.sh`
+- [x] T008 [P] Create migration allowlist file at `migration-allowlist.txt`
+- [x] T009 Add grep check for .success ban in `scripts/check-success-ban.sh`
+- [x] T010 [P] Add grep check for object literal ban in `scripts/check-literal-ban.sh`
 
 **Checkpoint**: Enforcement infrastructure ready - migration can begin
 
@@ -51,11 +51,11 @@
 
 **Independent Test**: Canary test fails at compile-time if variant added without handler update
 
-- [ ] T011 [US1] Add unit tests for AgentResult types in `router/src/__tests__/agents/types.test.ts`
-- [ ] T012 [US1] Add tsd-style canary test in `router/src/__tests__/integration/exhaustiveness-canary.test.ts`
-- [ ] T013 [US1] Add partialFindings exclusion test in `router/src/__tests__/integration/partial-findings.test.ts`
-- [ ] T014 [P] [US3] Add metadata helpers tests in `router/src/__tests__/agents/metadata.test.ts`
-- [ ] T015 Phase 1 commit checkpoint - run `pnpm lint && pnpm typecheck && pnpm test && pnpm depcruise`
+- [x] T011 [US1] Add unit tests for AgentResult types in `router/src/__tests__/agents/types.test.ts`
+- [x] T012 [US1] Add tsd-style canary test in `router/src/__tests__/integration/exhaustiveness-canary.test.ts`
+- [x] T013 [US1] Add partialFindings exclusion test in `router/src/__tests__/integration/partial-findings.test.ts`
+- [x] T014 [P] [US3] Add metadata helpers tests in `router/src/__tests__/agents/metadata.test.ts`
+- [x] T015 Phase 1 commit checkpoint - run `pnpm lint && pnpm typecheck && pnpm test && pnpm depcruise`
 
 **Checkpoint**: Types defined, tests passing, enforcement active - agent migration can begin
 
@@ -67,14 +67,14 @@
 
 **Independent Test**: Each agent's tests pass; grep checks pass after each migration
 
-- [ ] T016 [P] [US2] Migrate opencode agent to constructors in `router/src/agents/opencode.ts`
-- [ ] T017 [P] [US2] Migrate pr_agent to constructors in `router/src/agents/pr_agent.ts`
-- [ ] T018 [P] [US2] Migrate ai_semantic_review agent to constructors in `router/src/agents/ai_semantic_review.ts`
-- [ ] T019 [P] [US2] Migrate semgrep agent to constructors in `router/src/agents/semgrep.ts`
-- [ ] T020 [P] [US2] Migrate reviewdog agent to constructors in `router/src/agents/reviewdog.ts`
-- [ ] T021 [P] [US2] Migrate local_llm agent to constructors in `router/src/agents/local_llm.ts`
-- [ ] T022 [P] [US2] Migrate control_flow agent to constructors in `router/src/agents/control_flow/index.ts`
-- [ ] T023 Phase 2 commit checkpoint - verify all agents removed from allowlist
+- [x] T016 [P] [US2] Migrate opencode agent to constructors in `router/src/agents/opencode.ts`
+- [x] T017 [P] [US2] Migrate pr_agent to constructors in `router/src/agents/pr_agent.ts`
+- [x] T018 [P] [US2] Migrate ai_semantic_review agent to constructors in `router/src/agents/ai_semantic_review.ts`
+- [x] T019 [P] [US2] Migrate semgrep agent to constructors in `router/src/agents/semgrep.ts`
+- [x] T020 [P] [US2] Migrate reviewdog agent to constructors in `router/src/agents/reviewdog.ts`
+- [x] T021 [P] [US2] Migrate local_llm agent to constructors in `router/src/agents/local_llm.ts`
+- [x] T022 [P] [US2] Migrate control_flow agent to constructors in `router/src/agents/control_flow/index.ts`
+- [x] T023 Phase 2 commit checkpoint - verify all agents removed from allowlist
 
 **Checkpoint**: All 7 agents migrated - consumer migration can begin
 
@@ -86,13 +86,13 @@
 
 **Independent Test**: Each consumer's tests pass; switch includes `assertNever(result)` in default
 
-- [ ] T024 [P] [US1] Migrate execute phase to switch pattern in `router/src/phases/execute.ts`
-- [ ] T025 [P] [US1] Migrate report phase to switch pattern in `router/src/phases/report.ts`
-- [ ] T026 [P] [US1] Migrate report formats to switch pattern in `router/src/report/formats.ts`
-- [ ] T027 [P] [US1] Migrate telemetry to switch pattern in `router/src/telemetry/index.ts`
-- [ ] T028 [P] [US1] Migrate security-logger to switch pattern in `router/src/security-logger.ts`
-- [ ] T029 [P] [US1] Migrate cache store to switch pattern in `router/src/cache/store.ts`
-- [ ] T030 Phase 3 commit checkpoint - verify all consumers removed from allowlist
+- [x] T024 [P] [US1] Migrate execute phase to switch pattern in `router/src/phases/execute.ts`
+- [x] T025 [P] [US1] Migrate report phase to switch pattern in `router/src/phases/report.ts`
+- [x] T026 [P] [US1] Migrate report formats to switch pattern in `router/src/report/formats.ts` (N/A - uses own type)
+- [x] T027 [P] [US1] Migrate telemetry to switch pattern in `router/src/telemetry/index.ts` (N/A - uses Zod safeParse)
+- [x] T028 [P] [US1] Migrate security-logger to switch pattern in `router/src/security-logger.ts` (N/A - uses Zod safeParse)
+- [x] T029 [P] [US1] Migrate cache store to switch pattern in `router/src/cache/store.ts` (N/A - no AgentResult usage)
+- [x] T030 Phase 3 commit checkpoint - verify all consumers removed from allowlist
 
 **Checkpoint**: All 6 consumers migrated - cleanup can begin
 
@@ -102,12 +102,12 @@
 
 **Purpose**: Remove migration scaffolding and final validation
 
-- [ ] T031 Migrate test files to use constructors in `router/src/__tests__/**/*.ts`
-- [ ] T032 Delete deprecated success getter from `router/src/agents/types.ts`
-- [ ] T033 Delete migration allowlist file `migration-allowlist.txt`
-- [ ] T034 Update check-success-ban.sh to remove allowlist flag in `scripts/check-success-ban.sh`
-- [ ] T035 Final validation - verify all 16 success criteria pass
-- [ ] T036 Final commit with message: `chore(agents): complete AgentResult discriminated union migration (011)`
+- [x] T031 Migrate test files to use constructors in `router/src/__tests__/**/*.ts`
+- [x] T032 Delete deprecated success getter from `router/src/agents/types.ts`
+- [x] T033 Delete migration allowlist file `migration-allowlist.txt`
+- [x] T034 Update check-success-ban.sh to remove allowlist flag in `scripts/check-success-ban.sh`
+- [x] T035 Final validation - verify all 16 success criteria pass
+- [x] T036 Final commit with message: `chore(agents): complete AgentResult discriminated union migration (011)`
 
 **Checkpoint**: Feature complete - ready for PR
 

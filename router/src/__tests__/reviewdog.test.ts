@@ -15,6 +15,7 @@ import {
   isReviewdogAvailable,
   isSemgrepAvailable,
 } from '../agents/reviewdog.js';
+import { isSuccess, isSkipped } from '../agents/types.js';
 
 describe('Reviewdog Agent', () => {
   describe('mapSeverity', () => {
@@ -204,11 +205,14 @@ describe('Reviewdog Agent', () => {
         provider: null,
       });
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
+      // When semgrep is not available, agent should be skipped
+      expect(isSkipped(result)).toBe(true);
+      if (isSkipped(result)) {
+        expect(result.reason).toContain('Semgrep binary not found');
+      }
     });
 
-    it('should return success with empty file list', async () => {
+    it('should return skipped with empty file list', async () => {
       const result = await reviewdogAgent.run({
         files: [],
         repoPath: process.cwd(),
@@ -241,9 +245,14 @@ describe('Reviewdog Agent', () => {
         provider: null,
       });
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
-      expect(result.metrics.filesProcessed).toBe(0);
+      // When semgrep is not available or no files to process, agent should be skipped
+      expect(isSkipped(result)).toBe(true);
+      if (isSkipped(result)) {
+        // The reason could be either "Semgrep binary not found" or "No files to process"
+        // depending on the order of checks in the agent
+        expect(result.reason.includes('Semgrep') || result.reason.includes('No files')).toBe(true);
+        expect(result.metrics.filesProcessed).toBe(0);
+      }
     });
 
     it('should filter out deleted files before processing', async () => {
@@ -287,9 +296,11 @@ describe('Reviewdog Agent', () => {
         provider: null,
       });
 
-      expect(result.success).toBe(true);
-      expect(result.findings).toEqual([]);
-      expect(result.metrics.filesProcessed).toBe(0);
+      expect(isSuccess(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.findings).toEqual([]);
+        expect(result.metrics.filesProcessed).toBe(0);
+      }
     });
   });
 

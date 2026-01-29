@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FROZEN_TIMESTAMP, setupHermeticTest, teardownHermeticTest } from '../hermetic-setup.js';
 import { generateCacheKey, hashConfig, parseCacheKey } from '../../cache/key.js';
-import type { AgentResult } from '../../agents/types.js';
+import { AgentSuccess, isSuccess } from '../../agents/types.js';
 
 describe('Cache Behavior Integration Tests', () => {
   beforeEach(() => {
@@ -220,9 +220,8 @@ describe('Cache Behavior Integration Tests', () => {
 
   describe('Cache Entry Structure', () => {
     it('should have valid AgentResult structure for caching', () => {
-      const result: AgentResult = {
+      const result = AgentSuccess({
         agentId: 'semgrep',
-        success: true,
         findings: [
           {
             severity: 'warning',
@@ -236,14 +235,14 @@ describe('Cache Behavior Integration Tests', () => {
           durationMs: 1500,
           filesProcessed: 10,
         },
-      };
+      });
 
       // Verify JSON serialization round-trip
       const serialized = JSON.stringify(result);
-      const deserialized = JSON.parse(serialized) as AgentResult;
+      const deserialized = JSON.parse(serialized);
 
       expect(deserialized.agentId).toBe(result.agentId);
-      expect(deserialized.success).toBe(result.success);
+      expect(isSuccess(deserialized)).toBe(true);
       expect(deserialized.findings).toHaveLength(1);
       expect(deserialized.findings[0]?.line).toBe(42);
     });
