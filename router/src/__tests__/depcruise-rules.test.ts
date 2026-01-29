@@ -28,6 +28,14 @@ const ALLOWED_TEST_FILE_PATTERN = '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|c
 const ALLOWED_TEST_INFRA_PATTERN = '^router/src/__tests__/';
 
 /**
+ * Normalize path to POSIX format (forward slashes).
+ * Ensures consistent path matching across Windows and Linux.
+ */
+function toPosixPath(path: string): string {
+  return path.replace(/\\/g, '/');
+}
+
+/**
  * Run dependency-cruiser with specific options and return the result
  */
 function runDepcruise(args: string): { exitCode: number; output: string } {
@@ -198,6 +206,46 @@ describe('Dependency Cruiser Rule Validation', () => {
 
       expect(pathMatch).not.toBeNull();
       expect(pathMatch?.[1]).toBe('router/src');
+    });
+  });
+
+  describe('CANARY: Cross-Platform Path Normalization', () => {
+    it('should match POSIX paths with the test infra pattern', () => {
+      const posixPath = 'router/src/__tests__/hermetic-setup.ts';
+      const regex = new RegExp(ALLOWED_TEST_INFRA_PATTERN);
+
+      expect(regex.test(posixPath)).toBe(true);
+    });
+
+    it('should match Windows paths after normalization', () => {
+      // Windows-style path that would come from path.join() on Windows
+      const windowsPath = 'router\\src\\__tests__\\hermetic-setup.ts';
+      const normalizedPath = toPosixPath(windowsPath);
+      const regex = new RegExp(ALLOWED_TEST_INFRA_PATTERN);
+
+      // After normalization, the pattern should match
+      expect(normalizedPath).toBe('router/src/__tests__/hermetic-setup.ts');
+      expect(regex.test(normalizedPath)).toBe(true);
+    });
+
+    it('should NOT match paths outside __tests__/ even after normalization', () => {
+      const windowsProductionPath = 'router\\src\\config.ts';
+      const normalizedPath = toPosixPath(windowsProductionPath);
+      const regex = new RegExp(ALLOWED_TEST_INFRA_PATTERN);
+
+      expect(regex.test(normalizedPath)).toBe(false);
+    });
+
+    it('should use POSIX separators in all config patterns', () => {
+      const config = loadDepcruiseConfig();
+      const notToDevDep = config.forbidden.find((r) => r.name === 'not-to-dev-dep');
+      const pathNot = notToDevDep?.from?.pathNot;
+      const patterns = Array.isArray(pathNot) ? pathNot : [pathNot];
+
+      // All patterns must use forward slashes, never backslashes
+      for (const pattern of patterns) {
+        expect(pattern).not.toContain('\\');
+      }
     });
   });
 
