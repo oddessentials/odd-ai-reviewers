@@ -17,9 +17,9 @@
 
 **Purpose**: Review existing documentation and prepare for updates
 
-- [ ] T001 Review current docs/platforms/azure-devops/setup.md structure and identify Section 4 location (~lines 60-78)
-- [ ] T002 Review research.md for content to incorporate (identity types, error codes, verification checklist)
-- [ ] T003 [P] Verify docs/troubleshooting.md does not exist (will create new)
+- [x] T001 Review current docs/platforms/azure-devops/setup.md structure and identify Section 4 location (~lines 60-78)
+- [x] T002 Review research.md for content to incorporate (identity types, error codes, verification checklist)
+- [x] T003 [P] Verify docs/troubleshooting.md does not exist (will create new)
 
 ---
 
