@@ -1,4 +1,4 @@
-﻿# odd-ai-reviewers Development Guidelines
+# odd-ai-reviewers Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-01-27
 
@@ -12,6 +12,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - JSONL file backend (ephemeral, per-run), console output (007-pnpm-timeout-telemetry)
 - JavaScript ES6+ (client-side), Node.js >=22.0.0 (dev server) + marked.js (markdown), DOMPurify (sanitization), mermaid (diagrams) - all CDN; chokidar (file watching - new), http (Node.js built-in) (008-docs-viewer-refactor)
 - N/A (ephemeral, static files only) (008-docs-viewer-refactor)
+- Markdown (GitHub Flavored Markdown) + N/A (documentation only) (009-azure-devops-permissions-docs)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -39,9 +40,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 009-azure-devops-permissions-docs: Added Markdown (GitHub Flavored Markdown) + N/A (documentation only)
 - 008-docs-viewer-refactor: Added JavaScript ES6+ (client-side), Node.js >=22.0.0 (dev server) + marked.js (markdown), DOMPurify (sanitization), mermaid (diagrams) - all CDN; chokidar (file watching - new), http (Node.js built-in)
 - 007-pnpm-timeout-telemetry: Added TypeScript 5.9.x (ESM), Node.js ≥22.0.0 + Vitest 4.x (testing), Husky 9.x (hooks), lint-staged 16.x, Prettier 3.x, ESLint 9.x, Zod 4.x (schema validation)
-- 006-quality-enforcement: Added TypeScript 5.9.x (ESM), Node.js >=22.0.0 + Vitest 4.x (testing), Husky 9.x (hooks), lint-staged (staged file processing), Prettier 3.x (formatting), ESLint 9.x (linting)
 
 
 
