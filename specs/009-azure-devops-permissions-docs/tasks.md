@@ -110,12 +110,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] Verify docs/platforms/azure-devops/setup.md Section 4 has admin-friendly navigation instructions:
+- [x] T015 [US3] Verify docs/platforms/azure-devops/setup.md Section 4 has admin-friendly navigation instructions:
   - Clear UI navigation path
   - Identity search guidance
   - Tips for multiple identity options
 
-- [ ] T016 [US3] Ensure scope guidance in setup.md addresses multi-repo scenarios (FR-007):
+- [x] T016 [US3] Ensure scope guidance in setup.md addresses multi-repo scenarios (FR-007):
   - When to use project-level vs repository-level
   - Inheritance considerations
   - Cross-verify with Step 8 in verification checklist
