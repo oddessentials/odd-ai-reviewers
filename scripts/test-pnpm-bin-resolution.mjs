@@ -20,7 +20,7 @@
  * @module test-pnpm-bin-resolution
  */
 
-import { execSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   lstatSync,
@@ -101,19 +101,43 @@ class TestResult {
 }
 
 /**
- * Execute a command and return stdout, handling cross-platform differences
+ * Execute a command safely without shell injection risks.
+ *
+ * On Windows, .cmd/.bat files require explicit cmd.exe invocation.
+ * We handle this by detecting the platform and invoking cmd.exe /c
+ * with the command as a single string argument (no shell expansion).
+ *
+ * Security: Always uses shell: false to prevent shell injection.
+ *
  * @param {string} command
  * @param {string[]} args
  * @param {object} options
  * @returns {{stdout: string, stderr: string, exitCode: number}}
  */
 function execCommand(command, args = [], options = {}) {
-  const result = spawnSync(command, args, {
+  const isWindows = platform() === 'win32';
+  let finalCommand = command;
+  let finalArgs = args;
+
+  // On Windows, commands like 'pnpm' are actually .cmd files that need
+  // to be invoked via cmd.exe. We do this explicitly rather than using
+  // shell: true, which would enable shell expansion and injection risks.
+  if (isWindows && (command === 'pnpm' || command === 'node')) {
+    // cmd.exe /c expects the command and args as a single parameter
+    // We quote each argument to handle spaces safely
+    const quotedArgs = args.map((arg) => (arg.includes(' ') ? `"${arg}"` : arg));
+    finalCommand = process.env.ComSpec || 'cmd.exe';
+    finalArgs = ['/c', command, ...quotedArgs];
+  }
+
+  const result = spawnSync(finalCommand, finalArgs, {
     cwd: options.cwd || ROOT_DIR,
     encoding: 'utf8',
-    shell: platform() === 'win32', // Windows needs shell for .cmd files
+    shell: false, // Security: Never use shell to prevent injection
     timeout: 60000, // 60 second timeout for pack/install operations
     env: { ...process.env, ...options.env },
+    // On Windows, hide the cmd.exe window
+    windowsHide: true,
   });
 
   return {
