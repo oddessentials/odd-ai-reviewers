@@ -13,7 +13,7 @@ global.fetch = mockFetch;
 
 // Dynamic import after mock is set up
 const { startBuildStatus, reportToADO } = await import('../report/ado.js');
-type ADOContext = Parameters<typeof reportToADO>[1];
+type ADOContext = Parameters<typeof reportToADO>[2];
 
 describe('ADO Reporter', () => {
   const baseContext: ADOContext = {
@@ -137,7 +137,7 @@ describe('ADO Reporter', () => {
         },
       ];
 
-      const result = await reportToADO(findings, baseContext, baseConfig, []);
+      const result = await reportToADO(findings, [], baseContext, baseConfig, []);
 
       expect(result.success).toBe(true);
       expect(result.threadId).toBeDefined();
@@ -158,7 +158,7 @@ describe('ADO Reporter', () => {
       };
 
       mockFetch.mockClear();
-      await reportToADO([], baseContext, statusOnlyConfig, []);
+      await reportToADO([], [], baseContext, statusOnlyConfig, []);
 
       // Should only have status API call, no thread calls
       const threadCalls = mockFetch.mock.calls.filter((call) =>
@@ -181,7 +181,7 @@ describe('ADO Reporter', () => {
       };
 
       mockFetch.mockClear();
-      await reportToADO([], baseContext, threadsOnlyConfig, []);
+      await reportToADO([], [], baseContext, threadsOnlyConfig, []);
 
       // Should not have status API calls
       const statusCalls = mockFetch.mock.calls.filter((call) =>
@@ -197,7 +197,7 @@ describe('ADO Reporter', () => {
         text: async () => 'Server Error',
       });
 
-      const result = await reportToADO([], baseContext, baseConfig, []);
+      const result = await reportToADO([], [], baseContext, baseConfig, []);
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
@@ -243,7 +243,7 @@ describe('ADO Reporter', () => {
         },
       ];
 
-      const result = await reportToADO(findings, baseContext, baseConfig, []);
+      const result = await reportToADO(findings, [], baseContext, baseConfig, []);
 
       // Finding should be skipped as duplicate
       expect(result.skippedDuplicates).toBeGreaterThanOrEqual(0);
@@ -268,7 +268,7 @@ describe('ADO Reporter', () => {
       ];
 
       mockFetch.mockClear();
-      await reportToADO(findings, baseContext, gatingConfig, []);
+      await reportToADO(findings, [], baseContext, gatingConfig, []);
 
       // Find the status update call
       const statusCalls = mockFetch.mock.calls.filter((call) =>
@@ -299,7 +299,7 @@ describe('ADO Reporter', () => {
       ];
 
       mockFetch.mockClear();
-      await reportToADO(findings, baseContext, gatingConfig, []);
+      await reportToADO(findings, [], baseContext, gatingConfig, []);
 
       const statusCalls = mockFetch.mock.calls.filter((call) =>
         (call[0] as string).includes('/statuses')

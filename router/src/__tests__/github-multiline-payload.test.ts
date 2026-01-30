@@ -98,7 +98,7 @@ describe('GitHub Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
@@ -146,7 +146,7 @@ describe('GitHub Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
@@ -190,7 +190,7 @@ describe('GitHub Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(mockCreateReviewComment).toHaveBeenCalledTimes(1);
 
@@ -236,7 +236,7 @@ describe('GitHub Multi-line Payload Verification', () => {
         },
       ];
 
-      await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+      await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
       const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
         string,
@@ -280,7 +280,7 @@ describe('GitHub Multi-line Payload Verification', () => {
         },
       ];
 
-      await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+      await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
       const callArgs = (mockCreateReviewComment.mock.calls[0] as unknown[])?.[0] as Record<
         string,

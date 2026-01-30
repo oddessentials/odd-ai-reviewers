@@ -322,22 +322,31 @@ export async function runReview(
 
   // === PHASE 6: Process & Report Findings ===
   // (012-fix-agent-result-regressions) - Now passing completeFindings and partialFindings separately
-  const { sorted } = processFindings(
+  const { sorted, partialSorted } = processFindings(
     executeResult.completeFindings,
     executeResult.partialFindings,
     executeResult.allResults,
     executeResult.skippedAgents
   );
 
-  await dispatchReport(platform, sorted, config, diff.files, routerEnv, prContext.number, {
-    dryRun: options.dryRun,
-    owner: options.owner,
-    repoName: options.repoName,
-    pr: options.pr,
-    head: reviewRefs.headSha,
-    githubHeadSha,
-    checkRunId,
-  });
+  await dispatchReport(
+    platform,
+    sorted,
+    partialSorted,
+    config,
+    diff.files,
+    routerEnv,
+    prContext.number,
+    {
+      dryRun: options.dryRun,
+      owner: options.owner,
+      repoName: options.repoName,
+      pr: options.pr,
+      head: reviewRefs.headSha,
+      githubHeadSha,
+      checkRunId,
+    }
+  );
 
   // === PHASE 7: Gating ===
   // FR-008: checkGating receives only completeFindings (sorted) - partial findings don't affect gating

@@ -91,7 +91,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats).toBeDefined();
@@ -110,7 +110,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.invalidLineDetails).toBeDefined();
     expect(result.invalidLineDetails).toHaveLength(1);
@@ -137,7 +137,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2);
@@ -155,7 +155,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(1);
@@ -173,7 +173,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, []);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, []);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.downgraded).toBe(1);
@@ -199,7 +199,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.downgraded).toBeGreaterThan(0);
@@ -249,7 +249,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, baseConfig, multiHunkFiles);
+    const result = await reportToGitHub(findings, [], baseContext, baseConfig, multiHunkFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2); // Lines 1 and 52
@@ -278,7 +278,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, config, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, config, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.checkRunId).toBeDefined();
@@ -306,7 +306,7 @@ describe('GitHub Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToGitHub(findings, baseContext, config, diffFiles);
+    const result = await reportToGitHub(findings, [], baseContext, config, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.commentId).toBeDefined();

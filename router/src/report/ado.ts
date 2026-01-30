@@ -10,6 +10,7 @@ import {
   deduplicateFindings,
   sortFindings,
   generateSummaryMarkdown,
+  renderPartialFindingsSection,
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
@@ -99,9 +100,14 @@ export async function startBuildStatus(context: ADOContext): Promise<number> {
 
 /**
  * Post findings to Azure DevOps
+ *
+ * (012-fix-agent-result-regressions) - Now accepts partialFindings to include
+ * in PR thread summaries. Partial findings are rendered in a dedicated section
+ * that makes clear they're from failed agents and don't affect gating.
  */
 export async function reportToADO(
   findings: Finding[],
+  partialFindings: Finding[],
   context: ADOContext,
   config: Config,
   diffFiles: DiffFile[]
@@ -158,6 +164,7 @@ export async function reportToADO(
       const result = await postPRThreads(
         context,
         sorted,
+        partialFindings,
         reportingConfig.max_inline_comments,
         reportingConfig.thread_status === 'pending' ? 6 : 1,
         deletedFiles,
@@ -253,6 +260,7 @@ async function updateBuildStatus(
 async function postPRThreads(
   context: ADOContext,
   findings: Finding[],
+  partialFindings: Finding[],
   maxInlineComments: number,
   threadStatus: number,
   deletedFiles: Set<string> = new Set<string>(),
@@ -261,9 +269,11 @@ async function postPRThreads(
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
 
   // Generate summary with drift visibility when thresholds exceeded
+  // (012-fix-agent-result-regressions) - Include partial findings section
   const baseSummary = generateSummaryMarkdown(findings);
+  const partialSection = renderPartialFindingsSection(partialFindings);
   const driftMarkdown = driftSignal ? generateDriftMarkdown(driftSignal) : '';
-  const summary = baseSummary + driftMarkdown;
+  const summary = baseSummary + partialSection + driftMarkdown;
 
   // Get existing threads for deduplication
   const existingThreadsResponse = await fetch(`${baseUrl}/threads?api-version=7.1`, {

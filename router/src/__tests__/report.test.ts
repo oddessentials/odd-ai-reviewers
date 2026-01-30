@@ -467,7 +467,7 @@ describe('Report Module', () => {
     });
 
     it('should skip reporting in dry run mode', async () => {
-      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
         dryRun: true,
         head: 'abc123',
         owner: 'test',
@@ -479,7 +479,7 @@ describe('Report Module', () => {
     });
 
     it('should dispatch to GitHub when platform is github and context is complete', async () => {
-      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
         head: 'abc123',
         owner: 'test-owner',
         repoName: 'test-repo',
@@ -487,6 +487,7 @@ describe('Report Module', () => {
       });
 
       expect(mockGitHubReport).toHaveBeenCalledWith(
+        [],
         [],
         expect.objectContaining({
           owner: 'test-owner',
@@ -500,7 +501,7 @@ describe('Report Module', () => {
     });
 
     it('should prefer githubHeadSha when provided for GitHub reporting', async () => {
-      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
         head: 'pr-head-sha',
         githubHeadSha: 'merge-head-sha',
         owner: 'test-owner',
@@ -509,6 +510,7 @@ describe('Report Module', () => {
       });
 
       expect(mockGitHubReport).toHaveBeenCalledWith(
+        [],
         [],
         expect.objectContaining({
           headSha: 'merge-head-sha',
@@ -519,7 +521,7 @@ describe('Report Module', () => {
     });
 
     it('should not dispatch to GitHub when token is missing', async () => {
-      await dispatchReport('github', [], minimalConfig, [], {}, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], {}, 123, {
         head: 'abc123',
         owner: 'test',
         repoName: 'repo',
@@ -529,7 +531,7 @@ describe('Report Module', () => {
     });
 
     it('should not dispatch to GitHub when owner is missing', async () => {
-      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
         head: 'abc123',
         repoName: 'repo',
       });
@@ -545,9 +547,10 @@ describe('Report Module', () => {
         SYSTEM_ACCESSTOKEN: 'ado-token',
       };
 
-      await dispatchReport('ado', [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
+      await dispatchReport('ado', [], [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
 
       expect(mockADOReport).toHaveBeenCalledWith(
+        [],
         [],
         expect.objectContaining({
           organization: 'myorg',
@@ -569,9 +572,10 @@ describe('Report Module', () => {
         AZURE_DEVOPS_PAT: 'pat-token',
       };
 
-      await dispatchReport('ado', [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
+      await dispatchReport('ado', [], [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
 
       expect(mockADOReport).toHaveBeenCalledWith(
+        [],
         [],
         expect.objectContaining({
           token: 'pat-token',
@@ -582,9 +586,18 @@ describe('Report Module', () => {
     });
 
     it('should skip ADO reporting when context is incomplete', async () => {
-      await dispatchReport('ado', [], minimalConfig, [], { SYSTEM_TEAMPROJECT: 'MyProject' }, 123, {
-        head: 'abc123',
-      });
+      await dispatchReport(
+        'ado',
+        [],
+        [],
+        minimalConfig,
+        [],
+        { SYSTEM_TEAMPROJECT: 'MyProject' },
+        123,
+        {
+          head: 'abc123',
+        }
+      );
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[router] Missing ADO context - skipping reporting'
@@ -595,7 +608,7 @@ describe('Report Module', () => {
     it('should log error when GitHub report fails', async () => {
       mockGitHubReport.mockResolvedValue({ success: false, error: 'API rate limit exceeded' });
 
-      await dispatchReport('github', [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
+      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
         head: 'abc123',
         owner: 'test',
         repoName: 'repo',
@@ -617,7 +630,7 @@ describe('Report Module', () => {
         SYSTEM_ACCESSTOKEN: 'token',
       };
 
-      await dispatchReport('ado', [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
+      await dispatchReport('ado', [], [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '[router] Failed to report to Azure DevOps:',
@@ -626,7 +639,7 @@ describe('Report Module', () => {
     });
 
     it('should not dispatch for unknown platform', async () => {
-      await dispatchReport('unknown', [], minimalConfig, [], {}, 123, { head: 'abc123' });
+      await dispatchReport('unknown', [], [], minimalConfig, [], {}, 123, { head: 'abc123' });
 
       expect(mockGitHubReport).not.toHaveBeenCalled();
       expect(mockADOReport).not.toHaveBeenCalled();

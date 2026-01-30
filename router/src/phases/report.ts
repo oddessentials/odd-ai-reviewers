@@ -42,6 +42,7 @@ export interface ReportOptions {
 export interface ProcessedFindings {
   deduplicated: Finding[];
   sorted: Finding[];
+  partialSorted: Finding[];
   summary: string;
 }
 
@@ -120,15 +121,20 @@ export function processFindings(
 
   console.log('\n' + summary);
 
-  return { deduplicated: sanitized, sorted, summary };
+  return { deduplicated: sanitized, sorted, partialSorted, summary };
 }
 
 /**
  * Dispatch report to the appropriate platform.
+ *
+ * (012-fix-agent-result-regressions) - Now accepts partialFindings to include
+ * in GitHub/ADO reports. Partial findings are rendered in a dedicated section
+ * that makes clear they're from failed agents and don't affect gating.
  */
 export async function dispatchReport(
   platform: Platform,
   findings: Finding[],
+  partialFindings: Finding[],
   config: Config,
   diffFiles: DiffFile[],
   routerEnv: Record<string, string | undefined>,
@@ -151,7 +157,13 @@ export async function dispatchReport(
     };
 
     console.log('[router] Reporting to GitHub...');
-    const reportResult = await reportToGitHub(findings, githubContext, config, diffFiles);
+    const reportResult = await reportToGitHub(
+      findings,
+      partialFindings,
+      githubContext,
+      config,
+      diffFiles
+    );
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to GitHub');
@@ -181,7 +193,13 @@ export async function dispatchReport(
     };
 
     console.log('[router] Reporting to Azure DevOps...');
-    const reportResult = await reportToADO(findings, adoContext, config, diffFiles);
+    const reportResult = await reportToADO(
+      findings,
+      partialFindings,
+      adoContext,
+      config,
+      diffFiles
+    );
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to Azure DevOps');

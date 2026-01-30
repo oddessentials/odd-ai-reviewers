@@ -60,16 +60,18 @@ export function getDedupeKey(finding: Finding): string {
 /**
  * Generate a deduplication key for partial findings (FR-010)
  *
- * Unlike complete findings, partial findings include sourceAgent in the key.
- * This ensures findings from different failed agents are preserved separately,
- * since we cannot determine which agent's analysis is more complete.
+ * Unlike complete findings, partial findings:
+ * 1. Include sourceAgent in the key (preserve cross-agent findings)
+ * 2. Use ruleId instead of message hash (dedupe same rule with message variations)
  *
- * Key: sourceAgent + getDedupeKey (which is fingerprint + file + line)
- * This preserves findings with same rule but different messages from the same agent.
+ * Key: sourceAgent + file + line + ruleId
+ * This ensures findings from the same failed agent with the same rule/location
+ * are deduplicated even if their messages vary slightly (e.g., dynamic content).
  */
 export function getPartialDedupeKey(finding: Finding): string {
-  // Reuse the main dedupe key logic (fingerprint + file + line) and prefix with sourceAgent
-  return `${finding.sourceAgent}:${getDedupeKey(finding)}`;
+  // Use ruleId if available, otherwise fall back to 'unknown' (rare for partial findings)
+  const ruleId = finding.ruleId ?? 'unknown';
+  return `${finding.sourceAgent}:${finding.file}:${finding.line ?? 0}:${ruleId}`;
 }
 
 /**

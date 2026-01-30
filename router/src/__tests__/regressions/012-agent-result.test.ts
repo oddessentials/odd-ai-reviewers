@@ -25,11 +25,7 @@ import {
   type AgentMetrics,
 } from '../../agents/types.js';
 import { getCached, clearCache, findCachedForPR } from '../../cache/store.js';
-import {
-  getDedupeKey,
-  getPartialDedupeKey,
-  deduplicatePartialFindings,
-} from '../../report/formats.js';
+import { getPartialDedupeKey, deduplicatePartialFindings } from '../../report/formats.js';
 import { annotateProvenance } from '../../phases/execute.js';
 
 // Mock fs module for cache tests
@@ -181,18 +177,17 @@ describe('012 Regression Suite', () => {
     });
   });
 
-  describe('Regression #3: getPartialDedupeKey must preserve distinct messages', () => {
+  describe('Regression #3: getPartialDedupeKey must dedupe by ruleId (not message)', () => {
     /**
-     * BUG: getPartialDedupeKey was using sourceAgent + file + line + ruleId,
-     * but NOT including the message fingerprint. This caused findings from
-     * the same agent on the same line with the same ruleId but different
-     * messages to be incorrectly deduplicated.
+     * BUG: getPartialDedupeKey was originally using message fingerprint,
+     * causing findings with the same ruleId but different messages to NOT
+     * be deduplicated (noisy output with duplicate semantic findings).
      *
-     * FIX: getPartialDedupeKey now uses sourceAgent + getDedupeKey(finding),
-     * where getDedupeKey includes the message fingerprint.
+     * FIX: getPartialDedupeKey uses sourceAgent + file + line + ruleId ONLY.
+     * Different messages with same ruleId ARE deduplicated (expected behavior).
      */
 
-    it('preserves findings with same rule but different messages from same agent', () => {
+    it('deduplicates findings with same rule but different messages from same agent', () => {
       const finding1: Finding = {
         severity: 'error',
         file: 'src/security.ts',
@@ -208,15 +203,15 @@ describe('012 Regression Suite', () => {
         message: 'SQL injection via unescaped string concatenation', // Different message
       };
 
-      // Keys should be different because messages differ
+      // Keys should be SAME because ruleId matches (message ignored)
       const key1 = getPartialDedupeKey(finding1);
       const key2 = getPartialDedupeKey(finding2);
 
-      // REGRESSION CHECK: Different messages MUST produce different keys
-      expect(key1).not.toBe(key2);
+      // REGRESSION CHECK: Same ruleId MUST produce same keys (deduplication)
+      expect(key1).toBe(key2);
     });
 
-    it('deduplicatePartialFindings retains distinct messages', () => {
+    it('deduplicatePartialFindings dedupes same-ruleId different-message findings', () => {
       const finding1: Finding = {
         severity: 'error',
         file: 'src/security.ts',
@@ -234,8 +229,8 @@ describe('012 Regression Suite', () => {
 
       const result = deduplicatePartialFindings([finding1, finding2]);
 
-      // REGRESSION CHECK: Both findings MUST be retained
-      expect(result).toHaveLength(2);
+      // REGRESSION CHECK: Findings with same ruleId MUST be deduplicated
+      expect(result).toHaveLength(1);
     });
 
     it('getPartialDedupeKey includes sourceAgent for cross-agent preservation', () => {
@@ -253,20 +248,22 @@ describe('012 Regression Suite', () => {
       expect(key).toContain('semgrep');
     });
 
-    it('getPartialDedupeKey includes base dedup key (fingerprint)', () => {
+    it('getPartialDedupeKey uses ruleId (not message fingerprint)', () => {
       const finding: Finding = {
         severity: 'error',
         file: 'a.ts',
         line: 10,
+        ruleId: 'test-rule',
         message: 'Issue',
         sourceAgent: 'semgrep',
       };
 
-      const baseKey = getDedupeKey(finding);
       const partialKey = getPartialDedupeKey(finding);
 
-      // REGRESSION CHECK: Partial key MUST include base key
-      expect(partialKey).toContain(baseKey);
+      // REGRESSION CHECK: Partial key MUST include ruleId
+      expect(partialKey).toContain('test-rule');
+      // Key format: sourceAgent:file:line:ruleId
+      expect(partialKey).toBe('semgrep:a.ts:10:test-rule');
     });
   });
 

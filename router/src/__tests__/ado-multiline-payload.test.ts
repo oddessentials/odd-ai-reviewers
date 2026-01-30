@@ -95,7 +95,7 @@ describe('ADO Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     // Find the inline thread POST call (with threadContext)
     const postCalls = fetchCalls.filter(
@@ -135,7 +135,7 @@ describe('ADO Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     const postCalls = fetchCalls.filter(
       (call) => call.options?.method === 'POST' && call.url.includes('/threads')
@@ -169,7 +169,7 @@ describe('ADO Multi-line Payload Verification', () => {
       },
     ];
 
-    await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     const postCalls = fetchCalls.filter(
       (call) => call.options?.method === 'POST' && call.url.includes('/threads')
