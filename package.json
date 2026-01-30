@@ -23,7 +23,8 @@
     "prepare": "husky",
     "docs:manifest": "node scripts/generate-docs-manifest.cjs",
     "docs:linkcheck": "node scripts/linkcheck.cjs",
-    "docs:dev": "node scripts/docs-dev-server.mjs"
+    "docs:dev": "node scripts/docs-dev-server.mjs",
+    "test:bin-resolution": "node scripts/test-pnpm-bin-resolution.mjs"
   },
   "keywords": [
     "code-review",
