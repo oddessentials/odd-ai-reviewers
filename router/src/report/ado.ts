@@ -14,6 +14,9 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
+  buildProximityMap,
+  isDuplicateByProximity,
+  identifyStaleComments,
 } from './formats.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
@@ -360,16 +363,22 @@ async function postPRThreads(
     console.log(`[ado] Created new summary thread ${threadId}`);
   }
 
-  // Build set of existing comment fingerprints from all threads
-  const existingFingerprints = new Set<string>();
+  // Build set of existing comment fingerprints and map to thread IDs for resolution
+  const existingDedupeKeys: string[] = [];
+  const dedupeKeyToThreadId = new Map<string, number>();
   for (const thread of existingThreadsData.value) {
     for (const comment of thread.comments) {
       const markers = extractFingerprintMarkers(comment.content);
       for (const marker of markers) {
-        existingFingerprints.add(marker);
+        existingDedupeKeys.push(marker);
+        dedupeKeyToThreadId.set(marker, thread.id);
       }
     }
   }
+
+  // Build proximity-based deduplication structures
+  const existingFingerprintSet = new Set<string>(existingDedupeKeys);
+  const proximityMap = buildProximityMap(existingDedupeKeys);
 
   // Filter findings for inline comments
   // Belt-and-suspenders: also filter out deleted files (should already be file-level)
@@ -389,10 +398,11 @@ async function postPRThreads(
   for (const finding of inlineFindings) {
     if (postedCount >= maxInlineComments) break;
 
-    const fingerprint = getDedupeKey(finding);
-
-    // Skip if already posted
-    if (existingFingerprints.has(fingerprint)) {
+    // Use proximity-based deduplication: skip if finding is a duplicate
+    // A finding is a duplicate if:
+    // 1. Exact dedupe key match (same fingerprint + file + line), OR
+    // 2. Same fingerprint+file within LINE_PROXIMITY_THRESHOLD lines
+    if (isDuplicateByProximity(finding, existingFingerprintSet, proximityMap)) {
       skippedDuplicates++;
       continue;
     }
@@ -432,7 +442,8 @@ async function postPRThreads(
       }
 
       postedCount++;
-      existingFingerprints.add(fingerprint);
+      const key = getDedupeKey(finding);
+      existingFingerprintSet.add(key);
 
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
@@ -441,8 +452,38 @@ async function postPRThreads(
     }
   }
 
+  // Resolve stale threads (threads for issues that no longer exist)
+  const staleKeys = identifyStaleComments(existingDedupeKeys, findings);
+  const resolvedThreadIds = new Set<number>();
+  let resolvedCount = 0;
+
+  for (const staleKey of staleKeys) {
+    const threadIdToResolve = dedupeKeyToThreadId.get(staleKey);
+    if (!threadIdToResolve || resolvedThreadIds.has(threadIdToResolve)) continue;
+
+    try {
+      // Update thread status to closed (status 4 = Closed in ADO)
+      const response = await fetch(`${baseUrl}/threads/${threadIdToResolve}?api-version=7.1`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${context.token}`,
+        },
+        body: JSON.stringify({ status: 4 }), // 4 = Closed
+      });
+
+      if (response.ok) {
+        resolvedCount++;
+        resolvedThreadIds.add(threadIdToResolve);
+      }
+      await delay(INLINE_COMMENT_DELAY_MS);
+    } catch (error) {
+      console.warn(`[ado] Failed to resolve stale thread ${threadIdToResolve}: ${error}`);
+    }
+  }
+
   console.log(
-    `[ado] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+    `[ado] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} stale threads`
   );
 
   return { threadId, skippedDuplicates };

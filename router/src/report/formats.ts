@@ -76,6 +76,126 @@ export function getPartialDedupeKey(finding: Finding): string {
 }
 
 /**
+ * Extract just the fingerprint hash from a full dedupe key
+ *
+ * Dedupe key format: `fingerprint:file:line` where fingerprint is 32 hex chars
+ * Returns the 32-char fingerprint portion for proximity-based deduplication
+ */
+export function extractFingerprintFromKey(dedupeKey: string): string {
+  // Fingerprint is always the first 32 characters (hex hash)
+  return dedupeKey.slice(0, 32);
+}
+
+/**
+ * Parse a dedupe key into its components
+ *
+ * @returns Object with fingerprint, file, and line (or null if parsing fails)
+ */
+export function parseDedupeKey(
+  dedupeKey: string
+): { fingerprint: string; file: string; line: number } | null {
+  // Format: `fingerprint:file:line` where fingerprint is 32 hex chars
+  const fingerprint = dedupeKey.slice(0, 32);
+  if (!/^[a-f0-9]{32}$/.test(fingerprint)) {
+    return null;
+  }
+
+  // Rest is `:file:line` - find the last colon to get line number
+  const rest = dedupeKey.slice(33); // Skip fingerprint + first colon
+  const lastColonIdx = rest.lastIndexOf(':');
+  if (lastColonIdx === -1) {
+    return null;
+  }
+
+  const file = rest.slice(0, lastColonIdx);
+  const lineStr = rest.slice(lastColonIdx + 1);
+  const line = parseInt(lineStr, 10);
+
+  if (isNaN(line)) {
+    return null;
+  }
+
+  return { fingerprint, file, line };
+}
+
+/** Threshold for considering two line numbers as "close" (likely same issue moved) */
+export const LINE_PROXIMITY_THRESHOLD = 20;
+
+/**
+ * Build a map for proximity-based deduplication
+ *
+ * Groups existing dedupe keys by fingerprint+file, tracking all line numbers.
+ * This enables detecting when a finding matches an existing comment that may
+ * have drifted to a different line due to code changes.
+ *
+ * @returns Map from `fingerprint:file` to array of line numbers
+ */
+export function buildProximityMap(dedupeKeys: string[]): Map<string, number[]> {
+  const map = new Map<string, number[]>();
+
+  for (const key of dedupeKeys) {
+    const parsed = parseDedupeKey(key);
+    if (!parsed) continue;
+
+    const proximityKey = `${parsed.fingerprint}:${parsed.file}`;
+    const existing = map.get(proximityKey) ?? [];
+    existing.push(parsed.line);
+    map.set(proximityKey, existing);
+  }
+
+  return map;
+}
+
+/**
+ * Check if a finding should be considered a duplicate based on proximity
+ *
+ * A finding is considered a duplicate if:
+ * 1. Exact match: The full dedupe key exists in existingKeys, OR
+ * 2. Proximity match: A comment with the same fingerprint+file exists
+ *    within LINE_PROXIMITY_THRESHOLD lines of the finding
+ *
+ * This handles the common case where code moves between pushes (e.g., lines
+ * inserted/deleted above the issue) without creating duplicate comments.
+ *
+ * @param finding The finding to check
+ * @param existingKeys Set of full dedupe keys from existing comments
+ * @param proximityMap Map from fingerprint:file to line numbers
+ * @returns true if the finding should be skipped (is a duplicate)
+ */
+export function isDuplicateByProximity(
+  finding: Finding,
+  existingKeys: Set<string>,
+  proximityMap: Map<string, number[]>
+): boolean {
+  const dedupeKey = getDedupeKey(finding);
+
+  // Check exact match first
+  if (existingKeys.has(dedupeKey)) {
+    return true;
+  }
+
+  // Check proximity match
+  const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+  const proximityKey = `${fingerprint}:${finding.file}`;
+  const existingLines = proximityMap.get(proximityKey);
+
+  if (!existingLines || existingLines.length === 0) {
+    return false;
+  }
+
+  const findingLine = finding.line ?? 0;
+
+  // Check if any existing line is within threshold
+  for (const existingLine of existingLines) {
+    if (Math.abs(findingLine - existingLine) <= LINE_PROXIMITY_THRESHOLD) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Deduplicate findings using fingerprint + path + start_line
  *
  * Per CONSOLIDATED.md Section E and INVARIANTS.md #3:
@@ -275,6 +395,66 @@ export function extractFingerprintMarkers(body: string): string[] {
   }
 
   return markers;
+}
+
+/**
+ * Identify stale comments that should be resolved
+ *
+ * A comment is considered "stale" if its fingerprint doesn't match any current
+ * finding within the proximity threshold. This means either:
+ * - The issue was fixed
+ * - The code was removed entirely
+ *
+ * @param existingDedupeKeys Dedupe keys from existing comments
+ * @param currentFindings Current findings from this analysis run
+ * @returns Array of dedupe keys for comments that should be resolved
+ */
+export function identifyStaleComments(
+  existingDedupeKeys: string[],
+  currentFindings: Finding[]
+): string[] {
+  // Build a proximity map from current findings
+  const currentProximityMap = new Map<string, number[]>();
+  for (const finding of currentFindings) {
+    const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+    const proximityKey = `${fingerprint}:${finding.file}`;
+    const existing = currentProximityMap.get(proximityKey) ?? [];
+    existing.push(finding.line ?? 0);
+    currentProximityMap.set(proximityKey, existing);
+  }
+
+  const staleKeys: string[] = [];
+
+  for (const existingKey of existingDedupeKeys) {
+    const parsed = parseDedupeKey(existingKey);
+    if (!parsed) continue;
+
+    const proximityKey = `${parsed.fingerprint}:${parsed.file}`;
+    const currentLines = currentProximityMap.get(proximityKey);
+
+    // If no current findings match this fingerprint+file, it's stale
+    if (!currentLines || currentLines.length === 0) {
+      staleKeys.push(existingKey);
+      continue;
+    }
+
+    // Check if any current finding is within proximity threshold
+    let hasProximityMatch = false;
+    for (const currentLine of currentLines) {
+      if (Math.abs(currentLine - parsed.line) <= LINE_PROXIMITY_THRESHOLD) {
+        hasProximityMatch = true;
+        break;
+      }
+    }
+
+    // If no proximity match, the old comment is stale
+    // (the issue either moved far away or was fixed)
+    if (!hasProximityMatch) {
+      staleKeys.push(existingKey);
+    }
+  }
+
+  return staleKeys;
 }
 
 /**

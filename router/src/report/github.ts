@@ -16,6 +16,9 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
+  buildProximityMap,
+  isDuplicateByProximity,
+  identifyStaleComments,
 } from './formats.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
@@ -335,16 +338,22 @@ async function postPRComment(
     pull_number: context.prNumber,
   });
 
-  // Build set of existing comment fingerprints (canonical markers only)
-  const existingFingerprints = new Set<string>();
+  // Build set of existing comment fingerprints and map to comment IDs for resolution
+  const existingDedupeKeys: string[] = [];
+  const dedupeKeyToCommentId = new Map<string, number>();
   for (const comment of existingReviewComments.data) {
     if (comment.body) {
       const markers = extractFingerprintMarkers(comment.body);
       for (const marker of markers) {
-        existingFingerprints.add(marker);
+        existingDedupeKeys.push(marker);
+        dedupeKeyToCommentId.set(marker, comment.id);
       }
     }
   }
+
+  // Build proximity-based deduplication structures
+  const existingFingerprintSet = new Set<string>(existingDedupeKeys);
+  const proximityMap = buildProximityMap(existingDedupeKeys);
 
   // Filter findings for inline comments
   // Belt-and-suspenders: also filter out deleted files (should already be file-level)
@@ -367,17 +376,22 @@ async function postPRComment(
   for (const findingOrGroup of groupedFindings) {
     if (postedCount >= maxInlineComments) break;
 
-    const fingerprints = Array.isArray(findingOrGroup)
-      ? findingOrGroup.map((finding) => getDedupeKey(finding))
-      : [getDedupeKey(findingOrGroup)];
+    const findingsInGroup = Array.isArray(findingOrGroup) ? findingOrGroup : [findingOrGroup];
 
-    // Skip if already posted
-    if (fingerprints.every((fingerprint) => existingFingerprints.has(fingerprint))) {
+    // Use proximity-based deduplication: skip if ALL findings in group are duplicates
+    // A finding is a duplicate if:
+    // 1. Exact dedupe key match (same fingerprint + file + line), OR
+    // 2. Same fingerprint+file within LINE_PROXIMITY_THRESHOLD lines
+    const allDuplicates = findingsInGroup.every((f) =>
+      isDuplicateByProximity(f, existingFingerprintSet, proximityMap)
+    );
+
+    if (allDuplicates) {
       skippedDuplicates++;
       continue;
     }
 
-    const finding = Array.isArray(findingOrGroup) ? findingOrGroup[0] : findingOrGroup;
+    const finding = findingsInGroup[0];
     if (!finding) continue;
 
     const body = Array.isArray(findingOrGroup)
@@ -416,8 +430,11 @@ async function postPRComment(
 
       await octokit.pulls.createReviewComment(commentParams);
       postedCount++;
-      for (const fingerprint of fingerprints) {
-        existingFingerprints.add(fingerprint);
+
+      // Update tracking structures with newly posted findings
+      for (const f of findingsInGroup) {
+        const key = getDedupeKey(f);
+        existingFingerprintSet.add(key);
       }
 
       // Rate limiting delay
@@ -428,8 +445,45 @@ async function postPRComment(
     }
   }
 
+  // Resolve stale comments (comments for issues that no longer exist)
+  const staleKeys = identifyStaleComments(existingDedupeKeys, findings);
+  let resolvedCount = 0;
+
+  for (const staleKey of staleKeys) {
+    const commentId = dedupeKeyToCommentId.get(staleKey);
+    if (!commentId) continue;
+
+    try {
+      // Get the existing comment to preserve its content
+      const existingComment = existingReviewComments.data.find((c) => c.id === commentId);
+      if (!existingComment?.body) continue;
+
+      // Skip if already marked as resolved
+      if (existingComment.body.includes('~~') && existingComment.body.includes('✅ Resolved')) {
+        continue;
+      }
+
+      // Update the comment to mark it as resolved
+      const resolvedBody =
+        `~~${existingComment.body.replace(/<!--[^>]*-->/g, '').trim()}~~\n\n` +
+        `✅ **Resolved** - This issue appears to have been fixed.\n\n` +
+        `<!-- ${staleKey} -->`;
+
+      await octokit.pulls.updateReviewComment({
+        owner: context.owner,
+        repo: context.repo,
+        comment_id: commentId,
+        body: resolvedBody,
+      });
+      resolvedCount++;
+      await delay(INLINE_COMMENT_DELAY_MS);
+    } catch (error) {
+      console.warn(`[github] Failed to resolve stale comment ${commentId}: ${error}`);
+    }
+  }
+
   console.log(
-    `[github] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+    `[github] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} stale comments`
   );
 
   return { commentId, skippedDuplicates };
