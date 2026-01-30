@@ -75,23 +75,35 @@ As a security team lead debugging why a pattern didn't match as expected, I want
 #### Regex Timeout Protection
 
 - **FR-001**: System MUST enforce a maximum execution time for each regex pattern evaluation (default: 100ms per match attempt).
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 - **FR-002**: System MUST continue analysis when a pattern evaluation times out, treating the timed-out pattern as non-matching for that specific input.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 - **FR-003**: System MUST log pattern timeout events with pattern ID, input length, and elapsed time.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 - **FR-004**: System MUST indicate in findings when pattern evaluations were constrained due to timeout, so users understand results may be conservative.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/finding-generator.test.ts`
 - **FR-005**: System MUST allow configuration of the pattern timeout limit within reasonable bounds (10ms-1000ms).
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 
 #### Cross-File Mitigation Transparency
 
 - **FR-006**: System MUST include the file path of each detected mitigation in finding messages when the mitigation is in a different file than the vulnerability.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 - **FR-007**: System MUST include the line number of cross-file mitigations in finding messages.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 - **FR-008**: System MUST indicate the call depth at which a cross-file mitigation was detected.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 - **FR-009**: System MUST list all contributing mitigations when multiple cross-file mitigations protect the same vulnerability.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 - **FR-010**: Finding messages for partial mitigations MUST specify which paths are protected by which mitigations, including file locations.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 
 #### Logging and Audit
 
 - **FR-011**: System MUST log the complete call chain traversed when detecting cross-file mitigations (when verbose logging is enabled).
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 - **FR-012**: System MUST log all pattern timeout events with sufficient detail for debugging.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 
 ### Key Entities
 

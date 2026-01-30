@@ -98,30 +98,46 @@ As a security auditor reviewing analysis results, I want the logging system to c
 #### ReDoS Pattern Validation
 
 - **FR-001**: System MUST validate all user-provided regex patterns against known ReDoS vulnerability patterns before execution.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 - **FR-002**: System MUST reject patterns containing nested quantifiers (e.g., `(a+)+`, `(a*)*`) with a clear error message.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 - **FR-003**: System MUST reject patterns with overlapping alternations that could cause exponential backtracking.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 - **FR-004**: System MUST provide a validation function that can be called independently of pattern execution.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 - **FR-005**: System MUST allow whitelisting of specific patterns that have been manually verified as safe despite triggering validation rules.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 
 #### Enhanced Error Handling
 
 - **FR-006**: TimeoutRegex class MUST catch and handle all regex runtime errors without propagating exceptions to callers.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 - **FR-007**: System MUST log all caught regex errors with pattern, input context, and error details.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 - **FR-008**: System MUST track cumulative timeout/error counts per analysis run for summary reporting.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 - **FR-009**: System MUST release all resources (threads, memory) when terminating a timed-out regex evaluation.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 
 #### Unit Test Coverage
 
 - **FR-010**: Test suite MUST include tests for cross-file mitigation edge cases: maximum depth, circular references, multi-path mitigations.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/cross-file-messages.test.ts`
 - **FR-011**: Test suite MUST include tests for TimeoutRegex behavior: normal execution, timeout triggering, error handling, resource cleanup.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/regex-timeout.test.ts`
 - **FR-012**: Test suite MUST include tests for pattern validation: known ReDoS patterns, edge cases, false positive prevention.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/pattern-validator.test.ts`
 - **FR-013**: Test suite MUST achieve minimum 80% code coverage for modified files.
+  **Test Coverage**: `router/vitest.config.ts` (coverage thresholds configured)
 
 #### Logging Enhancements
 
 - **FR-014**: System MUST log pattern timeout events in a structured format suitable for automated analysis.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 - **FR-015**: System MUST log cross-file mitigation discoveries with complete call chain information.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 - **FR-016**: Logging MUST include timestamps, correlation IDs, and severity levels for all security-relevant events.
+  **Test Coverage**: `router/tests/unit/agents/control_flow/logger.test.ts`
 
 ### Key Entities
 

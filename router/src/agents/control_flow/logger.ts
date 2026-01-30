@@ -17,6 +17,33 @@
 // =============================================================================
 
 /**
+ * Canonical Field Names for Logging
+ *
+ * These are the standardized field names used in structured log entries.
+ * For backward compatibility, deprecated aliases may also be emitted.
+ *
+ * CANONICAL NAMES (use these):
+ * - `patternId`: Unique identifier for a regex pattern
+ * - `filePath`: Full path to a source file
+ * - `durationMs`: Time duration in milliseconds
+ * - `correlationId`: Unique ID linking related log entries
+ * - `ruleId`: Rule/check identifier
+ * - `nodesVisited`: Count of CFG nodes visited
+ * - `maxNodesVisited`: Configured limit for node visits
+ *
+ * DEPRECATED ALIASES (Phase 1 - emit both for one release):
+ * - `pattern` → use `patternId`
+ * - `file` → use `filePath`
+ * - `mitigationFile` → use `filePath`
+ * - `elapsed` → use `durationMs`
+ * - `elapsedMs` → use `durationMs`
+ *
+ * Deprecation Timeline:
+ * - Phase 1 (current): Emit both canonical and deprecated field names
+ * - Phase 2 (next release): Remove deprecated aliases
+ */
+
+/**
  * Log levels for analysis decisions.
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -36,7 +63,8 @@ export type LogCategory =
   | 'cross_file'
   | 'call_chain'
   | 'pattern_validation'
-  | 'redos_detection';
+  | 'redos_detection'
+  | 'node_limit';
 
 /**
  * Structured log entry for analysis decisions.
@@ -490,18 +518,34 @@ export class AnalysisLogger {
 
   /**
    * Log pattern evaluation timeout.
+   *
+   * Canonical fields: patternId, durationMs, correlationId
+   * Deprecated aliases (Phase 1): pattern, elapsedMs
    */
   logPatternTimeout(patternId: string, inputLength: number, elapsedMs: number): void {
     this.addEntry(
       'warn',
       'pattern_timeout',
       `Pattern ${patternId} timed out after ${elapsedMs.toFixed(1)}ms (input: ${inputLength} chars)`,
-      { patternId, inputLength, elapsedMs, result: 'conservative_non_match' }
+      {
+        // Canonical field names
+        patternId,
+        durationMs: elapsedMs,
+        inputLength,
+        result: 'conservative_non_match',
+        correlationId: this.analysisId,
+        // Deprecated aliases (Phase 1: emit both for backward compatibility)
+        pattern: patternId, // DEPRECATED: use patternId
+        elapsedMs, // DEPRECATED: use durationMs
+      }
     );
   }
 
   /**
    * Log pattern evaluation completion (for debugging).
+   *
+   * Canonical fields: patternId, durationMs, correlationId
+   * Deprecated aliases (Phase 1): pattern, elapsedMs
    */
   logPatternEvaluated(
     patternId: string,
@@ -513,7 +557,17 @@ export class AnalysisLogger {
       'debug',
       'pattern_timeout',
       `Pattern ${patternId}: ${matched ? 'matched' : 'no match'} in ${elapsedMs.toFixed(2)}ms`,
-      { patternId, matched, elapsedMs, inputLength }
+      {
+        // Canonical field names
+        patternId,
+        durationMs: elapsedMs,
+        matched,
+        inputLength,
+        correlationId: this.analysisId,
+        // Deprecated aliases (Phase 1: emit both for backward compatibility)
+        pattern: patternId, // DEPRECATED: use patternId
+        elapsedMs, // DEPRECATED: use durationMs
+      }
     );
   }
 
@@ -523,6 +577,9 @@ export class AnalysisLogger {
 
   /**
    * Log cross-file mitigation detection.
+   *
+   * Canonical fields: patternId, filePath (for mitigationFile), vulnerabilityFilePath, correlationId
+   * Deprecated aliases (Phase 1): mitigationFile, vulnerabilityFile
    */
   logCrossFileMitigation(
     vulnerabilityFile: string,
@@ -535,7 +592,18 @@ export class AnalysisLogger {
       'info',
       'cross_file',
       `Cross-file mitigation: ${patternId} at ${mitigationFile}:${mitigationLine} (depth: ${depth})`,
-      { vulnerabilityFile, mitigationFile, mitigationLine, depth, patternId }
+      {
+        // Canonical field names
+        patternId,
+        filePath: mitigationFile,
+        vulnerabilityFilePath: vulnerabilityFile,
+        mitigationLine,
+        depth,
+        correlationId: this.analysisId,
+        // Deprecated aliases (Phase 1: emit both for backward compatibility)
+        mitigationFile, // DEPRECATED: use filePath
+        vulnerabilityFile, // DEPRECATED: use vulnerabilityFilePath
+      }
     );
   }
 
@@ -691,6 +759,55 @@ export class AnalysisLogger {
   }
 
   // ===========================================================================
+  // Node Limit Logging (maxNodesVisited guardrail)
+  // ===========================================================================
+
+  /**
+   * Log when node visit limit is reached during traversal.
+   *
+   * Canonical field names:
+   * - nodesVisited (current count)
+   * - maxNodesVisited (configured limit)
+   * - fallbackUsed (whether conservative fallback was applied)
+   * - classification ('unknown' when limit reached)
+   * - reason ('node_limit_exceeded')
+   */
+  logNodeLimitReached(nodesVisited: number, maxNodesVisited: number, fallbackUsed: boolean): void {
+    this.addEntry(
+      'warn',
+      'node_limit',
+      `Node visit limit reached: ${nodesVisited}/${maxNodesVisited}. Using conservative fallback.`,
+      {
+        nodesVisited,
+        maxNodesVisited,
+        fallbackUsed,
+        classification: 'unknown',
+        reason: 'node_limit_exceeded',
+        correlationId: this.analysisId,
+      }
+    );
+  }
+
+  /**
+   * Log node visit progress (debug level, for diagnostics).
+   */
+  logNodeVisitProgress(nodesVisited: number, maxNodesVisited: number): void {
+    // Only log every 1000 nodes to avoid spam
+    if (nodesVisited % 1000 === 0 && nodesVisited > 0) {
+      this.addEntry(
+        'debug',
+        'node_limit',
+        `Node traversal progress: ${nodesVisited}/${maxNodesVisited} (${((nodesVisited / maxNodesVisited) * 100).toFixed(1)}%)`,
+        {
+          nodesVisited,
+          maxNodesVisited,
+          correlationId: this.analysisId,
+        }
+      );
+    }
+  }
+
+  // ===========================================================================
   // Call Chain Logging (FR-011 verbose)
   // ===========================================================================
 
@@ -791,6 +908,7 @@ export class AnalysisLogger {
       call_chain: 0,
       pattern_validation: 0,
       redos_detection: 0,
+      node_limit: 0,
     };
 
     for (const entry of this.entries) {

@@ -17,9 +17,13 @@ import type {
   ControlFlowConfig,
   CallChainEntry,
   CrossFileMitigationInfo,
+  TraversalState,
+  NodeVisitResult,
 } from './types.js';
+import { createTraversalState } from './types.js';
 import type { ControlFlowGraphRuntime, CFGNodeRuntime } from './cfg-types.js';
 import { getLogger, type AnalysisLogger } from './logger.js';
+import { getPatternById } from './mitigation-patterns.js';
 
 // =============================================================================
 // Types
@@ -72,6 +76,12 @@ export interface PathAnalysisResult {
 
   /** Reason for degradation if applicable */
   degradedReason?: string;
+
+  /** Whether node visit limit was reached */
+  nodeLimitReached?: boolean;
+
+  /** Number of nodes visited during traversal */
+  nodesVisited?: number;
 }
 
 /**
@@ -86,6 +96,9 @@ export interface PathAnalysisOptions {
 
   /** Whether to include unreachable paths */
   includeUnreachable?: boolean;
+
+  /** Maximum nodes to visit during traversal (default: 10,000) */
+  maxNodesVisited?: number;
 }
 
 /**
@@ -201,6 +214,7 @@ export class PathAnalyzer {
       maxPaths: 100,
       maxPathLength: 50,
       includeUnreachable: false,
+      maxNodesVisited: 10_000,
     };
   }
 
@@ -215,8 +229,8 @@ export class PathAnalyzer {
   ): PathAnalysisResult {
     const opts = { ...this.defaultOptions, ...options };
 
-    // Find all paths from entry to sink
-    const paths = this.findPathsToNode(cfg, cfg.entryNode, sinkNodeId, opts);
+    // Find all paths from entry to sink with state tracking
+    const { paths, state } = this.findPathsToNodeWithState(cfg, cfg.entryNode, sinkNodeId, opts);
 
     // Classify paths by mitigation status
     const mitigatedPaths: ExecutionPath[] = [];
@@ -232,11 +246,26 @@ export class PathAnalyzer {
     }
 
     // Determine overall status
-    const status = this.determineStatus(mitigatedPaths.length, unmitigatedPaths.length);
+    let status = this.determineStatus(mitigatedPaths.length, unmitigatedPaths.length);
+
+    // If node limit was reached, apply conservative fallback (treat as partial/unknown)
+    if (state.limitReached && status === 'full') {
+      status = 'partial';
+    }
+
     const coveragePercent = paths.length > 0 ? (mitigatedPaths.length / paths.length) * 100 : 0;
 
-    // Check if we hit limits
-    const degraded = paths.length >= opts.maxPaths;
+    // Check if we hit limits (either path limit or node limit)
+    const degraded = paths.length >= opts.maxPaths || state.limitReached;
+
+    // Build degradation reason
+    const reasons: string[] = [];
+    if (paths.length >= opts.maxPaths) {
+      reasons.push(`Path limit reached (${opts.maxPaths})`);
+    }
+    if (state.limitReached) {
+      reasons.push(`Node visit limit reached (${state.nodesVisited}/${state.maxNodesVisited})`);
+    }
 
     return {
       vulnerabilityType,
@@ -247,9 +276,9 @@ export class PathAnalyzer {
       status,
       coveragePercent,
       degraded,
-      degradedReason: degraded
-        ? `Path limit reached (${opts.maxPaths}). Analysis may be incomplete.`
-        : undefined,
+      degradedReason: degraded ? `${reasons.join('; ')}. Analysis may be incomplete.` : undefined,
+      nodeLimitReached: state.limitReached,
+      nodesVisited: state.nodesVisited,
     };
   }
 
@@ -262,15 +291,38 @@ export class PathAnalyzer {
     endId: string,
     options: Required<PathAnalysisOptions>
   ): ExecutionPath[] {
+    const result = this.findPathsToNodeWithState(cfg, startId, endId, options);
+    return result.paths;
+  }
+
+  /**
+   * Result of path finding with traversal state tracking.
+   *
+   * Uses `visitNode` internally to ensure consistent node limit enforcement
+   * across all traversal methods (single source of truth for FR-002).
+   */
+  findPathsToNodeWithState(
+    cfg: ControlFlowGraphRuntime,
+    startId: string,
+    endId: string,
+    options: Required<PathAnalysisOptions>
+  ): { paths: ExecutionPath[]; state: TraversalState } {
     const paths: ExecutionPath[] = [];
     const visited = new Set<string>();
+    const state = createTraversalState(options.maxNodesVisited);
 
     const explore = (
       currentId: string,
       pathNodes: string[],
       pathMitigations: MitigationInstance[]
     ) => {
-      // Check limits
+      // Delegate node limit checking to visitNode (single source of truth for FR-002)
+      const visitResult = this.visitNode(state);
+      if (visitResult.limitReached) {
+        return;
+      }
+
+      // Check other limits
       if (paths.length >= options.maxPaths) return;
       if (pathNodes.length >= options.maxPathLength) return;
 
@@ -310,19 +362,64 @@ export class PathAnalyzer {
     };
 
     explore(startId, [], []);
-    return paths;
+
+    // Mark reason as completed if limit was not reached
+    if (!state.limitReached) {
+      state.reason = 'completed';
+    }
+
+    return { paths, state };
+  }
+
+  /**
+   * Visit a single node during traversal and check limits.
+   * Returns the result of the visit including whether limit was reached.
+   *
+   * @param state - Current traversal state (mutated)
+   * @returns Result indicating whether traversal should continue
+   */
+  visitNode(state: TraversalState): NodeVisitResult {
+    // Pre-increment check per FR-002: limit=N means exactly N nodes allowed
+    // Check BEFORE incrementing so we never exceed the limit
+    if (state.nodesVisited >= state.maxNodesVisited) {
+      state.limitReached = true;
+      state.classification = 'unknown';
+      state.reason = 'node_limit_exceeded';
+      this.logger.logNodeLimitReached(state.nodesVisited, state.maxNodesVisited, true);
+      return {
+        limitReached: true,
+        classification: 'unknown',
+        reason: 'node_limit_exceeded',
+      };
+    }
+
+    state.nodesVisited++;
+    this.logger.logNodeVisitProgress(state.nodesVisited, state.maxNodesVisited);
+
+    return {
+      limitReached: false,
+    };
   }
 
   /**
    * Check if a path mitigates a specific vulnerability type.
+   *
+   * Per FR-003: Determines mitigation applicability by checking whether the
+   * queried VulnerabilityType is included in Mitigation.appliesTo (via pattern lookup).
+   *
+   * Per FR-004: Returns false when no mitigation applies to the queried vulnerability type.
    */
-  pathMitigatesVulnerability(path: ExecutionPath, _vulnType: VulnerabilityType): boolean {
+  pathMitigatesVulnerability(path: ExecutionPath, vulnType: VulnerabilityType): boolean {
     // A path is mitigated if ANY mitigation along it covers this vulnerability type
-    return path.mitigations.some((_m) => {
-      // The patternId maps to a mitigation pattern which has mitigates array
-      // For now, we check if the mitigation was marked for this vuln type
-      // This would need to be enhanced to check the actual pattern mapping
-      return true; // Placeholder - actual implementation would check pattern mappings
+    return path.mitigations.some((m) => {
+      // Resolve patternId to MitigationPattern to check mitigates array
+      const pattern = getPatternById(m.patternId);
+      if (!pattern) {
+        // Unknown pattern - conservative: assume it doesn't mitigate
+        return false;
+      }
+      // Check if this pattern's mitigates array includes the queried vulnerability type
+      return pattern.mitigates.includes(vulnType);
     });
   }
 

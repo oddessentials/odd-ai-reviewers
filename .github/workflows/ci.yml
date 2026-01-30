@@ -81,6 +81,10 @@ jobs:
       - name: Check documentation links
         run: pnpm docs:linkcheck
 
+      # Spec-to-test traceability: Verify referenced test files exist
+      - name: Check spec-to-test links
+        run: pnpm spec:linkcheck
+
       - name: Build
         run: pnpm build
 
