@@ -147,6 +147,26 @@ export function buildProximityMap(dedupeKeys: string[]): Map<string, number[]> {
 }
 
 /**
+ * Update the proximity map after posting a finding
+ *
+ * Uses the same canonical patterns as isDuplicateByProximity:
+ * - Fingerprint: finding.fingerprint ?? generateFingerprint(finding)
+ * - Proximity key: `${fingerprint}:${finding.file}`
+ * - Line: finding.line ?? 0
+ *
+ * Uses immutable updates to prevent mutation of existing arrays.
+ *
+ * @param proximityMap Map from fingerprint:file to line numbers
+ * @param finding The finding that was just posted
+ */
+export function updateProximityMap(proximityMap: Map<string, number[]>, finding: Finding): void {
+  const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+  const proximityKey = `${fingerprint}:${finding.file}`;
+  const existingLines = proximityMap.get(proximityKey) ?? [];
+  proximityMap.set(proximityKey, [...existingLines, finding.line ?? 0]);
+}
+
+/**
  * Check if a finding should be considered a duplicate based on proximity
  *
  * A finding is considered a duplicate if:
