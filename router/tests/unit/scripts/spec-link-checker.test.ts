@@ -94,6 +94,14 @@ describe('Spec Link Checker Patterns', () => {
   });
 
   describe('Multi-path extraction (FR-006)', () => {
+    // ===========================================================================
+    // REGRESSION TESTS: The original regex only had two capture groups, meaning
+    // only the first two paths would be validated. A third (or more) invalid
+    // path would be silently ignored, causing link rot.
+    //
+    // The fix uses global matching to extract ALL backtick-quoted paths.
+    // ===========================================================================
+
     it('should extract TWO paths from a single line', () => {
       const content = '**Test Coverage**: `test1.ts`, `test2.ts`';
       const paths = extractTestPaths(content);
@@ -108,6 +116,24 @@ describe('Spec Link Checker Patterns', () => {
 
       expect(paths).toEqual(['test1.ts', 'test2.ts', 'test3.ts']);
       expect(paths).toHaveLength(3);
+    });
+
+    it('should capture invalid third path for validation [FR-006 critical regression]', () => {
+      // CRITICAL: This test verifies that an invalid THIRD path would be captured.
+      // With the old 2-capture-group regex, 'nonexistent/invalid.ts' would be IGNORED,
+      // meaning a broken link in position 3+ would never be detected.
+      const content =
+        '**Test Coverage**: `router/tests/valid1.test.ts`, `router/tests/valid2.test.ts`, `nonexistent/invalid.ts`';
+      const paths = extractTestPaths(content);
+
+      // All THREE paths must be extracted, including the invalid one
+      expect(paths).toHaveLength(3);
+      expect(paths[0]).toBe('router/tests/valid1.test.ts');
+      expect(paths[1]).toBe('router/tests/valid2.test.ts');
+      expect(paths[2]).toBe('nonexistent/invalid.ts'); // This MUST be captured
+
+      // Explicit assertion: the invalid path is in the extracted list
+      expect(paths).toContain('nonexistent/invalid.ts');
     });
 
     it('should extract FOUR paths from a single line', () => {

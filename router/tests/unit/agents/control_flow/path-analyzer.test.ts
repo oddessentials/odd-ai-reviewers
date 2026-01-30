@@ -872,6 +872,33 @@ describe('PathAnalyzer', () => {
   // ===========================================================================
 
   describe('pathMitigatesVulnerability', () => {
+    // ===========================================================================
+    // REGRESSION TEST: This function MUST NOT return true unconditionally.
+    // The original placeholder always returned true, causing false negatives.
+    // ===========================================================================
+
+    it('should return false for unknown pattern ID (conservative behavior)', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [
+          {
+            patternId: 'unknown-pattern-that-does-not-exist',
+            location: { file: 'test.ts', line: 10 },
+            protectedVariables: ['input'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+        ],
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      // Unknown patterns should NOT be assumed to mitigate anything
+      expect(analyzer.pathMitigatesVulnerability(path, 'injection')).toBe(false);
+      expect(analyzer.pathMitigatesVulnerability(path, 'xss')).toBe(false);
+    });
+
     it('should return true when mitigation applies to queried vulnerability type [FR-003]', () => {
       const path: ExecutionPath = {
         nodes: ['entry', 'exit'],
