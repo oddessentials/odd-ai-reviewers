@@ -297,6 +297,9 @@ export class PathAnalyzer {
 
   /**
    * Result of path finding with traversal state tracking.
+   *
+   * Uses `visitNode` internally to ensure consistent node limit enforcement
+   * across all traversal methods (single source of truth for FR-002).
    */
   findPathsToNodeWithState(
     cfg: ControlFlowGraphRuntime,
@@ -313,23 +316,11 @@ export class PathAnalyzer {
       pathNodes: string[],
       pathMitigations: MitigationInstance[]
     ) => {
-      // Check node visit limit - use >= (pre-increment check) per FR-002
-      // limit=N means exactly N nodes allowed, not N+1
-      if (state.nodesVisited >= state.maxNodesVisited) {
-        if (!state.limitReached) {
-          state.limitReached = true;
-          state.classification = 'unknown';
-          state.reason = 'node_limit_exceeded';
-          this.logger.logNodeLimitReached(state.nodesVisited, state.maxNodesVisited, true);
-        }
+      // Delegate node limit checking to visitNode (single source of truth for FR-002)
+      const visitResult = this.visitNode(state);
+      if (visitResult.limitReached) {
         return;
       }
-
-      // Increment node visit counter
-      state.nodesVisited++;
-
-      // Log progress periodically
-      this.logger.logNodeVisitProgress(state.nodesVisited, state.maxNodesVisited);
 
       // Check other limits
       if (paths.length >= options.maxPaths) return;
