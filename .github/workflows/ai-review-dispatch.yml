@@ -67,25 +67,36 @@ jobs:
       - name: Get base SHA
         id: base
         working-directory: target
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
         run: |
-          echo "sha=$(git rev-parse origin/${{ inputs.base_ref }})" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse "origin/$BASE_REF")" >> $GITHUB_OUTPUT
 
       - name: Run AI Review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TARGET_REPO: ${{ inputs.target_repo }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
-          OWNER=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f1)
-          REPO=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f2)
+          OWNER=$(echo "$TARGET_REPO" | cut -d'/' -f1)
+          REPO=$(echo "$TARGET_REPO" | cut -d'/' -f2)
+
+          PR_ARG=""
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "0" ]; then
+            PR_ARG="--pr $PR_NUMBER"
+          fi
 
           node router/dist/main.js review \
             --repo target \
-            --base ${{ steps.base.outputs.sha }} \
-            --head ${{ inputs.target_ref }} \
+            --base "$BASE_SHA" \
+            --head "$TARGET_REF" \
             --owner "$OWNER" \
             --repo-name "$REPO" \
-            ${{ inputs.pr_number && format('--pr {0}', inputs.pr_number) || '' }}
+            $PR_ARG
 
       - name: Upload results
         uses: actions/upload-artifact@v4

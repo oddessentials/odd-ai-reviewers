@@ -177,17 +177,15 @@ describe('012 Regression Suite', () => {
     });
   });
 
-  describe('Regression #3: getPartialDedupeKey must dedupe by ruleId (not message)', () => {
+  describe('Regression #3: getPartialDedupeKey preserves distinct messages', () => {
     /**
-     * BUG: getPartialDedupeKey was originally using message fingerprint,
-     * causing findings with the same ruleId but different messages to NOT
-     * be deduplicated (noisy output with duplicate semantic findings).
+     * REQUIREMENT: Partial dedup key includes sourceAgent AND fingerprint (message hash)
+     * so that distinct same-line same-rule messages from the same agent are preserved.
      *
-     * FIX: getPartialDedupeKey uses sourceAgent + file + line + ruleId ONLY.
-     * Different messages with same ruleId ARE deduplicated (expected behavior).
+     * Key format: sourceAgent:fingerprint:file:line
      */
 
-    it('deduplicates findings with same rule but different messages from same agent', () => {
+    it('preserves findings with same rule but different messages from same agent', () => {
       const finding1: Finding = {
         severity: 'error',
         file: 'src/security.ts',
@@ -203,15 +201,15 @@ describe('012 Regression Suite', () => {
         message: 'SQL injection via unescaped string concatenation', // Different message
       };
 
-      // Keys should be SAME because ruleId matches (message ignored)
+      // Keys should be DIFFERENT because messages differ (fingerprints differ)
       const key1 = getPartialDedupeKey(finding1);
       const key2 = getPartialDedupeKey(finding2);
 
-      // REGRESSION CHECK: Same ruleId MUST produce same keys (deduplication)
-      expect(key1).toBe(key2);
+      // REGRESSION CHECK: Different messages MUST produce different keys
+      expect(key1).not.toBe(key2);
     });
 
-    it('deduplicatePartialFindings dedupes same-ruleId different-message findings', () => {
+    it('deduplicatePartialFindings retains distinct messages from same agent', () => {
       const finding1: Finding = {
         severity: 'error',
         file: 'src/security.ts',
@@ -229,7 +227,28 @@ describe('012 Regression Suite', () => {
 
       const result = deduplicatePartialFindings([finding1, finding2]);
 
-      // REGRESSION CHECK: Findings with same ruleId MUST be deduplicated
+      // REGRESSION CHECK: Both findings MUST be retained (different messages)
+      expect(result).toHaveLength(2);
+    });
+
+    it('deduplicatePartialFindings dedupes exact duplicates from same agent', () => {
+      const finding1: Finding = {
+        severity: 'error',
+        file: 'src/security.ts',
+        line: 42,
+        ruleId: 'sql-injection',
+        message: 'SQL injection via user input',
+        sourceAgent: 'semgrep',
+        provenance: 'partial',
+      };
+
+      const finding2: Finding = {
+        ...finding1, // Exact same finding
+      };
+
+      const result = deduplicatePartialFindings([finding1, finding2]);
+
+      // Only exact duplicates are deduplicated
       expect(result).toHaveLength(1);
     });
 
@@ -248,22 +267,29 @@ describe('012 Regression Suite', () => {
       expect(key).toContain('semgrep');
     });
 
-    it('getPartialDedupeKey uses ruleId (not message fingerprint)', () => {
-      const finding: Finding = {
+    it('preserves same finding from two different failed agents', () => {
+      const finding1: Finding = {
         severity: 'error',
         file: 'a.ts',
         line: 10,
-        ruleId: 'test-rule',
-        message: 'Issue',
+        message: 'Issue found',
         sourceAgent: 'semgrep',
+        provenance: 'partial',
       };
 
-      const partialKey = getPartialDedupeKey(finding);
+      const finding2: Finding = {
+        ...finding1,
+        sourceAgent: 'eslint', // Different agent, same finding
+      };
 
-      // REGRESSION CHECK: Partial key MUST include ruleId
-      expect(partialKey).toContain('test-rule');
-      // Key format: sourceAgent:file:line:ruleId
-      expect(partialKey).toBe('semgrep:a.ts:10:test-rule');
+      const key1 = getPartialDedupeKey(finding1);
+      const key2 = getPartialDedupeKey(finding2);
+
+      // Different agents = different keys = both preserved
+      expect(key1).not.toBe(key2);
+
+      const result = deduplicatePartialFindings([finding1, finding2]);
+      expect(result).toHaveLength(2);
     });
   });
 

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { join } from 'path';
 
 // Project root (two levels up from __tests__)
@@ -36,14 +36,58 @@ function toPosixPath(path: string): string {
 }
 
 /**
- * Run dependency-cruiser with specific options and return the result
+ * Allowlisted depcruise arguments - only these are permitted.
+ * Adding new arguments requires security review.
  */
-function runDepcruise(args: string): { exitCode: number; output: string } {
+const ALLOWED_DEPCRUISE_ARGS = new Set([
+  '--config',
+  '--output-type',
+  '--focus',
+  '.dependency-cruiser.cjs',
+  'err',
+  'json',
+  'not-to-spec',
+]);
+
+/**
+ * Validate depcruise arguments against allowlist.
+ * Only permits known-safe arguments to prevent command injection.
+ */
+function validateDepcruiseArgs(args: string[]): void {
+  for (const arg of args) {
+    // Allow paths under router/src (relative paths only, no traversal)
+    if (arg.startsWith('router/src') && !arg.includes('..')) {
+      continue;
+    }
+    // Allow allowlisted arguments
+    if (ALLOWED_DEPCRUISE_ARGS.has(arg)) {
+      continue;
+    }
+    throw new Error(`Disallowed depcruise argument: ${arg}`);
+  }
+}
+
+/**
+ * Run dependency-cruiser with specific options and return the result.
+ * Uses execFileSync with argument array to prevent command injection.
+ *
+ * Security: Arguments are validated against allowlist before execution.
+ * Using shell: true is required on Windows for pnpm.cmd, but args are
+ * still passed as array (not string-interpolated) so injection is blocked.
+ */
+function runDepcruise(argsString: string): { exitCode: number; output: string } {
+  // Parse args string into array (simple split - no shell interpolation)
+  const args = argsString.split(/\s+/).filter(Boolean);
+
+  // Validate all arguments against allowlist
+  validateDepcruiseArgs(args);
+
   try {
-    const output = execSync(`pnpm depcruise ${args}`, {
+    const output = execFileSync('pnpm', ['depcruise', ...args], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true, // Required on Windows for pnpm.cmd
     });
     return { exitCode: 0, output };
   } catch (error) {

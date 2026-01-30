@@ -266,10 +266,10 @@ describe('deduplicatePartialFindings (FR-010)', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('should deduplicate same-line same-rule different-message findings from same agent', () => {
+  it('should preserve same-line same-rule different-message findings from same agent', () => {
     // One failed agent emits two findings on same line with same ruleId but different messages
-    // They SHOULD be deduplicated because partial dedupe key is: sourceAgent + file + line + ruleId
-    // Message variations should NOT prevent deduplication (per FR-010)
+    // They SHOULD be preserved because partial dedupe key includes fingerprint (message hash)
+    // Different messages = different fingerprints = both retained (012-fix-agent-result-regressions)
     const finding1: Finding = {
       severity: 'error',
       file: 'src/security.ts',
@@ -292,9 +292,9 @@ describe('deduplicatePartialFindings (FR-010)', () => {
 
     const result = deduplicatePartialFindings([finding1, finding2]);
 
-    // Should be deduplicated to 1 since key is sourceAgent + file + line + ruleId
-    // Message variations don't affect deduplication for partial findings
-    expect(result).toHaveLength(1);
+    // Both should be retained since key is sourceAgent + fingerprint + file + line
+    // Different messages produce different fingerprints
+    expect(result).toHaveLength(2);
   });
 
   it('should deduplicate exact duplicates (same everything including message)', () => {

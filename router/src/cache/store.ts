@@ -5,7 +5,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
 import { AgentResultSchema } from '../agents/types.js';
@@ -52,10 +52,35 @@ function ensureCacheDir(): void {
 }
 
 /**
- * Get cache file path for a key
+ * Validate cache key to prevent path traversal attacks.
+ * Keys must be alphanumeric with dashes only (matching generateCacheKey output).
+ */
+function isValidCacheKey(key: string): boolean {
+  // Cache keys from generateCacheKey are: ai-review-v{N}-{prNumber}-{hash}
+  // Only allow alphanumeric, dashes, no path separators or traversal
+  return /^[a-zA-Z0-9-]+$/.test(key) && !key.includes('..');
+}
+
+/**
+ * Get cache file path for a key.
+ * Validates key format and ensures resolved path stays under cache root.
  */
 function getCacheFilePath(key: string): string {
-  return join(getCacheDir(), `${key}.json`);
+  if (!isValidCacheKey(key)) {
+    throw new Error(`Invalid cache key format: ${key}`);
+  }
+
+  const cacheDir = getCacheDir();
+  const filePath = join(cacheDir, `${key}.json`);
+
+  // Ensure resolved path is under cache directory (defense in depth)
+  const resolvedPath = resolve(filePath);
+  const resolvedCacheDir = resolve(cacheDir);
+  if (!resolvedPath.startsWith(resolvedCacheDir)) {
+    throw new Error(`Cache path traversal detected: ${key}`);
+  }
+
+  return filePath;
 }
 
 /**
