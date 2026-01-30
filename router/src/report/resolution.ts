@@ -205,7 +205,7 @@ export function applyPartialResolutionVisual(body: string, resolvedMarkers: stri
   let match: RegExpExecArray | null;
 
   while ((match = markerPattern.exec(body)) !== null) {
-    // FR-009: Guard against empty capture groups to prevent invalid markers
+    // FR-008: Guard against empty capture groups to prevent invalid markers
     const marker = match[1];
     if (marker && marker.length > 0) {
       markers.push(marker);

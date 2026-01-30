@@ -17,12 +17,93 @@ import {
   getDedupeKey,
   isDuplicateByProximity,
   extractFingerprintMarkers,
+  updateProximityMap,
+  LINE_PROXIMITY_THRESHOLD,
 } from '../../report/formats.js';
 import { canonicalizeDiffFiles } from '../../diff.js';
 import type { Finding } from '../../agents/types.js';
 import type { DiffFile } from '../../diff.js';
 
-// LINE_PROXIMITY_THRESHOLD is 20 lines (defined in formats.ts)
+// ============================================================================
+// updateProximityMap helper unit tests
+// ============================================================================
+
+describe('updateProximityMap helper', () => {
+  it('should create proximity key in exact format: fingerprint:file', () => {
+    const proximityMap = new Map<string, number[]>();
+    const finding: Finding = {
+      file: 'src/test.ts',
+      line: 10,
+      message: 'Test',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint: 'abc123def456abc123def456abc12345',
+    };
+
+    updateProximityMap(proximityMap, finding);
+
+    // Assert exact key format matches isDuplicateByProximity pattern
+    const expectedKey = `${finding.fingerprint}:${finding.file}`;
+    expect(proximityMap.get(expectedKey)).toStrictEqual([10]);
+  });
+
+  it('should use immutable updates (original array unchanged)', () => {
+    const fingerprint = 'abc123def456abc123def456abc12345';
+    const proximityKey = `${fingerprint}:src/test.ts`;
+    const originalLines = [5];
+    const proximityMap = new Map([[proximityKey, originalLines]]);
+
+    const finding: Finding = {
+      file: 'src/test.ts',
+      line: 10,
+      message: 'Test',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+
+    updateProximityMap(proximityMap, finding);
+
+    expect(proximityMap.get(proximityKey)).toStrictEqual([5, 10]);
+    expect(originalLines).toStrictEqual([5]); // Original unchanged
+  });
+
+  it('should generate fingerprint via canonical generateFingerprint when missing', () => {
+    const proximityMap = new Map<string, number[]>();
+    const finding: Finding = {
+      file: 'src/test.ts',
+      line: 10,
+      message: 'Test finding',
+      severity: 'warning',
+      sourceAgent: 'test',
+      // No fingerprint
+    };
+
+    updateProximityMap(proximityMap, finding);
+
+    expect(proximityMap.size).toBe(1);
+    const [key] = [...proximityMap.keys()];
+    // Generated fingerprint is 32 hex chars
+    expect(key).toMatch(/^[a-f0-9]{32}:src\/test\.ts$/);
+  });
+
+  it('should default line to 0 when finding.line is undefined', () => {
+    const proximityMap = new Map<string, number[]>();
+    const finding: Finding = {
+      file: 'src/test.ts',
+      // No line
+      message: 'File-level finding',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint: 'abc123def456abc123def456abc12345',
+    };
+
+    updateProximityMap(proximityMap, finding);
+
+    const proximityKey = `${finding.fingerprint}:${finding.file}`;
+    expect(proximityMap.get(proximityKey)).toStrictEqual([0]);
+  });
+});
 
 // ============================================================================
 // US1: ProximityMap Update Tests (FR-001, FR-002)
@@ -50,8 +131,7 @@ describe('US1: ProximityMap Update After Posting', () => {
       proximityMap.set(proximityKey, existingLines);
 
       // Then: The proximityMap should contain the finding's line
-      expect(proximityMap.has(proximityKey)).toBe(true);
-      expect(proximityMap.get(proximityKey)).toContain(10);
+      expect(proximityMap.get(proximityKey)).toStrictEqual([10]);
     });
 
     it('should skip second finding within threshold after first is posted', () => {
@@ -444,8 +524,7 @@ describe('Edge Cases', () => {
 
       // Then: Both structures should be populated
       expect(existingFingerprintSet.has(key)).toBe(true);
-      expect(proximityMap.has(proximityKey)).toBe(true);
-      expect(proximityMap.get(proximityKey)).toContain(10);
+      expect(proximityMap.get(proximityKey)).toStrictEqual([10]);
     });
   });
 
@@ -495,8 +574,145 @@ describe('Edge Cases', () => {
       // And each finding should have its line in the map
       const key1 = `${fingerprint1}:src/test.ts`;
       const key2 = `${fingerprint2}:src/test.ts`;
-      expect(proximityMap.get(key1)).toContain(10);
-      expect(proximityMap.get(key2)).toContain(12);
+      expect(proximityMap.get(key1)).toStrictEqual([10]);
+      expect(proximityMap.get(key2)).toStrictEqual([12]);
     });
+  });
+});
+
+// ============================================================================
+// Integration: Sequential Posting Within Same Run
+// ============================================================================
+
+describe('Integration: Sequential Posting Within Same Run', () => {
+  it('should detect finding as duplicate via proximity after prior finding posted', () => {
+    // Simulate real posting loop with tracking structure updates
+    const fingerprint = 'abc123def456abc123def456abc12345';
+    const finding1: Finding = {
+      file: 'src/test.ts',
+      line: 10,
+      message: 'Issue',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+    const finding2: Finding = {
+      file: 'src/test.ts',
+      line: 10 + LINE_PROXIMITY_THRESHOLD, // At boundary
+      message: 'Issue',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+    const finding3: Finding = {
+      file: 'src/test.ts',
+      line: 10 + LINE_PROXIMITY_THRESHOLD + 1, // Outside threshold
+      message: 'Issue',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+
+    const existingFingerprintSet = new Set<string>();
+    const proximityMap = new Map<string, number[]>();
+
+    // finding1: not duplicate (empty state)
+    expect(isDuplicateByProximity(finding1, existingFingerprintSet, proximityMap)).toBe(false);
+
+    // Post finding1 - update structures
+    existingFingerprintSet.add(getDedupeKey(finding1));
+    updateProximityMap(proximityMap, finding1);
+
+    // finding2: IS duplicate (at boundary, inclusive)
+    expect(isDuplicateByProximity(finding2, existingFingerprintSet, proximityMap)).toBe(true);
+
+    // finding3: NOT duplicate (outside threshold)
+    expect(isDuplicateByProximity(finding3, existingFingerprintSet, proximityMap)).toBe(false);
+  });
+
+  it('should update tracking structures for all findings in grouped comment', () => {
+    const fingerprint1 = 'abc123def456abc123def456abc12345';
+    const fingerprint2 = 'def456abc123def456abc123def45678';
+    const findingsInGroup: Finding[] = [
+      {
+        file: 'src/test.ts',
+        line: 10,
+        message: 'First',
+        severity: 'warning',
+        sourceAgent: 'test',
+        fingerprint: fingerprint1,
+      },
+      {
+        file: 'src/test.ts',
+        line: 12,
+        message: 'Second',
+        severity: 'error',
+        sourceAgent: 'test',
+        fingerprint: fingerprint2,
+      },
+    ];
+
+    const laterFinding: Finding = {
+      file: 'src/test.ts',
+      line: 10 + LINE_PROXIMITY_THRESHOLD, // Within threshold of first
+      message: 'First',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint: fingerprint1,
+    };
+
+    const existingFingerprintSet = new Set<string>();
+    const proximityMap = new Map<string, number[]>();
+
+    // Simulate grouped post - update all
+    for (const f of findingsInGroup) {
+      existingFingerprintSet.add(getDedupeKey(f));
+      updateProximityMap(proximityMap, f);
+    }
+
+    expect(existingFingerprintSet.size).toBe(2);
+    expect(proximityMap.size).toBe(2);
+
+    // Later finding detected as duplicate
+    expect(isDuplicateByProximity(laterFinding, existingFingerprintSet, proximityMap)).toBe(true);
+  });
+
+  it('should post both findings when outside LINE_PROXIMITY_THRESHOLD', () => {
+    const fingerprint = 'abc123def456abc123def456abc12345';
+    const finding1: Finding = {
+      file: 'src/test.ts',
+      line: 10,
+      message: 'Issue',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+    const finding2: Finding = {
+      file: 'src/test.ts',
+      line: 10 + LINE_PROXIMITY_THRESHOLD + 10, // Well outside threshold
+      message: 'Issue',
+      severity: 'warning',
+      sourceAgent: 'test',
+      fingerprint,
+    };
+
+    const existingFingerprintSet = new Set<string>();
+    const proximityMap = new Map<string, number[]>();
+
+    // Post finding1
+    existingFingerprintSet.add(getDedupeKey(finding1));
+    updateProximityMap(proximityMap, finding1);
+
+    // finding2 is NOT duplicate (outside threshold)
+    expect(isDuplicateByProximity(finding2, existingFingerprintSet, proximityMap)).toBe(false);
+
+    // Post finding2
+    existingFingerprintSet.add(getDedupeKey(finding2));
+    updateProximityMap(proximityMap, finding2);
+
+    // Both posted
+    expect(existingFingerprintSet.size).toBe(2);
+    const proximityKey = `${fingerprint}:src/test.ts`;
+    expect(proximityMap.get(proximityKey)).toStrictEqual([10, 10 + LINE_PROXIMITY_THRESHOLD + 10]);
   });
 });
