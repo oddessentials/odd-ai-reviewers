@@ -64,7 +64,7 @@ function getCacheFilePath(key: string): string {
  * (012-fix-agent-result-regressions) - Validates cache entries to handle:
  * - Legacy cache entries (success: boolean format) → return null (cache miss)
  * - Malformed/corrupted entries → return null (cache miss)
- * - New-format entries (status: 'success'|'failure'|'skipped') → return result
+ * - New-format entries (discriminated union with status field) → return result
  */
 function validateCachedResult(result: unknown): AgentResult | null {
   const parseResult = AgentResultSchema.safeParse(result);
