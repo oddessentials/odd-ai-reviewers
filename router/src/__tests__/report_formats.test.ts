@@ -65,8 +65,8 @@ describe('generateAgentStatusTable', () => {
     const table = generateAgentStatusTable(results, skipped);
 
     expect(table).toContain('## Agent Status');
-    expect(table).toContain('| semgrep | ✅ Ran | 3 findings |');
-    expect(table).toContain('| reviewdog | ✅ Ran | 2 findings |');
+    expect(table).toContain('| 🛡 semgrep | ✅ Ran | 3 findings |');
+    expect(table).toContain('| 🦊 reviewdog | ✅ Ran | 2 findings |');
   });
 
   it('should handle singular finding correctly', () => {
@@ -74,7 +74,7 @@ describe('generateAgentStatusTable', () => {
 
     const table = generateAgentStatusTable(results, []);
 
-    expect(table).toContain('| opencode | ✅ Ran | 1 finding |');
+    expect(table).toContain('| 🧑‍💻 opencode | ✅ Ran | 1 finding |');
   });
 
   it('should show failed agents with error message', () => {
@@ -84,7 +84,7 @@ describe('generateAgentStatusTable', () => {
 
     const table = generateAgentStatusTable(results, []);
 
-    expect(table).toContain('| opencode | ❌ Failed | API key not configured |');
+    expect(table).toContain('| 🧑‍💻 opencode | ❌ Failed | API key not configured |');
   });
 
   it('should show skipped agents with reason', () => {
@@ -96,9 +96,9 @@ describe('generateAgentStatusTable', () => {
 
     const table = generateAgentStatusTable(results, skipped);
 
-    expect(table).toContain('| semgrep | ✅ Ran | 2 findings |');
-    expect(table).toContain('| opencode | ⏭️ Skipped | CLI not installed |');
-    expect(table).toContain('| local_llm | ⏭️ Skipped | Ollama not reachable |');
+    expect(table).toContain('| 🛡 semgrep | ✅ Ran | 2 findings |');
+    expect(table).toContain('| 🧑‍💻 opencode | ⏭️ Skipped | CLI not installed |');
+    expect(table).toContain('| 🧠 local_llm | ⏭️ Skipped | Ollama not reachable |');
   });
 
   it('should handle empty results and skipped', () => {

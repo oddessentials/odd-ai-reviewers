@@ -441,7 +441,7 @@ describe('renderPartialFindingsSection (FR-007)', () => {
     ];
 
     const result = renderPartialFindingsSection(findings);
-    expect(result).toContain('[semgrep]');
+    expect(result).toContain('🛡'); // semgrep icon
     expect(result).toContain('(line 42)');
     expect(result).toContain('Security issue');
   });

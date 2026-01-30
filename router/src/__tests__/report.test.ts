@@ -173,7 +173,7 @@ describe('Report Module', () => {
       expect(processed.summary).toContain('## ⚠️ Partial Findings (from failed agents)');
       expect(processed.summary).toContain('agents that did not complete successfully');
       expect(processed.summary).toContain('do NOT affect gating decisions');
-      expect(processed.summary).toContain('[semgrep]');
+      expect(processed.summary).toContain('🛡'); // semgrep icon
       expect(processed.summary).toContain('(line 42)');
       expect(processed.summary).toContain('Potential security issue detected before timeout');
     });
@@ -291,10 +291,10 @@ describe('Report Module', () => {
       const processed = processFindings([], partialFindings, [], []);
 
       // FR-010: Both should appear because partial dedup key includes sourceAgent
-      // The summary should show findings from both agents
+      // The summary should show findings from both agents (identified by their icons)
       expect(processed.summary).toContain('Partial Findings');
-      expect(processed.summary).toContain('[eslint]');
-      expect(processed.summary).toContain('[semgrep]');
+      expect(processed.summary).toContain('🤖'); // eslint uses default icon (not in mapping)
+      expect(processed.summary).toContain('🛡'); // semgrep icon
     });
 
     it('FR-010: deduplicatePartialFindings preserves identical findings from different failed agents', () => {
@@ -324,9 +324,9 @@ describe('Report Module', () => {
 
       const processed = processFindings([], partialFindings, [], []);
 
-      // Both agents' findings should appear in the summary
-      expect(processed.summary).toContain('[semgrep]');
-      expect(processed.summary).toContain('[codeql]');
+      // Both agents' findings should appear in the summary (identified by their icons)
+      expect(processed.summary).toContain('🛡'); // semgrep icon
+      expect(processed.summary).toContain('🤖'); // codeql uses default icon (not in mapping)
       // The section header should appear
       expect(processed.summary).toContain('Partial Findings (from failed agents)');
     });

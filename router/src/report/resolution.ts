@@ -190,7 +190,7 @@ export function applyPartialResolutionVisual(body: string, resolvedMarkers: stri
   // Grouped comment format (from base.ts formatGroupedInlineComment):
   // **Multiple issues found in this area (N):**
   //
-  // 🔴 **Line X** (agent): message
+  // 🔴 **Line X** 🛡: message  (agent icon instead of name in parentheses)
   //    💡 suggestion
   //
   // <!-- odd-ai-reviewers:fingerprint:v1:... -->

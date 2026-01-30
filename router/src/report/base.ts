@@ -7,6 +7,7 @@
 
 import type { Finding } from '../agents/types.js';
 import { buildFingerprintMarker } from './formats.js';
+import { getAgentIcon } from './agent-icons.js';
 
 /** Delay between inline comments to avoid spam (ms) */
 export const INLINE_COMMENT_DELAY_MS = 100;
@@ -33,7 +34,8 @@ export function getSeverityEmoji(severity: 'error' | 'warning' | 'info'): string
  */
 export function formatInlineComment(finding: Finding): string {
   const emoji = getSeverityEmoji(finding.severity);
-  const lines = [`${emoji} **${finding.sourceAgent}**: ${finding.message}`];
+  const agentIcon = getAgentIcon(finding.sourceAgent);
+  const lines = [`${emoji} ${agentIcon}: ${finding.message}`];
 
   if (finding.ruleId) {
     lines.push(`\n*Rule: \`${finding.ruleId}\`*`);
@@ -57,7 +59,8 @@ export function formatGroupedInlineComment(findings: (Finding & { line: number }
 
   for (const finding of findings) {
     const emoji = getSeverityEmoji(finding.severity);
-    lines.push(`${emoji} **Line ${finding.line}** (${finding.sourceAgent}): ${finding.message}`);
+    const agentIcon = getAgentIcon(finding.sourceAgent);
+    lines.push(`${emoji} **Line ${finding.line}** ${agentIcon}: ${finding.message}`);
 
     if (finding.suggestion) {
       lines.push(`   💡 ${finding.suggestion}`);
