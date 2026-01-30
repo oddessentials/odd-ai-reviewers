@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   type PathAnalyzer,
+  type ExecutionPath,
   createPathAnalyzer,
 } from '../../../../src/agents/control_flow/path-analyzer.js';
 import {
@@ -810,15 +811,18 @@ describe('PathAnalyzer', () => {
       expect(state.limitReached).toBe(true);
     });
 
-    it('should allow visit at exactly max', () => {
+    it('should block visit at exactly max (pre-increment check per FR-002)', () => {
       const state = createTraversalState(5);
       state.nodesVisited = 5; // At exactly max
 
-      // At exactly max, should still allow one more visit
+      // At exactly max, should trigger limit (pre-increment check)
+      // This ensures limit=N means exactly N nodes, not N+1
       const result = analyzer.visitNode(state);
 
-      expect(result.limitReached).toBe(false);
-      expect(state.nodesVisited).toBe(6);
+      expect(result.limitReached).toBe(true);
+      expect(result.classification).toBe('unknown');
+      expect(result.reason).toBe('node_limit_exceeded');
+      expect(state.nodesVisited).toBe(5); // Counter should NOT increment past limit
     });
 
     it('should block visit at max + 1', () => {
@@ -830,6 +834,194 @@ describe('PathAnalyzer', () => {
       expect(result.limitReached).toBe(true);
       expect(result.classification).toBe('unknown');
       expect(result.reason).toBe('node_limit_exceeded');
+    });
+
+    // ===========================================================================
+    // FR-002 Regression Test: Pre-increment check semantics
+    // Bug fix: limit=N must result in exactly N nodes visited, not N+1
+    // ===========================================================================
+
+    it('should enforce exact node limit (limit=10 → exactly 10 nodes visited) [FR-002]', () => {
+      const limit = 10;
+      const state = createTraversalState(limit);
+
+      // Visit exactly `limit` nodes
+      for (let i = 0; i < limit; i++) {
+        const result = analyzer.visitNode(state);
+        expect(result.limitReached).toBe(false);
+      }
+
+      expect(state.nodesVisited).toBe(limit);
+
+      // The next visit should trigger the limit (pre-increment check)
+      const finalResult = analyzer.visitNode(state);
+      expect(finalResult.limitReached).toBe(true);
+      expect(finalResult.classification).toBe('unknown');
+      expect(finalResult.reason).toBe('node_limit_exceeded');
+
+      // Counter should NOT increment past the limit
+      expect(state.nodesVisited).toBe(limit);
+    });
+  });
+
+  // ===========================================================================
+  // pathMitigatesVulnerability Tests - FR-003/FR-004
+  //
+  // Bug fix: Function must check if mitigation's pattern.mitigates array
+  // includes the queried vulnerability type, not return true unconditionally.
+  // ===========================================================================
+
+  describe('pathMitigatesVulnerability', () => {
+    it('should return true when mitigation applies to queried vulnerability type [FR-003]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [
+          {
+            patternId: 'zod-parse', // Mitigates: injection, xss, path_traversal
+            location: { file: 'test.ts', line: 10 },
+            protectedVariables: ['input'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+        ],
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      // zod-parse mitigates 'injection'
+      const result = analyzer.pathMitigatesVulnerability(path, 'injection');
+      expect(result).toBe(true);
+    });
+
+    it('should return false when mitigation does NOT apply to queried vulnerability type [FR-003]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [
+          {
+            patternId: 'zod-parse', // Mitigates: injection, xss, path_traversal (NOT ssrf)
+            location: { file: 'test.ts', line: 10 },
+            protectedVariables: ['input'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+        ],
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      // zod-parse does NOT mitigate 'ssrf'
+      const result = analyzer.pathMitigatesVulnerability(path, 'ssrf');
+      expect(result).toBe(false);
+    });
+
+    it('should return false when path has no mitigations [FR-004]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [],
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      const result = analyzer.pathMitigatesVulnerability(path, 'injection');
+      expect(result).toBe(false);
+    });
+
+    it('should return true when one of multiple mitigations applies [FR-003]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'middle', 'exit'],
+        mitigations: [
+          {
+            patternId: 'validator-escape', // Mitigates: xss only
+            location: { file: 'test.ts', line: 10 },
+            protectedVariables: ['html'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+          {
+            patternId: 'sql-parameterized', // Mitigates: injection only
+            location: { file: 'test.ts', line: 20 },
+            protectedVariables: ['query'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+        ],
+        isComplete: true,
+        signature: 'entry->middle->exit',
+      };
+
+      // First mitigation covers xss
+      expect(analyzer.pathMitigatesVulnerability(path, 'xss')).toBe(true);
+      // Second mitigation covers injection
+      expect(analyzer.pathMitigatesVulnerability(path, 'injection')).toBe(true);
+      // Neither covers ssrf
+      expect(analyzer.pathMitigatesVulnerability(path, 'ssrf')).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // Edge Case Tests (FR-009) - Required per spec
+  // ===========================================================================
+
+  describe('Edge Cases', () => {
+    // Edge Case 1: Node limit of zero
+    it('should visit zero nodes when limit is 0 [EC-1]', () => {
+      const state = createTraversalState(0);
+      expect(state.nodesVisited).toBe(0);
+      expect(state.maxNodesVisited).toBe(0);
+
+      // First visit should immediately trigger limit
+      const result = analyzer.visitNode(state);
+
+      expect(result.limitReached).toBe(true);
+      expect(result.classification).toBe('unknown');
+      expect(result.reason).toBe('node_limit_exceeded');
+      expect(state.nodesVisited).toBe(0); // Should NOT increment past limit
+    });
+
+    // Edge Case 2: Empty mitigations array
+    it('should return false for path with empty mitigations array [EC-2]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [], // Empty array
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      expect(analyzer.pathMitigatesVulnerability(path, 'injection')).toBe(false);
+      expect(analyzer.pathMitigatesVulnerability(path, 'xss')).toBe(false);
+      expect(analyzer.pathMitigatesVulnerability(path, 'ssrf')).toBe(false);
+    });
+
+    // Edge Case 3: Mitigation with multiple vulnerability types
+    it('should return true for any vulnerability type in mitigation.mitigates array [EC-3]', () => {
+      const path: ExecutionPath = {
+        nodes: ['entry', 'exit'],
+        mitigations: [
+          {
+            patternId: 'zod-parse', // Mitigates: ['injection', 'xss', 'path_traversal']
+            location: { file: 'test.ts', line: 10 },
+            protectedVariables: ['input'],
+            protectedPaths: [],
+            scope: 'function',
+            confidence: 'high',
+          },
+        ],
+        isComplete: true,
+        signature: 'entry->exit',
+      };
+
+      // zod-parse mitigates injection, xss, and path_traversal
+      expect(analyzer.pathMitigatesVulnerability(path, 'injection')).toBe(true);
+      expect(analyzer.pathMitigatesVulnerability(path, 'xss')).toBe(true);
+      expect(analyzer.pathMitigatesVulnerability(path, 'path_traversal')).toBe(true);
+      // But not ssrf, null_deref, or auth_bypass
+      expect(analyzer.pathMitigatesVulnerability(path, 'ssrf')).toBe(false);
+      expect(analyzer.pathMitigatesVulnerability(path, 'null_deref')).toBe(false);
+      expect(analyzer.pathMitigatesVulnerability(path, 'auth_bypass')).toBe(false);
     });
   });
 });

@@ -47,9 +47,10 @@ let totalLinks = 0;
 let validLinks = 0;
 
 // Regex patterns to match test coverage annotations
-// Matches: **Test Coverage**: `path/to/file.ts`
-// Also matches: **Test Coverage**: `path/to/file.test.ts`, `path/to/other.test.ts`
-const testCoveragePattern = /\*\*Test Coverage\*\*:\s*`([^`]+)`(?:\s*,\s*`([^`]+)`)?/g;
+// Per FR-006: Use global matching of single-path pattern, not fixed capture groups
+// This ensures ALL backtick-quoted paths on a line are validated, not just the first two
+const testCoverageLinePattern = /\*\*Test Coverage\*\*:\s*(.+)/g;
+const singlePathPattern = /`([^`]+)`/g;
 
 // Alternative pattern: Test: `path/to/file.ts`
 const altTestPattern = /\bTest:\s*`([^`]+)`/g;
@@ -69,17 +70,21 @@ for (const specFile of specFiles) {
   // Find all test coverage references
   const testRefs = [];
 
-  // Match **Test Coverage**: `path` pattern
+  // Match **Test Coverage**: `path` pattern - extract ALL paths on the line (FR-006)
   let match;
-  while ((match = testCoveragePattern.exec(specContent)) !== null) {
-    testRefs.push(match[1]);
-    if (match[2]) {
-      testRefs.push(match[2]);
+  while ((match = testCoverageLinePattern.exec(specContent)) !== null) {
+    const lineContent = match[1];
+    // Extract all backtick-quoted paths from this line using global matching
+    let pathMatch;
+    // Reset lastIndex for the inner pattern for each line
+    singlePathPattern.lastIndex = 0;
+    while ((pathMatch = singlePathPattern.exec(lineContent)) !== null) {
+      testRefs.push(pathMatch[1]);
     }
   }
 
   // Reset lastIndex for reuse
-  testCoveragePattern.lastIndex = 0;
+  testCoverageLinePattern.lastIndex = 0;
 
   // Also match simpler Test: `path` pattern
   while ((match = altTestPattern.exec(specContent)) !== null) {

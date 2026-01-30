@@ -23,6 +23,7 @@ import type {
 import { createTraversalState } from './types.js';
 import type { ControlFlowGraphRuntime, CFGNodeRuntime } from './cfg-types.js';
 import { getLogger, type AnalysisLogger } from './logger.js';
+import { getPatternById } from './mitigation-patterns.js';
 
 // =============================================================================
 // Types
@@ -312,8 +313,9 @@ export class PathAnalyzer {
       pathNodes: string[],
       pathMitigations: MitigationInstance[]
     ) => {
-      // Check node visit limit - use > (strictly greater than) so exactly-at-limit IS allowed
-      if (state.nodesVisited > state.maxNodesVisited) {
+      // Check node visit limit - use >= (pre-increment check) per FR-002
+      // limit=N means exactly N nodes allowed, not N+1
+      if (state.nodesVisited >= state.maxNodesVisited) {
         if (!state.limitReached) {
           state.limitReached = true;
           state.classification = 'unknown';
@@ -386,9 +388,9 @@ export class PathAnalyzer {
    * @returns Result indicating whether traversal should continue
    */
   visitNode(state: TraversalState): NodeVisitResult {
-    // At exactly maxNodesVisited: continue (last allowed node)
-    // At maxNodesVisited + 1: stop and return fallback
-    if (state.nodesVisited > state.maxNodesVisited) {
+    // Pre-increment check per FR-002: limit=N means exactly N nodes allowed
+    // Check BEFORE incrementing so we never exceed the limit
+    if (state.nodesVisited >= state.maxNodesVisited) {
       state.limitReached = true;
       state.classification = 'unknown';
       state.reason = 'node_limit_exceeded';
@@ -410,14 +412,23 @@ export class PathAnalyzer {
 
   /**
    * Check if a path mitigates a specific vulnerability type.
+   *
+   * Per FR-003: Determines mitigation applicability by checking whether the
+   * queried VulnerabilityType is included in Mitigation.appliesTo (via pattern lookup).
+   *
+   * Per FR-004: Returns false when no mitigation applies to the queried vulnerability type.
    */
-  pathMitigatesVulnerability(path: ExecutionPath, _vulnType: VulnerabilityType): boolean {
+  pathMitigatesVulnerability(path: ExecutionPath, vulnType: VulnerabilityType): boolean {
     // A path is mitigated if ANY mitigation along it covers this vulnerability type
-    return path.mitigations.some((_m) => {
-      // The patternId maps to a mitigation pattern which has mitigates array
-      // For now, we check if the mitigation was marked for this vuln type
-      // This would need to be enhanced to check the actual pattern mapping
-      return true; // Placeholder - actual implementation would check pattern mappings
+    return path.mitigations.some((m) => {
+      // Resolve patternId to MitigationPattern to check mitigates array
+      const pattern = getPatternById(m.patternId);
+      if (!pattern) {
+        // Unknown pattern - conservative: assume it doesn't mitigate
+        return false;
+      }
+      // Check if this pattern's mitigates array includes the queried vulnerability type
+      return pattern.mitigates.includes(vulnType);
     });
   }
 
