@@ -1,0 +1,250 @@
+/**
+ * Cache Store Tests
+ *
+ * Tests for cache storage, retrieval, and validation logic.
+ * Covers legacy cache handling (FR-005) and schema validation.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getCached, setCache, clearCache } from '../../cache/store.js';
+import { AgentSuccess, AgentFailure, AgentResultSchema } from '../../agents/types.js';
+import * as fs from 'fs';
+
+// Mock fs module
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  readdirSync: vi.fn(() => []),
+  unlinkSync: vi.fn(),
+}));
+
+// Mock homedir to avoid filesystem access
+vi.mock('os', () => ({
+  homedir: () => '/mock/home',
+}));
+
+// Mock buildRouterEnv to control cache directory
+vi.mock('../../agents/security.js', () => ({
+  buildRouterEnv: vi.fn(() => ({})),
+}));
+
+describe('Cache Store', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    // Clear the memory cache before each test to ensure isolation
+    await clearCache();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+  });
+
+  describe('getCached validation (FR-005)', () => {
+    it('should return null for legacy cache entry (success: boolean format)', async () => {
+      // Legacy format used success: boolean instead of status discriminant
+      const legacyCacheEntry = {
+        key: 'test-key',
+        result: {
+          agentId: 'semgrep',
+          success: true, // Legacy format
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 5 },
+        },
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(legacyCacheEntry));
+
+      const result = await getCached('test-key');
+
+      // Legacy entries should be treated as cache miss
+      expect(result).toBeNull();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('invalid format, treating as miss')
+      );
+    });
+
+    it('should return validated result for new-format cache entry', async () => {
+      const validResult = AgentSuccess({
+        agentId: 'semgrep',
+        findings: [{ severity: 'warning', file: 'a.ts', message: 'Test', sourceAgent: 'semgrep' }],
+        metrics: { durationMs: 100, filesProcessed: 5 },
+      });
+
+      const validCacheEntry = {
+        key: 'test-key',
+        result: validResult,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(validCacheEntry));
+
+      const result = await getCached('test-key');
+
+      expect(result).not.toBeNull();
+      expect(result?.agentId).toBe('semgrep');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[cache] File hit: test-key');
+    });
+
+    it('should return null for malformed/corrupted cache entry', async () => {
+      const corruptedEntry = {
+        key: 'test-key',
+        result: {
+          // Missing required fields
+          agentId: 'semgrep',
+          // no status, no findings, etc.
+        },
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(corruptedEntry));
+
+      const result = await getCached('test-key');
+
+      expect(result).toBeNull();
+    });
+
+    it('should validate failure results with partialFindings', async () => {
+      const failureResult = AgentFailure({
+        agentId: 'semgrep',
+        error: 'Timeout',
+        failureStage: 'exec',
+        partialFindings: [
+          { severity: 'error', file: 'b.ts', message: 'Partial', sourceAgent: 'semgrep' },
+        ],
+        metrics: { durationMs: 30000, filesProcessed: 2 },
+      });
+
+      const validCacheEntry = {
+        key: 'test-key',
+        result: failureResult,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(validCacheEntry));
+
+      const result = await getCached('test-key');
+
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('failure');
+    });
+  });
+
+  describe('AgentResultSchema validation', () => {
+    it('should accept valid success result', () => {
+      const result = AgentSuccess({
+        agentId: 'test',
+        findings: [],
+        metrics: { durationMs: 100, filesProcessed: 1 },
+      });
+
+      const parsed = AgentResultSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+    });
+
+    it('should accept valid failure result', () => {
+      const result = AgentFailure({
+        agentId: 'test',
+        error: 'Test error',
+        failureStage: 'exec',
+        metrics: { durationMs: 100, filesProcessed: 0 },
+      });
+
+      const parsed = AgentResultSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+    });
+
+    it('should reject legacy success: boolean format', () => {
+      const legacyResult = {
+        agentId: 'test',
+        success: true, // Legacy format
+        findings: [],
+      };
+
+      const parsed = AgentResultSchema.safeParse(legacyResult);
+      expect(parsed.success).toBe(false);
+    });
+
+    it('should reject missing status discriminant', () => {
+      const invalidResult = {
+        agentId: 'test',
+        findings: [],
+      };
+
+      const parsed = AgentResultSchema.safeParse(invalidResult);
+      expect(parsed.success).toBe(false);
+    });
+  });
+
+  describe('cache stores only validated results', () => {
+    it('setCache should store valid results', async () => {
+      const validResult = AgentSuccess({
+        agentId: 'semgrep',
+        findings: [],
+        metrics: { durationMs: 100, filesProcessed: 5 },
+      });
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      await setCache('test-key', validResult);
+
+      expect(fs.writeFileSync).toHaveBeenCalled();
+      const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+      const writtenData = JSON.parse(writeCall?.[1] as string);
+
+      // Verify the stored result is the valid one
+      expect(writtenData.result.status).toBe('success');
+      expect(writtenData.result.agentId).toBe('semgrep');
+    });
+
+    it('memory cache should store validated results after file hit', async () => {
+      const validResult = AgentSuccess({
+        agentId: 'reviewdog',
+        findings: [{ severity: 'info', file: 'c.ts', message: 'Info', sourceAgent: 'reviewdog' }],
+        metrics: { durationMs: 50, filesProcessed: 3 },
+      });
+
+      const validCacheEntry = {
+        key: 'memory-test-key',
+        result: validResult,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(validCacheEntry));
+
+      // First call reads from file
+      const result1 = await getCached('memory-test-key');
+      expect(result1).not.toBeNull();
+      expect(consoleLogSpy).toHaveBeenCalledWith('[cache] File hit: memory-test-key');
+
+      // Reset mocks for second call
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      // Second call should hit memory cache
+      const result2 = await getCached('memory-test-key');
+      expect(result2).not.toBeNull();
+      expect(consoleLogSpy).toHaveBeenCalledWith('[cache] Memory hit: memory-test-key');
+
+      // Both results should be identical
+      expect(result1?.agentId).toBe(result2?.agentId);
+    });
+  });
+});

@@ -153,14 +153,58 @@ describe('Report Module', () => {
       expect(processed.sorted).toEqual([]);
       expect(processed.summary).toBeTruthy();
     });
+
+    it('FR-007: should render partial findings section when agent fails with partialFindings', () => {
+      // Simulates a failed agent that produced some findings before failing
+      const partialFindings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/vulnerable.ts',
+          line: 42,
+          message: 'Potential security issue detected before timeout',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+
+      const processed = processFindings([], partialFindings, [], []);
+
+      // FR-007: The summary must include the partial findings section
+      expect(processed.summary).toContain('## ⚠️ Partial Findings (from failed agents)');
+      expect(processed.summary).toContain('agents that did not complete successfully');
+      expect(processed.summary).toContain('do NOT affect gating decisions');
+      expect(processed.summary).toContain('[semgrep]');
+      expect(processed.summary).toContain('(line 42)');
+      expect(processed.summary).toContain('Potential security issue detected before timeout');
+    });
+
+    it('FR-007: should NOT render partial findings section when no partial findings exist', () => {
+      const completeFindings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/app.ts',
+          line: 10,
+          message: 'From successful agent',
+          sourceAgent: 'eslint',
+          provenance: 'complete',
+        },
+      ];
+
+      const processed = processFindings(completeFindings, [], [], []);
+
+      // No partial findings section should appear
+      expect(processed.summary).not.toContain('Partial Findings (from failed agents)');
+      // But the main summary should still exist
+      expect(processed.summary).toContain('AI Code Review Summary');
+    });
   });
 
   /**
    * Partial Findings Deduplication Tests (012-fix-agent-result-regressions)
    *
-   * T009-T010: Verify deduplication behavior for partialFindings
+   * FR-010, FR-011: Verify deduplication behavior for partialFindings
    */
-  describe('partialFindings deduplication (T009-T010)', () => {
+  describe('partialFindings deduplication (FR-010, FR-011)', () => {
     const baseFinding: Finding = {
       severity: 'error',
       file: 'test.ts',
@@ -169,7 +213,7 @@ describe('Report Module', () => {
       sourceAgent: 'test',
     };
 
-    it('T009: should deduplicate within partialFindings collection', () => {
+    it('FR-010: should deduplicate within partialFindings collection', () => {
       // Two identical partial findings (same fingerprint)
       const partialFindings: Finding[] = [
         {
@@ -193,7 +237,7 @@ describe('Report Module', () => {
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Partial findings:'));
     });
 
-    it('T010: should NOT cross-deduplicate between completeFindings and partialFindings (FR-011)', () => {
+    it('FR-011: should NOT cross-deduplicate between completeFindings and partialFindings', () => {
       // Same finding appears in both collections
       const sharedFinding = {
         severity: 'error' as const,
@@ -219,8 +263,9 @@ describe('Report Module', () => {
       expect(processed.summary).toContain('Partial Findings');
     });
 
-    it('T010-extended: should preserve distinct partial findings from different agents for same issue', () => {
+    it('FR-010: should preserve distinct partial findings from different agents for same issue', () => {
       // Same issue found by two different agents (both failed with partial results)
+      // FR-010: Partial deduplication includes sourceAgent in key
       const issueFromAgent1: Finding = {
         severity: 'warning',
         file: 'src/utils.ts',
@@ -245,18 +290,54 @@ describe('Report Module', () => {
 
       const processed = processFindings([], partialFindings, [], []);
 
-      // Both should appear in summary since they come from different agents
-      // (cross-agent dedup in partial findings uses fingerprint which includes file+line+message hash)
+      // FR-010: Both should appear because partial dedup key includes sourceAgent
+      // The summary should show findings from both agents
       expect(processed.summary).toContain('Partial Findings');
+      expect(processed.summary).toContain('[eslint]');
+      expect(processed.summary).toContain('[semgrep]');
+    });
+
+    it('FR-010: deduplicatePartialFindings preserves identical findings from different failed agents', () => {
+      // This is the key FR-010 test: two agents report EXACT same issue
+      // Both should be preserved because we can't know which agent's analysis is more complete
+      const identicalFinding1: Finding = {
+        severity: 'error',
+        file: 'src/security.ts',
+        line: 100,
+        ruleId: 'sql-injection',
+        message: 'Potential SQL injection vulnerability',
+        sourceAgent: 'semgrep',
+        provenance: 'partial',
+      };
+
+      const identicalFinding2: Finding = {
+        severity: 'error',
+        file: 'src/security.ts',
+        line: 100,
+        ruleId: 'sql-injection',
+        message: 'Potential SQL injection vulnerability',
+        sourceAgent: 'codeql', // Different agent, same exact finding
+        provenance: 'partial',
+      };
+
+      const partialFindings: Finding[] = [identicalFinding1, identicalFinding2];
+
+      const processed = processFindings([], partialFindings, [], []);
+
+      // Both agents' findings should appear in the summary
+      expect(processed.summary).toContain('[semgrep]');
+      expect(processed.summary).toContain('[codeql]');
+      // The section header should appear
+      expect(processed.summary).toContain('Partial Findings (from failed agents)');
     });
   });
 
   /**
    * Gating Tests (012-fix-agent-result-regressions)
    *
-   * T011: Verify gating uses completeFindings only, not partialFindings
+   * FR-008: Verify gating uses completeFindings only, not partialFindings
    */
-  describe('gating with partialFindings (T011)', () => {
+  describe('gating with partialFindings (FR-008)', () => {
     let processExitSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -269,7 +350,7 @@ describe('Report Module', () => {
       processExitSpy.mockRestore();
     });
 
-    it('T011: should NOT gate on partialFindings - only completeFindings affect gating (FR-008)', () => {
+    it('FR-008: should NOT gate on partialFindings - only completeFindings affect gating', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'error' as const },
@@ -300,7 +381,7 @@ describe('Report Module', () => {
       expect(processExitSpy).not.toHaveBeenCalled();
     });
 
-    it('T011-extended: should gate on completeFindings even when partialFindings exist', () => {
+    it('FR-008: should gate on completeFindings even when partialFindings exist', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'error' as const },
@@ -337,7 +418,7 @@ describe('Report Module', () => {
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
-    it('T011-extended: should pass gating with warnings in partialFindings when fail_on_severity is warning', () => {
+    it('FR-008: should pass gating with warnings in partialFindings when fail_on_severity is warning', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'warning' as const },

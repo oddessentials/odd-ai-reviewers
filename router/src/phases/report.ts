@@ -19,6 +19,7 @@ import { reportToGitHub, type GitHubContext } from '../report/github.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
 import {
   deduplicateFindings,
+  deduplicatePartialFindings,
   sortFindings,
   generateFullSummaryMarkdown,
 } from '../report/formats.js';
@@ -63,8 +64,9 @@ export function processFindings(
   const sorted = sortFindings(sanitized);
 
   // Process partial findings (from failed agents) separately
+  // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
   // FR-011: No cross-collection deduplication - partial findings stay separate
-  const partialDeduplicated = deduplicateFindings(partialFindings);
+  const partialDeduplicated = deduplicatePartialFindings(partialFindings);
   const partialSanitized = sanitizeFindings(partialDeduplicated);
   const partialSorted = sortFindings(partialSanitized);
 

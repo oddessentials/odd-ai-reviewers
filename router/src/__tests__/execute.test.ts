@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { executeAllPasses } from '../phases/execute.js';
+import { executeAllPasses, annotateProvenance } from '../phases/execute.js';
 import type { Config } from '../config/schemas.js';
 import type { AgentContext, AgentResult, ReviewAgent } from '../agents/types.js';
 import { AgentSuccess, AgentFailure } from '../agents/types.js';
@@ -411,11 +411,11 @@ describe('executeAllPasses', () => {
   /**
    * Partial Findings Collection Tests (012-fix-agent-result-regressions)
    *
-   * T006-T008: Verify that partialFindings from failed agents are correctly
+   * FR-001: Verify that partialFindings from failed agents are correctly
    * collected into the partialFindings array with provenance: 'partial'.
    */
-  describe('partialFindings collection (T006-T008)', () => {
-    it('T006: should collect partialFindings from AgentResultFailure (single failure case)', async () => {
+  describe('partialFindings collection (FR-001, FR-002)', () => {
+    it('FR-001: should collect partialFindings from AgentResultFailure (single failure case)', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
       const partialFinding = {
@@ -468,7 +468,7 @@ describe('executeAllPasses', () => {
       expect(result.skippedAgents[0]?.reason).toBe('Process timeout after 30s');
     });
 
-    it('T007: should not add phantom findings when partialFindings array is empty', async () => {
+    it('FR-001: should not add phantom findings when partialFindings array is empty', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
       const mockAgent = createMockAgent(
@@ -506,7 +506,7 @@ describe('executeAllPasses', () => {
       expect(result.skippedAgents).toHaveLength(1);
     });
 
-    it('T008: should collect partialFindings from multiple failed agents', async () => {
+    it('FR-001: should collect partialFindings from multiple failed agents', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
       const semgrepPartial = {
@@ -625,7 +625,7 @@ describe('executeAllPasses', () => {
       expect(result.completeFindings).toHaveLength(0);
     });
 
-    it('T006-extended: should keep partialFindings and completeFindings separate when mixed results', async () => {
+    it('FR-001/FR-002: should keep partialFindings and completeFindings separate when mixed results', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
       const completeFinding = {
@@ -878,5 +878,75 @@ describe('executeAllPasses', () => {
       expect(result.skippedAgents).toHaveLength(1);
       expect(result.skippedAgents[0]?.reason).toContain('no allowlisted environment');
     });
+  });
+});
+
+/**
+ * annotateProvenance Helper Tests (FR-002)
+ *
+ * Unit tests for the provenance annotation helper function.
+ */
+describe('annotateProvenance (FR-002)', () => {
+  it('should annotate findings with provenance: complete', () => {
+    const findings = [
+      { severity: 'error' as const, file: 'a.ts', message: 'Error', sourceAgent: 'semgrep' },
+      { severity: 'warning' as const, file: 'b.ts', message: 'Warning', sourceAgent: 'eslint' },
+    ];
+
+    const annotated = annotateProvenance(findings, 'complete');
+
+    expect(annotated).toHaveLength(2);
+    expect(annotated[0]?.provenance).toBe('complete');
+    expect(annotated[1]?.provenance).toBe('complete');
+    // Original properties should be preserved
+    expect(annotated[0]?.severity).toBe('error');
+    expect(annotated[1]?.sourceAgent).toBe('eslint');
+  });
+
+  it('should annotate findings with provenance: partial', () => {
+    const findings = [
+      { severity: 'info' as const, file: 'c.ts', message: 'Info', sourceAgent: 'codeql' },
+    ];
+
+    const annotated = annotateProvenance(findings, 'partial');
+
+    expect(annotated).toHaveLength(1);
+    expect(annotated[0]?.provenance).toBe('partial');
+    expect(annotated[0]?.message).toBe('Info');
+  });
+
+  it('should return empty array for empty input', () => {
+    const annotated = annotateProvenance([], 'complete');
+    expect(annotated).toEqual([]);
+  });
+
+  it('should not mutate original findings array', () => {
+    const original = [
+      { severity: 'error' as const, file: 'a.ts', message: 'Error', sourceAgent: 'test' },
+    ];
+
+    const annotated = annotateProvenance(original, 'partial');
+
+    // Original should not have provenance
+    expect((original[0] as { provenance?: string }).provenance).toBeUndefined();
+    // Annotated should have provenance
+    expect(annotated[0]?.provenance).toBe('partial');
+  });
+
+  it('should overwrite existing provenance if present', () => {
+    const findings = [
+      {
+        severity: 'error' as const,
+        file: 'a.ts',
+        message: 'Error',
+        sourceAgent: 'test',
+        provenance: 'complete' as const,
+      },
+    ];
+
+    const annotated = annotateProvenance(findings, 'partial');
+
+    // Should overwrite to partial
+    expect(annotated[0]?.provenance).toBe('partial');
   });
 });

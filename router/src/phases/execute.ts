@@ -23,6 +23,23 @@ export interface SkippedAgent {
   reason: string;
 }
 
+/**
+ * Annotate findings with provenance metadata (FR-002)
+ *
+ * Sets the provenance field to indicate whether findings came from a
+ * successful agent ('complete') or a failed agent ('partial').
+ *
+ * @param findings - Array of findings to annotate
+ * @param provenance - The provenance value to set
+ * @returns New array with provenance field set on each finding
+ */
+export function annotateProvenance<P extends 'complete' | 'partial'>(
+  findings: Finding[],
+  provenance: P
+): (Finding & { provenance: P })[] {
+  return findings.map((f) => ({ ...f, provenance }));
+}
+
 export interface ExecuteOptions {
   pr?: number;
   head?: string;
@@ -153,21 +170,13 @@ export async function executeAllPasses(
           console.log(
             `[router] ${agent.name}: ${result.findings.length} findings in ${result.metrics.durationMs}ms`
           );
-          // FR-002: Set provenance: 'complete' on findings from successful agents
-          const findingsWithProvenance = result.findings.map((f) => ({
-            ...f,
-            provenance: 'complete' as const,
-          }));
-          completeFindings.push(...findingsWithProvenance);
+          // FR-002: Annotate findings with provenance: 'complete'
+          completeFindings.push(...annotateProvenance(result.findings, 'complete'));
         } else if (isFailure(result)) {
           // FR-001: Collect partialFindings from failed agents into separate collection
           if (result.partialFindings.length > 0) {
-            // FR-002: Set provenance: 'partial' on findings from failed agents
-            const partialWithProvenance = result.partialFindings.map((f) => ({
-              ...f,
-              provenance: 'partial' as const,
-            }));
-            partialFindings.push(...partialWithProvenance);
+            // FR-002: Annotate findings with provenance: 'partial'
+            partialFindings.push(...annotateProvenance(result.partialFindings, 'partial'));
             console.log(
               `[router] ${agent.name}: collected ${result.partialFindings.length} partial findings before failure`
             );

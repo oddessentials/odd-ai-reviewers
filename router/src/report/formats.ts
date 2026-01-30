@@ -58,6 +58,21 @@ export function getDedupeKey(finding: Finding): string {
 }
 
 /**
+ * Generate a deduplication key for partial findings (FR-010)
+ *
+ * Unlike complete findings, partial findings include sourceAgent in the key.
+ * This ensures findings from different failed agents are preserved separately,
+ * since we cannot determine which agent's analysis is more complete.
+ *
+ * Key: sourceAgent + file + line + ruleId (or message hash)
+ */
+export function getPartialDedupeKey(finding: Finding): string {
+  const ruleComponent =
+    finding.ruleId ?? createHash('sha256').update(finding.message).digest('hex').slice(0, 16);
+  return `${finding.sourceAgent}:${finding.file}:${finding.line ?? 0}:${ruleComponent}`;
+}
+
+/**
  * Deduplicate findings using fingerprint + path + start_line
  *
  * Per CONSOLIDATED.md Section E and INVARIANTS.md #3:
@@ -70,6 +85,30 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
 
   for (const finding of findings) {
     const key = getDedupeKey(finding);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(finding);
+    }
+  }
+
+  return unique;
+}
+
+/**
+ * Deduplicate partial findings using sourceAgent + file + line + ruleId (FR-010)
+ *
+ * Unlike complete findings, partial findings preserve findings from different agents
+ * even if they report the same issue. This is because:
+ * 1. We cannot determine which agent's partial analysis is more authoritative
+ * 2. Partial findings are advisory only (do not affect gating per FR-008)
+ * 3. Users may want to see which agents detected issues before failing
+ */
+export function deduplicatePartialFindings(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const unique: Finding[] = [];
+
+  for (const finding of findings) {
+    const key = getPartialDedupeKey(finding);
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(finding);
@@ -281,9 +320,9 @@ export function generateAgentStatusTable(
 }
 
 /**
- * Render partial findings section (T021)
+ * Render partial findings section (FR-007)
  *
- * FR-007: Partial findings from failed agents are rendered in a dedicated section
+ * Partial findings from failed agents are rendered in a dedicated section
  * with clear provenance indicators. These findings are advisory and NOT used for gating.
  */
 export function renderPartialFindingsSection(partialFindings: Finding[]): string {

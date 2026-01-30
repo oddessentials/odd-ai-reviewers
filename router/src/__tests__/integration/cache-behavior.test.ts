@@ -37,7 +37,7 @@ describe('Cache Behavior Integration Tests', () => {
       expect(key1).toMatch(/^ai-review-v\d+-\d+-[a-f0-9]+$/);
     });
 
-    it('includes CACHE_SCHEMA_VERSION in key prefix (T027)', () => {
+    it('includes CACHE_SCHEMA_VERSION in key prefix (FR-005)', () => {
       const inputs = {
         prNumber: 999,
         headSha: 'test-sha',

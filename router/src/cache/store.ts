@@ -109,8 +109,9 @@ export async function getCached(key: string): Promise<AgentResult | null> {
         const validated = validateCachedResult(entry.result);
         if (validated) {
           console.log(`[cache] File hit: ${key}`);
-          // Populate memory cache with validated result
-          memoryCache.set(key, { ...entry, result: validated });
+          // Populate memory cache with validated result (direct assignment for clarity)
+          entry.result = validated;
+          memoryCache.set(key, entry);
           return validated;
         }
         // Invalid format - treat as cache miss (remove stale file)
