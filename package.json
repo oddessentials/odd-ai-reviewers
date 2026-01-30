@@ -25,6 +25,7 @@
     "docs:linkcheck": "node scripts/linkcheck.cjs",
     "docs:dev": "node scripts/docs-dev-server.mjs",
     "spec:linkcheck": "node scripts/check-spec-test-links.cjs"
+    "test:bin-resolution": "node scripts/test-pnpm-bin-resolution.mjs"
   },
   "keywords": [
     "code-review",
