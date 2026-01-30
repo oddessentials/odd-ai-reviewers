@@ -460,6 +460,16 @@ describe('Report Module', () => {
   describe('dispatchReport', () => {
     const mockGitHubReport = vi.mocked(reportToGitHub);
     const mockADOReport = vi.mocked(reportToADO);
+    const samplePartialFindings: Finding[] = [
+      {
+        severity: 'warning',
+        file: 'src/partial.ts',
+        line: 5,
+        message: 'Partial warning from failed agent',
+        sourceAgent: 'semgrep',
+        provenance: 'partial',
+      },
+    ];
 
     beforeEach(() => {
       mockGitHubReport.mockResolvedValue({ success: true });
@@ -479,16 +489,25 @@ describe('Report Module', () => {
     });
 
     it('should dispatch to GitHub when platform is github and context is complete', async () => {
-      await dispatchReport('github', [], [], minimalConfig, [], { GITHUB_TOKEN: 'ghp_test' }, 123, {
-        head: 'abc123',
-        owner: 'test-owner',
-        repoName: 'test-repo',
-        pr: 123,
-      });
+      await dispatchReport(
+        'github',
+        [],
+        samplePartialFindings,
+        minimalConfig,
+        [],
+        { GITHUB_TOKEN: 'ghp_test' },
+        123,
+        {
+          head: 'abc123',
+          owner: 'test-owner',
+          repoName: 'test-repo',
+          pr: 123,
+        }
+      );
 
       expect(mockGitHubReport).toHaveBeenCalledWith(
         [],
-        [],
+        samplePartialFindings,
         expect.objectContaining({
           owner: 'test-owner',
           repo: 'test-repo',
@@ -547,11 +566,13 @@ describe('Report Module', () => {
         SYSTEM_ACCESSTOKEN: 'ado-token',
       };
 
-      await dispatchReport('ado', [], [], minimalConfig, [], adoEnv, 123, { head: 'abc123' });
+      await dispatchReport('ado', [], samplePartialFindings, minimalConfig, [], adoEnv, 123, {
+        head: 'abc123',
+      });
 
       expect(mockADOReport).toHaveBeenCalledWith(
         [],
-        [],
+        samplePartialFindings,
         expect.objectContaining({
           organization: 'myorg',
           project: 'MyProject',

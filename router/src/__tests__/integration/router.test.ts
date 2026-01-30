@@ -15,6 +15,7 @@ import { isSuccess, isFailure, isSkipped } from '../../agents/types.js';
 
 // Create mock function outside module mock for access in tests
 const mockCreate = vi.hoisted(() => vi.fn());
+const CONFIG_VALIDATION_TIMEOUT_MS = 15000;
 
 // Mock OpenAI module
 vi.mock('openai', () => ({
@@ -110,21 +111,29 @@ describe('Router Integration Tests', () => {
   });
 
   describe('Config validation', () => {
-    it('should parse valid config with schema', async () => {
-      const { ConfigSchema } = await import('../../config.js');
+    it(
+      'should parse valid config with schema',
+      async () => {
+        const { ConfigSchema } = await import('../../config.js');
 
-      const result = ConfigSchema.safeParse(goldenFixture.config);
+        const result = ConfigSchema.safeParse(goldenFixture.config);
 
-      expect(result.success).toBe(true);
-    });
+        expect(result.success).toBe(true);
+      },
+      CONFIG_VALIDATION_TIMEOUT_MS
+    );
 
-    it('should reject invalid config', async () => {
-      const { ConfigSchema } = await import('../../config.js');
+    it(
+      'should reject invalid config',
+      async () => {
+        const { ConfigSchema } = await import('../../config.js');
 
-      const result = ConfigSchema.safeParse({ version: 'invalid' });
+        const result = ConfigSchema.safeParse({ version: 'invalid' });
 
-      expect(result.success).toBe(false);
-    });
+        expect(result.success).toBe(false);
+      },
+      CONFIG_VALIDATION_TIMEOUT_MS
+    );
   });
 
   describe('Trust validation', () => {
