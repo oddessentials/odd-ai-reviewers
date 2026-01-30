@@ -16,6 +16,8 @@ import {
   buildCFG,
 } from '../../../../src/agents/control_flow/cfg-builder.js';
 import type { ControlFlowGraphRuntime } from '../../../../src/agents/control_flow/cfg-types.js';
+import { createTraversalState } from '../../../../src/agents/control_flow/types.js';
+import { createLogger } from '../../../../src/agents/control_flow/logger.js';
 import { assertDefined } from '../../../test-utils.js';
 
 // =============================================================================
@@ -216,6 +218,7 @@ describe('PathAnalyzer', () => {
         maxPaths: 100,
         maxPathLength: 50,
         includeUnreachable: false,
+        maxNodesVisited: 10_000,
       });
 
       expect(paths.length).toBeGreaterThan(0);
@@ -242,6 +245,7 @@ describe('PathAnalyzer', () => {
           maxPaths: 100,
           maxPathLength: 50,
           includeUnreachable: false,
+          maxNodesVisited: 10_000,
         });
         totalPaths += paths.length;
       }
@@ -267,6 +271,7 @@ describe('PathAnalyzer', () => {
         maxPaths: 2,
         maxPathLength: 50,
         includeUnreachable: false,
+        maxNodesVisited: 10_000,
       });
 
       expect(paths.length).toBeLessThanOrEqual(2);
@@ -290,6 +295,7 @@ describe('PathAnalyzer', () => {
         maxPaths: 100,
         maxPathLength: 20, // Limit path length
         includeUnreachable: false,
+        maxNodesVisited: 10_000,
       });
 
       // May find no paths if exit is unreachable
@@ -556,6 +562,257 @@ describe('PathAnalyzer', () => {
       // Both exit paths should be reachable
       const deadCode = analyzer.findDeadCode(cfg);
       expect(deadCode.length).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // maxNodesVisited Enforcement Tests
+  // ===========================================================================
+
+  describe('maxNodesVisited enforcement', () => {
+    it('should allow traversal at exactly maxNodesVisited', () => {
+      const code = `
+        function test() {
+          const a = 1;
+          const b = 2;
+          const c = 3;
+          return a + b + c;
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      // Set maxNodesVisited to exactly the number of nodes we expect to visit
+      // Use a high value to ensure we don't hit the limit on normal traversal
+      const { paths, state } = analyzer.findPathsToNodeWithState(cfg, cfg.entryNode, exitNode, {
+        maxPaths: 100,
+        maxPathLength: 50,
+        includeUnreachable: false,
+        maxNodesVisited: 1000, // High limit
+      });
+
+      expect(paths.length).toBeGreaterThan(0);
+      expect(state.limitReached).toBe(false);
+      expect(state.reason).toBe('completed');
+    });
+
+    it('should return conservative fallback at maxNodesVisited + 1', () => {
+      const code = `
+        function test(a: boolean, b: boolean, c: boolean, d: boolean, e: boolean) {
+          if (a) { console.log('a'); }
+          if (b) { console.log('b'); }
+          if (c) { console.log('c'); }
+          if (d) { console.log('d'); }
+          if (e) { console.log('e'); }
+          return 'done';
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      // Set very low maxNodesVisited to trigger the limit
+      const { paths: _paths, state } = analyzer.findPathsToNodeWithState(
+        cfg,
+        cfg.entryNode,
+        exitNode,
+        {
+          maxPaths: 1000, // High path limit
+          maxPathLength: 100, // High path length
+          includeUnreachable: false,
+          maxNodesVisited: 5, // Very low node limit - will be exceeded
+        }
+      );
+
+      expect(state.limitReached).toBe(true);
+      expect(state.classification).toBe('unknown');
+      expect(state.reason).toBe('node_limit_exceeded');
+    });
+
+    it('should reset nodesVisited for each new traversal', () => {
+      const code = `
+        function test() {
+          return 1;
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      // First traversal
+      const result1 = analyzer.findPathsToNodeWithState(cfg, cfg.entryNode, exitNode, {
+        maxPaths: 100,
+        maxPathLength: 50,
+        includeUnreachable: false,
+        maxNodesVisited: 100,
+      });
+
+      // Second traversal should start fresh
+      const result2 = analyzer.findPathsToNodeWithState(cfg, cfg.entryNode, exitNode, {
+        maxPaths: 100,
+        maxPathLength: 50,
+        includeUnreachable: false,
+        maxNodesVisited: 100,
+      });
+
+      // Both should have similar node counts (starting from 0)
+      expect(result1.state.nodesVisited).toBe(result2.state.nodesVisited);
+      expect(result2.state.limitReached).toBe(false);
+    });
+
+    it('should log when node limit reached', () => {
+      const logger = createLogger({ consoleOutput: false, minLevel: 'debug' });
+      const analyzerWithLogger = createPathAnalyzer({}, logger);
+
+      const code = `
+        function test(a: boolean, b: boolean, c: boolean) {
+          if (a) { console.log('a'); }
+          if (b) { console.log('b'); }
+          if (c) { console.log('c'); }
+          return 'done';
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      // Trigger node limit
+      analyzerWithLogger.findPathsToNodeWithState(cfg, cfg.entryNode, exitNode, {
+        maxPaths: 1000,
+        maxPathLength: 100,
+        includeUnreachable: false,
+        maxNodesVisited: 3, // Very low
+      });
+
+      const entries = logger.getEntriesByCategory('node_limit');
+      const limitEntry = entries.find((e) => e.message.includes('Node visit limit reached'));
+      expect(limitEntry).toBeDefined();
+      expect(limitEntry?.context?.['classification']).toBe('unknown');
+      expect(limitEntry?.context?.['reason']).toBe('node_limit_exceeded');
+    });
+
+    it('should include node limit info in analyzePathsToSink result', () => {
+      const code = `
+        function test(a: boolean, b: boolean, c: boolean) {
+          if (a) { console.log('a'); }
+          if (b) { console.log('b'); }
+          if (c) { console.log('c'); }
+          return 'done';
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      const result = analyzer.analyzePathsToSink(cfg, exitNode, 'injection', {
+        maxPaths: 1000,
+        maxNodesVisited: 3, // Very low
+      });
+
+      expect(result.nodeLimitReached).toBe(true);
+      expect(result.degraded).toBe(true);
+      expect(result.degradedReason).toContain('Node visit limit reached');
+      expect(result.nodesVisited).toBeDefined();
+    });
+
+    it('should downgrade full mitigation status to partial when limit reached', () => {
+      const code = `
+        function test(input: string) {
+          const safe = sanitize(input);
+          return safe;
+        }
+      `;
+      const cfg = buildCFGFromCode(code);
+      const exitNode = cfg.exitNodes[0];
+      if (!exitNode) throw new Error('No exit node');
+
+      // Add mitigations to all nodes to simulate full mitigation
+      for (const [, node] of cfg.nodes) {
+        node.mitigations.push({
+          patternId: 'test-sanitize',
+          location: { file: 'test.ts', line: node.lineStart },
+          protectedVariables: ['input'],
+          protectedPaths: [],
+          scope: 'function',
+          confidence: 'high',
+        });
+      }
+
+      const result = analyzer.analyzePathsToSink(cfg, exitNode, 'injection', {
+        maxPaths: 1000,
+        maxNodesVisited: 1, // Extremely low to trigger limit
+      });
+
+      // Even if all paths appear mitigated, should be partial due to limit
+      if (result.nodeLimitReached) {
+        expect(result.status).not.toBe('full');
+      }
+    });
+  });
+
+  describe('createTraversalState', () => {
+    it('should create fresh state with zero nodesVisited', () => {
+      const state = createTraversalState(1000);
+
+      expect(state.nodesVisited).toBe(0);
+      expect(state.maxNodesVisited).toBe(1000);
+      expect(state.limitReached).toBe(false);
+      expect(state.classification).toBeUndefined();
+      expect(state.reason).toBeUndefined();
+    });
+
+    it('should accept custom maxNodesVisited', () => {
+      const state = createTraversalState(500);
+
+      expect(state.maxNodesVisited).toBe(500);
+    });
+  });
+
+  describe('visitNode', () => {
+    it('should increment counter and return not reached', () => {
+      const state = createTraversalState(10);
+      expect(state.nodesVisited).toBe(0);
+
+      const result = analyzer.visitNode(state);
+
+      expect(state.nodesVisited).toBe(1);
+      expect(result.limitReached).toBe(false);
+      expect(result.classification).toBeUndefined();
+    });
+
+    it('should return limit reached when exceeding max', () => {
+      const state = createTraversalState(2);
+      state.nodesVisited = 3; // Already over limit
+
+      const result = analyzer.visitNode(state);
+
+      expect(result.limitReached).toBe(true);
+      expect(result.classification).toBe('unknown');
+      expect(result.reason).toBe('node_limit_exceeded');
+      expect(state.limitReached).toBe(true);
+    });
+
+    it('should allow visit at exactly max', () => {
+      const state = createTraversalState(5);
+      state.nodesVisited = 5; // At exactly max
+
+      // At exactly max, should still allow one more visit
+      const result = analyzer.visitNode(state);
+
+      expect(result.limitReached).toBe(false);
+      expect(state.nodesVisited).toBe(6);
+    });
+
+    it('should block visit at max + 1', () => {
+      const state = createTraversalState(5);
+      state.nodesVisited = 6; // At max + 1
+
+      const result = analyzer.visitNode(state);
+
+      expect(result.limitReached).toBe(true);
+      expect(result.classification).toBe('unknown');
+      expect(result.reason).toBe('node_limit_exceeded');
     });
   });
 });

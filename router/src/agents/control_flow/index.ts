@@ -352,4 +352,20 @@ export type {
   ValidationErrorType,
   ReDoSRiskLevel,
   ReDoSDetectionResult,
+  TraversalState,
+  NodeVisitResult,
+  NodeLimitClassification,
+  TraversalTerminationReason,
 } from './types.js';
+
+// Export traversal state factory
+export { createTraversalState } from './types.js';
+
+// Export path analyzer with node tracking
+export {
+  PathAnalyzer,
+  createPathAnalyzer,
+  type PathAnalysisResult,
+  type ExecutionPath,
+  type PathAnalysisOptions,
+} from './path-analyzer.js';

@@ -21,6 +21,8 @@ export interface BudgetConfig {
   maxLinesChanged: number;
   /** Maximum call depth for inter-procedural analysis (default: 5) */
   maxCallDepth: number;
+  /** Maximum nodes to visit per traversal (default: 10,000) */
+  maxNodesVisited: number;
 }
 
 /**
@@ -30,6 +32,7 @@ export const DEFAULT_BUDGET_CONFIG: BudgetConfig = {
   maxDurationMs: 300_000, // 5 minutes
   maxLinesChanged: 10_000,
   maxCallDepth: 5,
+  maxNodesVisited: 10_000,
 };
 
 /**

@@ -319,6 +319,7 @@ export const AnalysisBudgetConfigSchema = z.object({
   maxDurationMs: z.number().int().positive().default(300_000),
   maxLinesChanged: z.number().int().positive().default(10_000),
   maxCallDepth: z.number().int().positive().default(5),
+  maxNodesVisited: z.number().int().positive().default(10_000),
 });
 export type AnalysisBudgetConfig = z.infer<typeof AnalysisBudgetConfigSchema>;
 
@@ -445,6 +446,74 @@ export interface AnalysisLogEntry {
   level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
   context?: Record<string, unknown>;
+}
+
+// =============================================================================
+// Traversal State (Node Visit Tracking)
+// =============================================================================
+
+/**
+ * Result classification when node limit is exceeded.
+ * Uses 'unknown' to indicate incomplete analysis - NOT a safety assertion.
+ */
+export const NodeLimitClassificationSchema = z.enum(['unknown']);
+export type NodeLimitClassification = z.infer<typeof NodeLimitClassificationSchema>;
+
+/**
+ * Reason codes for traversal termination.
+ */
+export const TraversalTerminationReasonSchema = z.enum(['node_limit_exceeded', 'completed']);
+export type TraversalTerminationReason = z.infer<typeof TraversalTerminationReasonSchema>;
+
+/**
+ * State maintained during a single CFG traversal.
+ *
+ * IMPORTANT: This state is per-traversal, not shared across traversals.
+ * Each new traversal should create a fresh TraversalState instance.
+ *
+ * Canonical field names for logging:
+ * - nodesVisited: Current count of nodes visited
+ * - maxNodesVisited: Configured limit from budget
+ * - classification: Result classification if limit reached ('unknown')
+ * - reason: Why traversal terminated ('node_limit_exceeded' or 'completed')
+ */
+export interface TraversalState {
+  /** Current count of nodes visited in this traversal */
+  nodesVisited: number;
+  /** Maximum nodes allowed (from budget config) */
+  maxNodesVisited: number;
+  /** Whether the node limit was reached */
+  limitReached: boolean;
+  /** Classification assigned when limit is reached */
+  classification?: NodeLimitClassification;
+  /** Reason for traversal termination */
+  reason?: TraversalTerminationReason;
+}
+
+/**
+ * Result of visiting a node during traversal.
+ */
+export interface NodeVisitResult {
+  /** Whether the node limit was reached on this visit */
+  limitReached: boolean;
+  /** Classification if limit was reached ('unknown' = analysis incomplete) */
+  classification?: NodeLimitClassification;
+  /** Reason for the result */
+  reason?: TraversalTerminationReason;
+}
+
+/**
+ * Create a fresh traversal state for a new traversal.
+ *
+ * @param maxNodesVisited - Maximum nodes to visit (from budget config)
+ * @returns Fresh traversal state with counters reset
+ */
+export function createTraversalState(maxNodesVisited: number): TraversalState {
+  return {
+    nodesVisited: 0,
+    maxNodesVisited,
+    limitReached: false,
+  };
 }
 
 // =============================================================================

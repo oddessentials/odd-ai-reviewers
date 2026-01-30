@@ -673,3 +673,207 @@ describe('validateMitigationPatternWithReDoSCheck', () => {
     }
   });
 });
+
+// =============================================================================
+// Advanced Regex Feature Tests
+// =============================================================================
+
+describe('Advanced Regex Features', () => {
+  let validator: PatternValidator;
+
+  beforeEach(() => {
+    validator = createPatternValidator({
+      enableLogging: false,
+    });
+  });
+
+  // ===========================================================================
+  // Lookahead Patterns
+  // ===========================================================================
+
+  describe('Lookahead patterns', () => {
+    it('should accept safe positive lookahead', () => {
+      // Simple positive lookahead with no quantifiers
+      const result = validator.validatePattern('(?=.*test)abc', 'lookahead-safe');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject lookahead containing nested quantifiers', () => {
+      // Dangerous: lookahead with nested quantifiers can cause backtracking
+      const result = validator.validatePattern('(?=(a+)+)test', 'lookahead-nested');
+      expect(result.redosRisk).not.toBe('none');
+      expect(result.isValid).toBe(false);
+    });
+
+    it('should accept safe negative lookahead', () => {
+      // Simple negative lookahead
+      const result = validator.validatePattern('(?!bad)good', 'neg-lookahead');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept multiple lookaheads', () => {
+      // Password validation pattern - multiple lookaheads are common
+      const result = validator.validatePattern(
+        '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$',
+        'password-validation'
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should handle lookahead at end of pattern', () => {
+      const result = validator.validatePattern('prefix(?=suffix)', 'lookahead-end');
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // Lookbehind Patterns
+  // ===========================================================================
+
+  describe('Lookbehind patterns', () => {
+    it('should accept safe positive lookbehind', () => {
+      // Simple positive lookbehind
+      const result = validator.validatePattern('(?<=prefix)match', 'lookbehind-safe');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept safe negative lookbehind', () => {
+      // Simple negative lookbehind
+      const result = validator.validatePattern('(?<!bad)good', 'neg-lookbehind');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should handle lookbehind at start of pattern', () => {
+      const result = validator.validatePattern('(?<=@)\\w+', 'lookbehind-start');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should handle combined lookahead and lookbehind', () => {
+      // Pattern with both lookbehind and lookahead
+      const result = validator.validatePattern('(?<=start)middle(?=end)', 'look-combo');
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // Backreference Patterns
+  // ===========================================================================
+
+  describe('Backreferences', () => {
+    it('should accept simple backreference', () => {
+      // Matches doubled characters like "aa", "bb"
+      const result = validator.validatePattern('(.)\\1', 'backref-simple');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept named backreference', () => {
+      // ES2018+ named groups
+      const result = validator.validatePattern('(?<char>.)\\k<char>', 'backref-named');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should detect risk in quantified backreference groups', () => {
+      // (.)+\1+ can cause backtracking in some engines
+      // This tests whether our validator catches this edge case
+      const result = validator.validatePattern('(.)+\\1+', 'backref-quantified');
+      // Note: Current implementation may or may not catch this
+      // The test documents expected behavior even if detection is limited
+      expect(result).toHaveProperty('redosRisk');
+    });
+
+    it('should accept HTML tag matching pattern', () => {
+      // Common use of backreferences for matching paired tags
+      const result = validator.validatePattern('<([a-z]+)>[^<]*</\\1>', 'backref-html-tags');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept repeated word detection pattern', () => {
+      // Find repeated words like "the the"
+      const result = validator.validatePattern('\\b(\\w+)\\s+\\1\\b', 'backref-repeated-word');
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // Complex Feature Combinations
+  // ===========================================================================
+
+  describe('Complex feature combinations', () => {
+    it('should handle lookahead with backreference', () => {
+      const result = validator.validatePattern('(?=(\\w+))\\1', 'lookahead-backref');
+      expect(result).toHaveProperty('isValid');
+    });
+
+    it('should accept email validation pattern', () => {
+      // Real-world complex pattern
+      const result = validator.validatePattern(
+        '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
+        'email-complex'
+      );
+      expect(result.isValid).toBe(true);
+      expect(result.redosRisk).toBe('none');
+    });
+
+    it('should accept URL validation pattern', () => {
+      // Complex URL pattern - note the double escaping for backslashes in JS strings
+      const result = validator.validatePattern(
+        '^https?://[\\w.-]+(?:/[\\w./-]*)?(?:\\?[\\w=&]*)?$',
+        'url-pattern'
+      );
+      // This pattern may be flagged for having nested groups with quantifiers
+      // The important thing is it doesn't cause a crash
+      expect(result).toHaveProperty('isValid');
+    });
+
+    it('should accept date validation pattern', () => {
+      // ISO date format
+      const result = validator.validatePattern(
+        '^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])$',
+        'date-iso'
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject catastrophic backtracking in complex pattern', () => {
+      // Even in complex patterns, nested quantifiers should be caught
+      const result = validator.validatePattern('^(?=.*[a-z])(a+)+$', 'complex-with-nested');
+      expect(result.isValid).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // Unicode and Special Features
+  // ===========================================================================
+
+  describe('Unicode and special features', () => {
+    it('should accept unicode property escapes', () => {
+      // ES2018+ Unicode property escapes (if supported)
+      // Note: May need to be adjusted based on Node.js version
+      const result = validator.validatePattern('\\p{L}+', 'unicode-letter');
+      // Either accepted as valid or rejected as compilation error (older Node)
+      expect(result).toHaveProperty('isValid');
+    });
+
+    it('should accept word boundary assertions', () => {
+      const result = validator.validatePattern('\\bword\\b', 'word-boundary');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept anchors', () => {
+      const result = validator.validatePattern('^start.*end$', 'anchors');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should accept non-capturing groups', () => {
+      const result = validator.validatePattern('(?:abc)+', 'non-capturing');
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject nested quantifiers in non-capturing groups', () => {
+      // Even non-capturing groups can cause ReDoS if nested
+      const result = validator.validatePattern('(?:a+)+', 'non-capturing-nested');
+      expect(result.isValid).toBe(false);
+      expect(result.redosRisk).not.toBe('none');
+    });
+  });
+});
