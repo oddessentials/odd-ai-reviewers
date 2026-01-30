@@ -265,6 +265,57 @@ describe('deduplicatePartialFindings (FR-010)', () => {
     const result = deduplicatePartialFindings([]);
     expect(result).toHaveLength(0);
   });
+
+  it('should retain same-line same-rule different-message findings from same agent', () => {
+    // One failed agent emits two findings on same line with same ruleId but different messages
+    // Both should be retained because the fingerprint includes the normalized message
+    const finding1: Finding = {
+      severity: 'error',
+      file: 'src/security.ts',
+      line: 42,
+      ruleId: 'sql-injection',
+      message: 'SQL injection via user input in query parameter',
+      sourceAgent: 'semgrep',
+      provenance: 'partial',
+    };
+
+    const finding2: Finding = {
+      severity: 'error',
+      file: 'src/security.ts',
+      line: 42,
+      ruleId: 'sql-injection', // Same rule, same line, same file
+      message: 'SQL injection via unescaped string concatenation', // Different message
+      sourceAgent: 'semgrep', // Same agent
+      provenance: 'partial',
+    };
+
+    const result = deduplicatePartialFindings([finding1, finding2]);
+
+    // Both should be retained because they have different messages
+    // (fingerprint includes normalized message)
+    expect(result).toHaveLength(2);
+    expect(result[0]?.message).toContain('user input');
+    expect(result[1]?.message).toContain('unescaped string');
+  });
+
+  it('should deduplicate exact duplicates (same everything including message)', () => {
+    const finding1: Finding = {
+      severity: 'error',
+      file: 'src/app.ts',
+      line: 10,
+      ruleId: 'no-unused-vars',
+      message: 'Variable x is unused',
+      sourceAgent: 'eslint',
+      provenance: 'partial',
+    };
+
+    const finding2: Finding = { ...finding1 }; // Exact duplicate
+
+    const result = deduplicatePartialFindings([finding1, finding2]);
+
+    // Only one should remain
+    expect(result).toHaveLength(1);
+  });
 });
 
 describe('sortFindings', () => {

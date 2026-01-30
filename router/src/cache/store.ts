@@ -90,7 +90,7 @@ export async function getCached(key: string): Promise<AgentResult | null> {
         return validated;
       }
       // Invalid format - treat as cache miss
-      console.log(`[cache] Memory entry invalid format, treating as miss: ${key}`);
+      console.warn(`[cache] Memory entry invalid format, treating as miss: ${key}`);
       memoryCache.delete(key);
     } else {
       memoryCache.delete(key);
@@ -115,7 +115,7 @@ export async function getCached(key: string): Promise<AgentResult | null> {
           return validated;
         }
         // Invalid format - treat as cache miss (remove stale file)
-        console.log(`[cache] File entry invalid format, treating as miss: ${key}`);
+        console.warn(`[cache] File entry invalid format, treating as miss: ${key}`);
         unlinkSync(filePath);
         return null;
       }
@@ -228,6 +228,9 @@ export async function cleanupExpired(): Promise<number> {
 /**
  * Find cached result for a PR (even with different SHA)
  * Used for fallback when exact cache miss
+ *
+ * (012-fix-agent-result-regressions) - Now validates results through validateCachedResult()
+ * to ensure legacy/malformed entries are treated as cache misses.
  */
 export async function findCachedForPR(prNumber: number): Promise<AgentResult | null> {
   const prefix = generateRestoreKeyPrefix(prNumber);
@@ -248,8 +251,14 @@ export async function findCachedForPR(prNumber: number): Promise<AgentResult | n
         const entry = JSON.parse(content) as CacheEntry;
 
         if (new Date(entry.expiresAt) > new Date()) {
-          console.log(`[cache] Fallback hit for PR ${prNumber}: ${entry.key}`);
-          return entry.result;
+          // Validate the cached result (012-fix-agent-result-regressions)
+          const validated = validateCachedResult(entry.result);
+          if (validated) {
+            console.log(`[cache] Fallback hit for PR ${prNumber}: ${entry.key}`);
+            return validated;
+          }
+          // Invalid format - skip and try next file
+          console.warn(`[cache] Fallback entry invalid format, skipping: ${entry.key}`);
         }
       } catch {
         // Skip corrupted files

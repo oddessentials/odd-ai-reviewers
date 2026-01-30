@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getCached, setCache, clearCache } from '../../cache/store.js';
+import { getCached, setCache, clearCache, findCachedForPR } from '../../cache/store.js';
 import { AgentSuccess, AgentFailure, AgentResultSchema } from '../../agents/types.js';
 import * as fs from 'fs';
 
@@ -69,7 +69,7 @@ describe('Cache Store', () => {
 
       // Legacy entries should be treated as cache miss
       expect(result).toBeNull();
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('invalid format, treating as miss')
       );
     });
@@ -245,6 +245,110 @@ describe('Cache Store', () => {
 
       // Both results should be identical
       expect(result1?.agentId).toBe(result2?.agentId);
+    });
+  });
+
+  describe('findCachedForPR validation (US2)', () => {
+    it('should return null for legacy cache entry in fallback path', async () => {
+      // Legacy format used success: boolean instead of status discriminant
+      const legacyCacheEntry = {
+        key: 'ai-review-v2-123-abc123',
+        result: {
+          agentId: 'semgrep',
+          success: true, // Legacy format - no status field
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 5 },
+        },
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        'ai-review-v2-123-abc123.json',
+      ] as unknown as ReturnType<typeof fs.readdirSync>);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(legacyCacheEntry));
+
+      const result = await findCachedForPR(123);
+
+      // Legacy entry should be treated as cache miss
+      expect(result).toBeNull();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Fallback entry invalid format, skipping')
+      );
+    });
+
+    it('should return validated result for valid cache entry in fallback path', async () => {
+      const validResult = AgentSuccess({
+        agentId: 'semgrep',
+        findings: [{ severity: 'warning', file: 'a.ts', message: 'Test', sourceAgent: 'semgrep' }],
+        metrics: { durationMs: 100, filesProcessed: 5 },
+      });
+
+      const validCacheEntry = {
+        key: 'ai-review-v2-456-def456',
+        result: validResult,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        'ai-review-v2-456-def456.json',
+      ] as unknown as ReturnType<typeof fs.readdirSync>);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(validCacheEntry));
+
+      const result = await findCachedForPR(456);
+
+      expect(result).not.toBeNull();
+      expect(result?.agentId).toBe('semgrep');
+      expect(result?.status).toBe('success');
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Fallback hit for PR 456')
+      );
+    });
+
+    it('should skip invalid entries and try next file in fallback path', async () => {
+      const legacyEntry = {
+        key: 'ai-review-v2-789-legacy',
+        result: { agentId: 'old', success: true, findings: [] }, // Legacy format
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      const validResult = AgentSuccess({
+        agentId: 'new-agent',
+        findings: [],
+        metrics: { durationMs: 50, filesProcessed: 1 },
+      });
+
+      const validEntry = {
+        key: 'ai-review-v2-789-valid',
+        result: validResult,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // Files sorted reverse, so legacy comes first
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        'ai-review-v2-789-valid.json',
+        'ai-review-v2-789-legacy.json',
+      ] as unknown as ReturnType<typeof fs.readdirSync>);
+
+      // Return different content based on file path
+      vi.mocked(fs.readFileSync).mockImplementation((path) => {
+        if (String(path).includes('legacy')) {
+          return JSON.stringify(legacyEntry);
+        }
+        return JSON.stringify(validEntry);
+      });
+
+      const result = await findCachedForPR(789);
+
+      // Should skip legacy and return valid entry
+      expect(result).not.toBeNull();
+      expect(result?.agentId).toBe('new-agent');
     });
   });
 });

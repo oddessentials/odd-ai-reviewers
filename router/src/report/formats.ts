@@ -64,12 +64,12 @@ export function getDedupeKey(finding: Finding): string {
  * This ensures findings from different failed agents are preserved separately,
  * since we cannot determine which agent's analysis is more complete.
  *
- * Key: sourceAgent + file + line + ruleId (or message hash)
+ * Key: sourceAgent + getDedupeKey (which is fingerprint + file + line)
+ * This preserves findings with same rule but different messages from the same agent.
  */
 export function getPartialDedupeKey(finding: Finding): string {
-  const ruleComponent =
-    finding.ruleId ?? createHash('sha256').update(finding.message).digest('hex').slice(0, 16);
-  return `${finding.sourceAgent}:${finding.file}:${finding.line ?? 0}:${ruleComponent}`;
+  // Reuse the main dedupe key logic (fingerprint + file + line) and prefix with sourceAgent
+  return `${finding.sourceAgent}:${getDedupeKey(finding)}`;
 }
 
 /**

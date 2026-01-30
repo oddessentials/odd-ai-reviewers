@@ -415,6 +415,68 @@ describe('executeAllPasses', () => {
    * collected into the partialFindings array with provenance: 'partial'.
    */
   describe('partialFindings collection (FR-001, FR-002)', () => {
+    it('US1: should return empty partialFindings when all agents succeed', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const completeFinding = {
+        severity: 'warning' as const,
+        file: 'src/app.ts',
+        line: 10,
+        message: 'From successful agent',
+        sourceAgent: 'semgrep',
+      };
+
+      const mockSemgrep = createMockAgent(
+        'semgrep',
+        'Semgrep',
+        false,
+        AgentSuccess({
+          agentId: 'semgrep',
+          findings: [completeFinding],
+          metrics: { durationMs: 100, filesProcessed: 5 },
+        })
+      );
+
+      const mockReviewdog = createMockAgent(
+        'reviewdog',
+        'Reviewdog',
+        false,
+        AgentSuccess({
+          agentId: 'reviewdog',
+          findings: [],
+          metrics: { durationMs: 50, filesProcessed: 3 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds)
+        .mockReturnValueOnce([mockSemgrep])
+        .mockReturnValueOnce([mockReviewdog]);
+
+      const config = createConfig([
+        { name: 'security', agents: ['semgrep'], enabled: true, required: false },
+        { name: 'lint', agents: ['reviewdog'], enabled: true, required: false },
+      ]);
+
+      const result = await executeAllPasses(
+        config,
+        createAgentContext(),
+        {},
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // US1: Explicit assertion - partialFindings MUST be empty when all agents succeed
+      expect(result.partialFindings).toEqual([]);
+      expect(result.partialFindings).toHaveLength(0);
+
+      // completeFindings should have the findings from successful agents
+      expect(result.completeFindings).toHaveLength(1);
+      expect(result.completeFindings[0]?.provenance).toBe('complete');
+
+      // No agents should be skipped
+      expect(result.skippedAgents).toHaveLength(0);
+    });
+
     it('FR-001: should collect partialFindings from AgentResultFailure (single failure case)', async () => {
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
