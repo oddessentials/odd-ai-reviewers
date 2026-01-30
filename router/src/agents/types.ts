@@ -51,6 +51,13 @@ export interface Finding {
   fingerprint?: string;
   /** Freeform metadata for tool-specific information */
   metadata?: Record<string, unknown>;
+  /**
+   * Provenance of the finding - indicates whether it came from a
+   * complete agent run or a failed agent's partial results.
+   * Optional for backwards compatibility; defaults to 'complete' when absent.
+   * (FR-002, 012-fix-agent-result-regressions)
+   */
+  provenance?: 'complete' | 'partial';
 }
 
 /**
@@ -270,6 +277,7 @@ export const FindingSchema = z.object({
   sourceAgent: z.string(),
   fingerprint: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  provenance: z.enum(['complete', 'partial']).optional(),
 });
 
 /** Zod schema for AgentResultSuccess */
@@ -304,6 +312,17 @@ export const AgentResultSchema = z.discriminatedUnion('status', [
   AgentResultFailureSchema,
   AgentResultSkippedSchema,
 ]);
+
+/**
+ * Cache schema version - bump when AgentResultSchema changes shape.
+ * Included in cache keys to invalidate legacy entries.
+ * (012-fix-agent-result-regressions, FR-005)
+ *
+ * History:
+ * - v1: Original format (success: boolean, no status field) - DEPRECATED
+ * - v2: Discriminated union (status: 'success'|'failure'|'skipped')
+ */
+export const CACHE_SCHEMA_VERSION = 2;
 
 /**
  * Context provided to agents during review

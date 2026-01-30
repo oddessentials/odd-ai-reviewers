@@ -58,6 +58,24 @@ export function getDedupeKey(finding: Finding): string {
 }
 
 /**
+ * Generate a deduplication key for partial findings (FR-010)
+ *
+ * Unlike complete findings, partial findings:
+ * 1. Include sourceAgent in the key (preserve cross-agent findings)
+ * 2. Include fingerprint (which contains message hash) to preserve distinct messages
+ *
+ * Key: sourceAgent + fingerprint + file + line
+ * This ensures:
+ * - Findings from different failed agents are preserved (cross-agent)
+ * - Findings with different messages from the same agent are preserved
+ * - Only exact duplicates (same agent, same fingerprint, same location) are collapsed
+ */
+export function getPartialDedupeKey(finding: Finding): string {
+  const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+  return `${finding.sourceAgent}:${fingerprint}:${finding.file}:${finding.line ?? 0}`;
+}
+
+/**
  * Deduplicate findings using fingerprint + path + start_line
  *
  * Per CONSOLIDATED.md Section E and INVARIANTS.md #3:
@@ -70,6 +88,30 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
 
   for (const finding of findings) {
     const key = getDedupeKey(finding);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(finding);
+    }
+  }
+
+  return unique;
+}
+
+/**
+ * Deduplicate partial findings using sourceAgent + file + line + ruleId (FR-010)
+ *
+ * Unlike complete findings, partial findings preserve findings from different agents
+ * even if they report the same issue. This is because:
+ * 1. We cannot determine which agent's partial analysis is more authoritative
+ * 2. Partial findings are advisory only (do not affect gating per FR-008)
+ * 3. Users may want to see which agents detected issues before failing
+ */
+export function deduplicatePartialFindings(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const unique: Finding[] = [];
+
+  for (const finding of findings) {
+    const key = getPartialDedupeKey(finding);
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(finding);
@@ -281,15 +323,74 @@ export function generateAgentStatusTable(
 }
 
 /**
+ * Render partial findings section (FR-007)
+ *
+ * Partial findings from failed agents are rendered in a dedicated section
+ * with clear provenance indicators. These findings are advisory and NOT used for gating.
+ */
+export function renderPartialFindingsSection(partialFindings: Finding[]): string {
+  if (partialFindings.length === 0) {
+    return '';
+  }
+
+  const counts = countBySeverity(partialFindings);
+  const grouped = groupByFile(partialFindings);
+
+  const lines: string[] = [
+    '',
+    '## ⚠️ Partial Findings (from failed agents)',
+    '',
+    '> **Note:** These findings are from agents that did not complete successfully.',
+    '> They may be incomplete and are shown for informational purposes only.',
+    '> **Partial findings do NOT affect gating decisions.**',
+    '',
+    `| Severity | Count |`,
+    `|----------|-------|`,
+    `| 🔴 Errors | ${counts.error} |`,
+    `| 🟡 Warnings | ${counts.warning} |`,
+    `| 🔵 Info | ${counts.info} |`,
+    '',
+  ];
+
+  for (const [file, fileFindings] of grouped) {
+    lines.push(`#### \`${file}\``);
+    lines.push('');
+
+    for (const finding of fileFindings) {
+      const emoji =
+        finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
+      const lineInfo = finding.line ? ` (line ${finding.line})` : '';
+      const agent = finding.sourceAgent ? ` [${finding.sourceAgent}]` : '';
+
+      lines.push(`- ${emoji}${lineInfo}${agent}: ${finding.message}`);
+
+      if (finding.suggestion) {
+        lines.push(`  - 💡 Suggestion: ${finding.suggestion}`);
+      }
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Generate complete summary markdown with agent status table
+ *
+ * (012-fix-agent-result-regressions) - Updated to include partial findings section
  */
 export function generateFullSummaryMarkdown(
   findings: Finding[],
+  partialFindings: Finding[],
   results: { agentId: string; success: boolean; findings: unknown[]; error?: string }[],
   skipped: SkippedAgent[]
 ): string {
-  // Start with the findings summary
+  // Start with the findings summary (complete findings)
   let summary = generateSummaryMarkdown(findings);
+
+  // Add partial findings section if any exist
+  summary += renderPartialFindingsSection(partialFindings);
 
   // Append agent status table
   summary += generateAgentStatusTable(results, skipped);

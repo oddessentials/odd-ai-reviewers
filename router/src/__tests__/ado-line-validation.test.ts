@@ -90,7 +90,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats).toBeDefined();
@@ -109,7 +109,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.invalidLineDetails).toBeDefined();
     expect(result.invalidLineDetails).toHaveLength(1);
@@ -136,7 +136,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2);
@@ -154,7 +154,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(1);
@@ -172,7 +172,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, []);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, []);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.downgraded).toBe(1);
@@ -196,7 +196,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(2); // Both context lines are valid
@@ -225,7 +225,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, config, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, config, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.threadId).toBeDefined();
@@ -254,7 +254,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, config, diffFiles);
+    const result = await reportToADO(findings, [], baseContext, config, diffFiles);
 
     expect(result.success).toBe(true);
     expect(result.statusId).toBeDefined();
@@ -284,7 +284,7 @@ describe('ADO Line Validation Integration', () => {
       },
     ];
 
-    const result = await reportToADO(findings, baseContext, baseConfig, renamedFiles);
+    const result = await reportToADO(findings, [], baseContext, baseConfig, renamedFiles);
 
     expect(result.success).toBe(true);
     expect(result.validationStats?.valid).toBe(1);
@@ -325,7 +325,7 @@ describe('ADO Line Validation Integration', () => {
         },
       ];
 
-      const result = await reportToADO(findings, baseContext, baseConfig, diffFiles);
+      const result = await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
       expect(result.success).toBe(true);
 
       // Find thread creation calls (POST to /threads endpoint)
@@ -396,7 +396,7 @@ describe('ADO Line Validation Integration', () => {
         },
       ];
 
-      await reportToADO(findings, baseContext, baseConfig, diffFiles);
+      await reportToADO(findings, [], baseContext, baseConfig, diffFiles);
 
       // Find thread calls
       const threadCalls = capturedPayloads.filter((payload: unknown) => {

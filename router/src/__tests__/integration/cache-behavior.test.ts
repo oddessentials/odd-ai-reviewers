@@ -7,8 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FROZEN_TIMESTAMP, setupHermeticTest, teardownHermeticTest } from '../hermetic-setup.js';
-import { generateCacheKey, hashConfig, parseCacheKey } from '../../cache/key.js';
-import { AgentSuccess, isSuccess } from '../../agents/types.js';
+import { generateCacheKey, hashConfig, parseCacheKey, CACHE_KEY_PREFIX } from '../../cache/key.js';
+import { AgentSuccess, isSuccess, CACHE_SCHEMA_VERSION } from '../../agents/types.js';
 
 describe('Cache Behavior Integration Tests', () => {
   beforeEach(() => {
@@ -32,7 +32,22 @@ describe('Cache Behavior Integration Tests', () => {
       const key2 = generateCacheKey(inputs);
 
       expect(key1).toBe(key2);
-      expect(key1).toMatch(/^ai-review-123-[a-f0-9]+$/);
+      // (012-fix-agent-result-regressions) - Cache key now includes version prefix
+      expect(key1.startsWith(`ai-review-v${CACHE_SCHEMA_VERSION}-123-`)).toBe(true);
+      expect(key1).toMatch(/^ai-review-v\d+-\d+-[a-f0-9]+$/);
+    });
+
+    it('includes CACHE_SCHEMA_VERSION in key prefix (FR-005)', () => {
+      const inputs = {
+        prNumber: 999,
+        headSha: 'test-sha',
+        configHash: 'test-config',
+        agentId: 'test-agent',
+      };
+
+      const key = generateCacheKey(inputs);
+      expect(key).toContain(`ai-review-v${CACHE_SCHEMA_VERSION}`);
+      expect(CACHE_KEY_PREFIX).toBe(`ai-review-v${CACHE_SCHEMA_VERSION}`);
     });
 
     it('generates different keys for different PRs', () => {
@@ -132,13 +147,26 @@ describe('Cache Behavior Integration Tests', () => {
   });
 
   describe('Cache Key Parsing', () => {
-    it('parses valid cache key', () => {
+    it('parses valid versioned cache key', () => {
+      // (012-fix-agent-result-regressions) - Test new versioned format
+      const key = `ai-review-v${CACHE_SCHEMA_VERSION}-123-abcdef1234567890`;
+      const parsed = parseCacheKey(key);
+
+      expect(parsed).not.toBeNull();
+      expect(parsed?.version).toBe(CACHE_SCHEMA_VERSION);
+      expect(parsed?.prNumber).toBe(123);
+      expect(parsed?.hash).toBe('abcdef1234567890');
+    });
+
+    it('parses legacy cache key (without version)', () => {
+      // Legacy keys should still be parseable for backwards compatibility
       const key = 'ai-review-123-abcdef1234567890';
       const parsed = parseCacheKey(key);
 
       expect(parsed).not.toBeNull();
       expect(parsed?.prNumber).toBe(123);
       expect(parsed?.hash).toBe('abcdef1234567890');
+      expect(parsed?.version).toBeUndefined();
     });
 
     it('returns null for invalid cache key format', () => {
@@ -148,7 +176,7 @@ describe('Cache Behavior Integration Tests', () => {
     });
 
     it('handles edge cases in PR numbers', () => {
-      const key = 'ai-review-999999-abcdef1234567890';
+      const key = `ai-review-v${CACHE_SCHEMA_VERSION}-999999-abcdef1234567890`;
       const parsed = parseCacheKey(key);
 
       expect(parsed?.prNumber).toBe(999999);

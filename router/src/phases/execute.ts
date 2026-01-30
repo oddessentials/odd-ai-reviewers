@@ -23,14 +23,43 @@ export interface SkippedAgent {
   reason: string;
 }
 
+/**
+ * Annotate findings with provenance metadata (FR-002)
+ *
+ * Sets the provenance field to indicate whether findings came from a
+ * successful agent ('complete') or a failed agent ('partial').
+ *
+ * @param findings - Array of findings to annotate
+ * @param provenance - The provenance value to set
+ * @returns New array with provenance field set on each finding
+ */
+export function annotateProvenance<P extends 'complete' | 'partial'>(
+  findings: Finding[],
+  provenance: P
+): (Finding & { provenance: P })[] {
+  return findings.map((f) => ({ ...f, provenance }));
+}
+
 export interface ExecuteOptions {
   pr?: number;
   head?: string;
   configHash: string;
 }
 
+/**
+ * Result from executing all agent passes.
+ *
+ * (012-fix-agent-result-regressions) - Changed from allFindings to separate collections:
+ * - completeFindings: From successful agents, with provenance: 'complete'
+ * - partialFindings: From failed agents, with provenance: 'partial'
+ *
+ * This ensures partial findings are preserved and rendered in a dedicated section.
+ */
 export interface ExecuteResult {
-  allFindings: Finding[];
+  /** Findings from successful agents (FR-001, FR-008: used for gating) */
+  completeFindings: Finding[];
+  /** Findings from failed agents (FR-001, FR-007: rendered in separate section) */
+  partialFindings: Finding[];
   allResults: AgentResult[];
   skippedAgents: SkippedAgent[];
 }
@@ -51,7 +80,8 @@ export async function executeAllPasses(
   budgetCheck: BudgetCheck,
   options: ExecuteOptions
 ): Promise<ExecuteResult> {
-  const allFindings: Finding[] = [];
+  const completeFindings: Finding[] = [];
+  const partialFindings: Finding[] = [];
   const allResults: AgentResult[] = [];
   const skippedAgents: SkippedAgent[] = [];
 
@@ -140,8 +170,17 @@ export async function executeAllPasses(
           console.log(
             `[router] ${agent.name}: ${result.findings.length} findings in ${result.metrics.durationMs}ms`
           );
-          allFindings.push(...result.findings);
+          // FR-002: Annotate findings with provenance: 'complete'
+          completeFindings.push(...annotateProvenance(result.findings, 'complete'));
         } else if (isFailure(result)) {
+          // FR-001: Collect partialFindings from failed agents into separate collection
+          if (result.partialFindings.length > 0) {
+            // FR-002: Annotate findings with provenance: 'partial'
+            partialFindings.push(...annotateProvenance(result.partialFindings, 'partial'));
+            console.log(
+              `[router] ${agent.name}: collected ${result.partialFindings.length} partial findings before failure`
+            );
+          }
           // Agent failed - check if pass is required
           if (pass.required) {
             console.error(`[router] ❌ Required agent ${agent.name} failed: ${result.error}`);
@@ -179,7 +218,8 @@ export async function executeAllPasses(
   }
 
   return {
-    allFindings,
+    completeFindings,
+    partialFindings,
     allResults,
     skippedAgents,
   };

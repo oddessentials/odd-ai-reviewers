@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { join } from 'path';
 
 // Project root (two levels up from __tests__)
@@ -25,6 +25,7 @@ const projectRoot = join(__dirname, '..', '..', '..');
  */
 const ALLOWED_TEST_FILE_PATTERN = '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$';
 const ALLOWED_TEST_INFRA_PATTERN = '^router/src/__tests__/';
+const DEPCRUISE_TIMEOUT_MS = 30000;
 
 /**
  * Normalize path to POSIX format (forward slashes).
@@ -35,14 +36,58 @@ function toPosixPath(path: string): string {
 }
 
 /**
- * Run dependency-cruiser with specific options and return the result
+ * Allowlisted depcruise arguments - only these are permitted.
+ * Adding new arguments requires security review.
  */
-function runDepcruise(args: string): { exitCode: number; output: string } {
+const ALLOWED_DEPCRUISE_ARGS = new Set([
+  '--config',
+  '--output-type',
+  '--focus',
+  '.dependency-cruiser.cjs',
+  'err',
+  'json',
+  'not-to-spec',
+]);
+
+/**
+ * Validate depcruise arguments against allowlist.
+ * Only permits known-safe arguments to prevent command injection.
+ */
+function validateDepcruiseArgs(args: string[]): void {
+  for (const arg of args) {
+    // Allow paths under router/src (relative paths only, no traversal)
+    if (arg.startsWith('router/src') && !arg.includes('..')) {
+      continue;
+    }
+    // Allow allowlisted arguments
+    if (ALLOWED_DEPCRUISE_ARGS.has(arg)) {
+      continue;
+    }
+    throw new Error(`Disallowed depcruise argument: ${arg}`);
+  }
+}
+
+/**
+ * Run dependency-cruiser with specific options and return the result.
+ * Uses execFileSync with argument array to prevent command injection.
+ *
+ * Security: Arguments are validated against allowlist before execution.
+ * Using shell: true is required on Windows for pnpm.cmd, but args are
+ * still passed as array (not string-interpolated) so injection is blocked.
+ */
+function runDepcruise(argsString: string): { exitCode: number; output: string } {
+  // Parse args string into array (simple split - no shell interpolation)
+  const args = argsString.split(/\s+/).filter(Boolean);
+
+  // Validate all arguments against allowlist
+  validateDepcruiseArgs(args);
+
   try {
-    const output = execSync(`pnpm depcruise ${args}`, {
+    const output = execFileSync('pnpm', ['depcruise', ...args], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true, // Required on Windows for pnpm.cmd
     });
     return { exitCode: 0, output };
   } catch (error) {
@@ -225,48 +270,70 @@ describe('Dependency Cruiser Rule Validation', () => {
   });
 
   describe('not-to-dev-dep rule behavior', () => {
-    it('should allow __tests__/ to import vitest (test infrastructure)', () => {
-      const result = runDepcruise(
-        'router/src/__tests__/hermetic-setup.ts --config .dependency-cruiser.cjs --output-type err'
-      );
+    it(
+      'should allow __tests__/ to import vitest (test infrastructure)',
+      () => {
+        const result = runDepcruise(
+          'router/src/__tests__/hermetic-setup.ts --config .dependency-cruiser.cjs --output-type err'
+        );
 
-      expect(result.output).not.toContain('not-to-dev-dep');
-    });
+        expect(result.output).not.toContain('not-to-dev-dep');
+      },
+      DEPCRUISE_TIMEOUT_MS
+    );
 
-    it('should allow *.test.ts files to import vitest', () => {
-      const result = runDepcruise(
-        'router/src/__tests__/integration/error-paths.test.ts --config .dependency-cruiser.cjs --output-type err'
-      );
+    it(
+      'should allow *.test.ts files to import vitest',
+      () => {
+        const result = runDepcruise(
+          'router/src/__tests__/integration/error-paths.test.ts --config .dependency-cruiser.cjs --output-type err'
+        );
 
-      expect(result.output).not.toContain('not-to-dev-dep');
-    });
+        expect(result.output).not.toContain('not-to-dev-dep');
+      },
+      DEPCRUISE_TIMEOUT_MS
+    );
 
-    it('should block production code from importing vitest', () => {
-      const result = runDepcruise(
-        'router/src/config.ts --config .dependency-cruiser.cjs --output-type json'
-      );
+    it(
+      'should block production code from importing vitest',
+      () => {
+        const result = runDepcruise(
+          'router/src/config.ts --config .dependency-cruiser.cjs --output-type json'
+        );
 
-      // Production files should pass (no vitest imports) and be subject to the rule
-      expect(result.exitCode).toBe(0);
-    });
+        // Production files should pass (no vitest imports) and be subject to the rule
+        expect(result.exitCode).toBe(0);
+      },
+      DEPCRUISE_TIMEOUT_MS
+    );
   });
 
   describe('not-to-spec rule behavior', () => {
-    it('should prevent importing .test.ts files from non-test code', () => {
-      const result = runDepcruise(
-        'router/src --config .dependency-cruiser.cjs --focus not-to-spec --output-type err'
-      );
+    it(
+      'should prevent importing .test.ts files from non-test code',
+      () => {
+        const result = runDepcruise(
+          'router/src --config .dependency-cruiser.cjs --focus not-to-spec --output-type err'
+        );
 
-      expect(result.exitCode).toBe(0);
-    });
+        expect(result.exitCode).toBe(0);
+      },
+      DEPCRUISE_TIMEOUT_MS
+    );
   });
 
   describe('full scan verification', () => {
-    it('should have no violations in the full router/src scan', () => {
-      const result = runDepcruise('router/src --config .dependency-cruiser.cjs --output-type err');
+    it(
+      'should have no violations in the full router/src scan',
+      () => {
+        const result = runDepcruise(
+          'router/src --config .dependency-cruiser.cjs --output-type err'
+        );
 
-      expect(result.exitCode).toBe(0);
-      expect(result.output).toContain('no dependency violations found');
-    });
+        expect(result.exitCode).toBe(0);
+        expect(result.output).toContain('no dependency violations found');
+      },
+      DEPCRUISE_TIMEOUT_MS
+    );
   });
 });

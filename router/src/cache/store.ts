@@ -5,9 +5,10 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, sep } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
+import { AgentResultSchema } from '../agents/types.js';
 import { AI_REVIEW_CACHE_PATH, CACHE_KEY_PREFIX, generateRestoreKeyPrefix } from './key.js';
 import { buildRouterEnv } from '../agents/security.js';
 
@@ -51,10 +52,79 @@ function ensureCacheDir(): void {
 }
 
 /**
- * Get cache file path for a key
+ * Validate cache key to prevent path traversal and injection attacks.
+ *
+ * Keys must match the format from generateCacheKey(): ai-review-v{N}-{prNumber}-{hash}
+ * Only alphanumeric characters and dashes are allowed.
+ *
+ * SECURITY: Explicit rejection of dangerous characters (defense in depth):
+ * - Path separators: / \ (directory traversal)
+ * - URL encoding: % (bypass via encoding)
+ * - Drive letters: : (Windows absolute paths)
+ * - Traversal sequences: .. (parent directory access)
+ * - Whitespace and control chars (injection vectors)
+ * - Shell metacharacters: ; & | ` $ ( ) (command injection)
+ */
+function isValidCacheKey(key: string): boolean {
+  // Empty or excessively long keys are invalid
+  if (!key || key.length > 256) {
+    return false;
+  }
+
+  // Explicit rejection list (defense in depth)
+  const FORBIDDEN_CHARS = /[/\\%:\s;&|`$()]/;
+  if (FORBIDDEN_CHARS.test(key)) {
+    return false;
+  }
+
+  // Path traversal sequences
+  if (key.includes('..')) {
+    return false;
+  }
+
+  // Must match strict allowlist: alphanumeric + dashes only
+  // This matches generateCacheKey output: ai-review-v{N}-{prNumber}-{hash}
+  return /^[a-zA-Z0-9-]+$/.test(key);
+}
+
+/**
+ * Get cache file path for a key.
+ * Validates key format and ensures resolved path stays under cache root.
  */
 function getCacheFilePath(key: string): string {
-  return join(getCacheDir(), `${key}.json`);
+  if (!isValidCacheKey(key)) {
+    throw new Error(`Invalid cache key format: ${key}`);
+  }
+
+  const cacheDir = getCacheDir();
+  const filePath = join(cacheDir, `${key}.json`);
+
+  // Ensure resolved path is under cache directory (defense in depth)
+  // Use cacheDir + sep to prevent prefix attacks (e.g., /cache vs /cache-evil)
+  const resolvedPath = resolve(filePath);
+  const resolvedCacheDir = resolve(cacheDir);
+  if (!resolvedPath.startsWith(resolvedCacheDir + sep)) {
+    throw new Error(`Cache path traversal detected: ${key}`);
+  }
+
+  return filePath;
+}
+
+/**
+ * Validate a cached result against AgentResultSchema
+ *
+ * (012-fix-agent-result-regressions) - Validates cache entries to handle:
+ * - Legacy cache entries (success: boolean format) → return null (cache miss)
+ * - Malformed/corrupted entries → return null (cache miss)
+ * - New-format entries (discriminated union with status field) → return result
+ */
+function validateCachedResult(result: unknown): AgentResult | null {
+  const parseResult = AgentResultSchema.safeParse(result);
+  if (!parseResult.success) {
+    // Legacy or malformed cache entry - treat as cache miss
+    return null;
+  }
+  return parseResult.data;
 }
 
 /**
@@ -65,10 +135,18 @@ export async function getCached(key: string): Promise<AgentResult | null> {
   const memEntry = memoryCache.get(key);
   if (memEntry) {
     if (new Date(memEntry.expiresAt) > new Date()) {
-      console.log(`[cache] Memory hit: ${key}`);
-      return memEntry.result;
+      // Validate the cached result (012-fix-agent-result-regressions)
+      const validated = validateCachedResult(memEntry.result);
+      if (validated) {
+        console.log(`[cache] Memory hit: ${key}`);
+        return validated;
+      }
+      // Invalid format - treat as cache miss
+      console.warn(`[cache] Memory entry invalid format, treating as miss: ${key}`);
+      memoryCache.delete(key);
+    } else {
+      memoryCache.delete(key);
     }
-    memoryCache.delete(key);
   }
 
   // Check file cache
@@ -79,10 +157,19 @@ export async function getCached(key: string): Promise<AgentResult | null> {
       const entry = JSON.parse(content) as CacheEntry;
 
       if (new Date(entry.expiresAt) > new Date()) {
-        console.log(`[cache] File hit: ${key}`);
-        // Populate memory cache
-        memoryCache.set(key, entry);
-        return entry.result;
+        // Validate the cached result (012-fix-agent-result-regressions)
+        const validated = validateCachedResult(entry.result);
+        if (validated) {
+          console.log(`[cache] File hit: ${key}`);
+          // Populate memory cache with validated result (direct assignment for clarity)
+          entry.result = validated;
+          memoryCache.set(key, entry);
+          return validated;
+        }
+        // Invalid format - treat as cache miss (remove stale file)
+        console.warn(`[cache] File entry invalid format, treating as miss: ${key}`);
+        unlinkSync(filePath);
+        return null;
       }
 
       // Expired, remove file
@@ -193,6 +280,9 @@ export async function cleanupExpired(): Promise<number> {
 /**
  * Find cached result for a PR (even with different SHA)
  * Used for fallback when exact cache miss
+ *
+ * (012-fix-agent-result-regressions) - Now validates results through validateCachedResult()
+ * to ensure legacy/malformed entries are treated as cache misses.
  */
 export async function findCachedForPR(prNumber: number): Promise<AgentResult | null> {
   const prefix = generateRestoreKeyPrefix(prNumber);
@@ -213,8 +303,14 @@ export async function findCachedForPR(prNumber: number): Promise<AgentResult | n
         const entry = JSON.parse(content) as CacheEntry;
 
         if (new Date(entry.expiresAt) > new Date()) {
-          console.log(`[cache] Fallback hit for PR ${prNumber}: ${entry.key}`);
-          return entry.result;
+          // Validate the cached result (012-fix-agent-result-regressions)
+          const validated = validateCachedResult(entry.result);
+          if (validated) {
+            console.log(`[cache] Fallback hit for PR ${prNumber}: ${entry.key}`);
+            return validated;
+          }
+          // Invalid format - skip and try next file
+          console.warn(`[cache] Fallback entry invalid format, skipping: ${entry.key}`);
         }
       } catch {
         // Skip corrupted files

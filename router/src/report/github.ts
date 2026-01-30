@@ -11,6 +11,7 @@ import {
   deduplicateFindings,
   sortFindings,
   generateSummaryMarkdown,
+  renderPartialFindingsSection,
   toGitHubAnnotation,
   countBySeverity,
   extractFingerprintMarkers,
@@ -84,9 +85,14 @@ export async function startCheckRun(context: GitHubContext): Promise<number> {
 
 /**
  * Post findings to GitHub
+ *
+ * (012-fix-agent-result-regressions) - Now accepts partialFindings to include
+ * in check summaries and PR comments. Partial findings are rendered in a dedicated
+ * section that makes clear they're from failed agents and don't affect gating.
  */
 export async function reportToGitHub(
   findings: Finding[],
+  partialFindings: Finding[],
   context: GitHubContext,
   config: Config,
   diffFiles: DiffFile[]
@@ -131,7 +137,15 @@ export async function reportToGitHub(
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
-      checkRunId = await createCheckRun(octokit, context, sorted, counts, config, driftSignal);
+      checkRunId = await createCheckRun(
+        octokit,
+        context,
+        sorted,
+        partialFindings,
+        counts,
+        config,
+        driftSignal
+      );
     }
 
     // Post PR comment if enabled and we have a PR number
@@ -147,6 +161,7 @@ export async function reportToGitHub(
         octokit,
         context,
         sorted,
+        partialFindings,
         reportingConfig.max_inline_comments,
         deletedFiles
       );
@@ -177,11 +192,14 @@ export async function reportToGitHub(
  * Create or update a GitHub check run with annotations
  * If context.checkRunId is provided, updates existing check run (proper lifecycle)
  * Otherwise creates a new check run (legacy/fallback behavior)
+ *
+ * (012-fix-agent-result-regressions) - Now includes partialFindings in summary
  */
 async function createCheckRun(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
+  partialFindings: Finding[],
   counts: Record<Severity, number>,
   config: Config,
   driftSignal: DriftSignal
@@ -213,9 +231,12 @@ async function createCheckRun(
 
   const summary = generateSummaryMarkdown(findings);
 
+  // (012-fix-agent-result-regressions) - Append partial findings section if present
+  const partialSection = renderPartialFindingsSection(partialFindings);
+
   // Append drift signal to summary (only shows when warn/fail threshold exceeded)
   const driftMarkdown = generateDriftMarkdown(driftSignal);
-  const fullSummary = summary + driftMarkdown;
+  const fullSummary = summary + partialSection + driftMarkdown;
 
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
@@ -261,6 +282,7 @@ async function postPRComment(
   octokit: Octokit,
   context: GitHubContext,
   findings: Finding[],
+  partialFindings: Finding[],
   maxInlineComments: number,
   deletedFiles: Set<string> = new Set<string>()
 ): Promise<{ commentId: number; skippedDuplicates: number }> {
@@ -268,7 +290,8 @@ async function postPRComment(
     throw new Error('PR number required for comments');
   }
 
-  const summary = generateSummaryMarkdown(findings);
+  // (012-fix-agent-result-regressions) - Include partial findings section in PR comment
+  const summary = generateSummaryMarkdown(findings) + renderPartialFindingsSection(partialFindings);
 
   // Find existing comment to update
   const existingComments = await octokit.issues.listComments({

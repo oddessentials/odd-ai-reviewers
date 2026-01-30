@@ -19,6 +19,7 @@ import { reportToGitHub, type GitHubContext } from '../report/github.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
 import {
   deduplicateFindings,
+  deduplicatePartialFindings,
   sortFindings,
   generateFullSummaryMarkdown,
 } from '../report/formats.js';
@@ -41,21 +42,34 @@ export interface ReportOptions {
 export interface ProcessedFindings {
   deduplicated: Finding[];
   sorted: Finding[];
+  partialSorted: Finding[];
   summary: string;
 }
 
 /**
  * Process findings: deduplicate, sanitize, sort, and generate summary.
+ *
+ * (012-fix-agent-result-regressions) - Updated to handle completeFindings and partialFindings
+ * separately. Partial findings are rendered in a dedicated section but NOT used for gating.
  */
 export function processFindings(
-  allFindings: Finding[],
+  completeFindings: Finding[],
+  partialFindings: Finding[],
   allResults: AgentResult[],
   skippedAgents: SkippedAgent[]
 ): ProcessedFindings {
-  const deduplicated = deduplicateFindings(allFindings);
+  // Process complete findings (from successful agents)
+  const deduplicated = deduplicateFindings(completeFindings);
   // Sanitize findings before sorting/posting (defense-in-depth)
   const sanitized = sanitizeFindings(deduplicated);
   const sorted = sortFindings(sanitized);
+
+  // Process partial findings (from failed agents) separately
+  // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
+  // FR-011: No cross-collection deduplication - partial findings stay separate
+  const partialDeduplicated = deduplicatePartialFindings(partialFindings);
+  const partialSanitized = sanitizeFindings(partialDeduplicated);
+  const partialSorted = sortFindings(partialSanitized);
 
   // Transform AgentResult[] to the format expected by generateFullSummaryMarkdown
   // This adapts the new discriminated union to the legacy format
@@ -81,11 +95,21 @@ export function processFindings(
       return assertNever(r);
     });
 
-  const summary = generateFullSummaryMarkdown(sorted, resultsForSummary, skippedAgents);
+  const summary = generateFullSummaryMarkdown(
+    sorted,
+    partialSorted,
+    resultsForSummary,
+    skippedAgents
+  );
 
   console.log(
-    `[router] Total findings: ${sorted.length} (deduplicated from ${allFindings.length})`
+    `[router] Complete findings: ${sorted.length} (deduplicated from ${completeFindings.length})`
   );
+  if (partialFindings.length > 0) {
+    console.log(
+      `[router] Partial findings: ${partialSorted.length} (deduplicated from ${partialFindings.length})`
+    );
+  }
 
   // Log skipped agents summary
   if (skippedAgents.length > 0) {
@@ -97,15 +121,20 @@ export function processFindings(
 
   console.log('\n' + summary);
 
-  return { deduplicated: sanitized, sorted, summary };
+  return { deduplicated: sanitized, sorted, partialSorted, summary };
 }
 
 /**
  * Dispatch report to the appropriate platform.
+ *
+ * (012-fix-agent-result-regressions) - Now accepts partialFindings to include
+ * in GitHub/ADO reports. Partial findings are rendered in a dedicated section
+ * that makes clear they're from failed agents and don't affect gating.
  */
 export async function dispatchReport(
   platform: Platform,
   findings: Finding[],
+  partialFindings: Finding[],
   config: Config,
   diffFiles: DiffFile[],
   routerEnv: Record<string, string | undefined>,
@@ -128,7 +157,13 @@ export async function dispatchReport(
     };
 
     console.log('[router] Reporting to GitHub...');
-    const reportResult = await reportToGitHub(findings, githubContext, config, diffFiles);
+    const reportResult = await reportToGitHub(
+      findings,
+      partialFindings,
+      githubContext,
+      config,
+      diffFiles
+    );
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to GitHub');
@@ -158,7 +193,13 @@ export async function dispatchReport(
     };
 
     console.log('[router] Reporting to Azure DevOps...');
-    const reportResult = await reportToADO(findings, adoContext, config, diffFiles);
+    const reportResult = await reportToADO(
+      findings,
+      partialFindings,
+      adoContext,
+      config,
+      diffFiles
+    );
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to Azure DevOps');
@@ -170,13 +211,17 @@ export async function dispatchReport(
 
 /**
  * Check gating and exit if blocking findings present.
+ *
+ * FR-008: Gating uses ONLY completeFindings (from successful agents).
+ * Partial findings from failed agents are rendered in reports but do NOT block merges.
+ * This ensures that agent failures don't cause unexpected CI failures.
  */
-export function checkGating(config: Config, findings: Finding[]): void {
+export function checkGating(config: Config, completeFindings: Finding[]): void {
   if (!config.gating.enabled) {
     return;
   }
 
-  const hasBlockingFindings = findings.some((f) => {
+  const hasBlockingFindings = completeFindings.some((f) => {
     if (config.gating.fail_on_severity === 'error') return f.severity === 'error';
     if (config.gating.fail_on_severity === 'warning')
       return f.severity === 'error' || f.severity === 'warning';

@@ -17,6 +17,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - File-based cache (cache/store.ts), ephemeral per-run (010-type-test-optimization)
 - TypeScript 5.x (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Vitest 4.x (testing) (011-agent-result-unions)
 - N/A (in-memory agent results only) (011-agent-result-unions)
+- File-based cache in `.ai-review-cache` directory; JSONL format with TTL (012-fix-agent-result-regressions)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -44,9 +45,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 012-fix-agent-result-regressions: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Vitest 4.x (testing)
 - 011-agent-result-unions: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Vitest 4.x (testing)
 - 010-type-test-optimization: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.3.6 (schema validation), Commander 14.x (CLI), Anthropic SDK 0.71.2, OpenAI 6.17.0, Octokit 22.0.1
-- 009-azure-devops-permissions-docs: Added Markdown (GitHub Flavored Markdown) + N/A (documentation only)
 
 
 
