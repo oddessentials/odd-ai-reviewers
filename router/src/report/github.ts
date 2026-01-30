@@ -20,6 +20,15 @@ import {
   isDuplicateByProximity,
   identifyStaleComments,
 } from './formats.js';
+import {
+  buildCommentToMarkersMap,
+  shouldResolveComment,
+  getPartiallyResolvedMarkers,
+  hasMalformedMarkers,
+  applyPartialResolutionVisual,
+  emitResolutionLog,
+  emitMalformedMarkerWarning,
+} from './resolution.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
 import {
@@ -446,44 +455,99 @@ async function postPRComment(
   }
 
   // Resolve stale comments (comments for issues that no longer exist)
+  // FIX: Use grouped comment resolution - only resolve when ALL markers are stale
   const staleKeys = identifyStaleComments(existingDedupeKeys, findings);
-  let resolvedCount = 0;
+  const staleKeySet = new Set(staleKeys);
 
+  // Build reverse map: commentId -> all markers in that comment
+  const commentIdToMarkers = buildCommentToMarkersMap(dedupeKeyToCommentId);
+
+  // Track which comments we've already processed to avoid duplicate API calls
+  const processedCommentIds = new Set<number>();
+  let resolvedCount = 0;
+  let partiallyResolvedCount = 0;
+
+  // Process each comment that has at least one stale marker
   for (const staleKey of staleKeys) {
-    const commentId = dedupeKeyToCommentId.get(staleKey);
-    if (!commentId) continue;
+    const commentIdToProcess = dedupeKeyToCommentId.get(staleKey);
+    if (!commentIdToProcess || processedCommentIds.has(commentIdToProcess)) continue;
+
+    processedCommentIds.add(commentIdToProcess);
+
+    // Get ALL markers for this comment
+    const allMarkersInComment = commentIdToMarkers.get(commentIdToProcess) ?? [];
+
+    // Emit warning if any markers are malformed (FR-010: exactly one warning per comment)
+    if (hasMalformedMarkers(allMarkersInComment)) {
+      emitMalformedMarkerWarning('github', commentIdToProcess);
+    }
+
+    // Check if comment should be resolved (ALL markers must be stale)
+    const shouldResolve = shouldResolveComment(allMarkersInComment, staleKeySet);
+
+    // Get partially resolved markers for visual indication
+    const partiallyResolved = getPartiallyResolvedMarkers(allMarkersInComment, staleKeySet);
+
+    // Emit resolution log (once per comment per run)
+    emitResolutionLog(
+      'github',
+      commentIdToProcess,
+      allMarkersInComment.length,
+      partiallyResolved.length +
+        (shouldResolve ? allMarkersInComment.length - partiallyResolved.length : 0),
+      shouldResolve
+    );
 
     try {
       // Get the existing comment to preserve its content
-      const existingComment = existingReviewComments.data.find((c) => c.id === commentId);
+      const existingComment = existingReviewComments.data.find((c) => c.id === commentIdToProcess);
       if (!existingComment?.body) continue;
 
-      // Skip if already marked as resolved
-      if (existingComment.body.includes('~~') && existingComment.body.includes('✅ Resolved')) {
+      // Skip if already marked as fully resolved
+      if (existingComment.body.includes('✅ **Resolved**')) {
         continue;
       }
 
-      // Update the comment to mark it as resolved
-      const resolvedBody =
-        `~~${existingComment.body.replace(/<!--[^>]*-->/g, '').trim()}~~\n\n` +
-        `✅ **Resolved** - This issue appears to have been fixed.\n\n` +
-        `<!-- ${staleKey} -->`;
+      if (shouldResolve) {
+        // ALL markers are stale - resolve the entire comment
+        const resolvedBody =
+          `~~${existingComment.body.replace(/<!--[^>]*-->/g, '').trim()}~~\n\n` +
+          `✅ **Resolved** - This issue appears to have been fixed.\n\n` +
+          allMarkersInComment
+            .map((m) => `<!-- odd-ai-reviewers:fingerprint:v1:${m} -->`)
+            .join('\n');
 
-      await octokit.pulls.updateReviewComment({
-        owner: context.owner,
-        repo: context.repo,
-        comment_id: commentId,
-        body: resolvedBody,
-      });
-      resolvedCount++;
+        await octokit.pulls.updateReviewComment({
+          owner: context.owner,
+          repo: context.repo,
+          comment_id: commentIdToProcess,
+          body: resolvedBody,
+        });
+        resolvedCount++;
+      } else if (partiallyResolved.length > 0) {
+        // Only SOME markers are stale - apply visual indication (strikethrough)
+        const updatedBody = applyPartialResolutionVisual(existingComment.body, partiallyResolved);
+
+        // Only update if the body actually changed
+        if (updatedBody !== existingComment.body) {
+          await octokit.pulls.updateReviewComment({
+            owner: context.owner,
+            repo: context.repo,
+            comment_id: commentIdToProcess,
+            body: updatedBody,
+          });
+          partiallyResolvedCount++;
+        }
+      }
+
       await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
-      console.warn(`[github] Failed to resolve stale comment ${commentId}: ${error}`);
+      console.warn(`[github] Failed to resolve/update comment ${commentIdToProcess}: ${error}`);
     }
   }
 
   console.log(
-    `[github] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} stale comments`
+    `[github] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} comments, ${partiallyResolvedCount} partially resolved`
   );
 
   return { commentId, skippedDuplicates };

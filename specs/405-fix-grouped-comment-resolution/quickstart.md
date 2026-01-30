@@ -115,9 +115,9 @@ pnpm lint && pnpm typecheck && pnpm test
 
 ## Success Criteria
 
-- [ ] All existing tests pass (no regressions)
-- [ ] New `comment-resolution.test.ts` covers all scenarios
-- [ ] GitHub and ADO pass equivalent behavioral tests
-- [ ] Logs use `comment_resolution` event with required fields
-- [ ] Visual distinction visible in partial resolution scenarios
-- [ ] Resolution logic lives in `resolution.ts` (not in formats.ts)
+- [x] All existing tests pass (no regressions)
+- [x] New `comment-resolution.test.ts` covers all scenarios
+- [x] GitHub and ADO pass equivalent behavioral tests
+- [x] Logs use `comment_resolution` event with required fields
+- [x] Visual distinction visible in partial resolution scenarios
+- [x] Resolution logic lives in `resolution.ts` (not in formats.ts)

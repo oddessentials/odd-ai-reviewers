@@ -18,6 +18,15 @@ import {
   isDuplicateByProximity,
   identifyStaleComments,
 } from './formats.js';
+import {
+  buildCommentToMarkersMap,
+  shouldResolveComment,
+  getPartiallyResolvedMarkers,
+  hasMalformedMarkers,
+  applyPartialResolutionVisual,
+  emitResolutionLog,
+  emitMalformedMarkerWarning,
+} from './resolution.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
 import { delay, INLINE_COMMENT_DELAY_MS, formatInlineComment } from './base.js';
@@ -453,37 +462,104 @@ async function postPRThreads(
   }
 
   // Resolve stale threads (threads for issues that no longer exist)
+  // FIX: Use grouped comment resolution - only resolve when ALL markers are stale
   const staleKeys = identifyStaleComments(existingDedupeKeys, findings);
-  const resolvedThreadIds = new Set<number>();
-  let resolvedCount = 0;
+  const staleKeySet = new Set(staleKeys);
 
+  // Build reverse map: threadId -> all markers in that thread
+  const threadIdToMarkers = buildCommentToMarkersMap(dedupeKeyToThreadId);
+
+  // Track which threads we've already processed to avoid duplicate API calls
+  const processedThreadIds = new Set<number>();
+  let resolvedCount = 0;
+  let partiallyResolvedCount = 0;
+
+  // Process each thread that has at least one stale marker
   for (const staleKey of staleKeys) {
-    const threadIdToResolve = dedupeKeyToThreadId.get(staleKey);
-    if (!threadIdToResolve || resolvedThreadIds.has(threadIdToResolve)) continue;
+    const threadIdToProcess = dedupeKeyToThreadId.get(staleKey);
+    if (!threadIdToProcess || processedThreadIds.has(threadIdToProcess)) continue;
+
+    processedThreadIds.add(threadIdToProcess);
+
+    // Get ALL markers for this thread
+    const allMarkersInThread = threadIdToMarkers.get(threadIdToProcess) ?? [];
+
+    // Emit warning if any markers are malformed (FR-010: exactly one warning per thread)
+    if (hasMalformedMarkers(allMarkersInThread)) {
+      emitMalformedMarkerWarning('ado', threadIdToProcess);
+    }
+
+    // Check if thread should be resolved (ALL markers must be stale)
+    const shouldResolve = shouldResolveComment(allMarkersInThread, staleKeySet);
+
+    // Get partially resolved markers for visual indication
+    const partiallyResolved = getPartiallyResolvedMarkers(allMarkersInThread, staleKeySet);
+
+    // Emit resolution log (once per thread per run)
+    emitResolutionLog(
+      'ado',
+      threadIdToProcess,
+      allMarkersInThread.length,
+      partiallyResolved.length +
+        (shouldResolve ? allMarkersInThread.length - partiallyResolved.length : 0),
+      shouldResolve
+    );
 
     try {
-      // Update thread status to closed (status 4 = Closed in ADO)
-      const response = await fetch(`${baseUrl}/threads/${threadIdToResolve}?api-version=7.1`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${context.token}`,
-        },
-        body: JSON.stringify({ status: 4 }), // 4 = Closed
-      });
+      // Get the existing thread to check its current content
+      const existingThread = existingThreadsData.value.find((t) => t.id === threadIdToProcess);
+      const existingContent = existingThread?.comments[0]?.content ?? '';
 
-      if (response.ok) {
-        resolvedCount++;
-        resolvedThreadIds.add(threadIdToResolve);
+      // Skip if already marked as fully resolved
+      if (existingContent.includes('✅ **Resolved**')) {
+        continue;
       }
+
+      if (shouldResolve) {
+        // ALL markers are stale - close the thread (status 4 = Closed in ADO)
+        const response = await fetch(`${baseUrl}/threads/${threadIdToProcess}?api-version=7.1`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${context.token}`,
+          },
+          body: JSON.stringify({ status: 4 }), // 4 = Closed
+        });
+
+        if (response.ok) {
+          resolvedCount++;
+        }
+      } else if (partiallyResolved.length > 0 && existingContent) {
+        // Only SOME markers are stale - apply visual indication (strikethrough)
+        const updatedContent = applyPartialResolutionVisual(existingContent, partiallyResolved);
+
+        // Only update if the content actually changed
+        if (updatedContent !== existingContent) {
+          const response = await fetch(`${baseUrl}/threads/${threadIdToProcess}?api-version=7.1`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${context.token}`,
+            },
+            body: JSON.stringify({
+              comments: [{ id: 1, content: updatedContent }],
+            }),
+          });
+
+          if (response.ok) {
+            partiallyResolvedCount++;
+          }
+        }
+      }
+
       await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
-      console.warn(`[ado] Failed to resolve stale thread ${threadIdToResolve}: ${error}`);
+      console.warn(`[ado] Failed to resolve/update thread ${threadIdToProcess}: ${error}`);
     }
   }
 
   console.log(
-    `[ado] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} stale threads`
+    `[ado] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} threads, ${partiallyResolvedCount} partially resolved`
   );
 
   return { threadId, skippedDuplicates };

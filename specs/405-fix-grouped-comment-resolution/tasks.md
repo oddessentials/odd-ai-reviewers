@@ -26,8 +26,8 @@ Per plan.md, this is a single project with paths:
 
 **Purpose**: Create new module and test file structure
 
-- [ ] T001 Create resolution.ts module skeleton in router/src/report/resolution.ts with JSDoc header and exports
-- [ ] T002 [P] Create comment-resolution.test.ts test file skeleton in router/src/**tests**/comment-resolution.test.ts with describe blocks
+- [x] T001 Create resolution.ts module skeleton in router/src/report/resolution.ts with JSDoc header and exports
+- [x] T002 [P] Create comment-resolution.test.ts test file skeleton in router/src/**tests**/comment-resolution.test.ts with describe blocks
 
 ---
 
@@ -37,12 +37,12 @@ Per plan.md, this is a single project with paths:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Implement `buildCommentToMarkersMap()` function in router/src/report/resolution.ts - reverses dedupeKeyToCommentId to Map<commentId, markers[]>
-- [ ] T004 Implement `shouldResolveComment()` function in router/src/report/resolution.ts - returns true IFF all unique markers are stale and none malformed
-- [ ] T005 Implement `getPartiallyResolvedMarkers()` function in router/src/report/resolution.ts - returns stale markers when comment not fully resolved
-- [ ] T006 Implement `applyPartialResolutionVisual()` function in router/src/report/resolution.ts - applies strikethrough to resolved findings while preserving fingerprint markers
-- [ ] T007 Implement `emitResolutionLog()` function in router/src/report/resolution.ts - structured log with event='comment_resolution', platform, commentId, fingerprintCount, staleCount, resolved
-- [ ] T008 Export all functions from router/src/report/resolution.ts and add to module index if applicable
+- [x] T003 Implement `buildCommentToMarkersMap()` function in router/src/report/resolution.ts - reverses dedupeKeyToCommentId to Map<commentId, markers[]>
+- [x] T004 Implement `shouldResolveComment()` function in router/src/report/resolution.ts - returns true IFF all unique markers are stale and none malformed
+- [x] T005 Implement `getPartiallyResolvedMarkers()` function in router/src/report/resolution.ts - returns stale markers when comment not fully resolved
+- [x] T006 Implement `applyPartialResolutionVisual()` function in router/src/report/resolution.ts - applies strikethrough to resolved findings while preserving fingerprint markers
+- [x] T007 Implement `emitResolutionLog()` function in router/src/report/resolution.ts - structured log with event='comment_resolution', platform, commentId, fingerprintCount, staleCount, resolved
+- [x] T008 Export all functions from router/src/report/resolution.ts and add to module index if applicable
 
 **Checkpoint**: Foundation ready - resolution helpers can now be used by platform integrations
 
@@ -58,19 +58,19 @@ Per plan.md, this is a single project with paths:
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T009 [P] [US1] Add table-driven test case "all markers stale → comment resolved" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T010 [P] [US1] Add table-driven test case "some markers stale → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T011 [P] [US1] Add table-driven test case "no markers stale → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T012 [P] [US1] Add table-driven test case "malformed marker → comment NOT resolved, warning logged" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T013 [P] [US1] Add table-driven test case "duplicate markers → deduplicated before evaluation" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T014 [P] [US1] Add table-driven test case "zero valid markers → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T009 [P] [US1] Add table-driven test case "all markers stale → comment resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T010 [P] [US1] Add table-driven test case "some markers stale → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T011 [P] [US1] Add table-driven test case "no markers stale → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T012 [P] [US1] Add table-driven test case "malformed marker → comment NOT resolved, warning logged" in router/src/**tests**/comment-resolution.test.ts
+- [x] T013 [P] [US1] Add table-driven test case "duplicate markers → deduplicated before evaluation" in router/src/**tests**/comment-resolution.test.ts
+- [x] T014 [P] [US1] Add table-driven test case "zero valid markers → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Update GitHub resolution loop in router/src/report/github.ts to use buildCommentToMarkersMap() instead of per-marker iteration
-- [ ] T016 [US1] Update GitHub resolution loop to call shouldResolveComment() before marking any comment as resolved
-- [ ] T017 [US1] Add structured resolution log emission in router/src/report/github.ts using emitResolutionLog() with event='comment_resolution'
-- [ ] T018 [US1] Verify all existing deduplication tests still pass (no regression) by running pnpm test router/src/**tests**/deduplication.test.ts
+- [x] T015 [US1] Update GitHub resolution loop in router/src/report/github.ts to use buildCommentToMarkersMap() instead of per-marker iteration
+- [x] T016 [US1] Update GitHub resolution loop to call shouldResolveComment() before marking any comment as resolved
+- [x] T017 [US1] Add structured resolution log emission in router/src/report/github.ts using emitResolutionLog() with event='comment_resolution'
+- [x] T018 [US1] Verify all existing deduplication tests still pass (no regression) by running pnpm test router/src/**tests**/deduplication.test.ts
 
 **Checkpoint**: GitHub grouped comment resolution works correctly; tests pass
 
@@ -84,13 +84,13 @@ Per plan.md, this is a single project with paths:
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add table-driven test case "single marker stale → comment resolved" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T020 [P] [US2] Add table-driven test case "single marker active (within proximity) → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T019 [P] [US2] Add table-driven test case "single marker stale → comment resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T020 [P] [US2] Add table-driven test case "single marker active (within proximity) → comment NOT resolved" in router/src/**tests**/comment-resolution.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Verify single-comment resolution path in router/src/report/github.ts works with new shouldResolveComment() logic (single marker = trivial case)
-- [ ] T022 [US2] Run existing single-comment resolution tests to confirm no regression
+- [x] T021 [US2] Verify single-comment resolution path in router/src/report/github.ts works with new shouldResolveComment() logic (single marker = trivial case)
+- [x] T022 [US2] Run existing single-comment resolution tests to confirm no regression
 
 **Checkpoint**: Single-finding and grouped comments both resolve correctly on GitHub
 
@@ -104,15 +104,15 @@ Per plan.md, this is a single project with paths:
 
 ### Tests for User Story 3
 
-- [ ] T023 [P] [US3] Add table-driven test case "ADO: all markers stale → thread closed" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T024 [P] [US3] Add table-driven test case "ADO: some markers stale → thread NOT closed" in router/src/**tests**/comment-resolution.test.ts
+- [x] T023 [P] [US3] Add table-driven test case "ADO: all markers stale → thread closed" in router/src/**tests**/comment-resolution.test.ts
+- [x] T024 [P] [US3] Add table-driven test case "ADO: some markers stale → thread NOT closed" in router/src/**tests**/comment-resolution.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Update ADO resolution loop in router/src/report/ado.ts to use buildCommentToMarkersMap() instead of per-marker iteration
-- [ ] T026 [US3] Update ADO resolution loop to call shouldResolveComment() before closing any thread
-- [ ] T027 [US3] Add structured resolution log emission in router/src/report/ado.ts using emitResolutionLog() with event='comment_resolution'
-- [ ] T028 [US3] Verify GitHub and ADO use identical resolution semantics (same helper functions from resolution.ts)
+- [x] T025 [US3] Update ADO resolution loop in router/src/report/ado.ts to use buildCommentToMarkersMap() instead of per-marker iteration
+- [x] T026 [US3] Update ADO resolution loop to call shouldResolveComment() before closing any thread
+- [x] T027 [US3] Add structured resolution log emission in router/src/report/ado.ts using emitResolutionLog() with event='comment_resolution'
+- [x] T028 [US3] Verify GitHub and ADO use identical resolution semantics (same helper functions from resolution.ts)
 
 **Checkpoint**: GitHub and ADO both resolve grouped comments correctly with parity
 
@@ -126,15 +126,15 @@ Per plan.md, this is a single project with paths:
 
 ### Tests for User Story 4
 
-- [ ] T029 [P] [US4] Add table-driven test case "partial resolution → stale findings strikethrough, active unmarked" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T030 [P] [US4] Add table-driven test case "visual indication preserves fingerprint markers unchanged" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T031 [P] [US4] Add table-driven test case "all resolved one-by-one → each strikethrough, then entire comment resolved" in router/src/**tests**/comment-resolution.test.ts
+- [x] T029 [P] [US4] Add table-driven test case "partial resolution → stale findings strikethrough, active unmarked" in router/src/**tests**/comment-resolution.test.ts
+- [x] T030 [P] [US4] Add table-driven test case "visual indication preserves fingerprint markers unchanged" in router/src/**tests**/comment-resolution.test.ts
+- [x] T031 [P] [US4] Add table-driven test case "all resolved one-by-one → each strikethrough, then entire comment resolved" in router/src/**tests**/comment-resolution.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T032 [US4] Update GitHub comment update logic in router/src/report/github.ts to call applyPartialResolutionVisual() for grouped comments with partial resolution
-- [ ] T033 [US4] Update ADO thread update logic in router/src/report/ado.ts to call applyPartialResolutionVisual() for grouped threads with partial resolution
-- [ ] T034 [US4] Verify strikethrough uses Markdown format `~~text~~` and preserves all `<!-- -->` fingerprint markers
+- [x] T032 [US4] Update GitHub comment update logic in router/src/report/github.ts to call applyPartialResolutionVisual() for grouped comments with partial resolution
+- [x] T033 [US4] Update ADO thread update logic in router/src/report/ado.ts to call applyPartialResolutionVisual() for grouped threads with partial resolution
+- [x] T034 [US4] Verify strikethrough uses Markdown format `~~text~~` and preserves all `<!-- -->` fingerprint markers
 
 **Checkpoint**: All user stories complete - grouped and single comments resolve correctly with visual indication
 
@@ -144,12 +144,12 @@ Per plan.md, this is a single project with paths:
 
 **Purpose**: Handle edge cases and cross-cutting concerns
 
-- [ ] T035 [P] Add table-driven test case "proximity boundary: finding moves 20 lines → still same finding" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T036 [P] Add table-driven test case "proximity boundary: finding moves 21 lines → treated as new finding" in router/src/**tests**/comment-resolution.test.ts
-- [ ] T037 [P] Add table-driven test case "user content preserved during visual update" in router/src/**tests**/comment-resolution.test.ts (→ FR-019)
-- [ ] T038 Verify rate limiting preserved in both router/src/report/github.ts and router/src/report/ado.ts during resolution operations (→ FR-007, FR-018)
-- [ ] T039 Run full test suite: pnpm lint && pnpm typecheck && pnpm test
-- [ ] T040 Validate against quickstart.md success criteria checklist
+- [x] T035 [P] Add table-driven test case "proximity boundary: finding moves 20 lines → still same finding" in router/src/**tests**/comment-resolution.test.ts
+- [x] T036 [P] Add table-driven test case "proximity boundary: finding moves 21 lines → treated as new finding" in router/src/**tests**/comment-resolution.test.ts
+- [x] T037 [P] Add table-driven test case "user content preserved during visual update" in router/src/**tests**/comment-resolution.test.ts (→ FR-019)
+- [x] T038 Verify rate limiting preserved in both router/src/report/github.ts and router/src/report/ado.ts during resolution operations (→ FR-007, FR-018)
+- [x] T039 Run full test suite: pnpm lint && pnpm typecheck && pnpm test
+- [x] T040 Validate against quickstart.md success criteria checklist
 
 ---
 
