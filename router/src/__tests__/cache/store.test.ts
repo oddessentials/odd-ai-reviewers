@@ -248,6 +248,73 @@ describe('Cache Store', () => {
     });
   });
 
+  describe('cache key validation (security)', () => {
+    /**
+     * These tests verify the cache key validation rejects dangerous inputs.
+     * Each test class covers a specific injection/traversal vector.
+     */
+
+    it('should reject keys with forward slash (path separator)', async () => {
+      await expect(getCached('../etc/passwd')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo/bar')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with backslash (Windows path separator)', async () => {
+      await expect(getCached('..\\windows\\system32')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo\\bar')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with percent encoding (bypass attempts)', async () => {
+      await expect(getCached('%2e%2e%2f')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo%00bar')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with colon (Windows drive letters)', async () => {
+      await expect(getCached('C:foo')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('D:\\bar')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with dot-dot traversal sequences', async () => {
+      await expect(getCached('..')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo..bar')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('..foo')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with whitespace (injection vectors)', async () => {
+      await expect(getCached('foo bar')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo\tbar')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo\nbar')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo\rbar')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject keys with shell metacharacters (command injection)', async () => {
+      await expect(getCached('foo;rm -rf /')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo&whoami')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo|cat /etc/passwd')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo`id`bar')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo$HOME')).rejects.toThrow('Invalid cache key format');
+      await expect(getCached('foo$(id)')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject empty keys', async () => {
+      await expect(getCached('')).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should reject excessively long keys', async () => {
+      const longKey = 'a'.repeat(257);
+      await expect(getCached(longKey)).rejects.toThrow('Invalid cache key format');
+    });
+
+    it('should accept valid cache keys', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      // These should not throw (return null for missing cache is expected)
+      await expect(getCached('ai-review-v2-123-abc123def456')).resolves.toBeNull();
+      await expect(getCached('my-valid-cache-key')).resolves.toBeNull();
+      await expect(getCached('KEY123-with-MIXED-case')).resolves.toBeNull();
+    });
+  });
+
   describe('findCachedForPR validation (US2)', () => {
     it('should return null for legacy cache entry in fallback path', async () => {
       // Legacy format used success: boolean instead of status discriminant

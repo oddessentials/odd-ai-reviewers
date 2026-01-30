@@ -5,7 +5,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
-import { join, resolve } from 'path';
+import { join, resolve, sep } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
 import { AgentResultSchema } from '../agents/types.js';
@@ -52,13 +52,39 @@ function ensureCacheDir(): void {
 }
 
 /**
- * Validate cache key to prevent path traversal attacks.
- * Keys must be alphanumeric with dashes only (matching generateCacheKey output).
+ * Validate cache key to prevent path traversal and injection attacks.
+ *
+ * Keys must match the format from generateCacheKey(): ai-review-v{N}-{prNumber}-{hash}
+ * Only alphanumeric characters and dashes are allowed.
+ *
+ * SECURITY: Explicit rejection of dangerous characters (defense in depth):
+ * - Path separators: / \ (directory traversal)
+ * - URL encoding: % (bypass via encoding)
+ * - Drive letters: : (Windows absolute paths)
+ * - Traversal sequences: .. (parent directory access)
+ * - Whitespace and control chars (injection vectors)
+ * - Shell metacharacters: ; & | ` $ ( ) (command injection)
  */
 function isValidCacheKey(key: string): boolean {
-  // Cache keys from generateCacheKey are: ai-review-v{N}-{prNumber}-{hash}
-  // Only allow alphanumeric, dashes, no path separators or traversal
-  return /^[a-zA-Z0-9-]+$/.test(key) && !key.includes('..');
+  // Empty or excessively long keys are invalid
+  if (!key || key.length > 256) {
+    return false;
+  }
+
+  // Explicit rejection list (defense in depth)
+  const FORBIDDEN_CHARS = /[/\\%:\s;&|`$()]/;
+  if (FORBIDDEN_CHARS.test(key)) {
+    return false;
+  }
+
+  // Path traversal sequences
+  if (key.includes('..')) {
+    return false;
+  }
+
+  // Must match strict allowlist: alphanumeric + dashes only
+  // This matches generateCacheKey output: ai-review-v{N}-{prNumber}-{hash}
+  return /^[a-zA-Z0-9-]+$/.test(key);
 }
 
 /**
@@ -74,9 +100,10 @@ function getCacheFilePath(key: string): string {
   const filePath = join(cacheDir, `${key}.json`);
 
   // Ensure resolved path is under cache directory (defense in depth)
+  // Use cacheDir + sep to prevent prefix attacks (e.g., /cache vs /cache-evil)
   const resolvedPath = resolve(filePath);
   const resolvedCacheDir = resolve(cacheDir);
-  if (!resolvedPath.startsWith(resolvedCacheDir)) {
+  if (!resolvedPath.startsWith(resolvedCacheDir + sep)) {
     throw new Error(`Cache path traversal detected: ${key}`);
   }
 
