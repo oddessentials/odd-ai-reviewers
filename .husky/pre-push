@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 # Pre-push hook: Full CI-equivalent quality gates
 # Ensures nothing is pushed that will fail CI
+#
+# Uses `pnpm exec` for node_modules/.bin binaries to ensure
+# correct PATH resolution on Windows + Git Bash.
 
 set -e
 
@@ -8,26 +11,26 @@ echo "Running pre-push quality gates..."
 
 # 1. ESLint (zero-tolerance, matches CI)
 echo ">> Lint (strict)..."
-npm run lint:strict
+pnpm exec eslint . --max-warnings 0
 
 # 2. Prettier format check
 echo ">> Format check..."
-npm run format:check
+pnpm exec prettier --check .
 
 # 3. TypeScript type checking
 echo ">> TypeScript..."
-npm run typecheck
+pnpm exec tsc --noEmit
 
 # 4. Circular dependency check
 echo ">> Dependency analysis..."
-npm run depcruise
+pnpm exec depcruise router/src --config .dependency-cruiser.cjs
 
 # 5. Build verification
 echo ">> Build..."
-npm run build
+pnpm run build
 
 # 6. Run tests
 echo ">> Tests..."
-npm run test --workspace=router
+pnpm --filter router test
 
 echo "All pre-push checks passed!"
