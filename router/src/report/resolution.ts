@@ -287,6 +287,22 @@ export function emitResolutionLog(
 }
 
 /**
+ * Strip only our own fingerprint markers from a comment body
+ *
+ * Per spec FR-019: When modifying comment bodies, system MUST preserve all
+ * non-marker user-authored content byte-for-byte. This function removes only
+ * markers matching our specific format, preserving any other HTML comments.
+ *
+ * Pattern matched: <!-- odd-ai-reviewers:fingerprint:v1:FINGERPRINT:FILE:LINE -->
+ *
+ * @param body The comment body content
+ * @returns Body with our fingerprint markers removed
+ */
+export function stripOwnFingerprintMarkers(body: string): string {
+  return body.replace(/<!--\s*odd-ai-reviewers:fingerprint:v1:[^\s]+\s*-->\n?/g, '').trim();
+}
+
+/**
  * Emit a structured warning log for malformed markers
  *
  * Per spec FR-010: System MUST emit exactly one structured warning log entry

@@ -23,6 +23,7 @@ import {
   getPartiallyResolvedMarkers,
   hasMalformedMarkers,
   applyPartialResolutionVisual,
+  stripOwnFingerprintMarkers,
   emitResolutionLog,
   emitMalformedMarkerWarning,
   evaluateCommentResolution,
@@ -276,6 +277,84 @@ describe('applyPartialResolutionVisual', () => {
     const simpleBody = 'Just a simple comment without structured findings';
     const result = applyPartialResolutionVisual(simpleBody, [VALID_MARKER_A]);
     expect(result).toBe(simpleBody);
+  });
+});
+
+// =============================================================================
+// stripOwnFingerprintMarkers Tests (FR-019)
+// =============================================================================
+
+describe('stripOwnFingerprintMarkers', () => {
+  it('should remove our fingerprint markers', () => {
+    const body = `Some content
+<!-- odd-ai-reviewers:fingerprint:v1:abcdef1234567890abcdef1234567890:src/test.ts:10 -->
+More content`;
+
+    const result = stripOwnFingerprintMarkers(body);
+
+    expect(result).not.toContain('odd-ai-reviewers:fingerprint');
+    expect(result).toContain('Some content');
+    expect(result).toContain('More content');
+  });
+
+  it('should preserve user-added HTML comments', () => {
+    const body = `Some content
+<!-- User's note: This is important -->
+<!-- odd-ai-reviewers:fingerprint:v1:abcdef1234567890abcdef1234567890:src/test.ts:10 -->
+<!-- TODO: Review this later -->`;
+
+    const result = stripOwnFingerprintMarkers(body);
+
+    // Our marker should be removed
+    expect(result).not.toContain('odd-ai-reviewers:fingerprint');
+    // User comments should be preserved
+    expect(result).toContain("<!-- User's note: This is important -->");
+    expect(result).toContain('<!-- TODO: Review this later -->');
+  });
+
+  it('should preserve other HTML comment formats', () => {
+    const body = `Content
+<!--[if IE]>Special IE content<![endif]-->
+<!-- odd-ai-reviewers:fingerprint:v1:abcdef1234567890abcdef1234567890:src/test.ts:10 -->
+<!-- @author: developer -->`;
+
+    const result = stripOwnFingerprintMarkers(body);
+
+    expect(result).not.toContain('odd-ai-reviewers:fingerprint');
+    expect(result).toContain('<!--[if IE]>Special IE content<![endif]-->');
+    expect(result).toContain('<!-- @author: developer -->');
+  });
+
+  it('should handle multiple fingerprint markers', () => {
+    const body = `Content
+<!-- odd-ai-reviewers:fingerprint:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1:src/a.ts:10 -->
+<!-- odd-ai-reviewers:fingerprint:v1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2:src/b.ts:20 -->
+End`;
+
+    const result = stripOwnFingerprintMarkers(body);
+
+    expect(result).not.toContain('odd-ai-reviewers:fingerprint');
+    expect(result).toContain('Content');
+    expect(result).toContain('End');
+  });
+
+  it('should handle body with no markers', () => {
+    const body = 'Just plain text without any markers';
+    const result = stripOwnFingerprintMarkers(body);
+    expect(result).toBe(body);
+  });
+
+  it('should handle markers with varying whitespace', () => {
+    const body = `Content
+<!--odd-ai-reviewers:fingerprint:v1:abcdef1234567890abcdef1234567890:src/test.ts:10-->
+<!--  odd-ai-reviewers:fingerprint:v1:abcdef1234567890abcdef1234567890:src/test.ts:20  -->
+End`;
+
+    const result = stripOwnFingerprintMarkers(body);
+
+    expect(result).not.toContain('odd-ai-reviewers:fingerprint');
+    expect(result).toContain('Content');
+    expect(result).toContain('End');
   });
 });
 

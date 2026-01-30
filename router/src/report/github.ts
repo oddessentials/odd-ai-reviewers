@@ -26,6 +26,7 @@ import {
   getPartiallyResolvedMarkers,
   hasMalformedMarkers,
   applyPartialResolutionVisual,
+  stripOwnFingerprintMarkers,
   emitResolutionLog,
   emitMalformedMarkerWarning,
 } from './resolution.js';
@@ -500,6 +501,9 @@ async function postPRComment(
 
     try {
       // Get the existing comment to preserve its content
+      // Note: O(n) linear search is acceptable here - only called once per processed comment
+      // (not per marker), and processedCommentIds prevents duplicates. For enterprise PRs
+      // with 1000+ comments, consider indexing existingReviewComments.data by ID upfront.
       const existingComment = existingReviewComments.data.find((c) => c.id === commentIdToProcess);
       if (!existingComment?.body) continue;
 
@@ -510,8 +514,10 @@ async function postPRComment(
 
       if (shouldResolve) {
         // ALL markers are stale - resolve the entire comment
+        // Strip only our fingerprint markers, preserving any user-added HTML comments (FR-019)
+        const bodyWithoutOurMarkers = stripOwnFingerprintMarkers(existingComment.body);
         const resolvedBody =
-          `~~${existingComment.body.replace(/<!--[^>]*-->/g, '').trim()}~~\n\n` +
+          `~~${bodyWithoutOurMarkers}~~\n\n` +
           `✅ **Resolved** - This issue appears to have been fixed.\n\n` +
           allMarkersInComment
             .map((m) => `<!-- odd-ai-reviewers:fingerprint:v1:${m} -->`)

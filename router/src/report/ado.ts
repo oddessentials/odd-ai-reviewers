@@ -507,6 +507,9 @@ async function postPRThreads(
 
     try {
       // Get the existing thread to check its current content
+      // Note: O(n) linear search is acceptable here - only called once per processed thread
+      // (not per marker), and processedThreadIds prevents duplicates. For enterprise PRs
+      // with 1000+ threads, consider indexing existingThreadsData.value by ID upfront.
       const existingThread = existingThreadsData.value.find((t) => t.id === threadIdToProcess);
       const existingContent = existingThread?.comments[0]?.content ?? '';
 
