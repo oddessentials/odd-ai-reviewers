@@ -46,16 +46,3 @@ export const DEFAULT_AGENT_ICON = '🤖';
 export function getAgentIcon(agentId: string): string {
   return AGENT_ICONS[agentId] ?? DEFAULT_AGENT_ICON;
 }
-
-/**
- * Get the icon with agent ID tooltip hint for accessibility
- *
- * Returns format: "icon" which can be used in markdown/HTML contexts.
- * The agent ID is preserved in fingerprint markers for programmatic identification.
- *
- * @param agentId The agent identifier
- * @returns The display icon
- */
-export function getAgentDisplayIcon(agentId: string): string {
-  return getAgentIcon(agentId);
-}
