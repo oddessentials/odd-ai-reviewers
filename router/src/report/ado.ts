@@ -14,10 +14,10 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
-  generateFingerprint,
   buildProximityMap,
   isDuplicateByProximity,
   identifyStaleComments,
+  updateProximityMap,
 } from './formats.js';
 import {
   buildCommentToMarkersMap,
@@ -456,13 +456,8 @@ async function postPRThreads(
       const key = getDedupeKey(finding);
       existingFingerprintSet.add(key);
 
-      // FR-001: Also update proximityMap with same format as initial deduplication
-      // finding.file is already canonical from normalizeFindingsForDiff()
-      const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
-      const proximityKey = `${fingerprint}:${finding.file}`;
-      const existingLines = proximityMap.get(proximityKey) ?? [];
-      existingLines.push(finding.line ?? 0);
-      proximityMap.set(proximityKey, existingLines);
+      // FR-001: Update proximityMap using canonical pattern
+      updateProximityMap(proximityMap, finding);
 
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
