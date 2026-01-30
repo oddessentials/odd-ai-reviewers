@@ -11,7 +11,10 @@
  * Spec format for test coverage:
  *   **Test Coverage**: `path/to/test.test.ts`
  *
- * @see NEXT_STEPS.md - "Specs: make acceptance criteria provably testable"
+ * Exit codes:
+ *   0 - All links valid (or no specs found)
+ *   1 - Broken links detected
+ *   2 - Script error (file system, glob, etc.)
  */
 
 const { globSync } = require('glob');
@@ -21,7 +24,13 @@ const path = require('path');
 const specsPath = path.join(__dirname, '..', 'specs');
 
 // Find all spec.md files
-const specFiles = globSync('*/spec.md', { cwd: specsPath });
+let specFiles;
+try {
+  specFiles = globSync('*/spec.md', { cwd: specsPath });
+} catch (err) {
+  console.error(`[spec-linkcheck] ❌ Failed to scan specs directory: ${err.message}`);
+  process.exit(2);
+}
 
 if (specFiles.length === 0) {
   console.log('[spec-linkcheck] No spec.md files found in specs/');
@@ -47,7 +56,13 @@ const altTestPattern = /\bTest:\s*`([^`]+)`/g;
 
 for (const specFile of specFiles) {
   const fullPath = path.join(specsPath, specFile);
-  const specContent = fs.readFileSync(fullPath, 'utf-8');
+  let specContent;
+  try {
+    specContent = fs.readFileSync(fullPath, 'utf-8');
+  } catch (err) {
+    console.error(`[spec-linkcheck] ❌ Failed to read ${specFile}: ${err.message}`);
+    process.exit(2);
+  }
   const specDir = path.dirname(fullPath);
   const featureName = path.dirname(specFile);
 

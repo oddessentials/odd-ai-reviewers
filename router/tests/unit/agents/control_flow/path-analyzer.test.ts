@@ -567,6 +567,15 @@ describe('PathAnalyzer', () => {
 
   // ===========================================================================
   // maxNodesVisited Enforcement Tests
+  //
+  // Tests for the guardrail that limits CFG nodes visited per traversal.
+  // When the limit is exceeded, analysis returns 'unknown' classification
+  // to indicate incomplete analysis (fail-safe behavior).
+  //
+  // Design decisions validated here:
+  // 1. Counter is per-traversal, not shared across traversals
+  // 2. Boundary semantics: exactly at limit is allowed, limit+1 triggers fallback
+  // 3. 'unknown' classification does NOT assert safety - caller must handle
   // ===========================================================================
 
   describe('maxNodesVisited enforcement', () => {
@@ -751,6 +760,10 @@ describe('PathAnalyzer', () => {
     });
   });
 
+  // ===========================================================================
+  // TraversalState Factory Tests
+  // ===========================================================================
+
   describe('createTraversalState', () => {
     it('should create fresh state with zero nodesVisited', () => {
       const state = createTraversalState(1000);
@@ -768,6 +781,10 @@ describe('PathAnalyzer', () => {
       expect(state.maxNodesVisited).toBe(500);
     });
   });
+
+  // ===========================================================================
+  // visitNode Tests - Node Visit Counting
+  // ===========================================================================
 
   describe('visitNode', () => {
     it('should increment counter and return not reached', () => {
