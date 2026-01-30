@@ -16,6 +16,7 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
+  generateFingerprint,
   buildProximityMap,
   isDuplicateByProximity,
   identifyStaleComments,
@@ -167,8 +168,9 @@ export async function reportToGitHub(
       (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
     ) {
       // Build set of deleted files for belt-and-suspenders guard in postPRComment
+      // FR-003: Use canonicalFiles for path normalization consistency with findings
       const deletedFiles = new Set(
-        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+        canonicalFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
       );
       const result = await postPRComment(
         octokit,
@@ -445,6 +447,14 @@ async function postPRComment(
       for (const f of findingsInGroup) {
         const key = getDedupeKey(f);
         existingFingerprintSet.add(key);
+
+        // FR-001: Also update proximityMap with same format as initial deduplication
+        // f.file is already canonical from normalizeFindingsForDiff()
+        const fingerprint = f.fingerprint ?? generateFingerprint(f);
+        const proximityKey = `${fingerprint}:${f.file}`;
+        const existingLines = proximityMap.get(proximityKey) ?? [];
+        existingLines.push(f.line ?? 0);
+        proximityMap.set(proximityKey, existingLines);
       }
 
       // Rate limiting delay
@@ -490,12 +500,13 @@ async function postPRComment(
     const partiallyResolved = getPartiallyResolvedMarkers(allMarkersInComment, staleKeySet);
 
     // Emit resolution log (once per comment per run)
+    // FR-005: Simplified staleCount calculation for clarity
+    const staleCount = shouldResolve ? allMarkersInComment.length : partiallyResolved.length;
     emitResolutionLog(
       'github',
       commentIdToProcess,
       allMarkersInComment.length,
-      partiallyResolved.length +
-        (shouldResolve ? allMarkersInComment.length - partiallyResolved.length : 0),
+      staleCount,
       shouldResolve
     );
 

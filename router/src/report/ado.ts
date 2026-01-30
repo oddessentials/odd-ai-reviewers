@@ -14,6 +14,7 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
+  generateFingerprint,
   buildProximityMap,
   isDuplicateByProximity,
   identifyStaleComments,
@@ -170,8 +171,9 @@ export async function reportToADO(
     // Post PR threads if enabled
     if (reportingConfig.mode === 'threads_only' || reportingConfig.mode === 'threads_and_status') {
       // Build set of deleted files for belt-and-suspenders guard in postPRThreads
+      // FR-003: Use canonicalFiles for path normalization consistency with findings
       const deletedFiles = new Set(
-        diffFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+        canonicalFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
       );
       const result = await postPRThreads(
         context,
@@ -454,6 +456,14 @@ async function postPRThreads(
       const key = getDedupeKey(finding);
       existingFingerprintSet.add(key);
 
+      // FR-001: Also update proximityMap with same format as initial deduplication
+      // finding.file is already canonical from normalizeFindingsForDiff()
+      const fingerprint = finding.fingerprint ?? generateFingerprint(finding);
+      const proximityKey = `${fingerprint}:${finding.file}`;
+      const existingLines = proximityMap.get(proximityKey) ?? [];
+      existingLines.push(finding.line ?? 0);
+      proximityMap.set(proximityKey, existingLines);
+
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
     } catch (error) {
@@ -495,13 +505,13 @@ async function postPRThreads(
     // Get partially resolved markers for visual indication
     const partiallyResolved = getPartiallyResolvedMarkers(allMarkersInThread, staleKeySet);
 
-    // Emit resolution log (once per thread per run)
+    // FR-006: Simplified staleCount calculation for clarity (matches GitHub implementation)
+    const staleCount = shouldResolve ? allMarkersInThread.length : partiallyResolved.length;
     emitResolutionLog(
       'ado',
       threadIdToProcess,
       allMarkersInThread.length,
-      partiallyResolved.length +
-        (shouldResolve ? allMarkersInThread.length - partiallyResolved.length : 0),
+      staleCount,
       shouldResolve
     );
 
@@ -569,7 +579,18 @@ async function postPRThreads(
 }
 
 /**
- * Convert finding to ADO thread context for inline comments
+ * Convert finding to ADO thread context for inline comments.
+ *
+ * FR-010: ADO Path Format Intentionality
+ * The ADO API requires file paths with a leading slash (e.g., `/src/file.ts`) for thread context,
+ * while dedupe keys use normalized paths WITHOUT leading slashes (e.g., `src/file.ts`) to match
+ * the canonical format from normalizeFindingsForDiff(). This separation is intentional:
+ *
+ * - Thread context (filePath): ADO API requirement, must have leading slash
+ * - Dedupe keys (via getDedupeKey): Use canonical paths without leading slash for consistency
+ *   with finding.file values and cross-platform path normalization
+ *
+ * Do NOT "fix" this by normalizing both to the same format - they serve different purposes.
  */
 function toADOThreadContext(finding: Finding): {
   filePath: string;
@@ -579,6 +600,7 @@ function toADOThreadContext(finding: Finding): {
   if (!finding.line) return null;
 
   return {
+    // ADO API requires leading slash for file paths in thread context
     filePath: finding.file.startsWith('/') ? finding.file : `/${finding.file}`,
     rightFileStart: { line: finding.line, offset: 1 },
     rightFileEnd: { line: finding.endLine ?? finding.line, offset: 1 },

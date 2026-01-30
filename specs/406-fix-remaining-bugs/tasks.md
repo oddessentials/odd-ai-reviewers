@@ -23,8 +23,8 @@
 
 **Purpose**: Create test infrastructure for new regression tests
 
-- [ ] T001 Create test file skeleton for deduplication tests in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T002 [P] Verify existing tests pass before modifications by running `pnpm test`
+- [x] T001 Create test file skeleton for deduplication tests in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T002 [P] Verify existing tests pass before modifications by running `pnpm test`
 
 ---
 
@@ -46,15 +46,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T003 [P] [US1] Write test: proximityMap updated after posting in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T004 [P] [US1] Write test: second finding within threshold skipped in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T005 [P] [US1] Write test: findings outside threshold (50 lines) both posted in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T003 [P] [US1] Write test: proximityMap updated after posting in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T004 [P] [US1] Write test: second finding within threshold skipped in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T005 [P] [US1] Write test: findings outside threshold (50 lines) both posted in `router/src/__tests__/report/deduplication.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] Add proximityMap update after posting in `router/src/report/github.ts:444-448`
-- [ ] T007 [US1] Add proximityMap update after posting in `router/src/report/ado.ts:453-455`
-- [ ] T008 [US1] Verify tests pass for US1 by running `pnpm test -- --grep "proximityMap"`
+- [x] T006 [US1] Add proximityMap update after posting in `router/src/report/github.ts:444-448`
+- [x] T007 [US1] Add proximityMap update after posting in `router/src/report/ado.ts:453-455`
+- [x] T008 [US1] Verify tests pass for US1 by running `pnpm test -- --grep "proximityMap"`
 
 **Checkpoint**: ProximityMap updates working for both GitHub and ADO reporters
 
@@ -68,15 +68,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T009 [P] [US2] Write test: deleted file with `./` prefix filtered correctly in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T010 [P] [US2] Write test: deleted file without `./` prefix filtered correctly in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T011 [P] [US2] Write test: findings on modified files not filtered in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T009 [P] [US2] Write test: deleted file with `./` prefix filtered correctly in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T010 [P] [US2] Write test: deleted file without `./` prefix filtered correctly in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T011 [P] [US2] Write test: findings on modified files not filtered in `router/src/__tests__/report/deduplication.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Change deletedFiles construction to use canonicalFiles in `router/src/report/github.ts:170-172`
-- [ ] T013 [US2] Change deletedFiles construction to use canonicalFiles in `router/src/report/ado.ts:173-175`
-- [ ] T014 [US2] Verify tests pass for US2 by running `pnpm test -- --grep "deletedFiles"`
+- [x] T012 [US2] Change deletedFiles construction to use canonicalFiles in `router/src/report/github.ts:170-172`
+- [x] T013 [US2] Change deletedFiles construction to use canonicalFiles in `router/src/report/ado.ts:173-175`
+- [x] T014 [US2] Verify tests pass for US2 by running `pnpm test -- --grep "deletedFiles"`
 
 **Checkpoint**: Deleted file filtering works with all path format variations
 
@@ -90,15 +90,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] Write test: staleCount equals total when fully resolved in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T016 [P] [US3] Write test: staleCount equals partial count when partially resolved in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T017 [P] [US3] Write test: staleCount equals zero when no markers stale in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T015 [P] [US3] Write test: staleCount equals total when fully resolved in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T016 [P] [US3] Write test: staleCount equals partial count when partially resolved in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T017 [P] [US3] Write test: staleCount equals zero when no markers stale in `router/src/__tests__/report/deduplication.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Simplify staleCount calculation in `router/src/report/github.ts:497-500`
-- [ ] T019 [US3] Simplify staleCount calculation in `router/src/report/ado.ts:503-505`
-- [ ] T020 [US3] Verify tests pass for US3 and no regressions by running `pnpm test`
+- [x] T018 [US3] Simplify staleCount calculation in `router/src/report/github.ts:497-500`
+- [x] T019 [US3] Simplify staleCount calculation in `router/src/report/ado.ts:503-505`
+- [x] T020 [US3] Verify tests pass for US3 and no regressions by running `pnpm test`
 
 **Checkpoint**: StaleCount calculation is clear and behavior unchanged
 
@@ -112,12 +112,12 @@
 
 ### Tests for User Story 4
 
-- [ ] T021 [P] [US4] Write test: original entry not mutated after memoryCache.set in `router/src/__tests__/cache/store.test.ts`
+- [x] T021 [P] [US4] Write test: original entry not mutated after memoryCache.set in `router/src/__tests__/cache/store.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T022 [US4] Change to immutable update with spread operator in `router/src/cache/store.ts:165`
-- [ ] T023 [US4] Verify tests pass for US4 by running `pnpm test -- --grep "cache"`
+- [x] T022 [US4] Change to immutable update with spread operator in `router/src/cache/store.ts:165`
+- [x] T023 [US4] Verify tests pass for US4 by running `pnpm test -- --grep "cache"`
 
 **Checkpoint**: Cache entry updates are immutable
 
@@ -131,13 +131,13 @@
 
 ### Tests for User Story 5
 
-- [ ] T024 [P] [US5] Write test: empty capture group not added to markers array in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T025 [P] [US5] Write test: valid markers extracted correctly in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T024 [P] [US5] Write test: empty capture group not added to markers array in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T025 [P] [US5] Write test: valid markers extracted correctly in `router/src/__tests__/report/deduplication.test.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T026 [US5] Add guard before push in marker extraction in `router/src/report/resolution.ts:208`
-- [ ] T027 [US5] Verify tests pass for US5 by running `pnpm test -- --grep "marker"`
+- [x] T026 [US5] Add guard before push in marker extraction in `router/src/report/resolution.ts:208`
+- [x] T027 [US5] Verify tests pass for US5 by running `pnpm test -- --grep "marker"`
 
 **Checkpoint**: Marker extraction rejects empty strings at source
 
@@ -151,13 +151,13 @@
 
 ### Tests for User Story 6
 
-- [ ] T028 [P] [US6] Write test: ADO thread context uses leading slash format in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T029 [P] [US6] Write test: ADO dedupe key uses normalized format (no leading slash) in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T028 [P] [US6] Write test: ADO thread context uses leading slash format in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T029 [P] [US6] Write test: ADO dedupe key uses normalized format (no leading slash) in `router/src/__tests__/report/deduplication.test.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T030 [US6] Add documentation comment for ADO path handling in `router/src/report/ado.ts:582`
-- [ ] T031 [US6] Verify tests pass for US6 by running `pnpm test -- --grep "ADO"`
+- [x] T030 [US6] Add documentation comment for ADO path handling in `router/src/report/ado.ts:582`
+- [x] T031 [US6] Verify tests pass for US6 by running `pnpm test -- --grep "ADO"`
 
 **Checkpoint**: ADO path handling is documented and intentional separation verified
 
@@ -169,11 +169,11 @@
 
 ### Edge Case Tests
 
-- [ ] T032 [P] Write edge case test: finding without fingerprint gets one generated in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T033 [P] Write edge case test: findings at exactly LINE_PROXIMITY_THRESHOLD (20) are duplicates in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T034 [P] Write edge case test: deleted file with unicode path filtered in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T035 [P] Write edge case test: first finding populates empty proximityMap in `router/src/__tests__/report/deduplication.test.ts`
-- [ ] T036 [P] Write edge case test: grouped comment updates proximityMap for all findings in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T032 [P] Write edge case test: finding without fingerprint gets one generated in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T033 [P] Write edge case test: findings at exactly LINE_PROXIMITY_THRESHOLD (20) are duplicates in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T034 [P] Write edge case test: deleted file with unicode path filtered in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T035 [P] Write edge case test: first finding populates empty proximityMap in `router/src/__tests__/report/deduplication.test.ts`
+- [x] T036 [P] Write edge case test: grouped comment updates proximityMap for all findings in `router/src/__tests__/report/deduplication.test.ts`
 
 **Checkpoint**: All 5 edge case regression tests passing
 
@@ -183,11 +183,11 @@
 
 **Purpose**: Final verification and cleanup
 
-- [ ] T037 Run full test suite to verify no regressions by running `pnpm test`
-- [ ] T038 [P] Run linter to verify code style by running `pnpm lint`
-- [ ] T039 [P] Run type checker to verify no type errors by running `pnpm typecheck`
-- [ ] T040 Verify test counts: minimum 6 user story tests + 5 edge case tests = 11 total new tests
-- [ ] T041 Run quickstart.md validation commands
+- [x] T037 Run full test suite to verify no regressions by running `pnpm test`
+- [x] T038 [P] Run linter to verify code style by running `pnpm lint`
+- [x] T039 [P] Run type checker to verify no type errors by running `pnpm typecheck`
+- [x] T040 Verify test counts: minimum 6 user story tests + 5 edge case tests = 11 total new tests
+- [x] T041 Run quickstart.md validation commands
 
 ---
 
