@@ -20,6 +20,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - File-based cache in `.ai-review-cache` directory; JSONL format with TTL (012-fix-agent-result-regressions)
 - TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing) (405-fix-grouped-comment-resolution)
 - N/A (stateless per run) (405-fix-grouped-comment-resolution)
+- TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing), Zod (schema validation) (406-fix-remaining-bugs)
+- N/A (stateless per run; file-based cache exists but not modified for core fixes) (406-fix-remaining-bugs)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -47,9 +49,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 406-fix-remaining-bugs: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing), Zod (schema validation)
 - 405-fix-grouped-comment-resolution: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing)
 - 012-fix-agent-result-regressions: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Vitest 4.x (testing)
-- 011-agent-result-unions: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Vitest 4.x (testing)
 
 
 
