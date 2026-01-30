@@ -14,7 +14,19 @@ import {
   countBySeverity,
   extractFingerprintMarkers,
   getDedupeKey,
+  buildProximityMap,
+  isDuplicateByProximity,
+  identifyStaleComments,
 } from './formats.js';
+import {
+  buildCommentToMarkersMap,
+  shouldResolveComment,
+  getPartiallyResolvedMarkers,
+  hasMalformedMarkers,
+  applyPartialResolutionVisual,
+  emitResolutionLog,
+  emitMalformedMarkerWarning,
+} from './resolution.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
 import { delay, INLINE_COMMENT_DELAY_MS, formatInlineComment } from './base.js';
@@ -360,16 +372,22 @@ async function postPRThreads(
     console.log(`[ado] Created new summary thread ${threadId}`);
   }
 
-  // Build set of existing comment fingerprints from all threads
-  const existingFingerprints = new Set<string>();
+  // Build set of existing comment fingerprints and map to thread IDs for resolution
+  const existingDedupeKeys: string[] = [];
+  const dedupeKeyToThreadId = new Map<string, number>();
   for (const thread of existingThreadsData.value) {
     for (const comment of thread.comments) {
       const markers = extractFingerprintMarkers(comment.content);
       for (const marker of markers) {
-        existingFingerprints.add(marker);
+        existingDedupeKeys.push(marker);
+        dedupeKeyToThreadId.set(marker, thread.id);
       }
     }
   }
+
+  // Build proximity-based deduplication structures
+  const existingFingerprintSet = new Set<string>(existingDedupeKeys);
+  const proximityMap = buildProximityMap(existingDedupeKeys);
 
   // Filter findings for inline comments
   // Belt-and-suspenders: also filter out deleted files (should already be file-level)
@@ -389,10 +407,11 @@ async function postPRThreads(
   for (const finding of inlineFindings) {
     if (postedCount >= maxInlineComments) break;
 
-    const fingerprint = getDedupeKey(finding);
-
-    // Skip if already posted
-    if (existingFingerprints.has(fingerprint)) {
+    // Use proximity-based deduplication: skip if finding is a duplicate
+    // A finding is a duplicate if:
+    // 1. Exact dedupe key match (same fingerprint + file + line), OR
+    // 2. Same fingerprint+file within LINE_PROXIMITY_THRESHOLD lines
+    if (isDuplicateByProximity(finding, existingFingerprintSet, proximityMap)) {
       skippedDuplicates++;
       continue;
     }
@@ -432,7 +451,8 @@ async function postPRThreads(
       }
 
       postedCount++;
-      existingFingerprints.add(fingerprint);
+      const key = getDedupeKey(finding);
+      existingFingerprintSet.add(key);
 
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
@@ -441,8 +461,108 @@ async function postPRThreads(
     }
   }
 
+  // Resolve stale threads (threads for issues that no longer exist)
+  // FIX: Use grouped comment resolution - only resolve when ALL markers are stale
+  const staleKeys = identifyStaleComments(existingDedupeKeys, findings);
+  const staleKeySet = new Set(staleKeys);
+
+  // Build reverse map: threadId -> all markers in that thread
+  const threadIdToMarkers = buildCommentToMarkersMap(dedupeKeyToThreadId);
+
+  // Track which threads we've already processed to avoid duplicate API calls
+  const processedThreadIds = new Set<number>();
+  let resolvedCount = 0;
+  let partiallyResolvedCount = 0;
+
+  // Process each thread that has at least one stale marker
+  for (const staleKey of staleKeys) {
+    const threadIdToProcess = dedupeKeyToThreadId.get(staleKey);
+    if (!threadIdToProcess || processedThreadIds.has(threadIdToProcess)) continue;
+
+    processedThreadIds.add(threadIdToProcess);
+
+    // Get ALL markers for this thread
+    const allMarkersInThread = threadIdToMarkers.get(threadIdToProcess) ?? [];
+
+    // Emit warning if any markers are malformed (FR-010: exactly one warning per thread)
+    if (hasMalformedMarkers(allMarkersInThread)) {
+      emitMalformedMarkerWarning('ado', threadIdToProcess);
+    }
+
+    // Check if thread should be resolved (ALL markers must be stale)
+    const shouldResolve = shouldResolveComment(allMarkersInThread, staleKeySet);
+
+    // Get partially resolved markers for visual indication
+    const partiallyResolved = getPartiallyResolvedMarkers(allMarkersInThread, staleKeySet);
+
+    // Emit resolution log (once per thread per run)
+    emitResolutionLog(
+      'ado',
+      threadIdToProcess,
+      allMarkersInThread.length,
+      partiallyResolved.length +
+        (shouldResolve ? allMarkersInThread.length - partiallyResolved.length : 0),
+      shouldResolve
+    );
+
+    try {
+      // Get the existing thread to check its current content
+      // Note: O(n) linear search is acceptable here - only called once per processed thread
+      // (not per marker), and processedThreadIds prevents duplicates. For enterprise PRs
+      // with 1000+ threads, consider indexing existingThreadsData.value by ID upfront.
+      const existingThread = existingThreadsData.value.find((t) => t.id === threadIdToProcess);
+      const existingContent = existingThread?.comments[0]?.content ?? '';
+
+      // Skip if already marked as fully resolved
+      if (existingContent.includes('✅ **Resolved**')) {
+        continue;
+      }
+
+      if (shouldResolve) {
+        // ALL markers are stale - close the thread (status 4 = Closed in ADO)
+        const response = await fetch(`${baseUrl}/threads/${threadIdToProcess}?api-version=7.1`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${context.token}`,
+          },
+          body: JSON.stringify({ status: 4 }), // 4 = Closed
+        });
+
+        if (response.ok) {
+          resolvedCount++;
+        }
+      } else if (partiallyResolved.length > 0 && existingContent) {
+        // Only SOME markers are stale - apply visual indication (strikethrough)
+        const updatedContent = applyPartialResolutionVisual(existingContent, partiallyResolved);
+
+        // Only update if the content actually changed
+        if (updatedContent !== existingContent) {
+          const response = await fetch(`${baseUrl}/threads/${threadIdToProcess}?api-version=7.1`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${context.token}`,
+            },
+            body: JSON.stringify({
+              comments: [{ id: 1, content: updatedContent }],
+            }),
+          });
+
+          if (response.ok) {
+            partiallyResolvedCount++;
+          }
+        }
+      }
+
+      await delay(INLINE_COMMENT_DELAY_MS);
+    } catch (error) {
+      console.warn(`[ado] Failed to resolve/update thread ${threadIdToProcess}: ${error}`);
+    }
+  }
+
   console.log(
-    `[ado] Posted ${postedCount} inline comments (skipped ${skippedDuplicates} duplicates)`
+    `[ado] Posted ${postedCount} inline comments, skipped ${skippedDuplicates} duplicates, resolved ${resolvedCount} threads, ${partiallyResolvedCount} partially resolved`
   );
 
   return { threadId, skippedDuplicates };
