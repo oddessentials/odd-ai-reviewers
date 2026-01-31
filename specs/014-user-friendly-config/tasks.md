@@ -107,19 +107,19 @@
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Add test case "wizard refuses in non-TTY without --defaults" in router/src/**tests**/config-wizard.test.ts
-- [ ] T030 [P] [US3] Add test case "wizard generates valid YAML with --defaults flag" in router/src/**tests**/config-wizard.test.ts
-- [ ] T031 [P] [US3] Add test case "wizard YAML has deterministic key ordering" in router/src/**tests**/config-wizard.test.ts
-- [ ] T032 [P] [US3] Add test case "wizard prompts for all 3 Azure values together" in router/src/**tests**/config-wizard.test.ts
+- [x] T029 [P] [US3] Add test case "wizard refuses in non-TTY without --defaults" in router/src/**tests**/config-wizard.test.ts
+- [x] T030 [P] [US3] Add test case "wizard generates valid YAML with --defaults flag" in router/src/**tests**/config-wizard.test.ts
+- [x] T031 [P] [US3] Add test case "wizard YAML has deterministic key ordering" in router/src/**tests**/config-wizard.test.ts
+- [x] T032 [P] [US3] Add test case "wizard prompts for all 3 Azure values together" in router/src/**tests**/config-wizard.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Create router/src/cli/config-wizard.ts with TTY check and --defaults/--yes flags
-- [ ] T034 [US3] Implement platform prompt (GitHub/Azure DevOps) in router/src/cli/config-wizard.ts
-- [ ] T035 [US3] Implement provider prompt with Azure 3-value handling in router/src/cli/config-wizard.ts
-- [ ] T036 [US3] Implement agent selection prompt in router/src/cli/config-wizard.ts
-- [ ] T037 [US3] Implement deterministic YAML generation with stable key ordering in router/src/cli/config-wizard.ts
-- [ ] T038 [US3] Add `config init` subcommand to router/src/main.ts
+- [x] T033 [US3] Create router/src/cli/config-wizard.ts with TTY check and --defaults/--yes flags
+- [x] T034 [US3] Implement platform prompt (GitHub/Azure DevOps) in router/src/cli/config-wizard.ts
+- [x] T035 [US3] Implement provider prompt with Azure 3-value handling in router/src/cli/config-wizard.ts
+- [x] T036 [US3] Implement agent selection prompt in router/src/cli/config-wizard.ts
+- [x] T037 [US3] Implement deterministic YAML generation with stable key ordering in router/src/cli/config-wizard.ts
+- [x] T038 [US3] Add `config init` subcommand to router/src/main.ts
 
 **Checkpoint**: Config wizard generates valid configs for all provider combinations
 

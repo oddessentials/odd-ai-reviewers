@@ -96,6 +96,105 @@ program
     }
   });
 
+// Config init command (T038 - User Story 3)
+const configCommand = program.command('config').description('Configuration management commands');
+
+configCommand
+  .command('init')
+  .description('Generate a new .ai-review.yml configuration file')
+  .option('--defaults', 'Use default settings without prompts')
+  .option('--yes', 'Alias for --defaults')
+  .option('--provider <provider>', 'LLM provider (openai, anthropic, azure-openai, ollama)')
+  .option('--platform <platform>', 'Platform (github, ado)', 'github')
+  .option('--output <path>', 'Output file path', '.ai-review.yml')
+  .action(async (options) => {
+    const configWizard = await import('./cli/config-wizard.js');
+    const { writeFile } = await import('fs/promises');
+    const { existsSync } = await import('fs');
+
+    const useDefaults = options.defaults || options.yes;
+
+    // Check TTY for interactive mode
+    if (!useDefaults && !configWizard.isInteractiveTerminal()) {
+      console.error('[config init] Interactive mode requires a TTY terminal.');
+      console.error('Use --defaults or --yes flag for non-interactive mode.');
+      defaultExitHandler(1);
+    }
+
+    // For now, require --defaults in non-interactive mode
+    // Full interactive prompts can be added in a future enhancement
+    if (!useDefaults) {
+      console.error('[config init] Interactive prompts not yet implemented.');
+      console.error('Use --defaults flag with --provider and --platform options.');
+      defaultExitHandler(1);
+    }
+
+    // Validate provider option
+    const validProviders = ['openai', 'anthropic', 'azure-openai', 'ollama'] as const;
+    const provider = (options.provider || 'openai') as (typeof validProviders)[number];
+    if (!validProviders.includes(provider)) {
+      console.error(`[config init] Invalid provider: ${options.provider}`);
+      console.error(`Valid providers: ${validProviders.join(', ')}`);
+      defaultExitHandler(1);
+    }
+
+    // Validate platform option
+    const validPlatforms = ['github', 'ado'] as const;
+    const platform = (options.platform || 'github') as (typeof validPlatforms)[number];
+    if (!validPlatforms.includes(platform)) {
+      console.error(`[config init] Invalid platform: ${options.platform}`);
+      console.error(`Valid platforms: ${validPlatforms.join(', ')}`);
+      defaultExitHandler(1);
+    }
+
+    // Default agents based on provider
+    const agents =
+      provider === 'ollama'
+        ? (['semgrep', 'local_llm'] as const)
+        : (['semgrep', 'opencode'] as const);
+
+    // Check if output file already exists
+    if (existsSync(options.output)) {
+      console.error(`[config init] File already exists: ${options.output}`);
+      console.error('Remove the existing file or specify a different --output path.');
+      defaultExitHandler(1);
+    }
+
+    // Generate config - spread agents to create mutable array
+    const agentList = [...agents];
+    const yaml = configWizard.generateConfigYaml({
+      provider,
+      platform,
+      agents: agentList,
+      useDefaults: true,
+    });
+
+    // Write to file
+    await writeFile(options.output, yaml, 'utf-8');
+    console.log(`[config init] Created ${options.output}`);
+    console.log(`[config init] Provider: ${provider}`);
+    console.log(`[config init] Platform: ${platform}`);
+
+    if (provider === 'azure-openai') {
+      console.log('\n[config init] Azure OpenAI requires these environment variables:');
+      console.log('  AZURE_OPENAI_API_KEY');
+      console.log('  AZURE_OPENAI_ENDPOINT');
+      console.log('  AZURE_OPENAI_DEPLOYMENT');
+      console.log('  MODEL=<your-deployment-name>');
+    } else if (provider === 'openai') {
+      console.log('\n[config init] Set OPENAI_API_KEY to use OpenAI.');
+      console.log('  Default model (gpt-4o) will be auto-applied if MODEL is not set.');
+    } else if (provider === 'anthropic') {
+      console.log('\n[config init] Set ANTHROPIC_API_KEY to use Anthropic.');
+      console.log(
+        '  Default model (claude-sonnet-4-20250514) will be auto-applied if MODEL is not set.'
+      );
+    } else if (provider === 'ollama') {
+      console.log('\n[config init] Ollama will use http://ollama-sidecar:11434 by default.');
+      console.log('  Set OLLAMA_BASE_URL to use a different Ollama endpoint.');
+    }
+  });
+
 /**
  * Options for the review command
  */
