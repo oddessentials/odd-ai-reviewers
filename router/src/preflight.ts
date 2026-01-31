@@ -652,6 +652,40 @@ export function validateExplicitProviderKeys(
   }
 
   const provider = config.provider;
+
+  // FR-005, FR-006: Ollama provider has special handling - OLLAMA_BASE_URL is optional
+  // because it defaults to http://localhost:11434
+  if (provider === 'ollama') {
+    const ollamaUrl = env['OLLAMA_BASE_URL'];
+
+    // FR-007: If OLLAMA_BASE_URL is set, validate URL format (scheme + host)
+    if (ollamaUrl && ollamaUrl.trim() !== '') {
+      try {
+        const parsed = new URL(ollamaUrl);
+        // Ensure it has a valid scheme (http or https)
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          errors.push(
+            `Invalid OLLAMA_BASE_URL: '${ollamaUrl}'\n` +
+              `  Must use http:// or https:// scheme (e.g., http://localhost:11434)`
+          );
+        }
+      } catch {
+        // URL parsing failed - invalid format
+        errors.push(
+          `Invalid OLLAMA_BASE_URL format: '${ollamaUrl}'\n` +
+            `  Must be a valid URL (e.g., http://localhost:11434)`
+        );
+      }
+    }
+    // FR-008: Connectivity is checked at runtime, not preflight
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  // Non-Ollama providers: check required keys
   const requiredKeys = PROVIDER_KEY_MAPPING[provider];
 
   // Check if all required keys are present

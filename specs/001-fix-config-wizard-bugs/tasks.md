@@ -76,16 +76,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Add test in `router/src/__tests__/preflight.test.ts`: Ollama provider passes validation without OLLAMA_BASE_URL (FR-005, FR-006)
-- [ ] T018 [P] [US2] Add test: Ollama with invalid URL format fails preflight with clear error (FR-007)
-- [ ] T019 [P] [US2] Add test: Ollama with valid but unreachable URL passes preflight (FR-008)
-- [ ] T020 [P] [US2] Add test: `config init --defaults --provider ollama` generates valid config
+- [x] T017 [P] [US2] Add test in `router/src/__tests__/preflight.test.ts`: Ollama provider passes validation without OLLAMA_BASE_URL (FR-005, FR-006)
+- [x] T018 [P] [US2] Add test: Ollama with invalid URL format fails preflight with clear error (FR-007)
+- [x] T019 [P] [US2] Add test: Ollama with valid but unreachable URL passes preflight (FR-008)
+- [x] T020 [P] [US2] Add test: `config init --defaults --provider ollama` generates valid config
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Modify `validateExplicitProviderKeys` in `router/src/preflight.ts` to skip OLLAMA_BASE_URL requirement for `provider: ollama` (FR-005)
-- [ ] T022 [US2] Add URL format validation (scheme + host check) when OLLAMA_BASE_URL is explicitly set (FR-007)
-- [ ] T023 [US2] Ensure validateOllamaConfig continues to return valid:true for format-valid URLs (FR-008)
+- [x] T021 [US2] Modify `validateExplicitProviderKeys` in `router/src/preflight.ts` to skip OLLAMA_BASE_URL requirement for `provider: ollama` (FR-005)
+- [x] T022 [US2] Add URL format validation (scheme + host check) when OLLAMA_BASE_URL is explicitly set (FR-007)
+- [x] T023 [US2] Ensure validateOllamaConfig continues to return valid:true for format-valid URLs (FR-008)
 
 **Checkpoint**: Ollama users can validate configs without explicit OLLAMA_BASE_URL
 

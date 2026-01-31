@@ -15,6 +15,7 @@ import {
   validateProviderModelCompatibility,
   validateAzureDeployment,
   countProvidersWithKeys,
+  validateExplicitProviderKeys,
   DEFAULT_MODELS,
 } from '../preflight.js';
 import type { Config, LlmProvider } from '../config.js';
@@ -1307,6 +1308,160 @@ describe('User Story 2: Actionable Error Messages', () => {
       expect(keyCount).toBe(0);
 
       // Placeholder for validateExplicitProviderKeys implementation
+    });
+  });
+});
+
+/**
+ * Feature 001: Fix Config Wizard Validation Bugs
+ * User Story 2: Ollama Provider Accepts Default URL (Priority: P2)
+ *
+ * Tests that Ollama provider validates without requiring OLLAMA_BASE_URL.
+ * OLLAMA_BASE_URL is optional because it defaults to http://localhost:11434.
+ */
+describe('Feature 001: Ollama URL Validation (US2)', () => {
+  function createOllamaProviderConfig(): Config {
+    return {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'local-ai',
+          agents: ['local_llm'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+      },
+      models: {},
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error' },
+      path_filters: { include: ['**/*'], exclude: [] },
+      provider: 'ollama',
+    };
+  }
+
+  describe('T017: Ollama provider passes validation without OLLAMA_BASE_URL (FR-005, FR-006)', () => {
+    it('should pass validation when provider: ollama and OLLAMA_BASE_URL not set', () => {
+      const config = createOllamaProviderConfig();
+      const env = {}; // No OLLAMA_BASE_URL
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      // FR-005: OLLAMA_BASE_URL is optional when provider: ollama
+      // FR-006: System uses default http://localhost:11434
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should pass validation when provider: ollama and OLLAMA_BASE_URL is set', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'http://custom-ollama:11434' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('T018: Ollama with invalid URL format fails preflight (FR-007)', () => {
+    it('should fail validation when OLLAMA_BASE_URL is set to invalid URL format', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'not-a-url' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      // FR-007: Invalid URL format is a preflight error
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain('OLLAMA_BASE_URL');
+    });
+
+    it('should fail validation when OLLAMA_BASE_URL is missing scheme', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'localhost:11434' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OLLAMA_BASE_URL');
+    });
+
+    it('should fail validation when OLLAMA_BASE_URL is just a hostname', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'ollama-server' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe('T019: Ollama with valid but unreachable URL passes preflight (FR-008)', () => {
+    it('should pass validation when OLLAMA_BASE_URL is valid format but unreachable', () => {
+      const config = createOllamaProviderConfig();
+      // Valid URL format, but the host doesn't exist
+      const env = { OLLAMA_BASE_URL: 'http://nonexistent-host.local:11434' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      // FR-008: Connectivity is checked at runtime, not preflight
+      expect(result.valid).toBe(true);
+    });
+
+    it('should pass validation for localhost URL', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'http://localhost:11434' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('should pass validation for HTTPS URL', () => {
+      const config = createOllamaProviderConfig();
+      const env = { OLLAMA_BASE_URL: 'https://ollama.example.com:443' };
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('Existing provider validation still works', () => {
+    it('should still require OPENAI_API_KEY for provider: openai', () => {
+      const config: Config = {
+        ...createOllamaProviderConfig(),
+        provider: 'openai',
+      };
+      const env = {}; // No OPENAI_API_KEY
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OPENAI_API_KEY');
+    });
+
+    it('should still require ANTHROPIC_API_KEY for provider: anthropic', () => {
+      const config: Config = {
+        ...createOllamaProviderConfig(),
+        provider: 'anthropic',
+      };
+      const env = {}; // No ANTHROPIC_API_KEY
+
+      const result = validateExplicitProviderKeys(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('ANTHROPIC_API_KEY');
     });
   });
 });
