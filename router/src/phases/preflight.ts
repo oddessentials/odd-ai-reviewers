@@ -30,6 +30,8 @@ import {
 export interface PreflightResult {
   valid: boolean;
   errors: string[];
+  /** Warnings that do not block execution (FR-020: warnings never cause non-zero exit) */
+  warnings: string[];
   /** Resolved config tuple for logging (FR-011) */
   resolved?: ResolvedConfigTuple;
 }
@@ -61,6 +63,7 @@ export function runPreflightChecks(
   configPath?: string
 ): PreflightResult {
   const allErrors: string[] = [];
+  const allWarnings: string[] = [];
 
   // 1. Agent secrets validation
   const secretsCheck = validateAgentSecrets(config, env);
@@ -155,6 +158,7 @@ export function runPreflightChecks(
   return {
     valid: allErrors.length === 0,
     errors: allErrors,
+    warnings: allWarnings,
     resolved: resolvedTuple,
   };
 }

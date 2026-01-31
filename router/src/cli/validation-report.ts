@@ -87,6 +87,11 @@ export function formatValidationReport(result: PreflightResult): ValidationRepor
     }
   }
 
+  // Include warnings from PreflightResult.warnings (FR-020: warnings never block execution)
+  if (result.warnings) {
+    warnings.push(...result.warnings);
+  }
+
   return {
     errors,
     warnings,

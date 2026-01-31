@@ -37,6 +37,7 @@ describe('formatValidationReport', () => {
       const preflightResult: PreflightResult = {
         valid: true,
         errors: ['WARNING: Legacy key detected', 'WARNING: deprecated field used'],
+        warnings: [],
         resolved: createMockResolved({
           provider: 'openai',
           model: 'gpt-4o',
@@ -57,6 +58,7 @@ describe('formatValidationReport', () => {
       const preflightResult: PreflightResult = {
         valid: true,
         errors: ['Using deprecated config format'],
+        warnings: [],
         resolved: createMockResolved({
           provider: 'anthropic',
           model: 'claude-sonnet-4-20250514',
@@ -76,6 +78,7 @@ describe('formatValidationReport', () => {
       const preflightResult: PreflightResult = {
         valid: false,
         errors: ['Missing required API key', 'Invalid provider configuration'],
+        warnings: [],
         resolved: undefined,
       };
 
@@ -97,6 +100,7 @@ describe('formatValidationReport', () => {
           'Invalid config schema',
           'Using deprecated field',
         ],
+        warnings: [],
         resolved: undefined,
       };
 
@@ -117,6 +121,7 @@ describe('formatValidationReport', () => {
       const preflightResult: PreflightResult = {
         valid: true,
         errors: ['WARNING: Minor issue'],
+        warnings: [],
         resolved: createMockResolved({
           provider: 'openai',
           model: 'gpt-4o',
@@ -140,12 +145,60 @@ describe('formatValidationReport', () => {
       const preflightResult: PreflightResult = {
         valid: true,
         errors: [],
+        warnings: [],
         resolved,
       };
 
       const report = formatValidationReport(preflightResult);
 
       expect(report.resolved).toEqual(resolved);
+    });
+
+    // T007 integration test: PreflightResult.warnings → ValidationReport.warnings
+    it('should include warnings from PreflightResult.warnings array (FR-020)', () => {
+      const preflightResult: PreflightResult = {
+        valid: true,
+        errors: [],
+        warnings: [
+          'Neither GitHub nor ADO environment detected. Checked: GITHUB_ACTIONS, TF_BUILD, SYSTEM_TEAMFOUNDATIONCOLLECTIONURI',
+        ],
+        resolved: createMockResolved({
+          provider: 'openai',
+          model: 'gpt-4o',
+          keySource: 'OPENAI_API_KEY',
+        }),
+      };
+
+      const report = formatValidationReport(preflightResult);
+
+      expect(report.warnings).toHaveLength(1);
+      expect(report.warnings).toContain(
+        'Neither GitHub nor ADO environment detected. Checked: GITHUB_ACTIONS, TF_BUILD, SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'
+      );
+      expect(report.errors).toHaveLength(0);
+      expect(report.valid).toBe(true);
+    });
+
+    it('should combine error-categorized warnings with PreflightResult.warnings', () => {
+      const preflightResult: PreflightResult = {
+        valid: true,
+        errors: ['WARNING: Legacy config format'],
+        warnings: ['Platform environment not detected'],
+        resolved: createMockResolved({
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-20250514',
+          keySource: 'ANTHROPIC_API_KEY',
+        }),
+      };
+
+      const report = formatValidationReport(preflightResult);
+
+      // Both sources of warnings should be combined
+      expect(report.warnings).toHaveLength(2);
+      expect(report.warnings).toContain('WARNING: Legacy config format');
+      expect(report.warnings).toContain('Platform environment not detected');
+      expect(report.errors).toHaveLength(0);
+      expect(report.valid).toBe(true);
     });
   });
 });
