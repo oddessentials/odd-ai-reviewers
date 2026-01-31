@@ -53,10 +53,13 @@ export function generateDefaultConfig(
   agents: AgentId[]
 ): Config {
   // Separate static analysis agents from AI agents
-  const staticAgents = agents.filter((a) => a === 'semgrep' || a === 'reviewdog');
-  const aiAgents = agents.filter(
-    (a) => a !== 'semgrep' && a !== 'reviewdog' && a !== 'control_flow'
-  );
+  // T044: Sort agents alphabetically for byte-stable YAML output
+  const staticAgents = agents
+    .filter((a) => a === 'semgrep' || a === 'reviewdog')
+    .sort() as AgentId[];
+  const aiAgents = agents
+    .filter((a) => a !== 'semgrep' && a !== 'reviewdog' && a !== 'control_flow')
+    .sort() as AgentId[];
 
   // Build passes array
   const passes: Config['passes'] = [];
@@ -65,7 +68,7 @@ export function generateDefaultConfig(
   if (staticAgents.length > 0) {
     passes.push({
       name: 'static',
-      agents: staticAgents as AgentId[],
+      agents: staticAgents,
       enabled: true,
       required: true,
     });
@@ -75,7 +78,7 @@ export function generateDefaultConfig(
   if (aiAgents.length > 0) {
     passes.push({
       name: 'ai',
-      agents: aiAgents as AgentId[],
+      agents: aiAgents,
       enabled: true,
       required: false,
     });
@@ -239,4 +242,18 @@ export const AVAILABLE_PROVIDERS: { id: Provider; name: string; description: str
     description: 'Azure-hosted OpenAI (requires deployment name)',
   },
   { id: 'ollama', name: 'Ollama', description: 'Local models (default: codellama:7b)' },
+];
+
+/**
+ * Available platforms for selection in the wizard.
+ * Feature 015: Config Wizard interactive prompts.
+ */
+export const AVAILABLE_PLATFORMS: {
+  id: 'github' | 'ado' | 'both';
+  name: string;
+  description: string;
+}[] = [
+  { id: 'github', name: 'GitHub', description: 'GitHub.com or GitHub Enterprise' },
+  { id: 'ado', name: 'Azure DevOps', description: 'Azure DevOps Services or Server' },
+  { id: 'both', name: 'Both', description: 'Support both GitHub and Azure DevOps' },
 ];

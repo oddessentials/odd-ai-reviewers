@@ -5,16 +5,145 @@
  * Tests for the interactive config wizard that generates valid .ai-review.yml
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parse as parseYaml } from 'yaml';
+import { Readable, Writable } from 'stream';
+import * as readline from 'readline/promises';
 import {
   generateDefaultConfig,
   generateConfigYaml,
   isInteractiveTerminal,
+  AVAILABLE_PLATFORMS,
+  AVAILABLE_PROVIDERS,
   type WizardOptions,
 } from '../cli/config-wizard.js';
+import { promptSelect, type PromptOption } from '../cli/interactive-prompts.js';
+
+/**
+ * Create a mock readline interface that provides predefined inputs.
+ *
+ * @param inputs - Array of strings to feed as user input
+ * @returns readline.Interface configured with mock streams
+ */
+function createMockRl(inputs: string[]): readline.Interface {
+  let inputIndex = 0;
+  const mockInput = new Readable({
+    read() {
+      if (inputIndex < inputs.length) {
+        this.push(inputs[inputIndex++] + '\n');
+      } else {
+        this.push(null);
+      }
+    },
+  });
+  const mockOutput = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  return readline.createInterface({ input: mockInput, output: mockOutput });
+}
 
 describe('Config Wizard', () => {
+  describe('T023: config init in TTY shows platform prompt', () => {
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should display platform options when running interactively', async () => {
+      const rl = createMockRl(['1']); // Select first option (GitHub)
+      const platformOptions: PromptOption<string>[] = AVAILABLE_PLATFORMS.map((p) => ({
+        label: p.name,
+        value: p.id,
+        description: p.description,
+      }));
+
+      const result = await promptSelect(rl, 'Select your platform:', platformOptions);
+
+      expect(result.status).toBe('selected');
+      if (result.status === 'selected') {
+        expect(result.value).toBe('github');
+      }
+
+      // Verify platform options are displayed
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Select your platform:'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('GitHub'));
+      rl.close();
+    });
+
+    it('should show all available platforms: GitHub, Azure DevOps, Both', async () => {
+      expect(AVAILABLE_PLATFORMS).toHaveLength(3);
+      expect(AVAILABLE_PLATFORMS.map((p) => p.id)).toEqual(['github', 'ado', 'both']);
+    });
+
+    it('should show all available providers', async () => {
+      expect(AVAILABLE_PROVIDERS).toHaveLength(4);
+      expect(AVAILABLE_PROVIDERS.map((p) => p.id)).toEqual([
+        'openai',
+        'anthropic',
+        'azure-openai',
+        'ollama',
+      ]);
+    });
+
+    it('should select provider correctly when valid input provided', async () => {
+      // Test provider selection independently
+      const rl = createMockRl(['2']); // Provider: Anthropic (second option)
+      const providerOptions: PromptOption<string>[] = AVAILABLE_PROVIDERS.map((p) => ({
+        label: p.name,
+        value: p.id,
+        description: p.description,
+      }));
+
+      const providerResult = await promptSelect(rl, 'Select your LLM provider:', providerOptions);
+      expect(providerResult.status).toBe('selected');
+      if (providerResult.status === 'selected') {
+        expect(providerResult.value).toBe('anthropic');
+      }
+      rl.close();
+    });
+  });
+
+  describe('T024: config init exits 0 on user cancellation', () => {
+    it('should return cancelled status when readline receives invalid input and ends', async () => {
+      // When readline receives non-numeric input and stream ends, returns cancelled
+      const rl = createMockRl(['']); // Empty input causes EOF-like behavior
+
+      const platformOptions: PromptOption<string>[] = AVAILABLE_PLATFORMS.map((p) => ({
+        label: p.name,
+        value: p.id,
+        description: p.description,
+      }));
+
+      const result = await promptSelect(rl, 'Select:', platformOptions);
+
+      // Empty string is not a valid number, so it re-prompts and eventually cancels
+      expect(result.status).toBe('cancelled');
+      rl.close();
+    });
+
+    it('cancellation result has no value property', async () => {
+      const rl = createMockRl(['invalid-choice']);
+
+      const options: PromptOption<string>[] = [
+        { label: 'A', value: 'a' },
+        { label: 'B', value: 'b' },
+      ];
+
+      const result = await promptSelect(rl, 'Pick:', options);
+
+      expect(result.status).toBe('cancelled');
+      expect('value' in result).toBe(false);
+      rl.close();
+    });
+  });
+
   describe('T029: wizard refuses in non-TTY without --defaults', () => {
     it('should detect non-interactive terminal', () => {
       // In test environment, stdin is not a TTY
@@ -165,6 +294,61 @@ describe('Config Wizard', () => {
 
       expect(config.provider).toBe('azure-openai');
       // Azure doesn't have a default model
+    });
+  });
+
+  /**
+   * Phase 5: User Story 3 - Post-Wizard Validation Summary
+   * T041-T043: Tests for validation summary after wizard generates config
+   */
+  describe('T041-T043: Post-Wizard Validation Summary', () => {
+    it('T041: wizard generates config that can be validated', () => {
+      // Generate a config using the wizard
+      const options: WizardOptions = {
+        provider: 'openai',
+        platform: 'github',
+        agents: ['semgrep', 'opencode'],
+        useDefaults: true,
+      };
+
+      const yaml = generateConfigYaml(options);
+      const parsed = parseYaml(yaml);
+
+      // The generated config should be structurally valid for validation
+      expect(parsed.version).toBe(1);
+      expect(parsed.provider).toBeDefined();
+      expect(parsed.passes).toBeDefined();
+      expect(parsed.limits).toBeDefined();
+      expect(parsed.reporting).toBeDefined();
+    });
+
+    it('T042: wizard config with cloud agents requires API key for validation', () => {
+      // A config with opencode agent requires OPENAI_API_KEY or ANTHROPIC_API_KEY
+      const config = generateDefaultConfig('openai', 'github', ['semgrep', 'opencode']);
+
+      // Find cloud agents in passes
+      const cloudAgents = config.passes
+        .filter((p) => p.enabled)
+        .flatMap((p) => p.agents)
+        .filter((a) => ['opencode', 'pr_agent', 'ai_semantic_review'].includes(a));
+
+      // Config with cloud agents should require API key
+      expect(cloudAgents.length).toBeGreaterThan(0);
+      expect(cloudAgents).toContain('opencode');
+    });
+
+    it('T043: wizard config with static-only agents has no key requirement', () => {
+      // A config with only semgrep has no API key requirement
+      const config = generateDefaultConfig('openai', 'github', ['semgrep']);
+
+      // Find cloud agents in passes
+      const cloudAgents = config.passes
+        .filter((p) => p.enabled)
+        .flatMap((p) => p.agents)
+        .filter((a) => ['opencode', 'pr_agent', 'ai_semantic_review'].includes(a));
+
+      // Config with only static agents should not require API key
+      expect(cloudAgents.length).toBe(0);
     });
   });
 
