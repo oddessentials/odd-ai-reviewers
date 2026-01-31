@@ -2,8 +2,48 @@
 
 **Feature Branch**: `014-user-friendly-config`
 **Created**: 2026-01-30
-**Status**: Draft
+**Status**: Implemented (with gaps)
 **Input**: User description: "Explore ways to make our config more user-friendly. It can probably be made a little less confusing with how we currently handle API keys."
+
+## Implementation Status
+
+### Fully Implemented ✅
+
+| Requirement                                | Status | Verification                                                      |
+| ------------------------------------------ | ------ | ----------------------------------------------------------------- |
+| FR-001 Auto-apply default models           | ✅     | `resolveEffectiveModelWithDefaults()` in preflight.ts             |
+| FR-002 Actionable error messages           | ✅     | All validation functions include fix instructions                 |
+| FR-003 Explicit provider config            | ✅     | `provider` field in ConfigSchema                                  |
+| FR-004 Multi-key + MODEL requires provider | ✅     | `validateMultiKeyAmbiguity()`                                     |
+| FR-005 Model-provider validation           | ✅     | `validateProviderModelCompatibility()`                            |
+| FR-008 Legacy key migration guidance       | ✅     | Migration examples in `validateAgentSecrets()`                    |
+| FR-009 Documentation with examples         | ✅     | quick-start.md, provider-selection.md updated                     |
+| FR-010 Backward compatibility              | ✅     | Existing valid configs work unchanged                             |
+| FR-011 Resolved config tuple logging       | ✅     | `buildResolvedConfigTuple()` with schemaVersion/resolutionVersion |
+| FR-012 Azure requires all 3 values         | ✅     | Validated in `validateAgentSecrets()`                             |
+| FR-013 Azure no model defaulting           | ✅     | `DEFAULT_MODELS['azure-openai'] = null`                           |
+| US1 Single-key auto-apply                  | ✅     | Tests in preflight.test.ts                                        |
+| US2 Clear error messages                   | ✅     | Tests in preflight.test.ts                                        |
+| US4 Explicit provider selection            | ✅     | Tests in providers.test.ts                                        |
+| US5 Documentation                          | ✅     | All docs updated                                                  |
+
+### Partially Implemented ⚠️
+
+| Requirement                               | Status | Gap                                                                                                                                      |
+| ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-006 Configuration validation command   | ⚠️     | `validate` command exists but only checks YAML schema; does NOT run preflight checks to catch API key issues, multi-key ambiguity, etc.  |
+| FR-007 Guided configuration mode          | ⚠️     | `config init --defaults` works; **interactive prompts NOT implemented** (code explicitly says "Interactive prompts not yet implemented") |
+| US3 Guided configuration                  | ⚠️     | Only `--defaults` mode works; Acceptance Scenario 1 (guided prompts) and Scenario 2 (validate with issues highlighted) not met           |
+| SC-004 Validation covers all scenarios    | ⚠️     | Blocked by FR-006 gap                                                                                                                    |
+| SC-005 Guided mode produces valid configs | ⚠️     | Only in `--defaults` mode, not interactive                                                                                               |
+
+### Not Implemented ❌
+
+| Requirement                                 | Status | Notes                                                                                                   |
+| ------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| Edge case: Unknown model warning            | ❌     | Code allows unknown models (correct) but does NOT log a warning (spec says "Warning, not hard failure") |
+| Edge case: YAML parse error line numbers    | ❌     | Errors from YAML library are wrapped but line numbers not explicitly extracted                          |
+| Edge case: API key expired/revoked guidance | ❌     | Runtime concern; no specific handling for 401/403 with credential verification suggestion               |
 
 ## Clarifications
 

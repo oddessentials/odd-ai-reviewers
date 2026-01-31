@@ -112,9 +112,9 @@ No constitution violations requiring justification. All changes align with exist
 
 **Post-Design Quality Gate Verification**:
 
-- [ ] New types (`ResolvedConfigTuple`, `ProviderSchema`) will have unit tests
-- [ ] Breaking change (multi-key + MODEL) documented in data-model.md
-- [ ] No circular dependencies introduced (cli/config-wizard.ts is leaf module)
+- [x] New types (`ResolvedConfigTuple`, `ProviderSchema`) will have unit tests
+- [x] Breaking change (multi-key + MODEL) documented in data-model.md
+- [x] No circular dependencies introduced (cli/config-wizard.ts is leaf module)
 
 ---
 

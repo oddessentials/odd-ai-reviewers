@@ -116,12 +116,17 @@
 
 - [x] T033 [US3] Create router/src/cli/config-wizard.ts with TTY check and --defaults/--yes flags
 - [x] T034 [US3] Implement platform prompt (GitHub/Azure DevOps) in router/src/cli/config-wizard.ts
+  - ⚠️ **GAP**: Implemented as `--platform` CLI option only; interactive prompt NOT implemented
 - [x] T035 [US3] Implement provider prompt with Azure 3-value handling in router/src/cli/config-wizard.ts
+  - ⚠️ **GAP**: Implemented as `--provider` CLI option only; interactive prompt NOT implemented
 - [x] T036 [US3] Implement agent selection prompt in router/src/cli/config-wizard.ts
+  - ⚠️ **GAP**: Agents are auto-selected based on provider; interactive prompt NOT implemented
 - [x] T037 [US3] Implement deterministic YAML generation with stable key ordering in router/src/cli/config-wizard.ts
 - [x] T038 [US3] Add `config init` subcommand to router/src/main.ts
 
 **Checkpoint**: Config wizard generates valid configs for all provider combinations
+
+- ⚠️ **NOTE**: Only `--defaults` mode works. Interactive prompts are NOT implemented (main.ts:126-130 explicitly says "Interactive prompts not yet implemented")
 
 ---
 
@@ -272,3 +277,65 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Breaking change (multi-key + MODEL) must be documented in CHANGELOG
+
+---
+
+## Known Gaps (Post-Implementation)
+
+The following gaps were identified during implementation review:
+
+### 1. `validate` Command Incomplete (FR-006, SC-004)
+
+**Location**: `router/src/main.ts:84-97`
+
+**Issue**: The `validate` command only loads config and validates YAML schema. It does NOT run preflight checks that would catch:
+
+- Multi-key ambiguity
+- Provider-model mismatch
+- Missing API keys for explicit provider
+- Legacy key detection
+
+**Spec Requirement**: US3 Scenario 2 says "they receive a summary of their current settings **with any issues highlighted**"
+
+**Fix Required**: Update `validate` to call `runPreflightChecks()` and report issues.
+
+### 2. Interactive Wizard Prompts Not Implemented (FR-007, US3)
+
+**Location**: `router/src/main.ts:126-130`
+
+**Issue**: Code explicitly says:
+
+```
+Interactive prompts not yet implemented.
+Use --defaults flag with --provider and --platform options.
+```
+
+**Spec Requirement**: US3 Scenario 1 says "When they complete the guided prompts"
+
+**Current State**: Only `--defaults` mode works with CLI options.
+
+### 3. Unknown Model Warning Not Logged
+
+**Location**: `router/src/preflight.ts:445`
+
+**Issue**: Code says "Unknown model prefix - no validation, allow it to proceed" but does NOT log a warning.
+
+**Spec Requirement**: Edge case says "(Warning, not hard failure - allows new models)"
+
+**Fix Required**: Add `console.warn('[preflight] Unknown model prefix, proceeding without validation')`
+
+### 4. YAML Parse Errors Lack Line Numbers
+
+**Location**: `router/src/config.ts:65`
+
+**Issue**: YAML parse errors bubble up without explicit line number extraction.
+
+**Spec Requirement**: Edge case says "(Helpful parse error with line number)"
+
+### 5. API Auth Failure Guidance (Runtime)
+
+**Issue**: No specific handling for 401/403 responses from LLM APIs.
+
+**Spec Requirement**: Edge case says "(Runtime error with suggestion to verify credentials)"
+
+**Note**: This is a runtime concern, not preflight. Lower priority.
