@@ -166,7 +166,7 @@ configCommand
 
     const useDefaults = options.defaults || options.yes;
     let provider: 'openai' | 'anthropic' | 'azure-openai' | 'ollama';
-    let platform: 'github' | 'ado';
+    let platform: 'github' | 'ado' | 'both';
     let agents: string[];
     const outputPath = options.output;
 
@@ -207,8 +207,8 @@ configCommand
           defaultExitHandler(0);
           return;
         }
-        // Convert 'both' to 'github' for config generation (both means github reporting config)
-        platform = platformResult.value === 'both' ? 'github' : platformResult.value;
+        // T039 (FR-011): Pass 'both' directly to generate dual reporting blocks
+        platform = platformResult.value;
 
         // Provider selection (T018)
         const providerOptions = configWizard.AVAILABLE_PROVIDERS.map((p) => ({

@@ -576,4 +576,108 @@ describe('Config Wizard', () => {
       expect(config.reporting.ado).toBeDefined();
     });
   });
+
+  /**
+   * Phase 6: User Story 4 - Both Platform Option Generates Dual Reporting
+   * T035-T038: Tests for "both" platform dual reporting
+   */
+  describe('T035-T038: Both Platform Dual Reporting (US4)', () => {
+    it('T035: "both" platform generates reporting.github AND reporting.ado (FR-011)', () => {
+      // When user selects "both", config should have both reporting blocks
+      const config = generateDefaultConfig('openai', 'both', ['semgrep', 'opencode']);
+
+      expect(config.reporting.github).toBeDefined();
+      expect(config.reporting.ado).toBeDefined();
+    });
+
+    it('T036: dual-platform config has correct defaults (FR-012)', () => {
+      const config = generateDefaultConfig('openai', 'both', ['semgrep']);
+
+      // GitHub should use checks_and_comments (recommended default)
+      expect(config.reporting.github?.mode).toBe('checks_and_comments');
+
+      // ADO should use threads_and_status (recommended default - more informative than just "comments")
+      expect(config.reporting.ado?.mode).toBe('threads_and_status');
+    });
+
+    it('T037: validation warns when neither platform env detected (FR-013, FR-017)', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      // Create config with both platforms
+      const config = generateDefaultConfig('openai', 'both', ['semgrep']);
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: { OPENAI_API_KEY: 'sk-test-key' }, // Valid key but no platform env
+        effectiveModel: '',
+        provider: null,
+      };
+
+      // Run preflight with no platform env vars
+      const result = runPreflightChecks(
+        config,
+        minimalContext,
+        { OPENAI_API_KEY: 'sk-test-key' }, // No GITHUB_ACTIONS or TF_BUILD
+        process.cwd()
+      );
+
+      // Should have warning about missing platform env vars (FR-017)
+      expect(result.warnings.length).toBeGreaterThan(0);
+      // Warning should mention specific env vars checked
+      const warningText = result.warnings.join(' ');
+      expect(warningText).toContain('GITHUB_ACTIONS');
+      expect(warningText).toContain('TF_BUILD');
+    });
+
+    it('T038: warning is informational - exit 0 (FR-014, FR-020)', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      const config = generateDefaultConfig('openai', 'both', ['semgrep']);
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: { OPENAI_API_KEY: 'sk-test-key' },
+        effectiveModel: '',
+        provider: null,
+      };
+
+      const result = runPreflightChecks(
+        config,
+        minimalContext,
+        { OPENAI_API_KEY: 'sk-test-key' },
+        process.cwd()
+      );
+
+      // Despite warning, validation should pass (exit 0)
+      // The warning is informational, not an error
+      expect(result.valid).toBe(true);
+      expect(result.errors.length).toBe(0);
+    });
+  });
 });

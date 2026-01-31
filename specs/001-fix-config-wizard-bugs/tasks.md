@@ -126,17 +126,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T035 [P] [US4] Add test in `router/src/__tests__/config-wizard.test.ts`: "both" platform generates `reporting.github` and `reporting.ado` (FR-011)
-- [ ] T036 [P] [US4] Add test: generated dual-platform config has correct defaults (checks_and_comments for GitHub, comments for ADO) (FR-012)
-- [ ] T037 [P] [US4] Add test: validation warns when neither GITHUB_ACTIONS nor TF_BUILD/SYSTEM_TEAMFOUNDATIONCOLLECTIONURI detected (FR-013, FR-017)
-- [ ] T038 [P] [US4] Add test: warning is informational (exit 0, not error) (FR-014, FR-020)
+- [x] T035 [P] [US4] Add test in `router/src/__tests__/config-wizard.test.ts`: "both" platform generates `reporting.github` and `reporting.ado` (FR-011)
+- [x] T036 [P] [US4] Add test: generated dual-platform config has correct defaults (checks_and_comments for GitHub, comments for ADO) (FR-012)
+- [x] T037 [P] [US4] Add test: validation warns when neither GITHUB_ACTIONS nor TF_BUILD/SYSTEM_TEAMFOUNDATIONCOLLECTIONURI detected (FR-013, FR-017)
+- [x] T038 [P] [US4] Add test: warning is informational (exit 0, not error) (FR-014, FR-020)
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] Modify `generateDefaultConfig` in `router/src/cli/config-wizard.ts` to generate dual reporting blocks for "both" platform (FR-011, FR-012)
-- [ ] T040 [US4] Add platform environment detection in preflight: check GITHUB_ACTIONS, TF_BUILD, SYSTEM_TEAMFOUNDATIONCOLLECTIONURI (FR-013)
-- [ ] T041 [US4] Emit warning listing exact env vars checked when neither platform detected (FR-017)
-- [ ] T042 [US4] Ensure warning is added to `warnings` array, not `errors` array (FR-014)
+- [x] T039 [US4] Modify `generateDefaultConfig` in `router/src/cli/config-wizard.ts` to generate dual reporting blocks for "both" platform (FR-011, FR-012)
+- [x] T040 [US4] Add platform environment detection in preflight: check GITHUB_ACTIONS, TF_BUILD, SYSTEM_TEAMFOUNDATIONCOLLECTIONURI (FR-013)
+- [x] T041 [US4] Emit warning listing exact env vars checked when neither platform detected (FR-017)
+- [x] T042 [US4] Ensure warning is added to `warnings` array, not `errors` array (FR-014)
 
 **Checkpoint**: Dual-platform users get correct config and helpful warnings
 

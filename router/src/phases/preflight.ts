@@ -130,6 +130,23 @@ export function runPreflightChecks(
     allErrors.push(...explicitProviderCheck.errors);
   }
 
+  // 10. Platform environment detection for "both" platform (T040-T042, FR-013, FR-014, FR-017)
+  // When config has both reporting.github AND reporting.ado, warn if neither platform env is detected
+  if (config.reporting.github && config.reporting.ado) {
+    const hasGitHub = env['GITHUB_ACTIONS'] === 'true';
+    const hasADO = env['TF_BUILD'] === 'True' || !!env['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'];
+
+    if (!hasGitHub && !hasADO) {
+      // FR-017: Warning lists exact env vars checked
+      // FR-014, FR-020: This is a warning, not an error (exit 0)
+      allWarnings.push(
+        'Dual-platform config detected but no CI environment found. ' +
+          'Checked: GITHUB_ACTIONS, TF_BUILD, SYSTEM_TEAMFOUNDATIONCOLLECTIONURI. ' +
+          'Reporting will be skipped unless running in a supported CI environment.'
+      );
+    }
+  }
+
   // Build resolved config tuple (T018)
   // For provider resolution, pick the first cloud AI agent or fallback to opencode
   const cloudAgents = ['opencode', 'pr_agent', 'ai_semantic_review'] as const;

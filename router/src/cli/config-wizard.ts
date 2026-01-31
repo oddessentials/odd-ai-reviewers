@@ -21,8 +21,8 @@ import type { Config, AgentId, Provider } from '../config/schemas.js';
 export interface WizardOptions {
   /** LLM provider selection */
   provider: Provider;
-  /** Platform: 'github' or 'ado' */
-  platform: 'github' | 'ado';
+  /** Platform: 'github', 'ado', or 'both' */
+  platform: 'github' | 'ado' | 'both';
   /** Selected agents */
   agents: AgentId[];
   /** Use defaults without prompts */
@@ -43,13 +43,13 @@ export function isInteractiveTerminal(): boolean {
  * Generate a default configuration object based on wizard options.
  *
  * @param provider - Selected LLM provider
- * @param platform - Target platform (github or ado)
+ * @param platform - Target platform (github, ado, or both)
  * @param agents - Selected agents
  * @returns Partial Config object ready for YAML generation
  */
 export function generateDefaultConfig(
   provider: Provider,
-  platform: 'github' | 'ado',
+  platform: 'github' | 'ado' | 'both',
   agents: AgentId[]
 ): Config {
   // Separate static analysis agents from AI agents
@@ -95,23 +95,41 @@ export function generateDefaultConfig(
   }
 
   // Build reporting config based on platform
-  const reporting: Config['reporting'] =
-    platform === 'github'
-      ? {
-          github: {
-            mode: 'checks_and_comments',
-            max_inline_comments: 20,
-            summary: true,
-          },
-        }
-      : {
-          ado: {
-            mode: 'threads_and_status',
-            max_inline_comments: 20,
-            summary: true,
-            thread_status: 'active',
-          },
-        };
+  // T039 (FR-011, FR-012): Generate dual reporting blocks for "both" platform
+  let reporting: Config['reporting'];
+  if (platform === 'both') {
+    // Both platforms: include GitHub and ADO with sensible defaults
+    reporting = {
+      github: {
+        mode: 'checks_and_comments',
+        max_inline_comments: 20,
+        summary: true,
+      },
+      ado: {
+        mode: 'threads_and_status',
+        max_inline_comments: 20,
+        summary: true,
+        thread_status: 'active',
+      },
+    };
+  } else if (platform === 'github') {
+    reporting = {
+      github: {
+        mode: 'checks_and_comments',
+        max_inline_comments: 20,
+        summary: true,
+      },
+    };
+  } else {
+    reporting = {
+      ado: {
+        mode: 'threads_and_status',
+        max_inline_comments: 20,
+        summary: true,
+        thread_status: 'active',
+      },
+    };
+  }
 
   return {
     version: 1,
