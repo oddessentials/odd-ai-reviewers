@@ -39,11 +39,12 @@
 
 ### Not Implemented ❌
 
-| Requirement                                 | Status | Notes                                                                                                   |
-| ------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| Edge case: Unknown model warning            | ❌     | Code allows unknown models (correct) but does NOT log a warning (spec says "Warning, not hard failure") |
-| Edge case: YAML parse error line numbers    | ❌     | Errors from YAML library are wrapped but line numbers not explicitly extracted                          |
-| Edge case: API key expired/revoked guidance | ❌     | Runtime concern; no specific handling for 401/403 with credential verification suggestion               |
+| Requirement                                    | Status | Notes                                                                                                   |
+| ---------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| Edge case: Unknown model warning               | ❌     | Code allows unknown models (correct) but does NOT log a warning (spec says "Warning, not hard failure") |
+| Edge case: YAML parse error line numbers       | ❌     | Errors from YAML library are wrapped but line numbers not explicitly extracted                          |
+| Edge case: API key expired/revoked guidance    | ❌     | Runtime concern; no specific handling for 401/403 with credential verification suggestion               |
+| Edge case: Explicit provider override info log | ❌     | Deferred; when explicit provider overrides auto-detected, no info message is logged                     |
 
 ## Clarifications
 
@@ -56,6 +57,11 @@
 - Q: Should default models be auto-applied or suggestion-only for single-provider setups? → A: Auto-apply for single-key setups (gpt-4o for OpenAI, claude-sonnet-4-20250514 for Anthropic); enables "just works" experience.
 - Q: Should resolved config tuple include versioning for future debugging? → A: Yes, include schemaVersion (tuple format version) and resolutionVersion (resolution logic version) to prevent "same shape, different meaning" issues.
 - Q: How should config wizard behave in non-TTY/CI environments? → A: Refuse to run with clear message unless --defaults or --yes flag provided; output YAML must use deterministic key ordering.
+- Q: What happens with 2+ keys but NO MODEL set? → A: Existing implicit precedence (Anthropic > Azure > OpenAI) is preserved for backward compatibility. The hard-fail only triggers when MODEL is explicitly set, creating ambiguity about intent.
+- Q: Does Ollama count as "having a key" if OLLAMA_BASE_URL is not set? → A: No. Ollama only counts toward multi-key detection when OLLAMA_BASE_URL is explicitly set. The "optional with default" refers to runtime behavior (defaults to localhost:11434), not key detection.
+- Q: What is the "informational message" when explicit provider overrides precedence? → A: A console log at info level: `[preflight] Explicit provider 'X' overrides auto-detected 'Y'`. Not implemented in current version (deferred).
+- Q: Are FR-006 (validation) and FR-007 (wizard) the same command? → A: No. They are separate: `ai-review validate --repo <path>` checks existing config; `ai-review config init` generates new config.
+- Q: Does "MODEL is set" mean env var or config file? → A: Currently only the `MODEL` env var. The `config.models.default` is NOT checked for multi-key ambiguity (intentional - env var indicates runtime override intent).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -145,10 +151,12 @@ A user wants to understand all available configuration options with practical ex
 - How does the system handle invalid YAML syntax in the config file? (Helpful parse error with line number)
 - What happens when a user's API key is expired or revoked? (Runtime error with suggestion to verify credentials)
 - How does the system behave when MODEL is set to an unknown model name? (Warning, not hard failure - allows new models)
-- What happens when both explicit provider config and environment variable precedence conflict? (Explicit config wins with informational message)
-- What happens when multiple provider keys exist with MODEL set but no explicit provider? (Hard fail with clear error requiring `provider` to be set)
-- What happens when only 1 or 2 Azure OpenAI values are set? (Hard fail with single-line "set AZURE_OPENAI_X" fix message)
+- What happens when both explicit provider config and environment variable precedence conflict? (Explicit config wins; informational log deferred to future version)
+- What happens when multiple provider keys exist with MODEL env var set but no explicit provider? (Hard fail with clear error requiring `provider` to be set)
+- What happens when multiple provider keys exist but MODEL is NOT set? (Existing precedence preserved: Anthropic > Azure > OpenAI. No hard fail for backward compatibility.)
+- What happens when only 1 or 2 Azure OpenAI values are set? (Hard fail with single-line "set AZURE_OPENAI_X" fix message, regardless of whether Azure is the intended provider - partial Azure config is always an error)
 - What happens when config wizard is run in CI/non-TTY environment? (Refuse with clear message unless --defaults or --yes flag provided)
+- Does Ollama count as "having a key" without explicit OLLAMA_BASE_URL? (No - only counts when explicitly set. Runtime defaults to localhost:11434 but this doesn't affect multi-key detection.)
 
 ## Requirements _(mandatory)_
 
@@ -157,13 +165,13 @@ A user wants to understand all available configuration options with practical ex
 - **FR-001**: System MUST auto-apply an appropriate default model when only a single provider's API key is configured (gpt-4o for OpenAI, claude-sonnet-4-20250514 for Anthropic, codellama:7b for Ollama)
 - **FR-002**: System MUST provide actionable error messages that include the exact fix needed, not just what's wrong
 - **FR-003**: System MUST support an explicit `provider` configuration option that overrides automatic provider detection
-- **FR-004**: System MUST fail preflight when multiple provider keys are present AND `MODEL` is set, unless `provider` is explicitly configured (forces clarity)
+- **FR-004**: System MUST fail preflight when multiple provider keys are present AND `MODEL` environment variable is set, unless `provider` is explicitly configured in `.ai-review.yml` (forces clarity). Note: `config.models.default` does NOT trigger this check; only the `MODEL` env var indicates runtime override intent. When 2+ keys exist but MODEL is not set, existing implicit precedence (Anthropic > Azure > OpenAI) is preserved for backward compatibility.
 - **FR-005**: System MUST validate model-provider compatibility at preflight time, before any agent execution
 - **FR-011**: Preflight MUST print and write to an artifact/log the fully resolved configuration tuple: provider + model + key-source + config-source + schemaVersion + resolutionVersion; this exact resolved tuple MUST be used for the run
 - **FR-012**: Azure OpenAI MUST require all 3 values (AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT); missing any value = preflight fail with single-line "set X" fix
 - **FR-013**: Azure OpenAI MUST NOT attempt any model defaulting; deployment name is always user-specified
-- **FR-006**: System MUST provide a configuration validation command that checks the current setup and reports issues
-- **FR-007**: System MUST support a guided configuration mode that generates valid YAML from user prompts; wizard MUST refuse to run in non-TTY environments unless --defaults or --yes flag provided; output YAML MUST use deterministic key ordering
+- **FR-006**: System MUST provide a configuration validation command (`ai-review validate --repo <path>`) that loads an existing config file, validates it against the schema, and runs preflight checks to report issues with API keys, provider-model compatibility, etc.
+- **FR-007**: System MUST provide a separate guided configuration command (`ai-review config init`) that generates valid YAML from user prompts; wizard MUST refuse to run in non-TTY environments unless --defaults or --yes flag provided; output YAML MUST use deterministic key ordering. This is distinct from FR-006 validation.
 - **FR-008**: System MUST include migration guidance when detecting deprecated environment variables
 - **FR-009**: System MUST document common configuration scenarios with copy-paste examples
 - **FR-010**: System MUST preserve backward compatibility - existing valid configurations must continue to work unchanged

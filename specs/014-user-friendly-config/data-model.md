@@ -116,7 +116,7 @@ const PROVIDER_KEY_MAPPING: Record<LlmProvider, string[]> = {
   anthropic: ['ANTHROPIC_API_KEY'],
   openai: ['OPENAI_API_KEY'],
   'azure-openai': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT'],
-  ollama: ['OLLAMA_BASE_URL'], // Optional, has default
+  ollama: ['OLLAMA_BASE_URL'],
 };
 ```
 
@@ -127,6 +127,8 @@ const PROVIDER_KEY_MAPPING: Record<LlmProvider, string[]> = {
 - Multi-key detection: count providers with at least one key present
 - Azure validation: check all 3 keys as atomic bundle
 - Key source logging: record which key was used
+
+**Ollama Clarification**: Ollama only counts as "having a key" when `OLLAMA_BASE_URL` is explicitly set to a non-empty value. The runtime default (`http://ollama-sidecar:11434`) is NOT considered for multi-key detection. This means a user with only `OPENAI_API_KEY` set is in single-key mode even if Ollama would work at runtime.
 
 ---
 
@@ -197,13 +199,15 @@ const DEFAULT_MODELS: Record<LlmProvider, string | null> = {
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Input: env vars, config.provider, config.models.default     │
+│ Input: env vars, config.provider                             │
+│ Note: Only MODEL env var is checked, not config.models.default│
 └──────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌─────────────────┐
                     │ Count providers │
                     │ with keys set   │
+                    │ (explicit only) │
                     └────────┬────────┘
                              │
             ┌────────────────┼────────────────┐
@@ -215,16 +219,31 @@ const DEFAULT_MODELS: Record<LlmProvider, string | null> = {
           │                │                │
           ▼                ▼                ▼
      ┌──────────┐     ┌──────────┐     ┌────────────────┐
-     │ FAIL:    │     │ PASS:    │     │ MODEL set AND  │
-     │ No keys  │     │ Auto-    │     │ no provider?   │
-     └──────────┘     │ detect   │     └───────┬────────┘
-                      └──────────┘        YES  │  NO
-                                               ▼
-                                   ┌──────────┐    ┌──────────┐
-                                   │ FAIL:    │    │ PASS:    │
-                                   │ Ambig.   │    │ Explicit │
-                                   └──────────┘    └──────────┘
+     │ FAIL:    │     │ PASS:    │     │ MODEL env var  │
+     │ No keys  │     │ Auto-    │     │ set?           │
+     └──────────┘     │ detect + │     └───────┬────────┘
+                      │ auto-    │        YES  │  NO
+                      │ apply    │             │    │
+                      └──────────┘             ▼    ▼
+                                   ┌────────────┐  ┌────────────┐
+                                   │ Explicit   │  │ PASS:      │
+                                   │ provider   │  │ Implicit   │
+                                   │ set?       │  │ precedence │
+                                   └─────┬──────┘  │ (backward  │
+                                    YES  │  NO     │ compat)    │
+                                         ▼         └────────────┘
+                              ┌──────────┐  ┌──────────┐
+                              │ PASS:    │  │ FAIL:    │
+                              │ Explicit │  │ Ambig.   │
+                              │ provider │  │ (FR-004) │
+                              └──────────┘  └──────────┘
 ```
+
+**Key Clarifications**:
+
+- "Keys set" means explicitly set to non-empty value (Ollama runtime default doesn't count)
+- Only `MODEL` env var triggers FR-004, not `config.models.default`
+- 2+ keys without MODEL uses implicit precedence (Anthropic > Azure > OpenAI) for backward compatibility
 
 ---
 
@@ -246,25 +265,33 @@ AgentContext (1) ────── provider, effectiveModel ─► From Resolve
 
 ## Validation Rules Summary
 
-| Rule                  | Trigger                                  | Error Format                                                                                            |
-| --------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| No API keys           | Zero provider keys in env                | `Error: No API keys configured. Fix: set OPENAI_API_KEY or ANTHROPIC_API_KEY`                           |
-| Multi-key ambiguity   | 2+ keys + MODEL + no provider            | `Error: Multiple provider keys with MODEL set. Fix: add 'provider: openai' to config`                   |
-| Azure incomplete      | 1-2 of 3 Azure keys                      | `Error: Azure OpenAI incomplete. Fix: set AZURE_OPENAI_{missing}`                                       |
-| Provider mismatch     | Explicit provider + missing key          | `Error: Provider 'anthropic' requires ANTHROPIC_API_KEY. Fix: set ANTHROPIC_API_KEY`                    |
-| Model mismatch        | Provider resolved but model incompatible | `Error: Model 'gpt-4o' incompatible with provider 'anthropic'. Fix: set MODEL=claude-sonnet-4-20250514` |
-| No model (single-key) | Single provider, no MODEL                | Auto-apply default (gpt-4o, claude-sonnet-4-20250514, codellama:7b)                                     |
-| No model (Azure)      | Azure OpenAI, no deployment              | `Error: Azure OpenAI requires deployment name. Fix: set AZURE_OPENAI_DEPLOYMENT`                        |
+| Rule                  | Trigger                                        | Result                                                                                                  |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| No API keys           | Zero provider keys in env                      | `Error: No API keys configured. Fix: set OPENAI_API_KEY or ANTHROPIC_API_KEY`                           |
+| Multi-key ambiguity   | 2+ keys + MODEL env var + no explicit provider | `Error: Multiple provider keys with MODEL set. Fix: add 'provider: openai' to config`                   |
+| Multi-key no MODEL    | 2+ keys + no MODEL env var                     | PASS: Use implicit precedence (Anthropic > Azure > OpenAI) for backward compatibility                   |
+| Azure incomplete      | 1-2 of 3 Azure keys (regardless of intent)     | `Error: Azure OpenAI incomplete. Fix: set AZURE_OPENAI_{missing}`                                       |
+| Provider mismatch     | Explicit provider + missing key                | `Error: Provider 'anthropic' requires ANTHROPIC_API_KEY. Fix: set ANTHROPIC_API_KEY`                    |
+| Model mismatch        | Provider resolved but model incompatible       | `Error: Model 'gpt-4o' incompatible with provider 'anthropic'. Fix: set MODEL=claude-sonnet-4-20250514` |
+| No model (single-key) | Single provider, no MODEL env var              | Auto-apply default (gpt-4o, claude-sonnet-4-20250514, codellama:7b)                                     |
+| No model (Azure)      | Azure OpenAI, no MODEL env var                 | `Error: Azure OpenAI requires deployment name. Fix: set MODEL=<deployment-name>`                        |
+| Ollama implicit       | OLLAMA_BASE_URL not set                        | Not counted as "having a key" for multi-key detection; runtime defaults to localhost:11434              |
+
+**Note**: `config.models.default` is intentionally NOT checked for multi-key ambiguity. Only the `MODEL` environment variable indicates runtime override intent.
 
 ---
 
 ## Backward Compatibility
 
-| Scenario                    | Current Behavior               | New Behavior                                                  |
-| --------------------------- | ------------------------------ | ------------------------------------------------------------- |
-| Single OPENAI_API_KEY       | Auto-selects OpenAI            | Unchanged + auto-applies gpt-4o if no MODEL                   |
-| Single ANTHROPIC_API_KEY    | Auto-selects Anthropic         | Unchanged + auto-applies claude-sonnet-4-20250514 if no MODEL |
-| Both keys, no MODEL         | Anthropic wins (precedence)    | Unchanged                                                     |
-| Both keys, MODEL=gpt-4o     | Anthropic wins, 404 at runtime | **BREAKING**: Fails preflight                                 |
-| Both keys, MODEL + provider | N/A (field didn't exist)       | Explicit provider used                                        |
-| Azure partial (2/3 keys)    | Fails preflight                | Unchanged (improved message)                                  |
+| Scenario                         | Current Behavior               | New Behavior                                                  |
+| -------------------------------- | ------------------------------ | ------------------------------------------------------------- |
+| Single OPENAI_API_KEY            | Auto-selects OpenAI            | Unchanged + auto-applies gpt-4o if no MODEL                   |
+| Single ANTHROPIC_API_KEY         | Auto-selects Anthropic         | Unchanged + auto-applies claude-sonnet-4-20250514 if no MODEL |
+| Both keys, no MODEL env var      | Anthropic wins (precedence)    | **Unchanged** (preserved for backward compatibility)          |
+| Both keys, MODEL env var set     | Anthropic wins, 404 at runtime | **BREAKING**: Fails preflight with actionable error           |
+| Both keys, MODEL + provider      | N/A (field didn't exist)       | Explicit provider used, preflight passes                      |
+| Both keys, config.models.default | Anthropic wins (precedence)    | **Unchanged** (config default ≠ env var override)             |
+| Azure partial (2/3 keys)         | Fails preflight                | Unchanged (improved single-line message)                      |
+| OLLAMA_BASE_URL not set          | Ollama unavailable             | **Unchanged** (not counted for multi-key detection)           |
+
+**Breaking Change Summary**: Only the combination of `2+ API keys` + `MODEL env var` + `no explicit provider` now fails. All other scenarios preserve existing behavior.
