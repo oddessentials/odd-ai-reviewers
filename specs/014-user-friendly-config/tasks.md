@@ -25,12 +25,12 @@
 
 **Purpose**: Schema extensions and type definitions that all user stories depend on
 
-- [ ] T001 Add `ProviderSchema` Zod enum to router/src/config/schemas.ts
-- [ ] T002 Add optional `provider` field to `ConfigSchema` in router/src/config/schemas.ts
-- [ ] T003 [P] Add `ResolvedConfigTuple` interface to router/src/config/providers.ts with all fields (provider, model, keySource, configSource, configPath, schemaVersion, resolutionVersion)
-- [ ] T004 [P] Add `PROVIDER_KEY_MAPPING` constant to router/src/preflight.ts mapping providers to required env vars
-- [ ] T005 [P] Add `DEFAULT_MODELS` constant to router/src/preflight.ts with auto-apply defaults (gpt-4o, claude-sonnet-4-20250514, codellama:7b, null for Azure)
-- [ ] T006 Update `PreflightResult` interface in router/src/preflight.ts to include optional `resolved` field
+- [x] T001 Add `ProviderSchema` Zod enum to router/src/config/schemas.ts
+- [x] T002 Add optional `provider` field to `ConfigSchema` in router/src/config/schemas.ts
+- [x] T003 [P] Add `ResolvedConfigTuple` interface to router/src/config/providers.ts with all fields (provider, model, keySource, configSource, configPath, schemaVersion, resolutionVersion)
+- [x] T004 [P] Add `PROVIDER_KEY_MAPPING` constant to router/src/preflight.ts mapping providers to required env vars
+- [x] T005 [P] Add `DEFAULT_MODELS` constant to router/src/preflight.ts with auto-apply defaults (gpt-4o, claude-sonnet-4-20250514, codellama:7b, null for Azure)
+- [x] T006 Update `PreflightResult` interface in router/src/preflight.ts to include optional `resolved` field
 
 ---
 
@@ -40,11 +40,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 Add `countProvidersWithKeys(env)` helper function to router/src/preflight.ts
-- [ ] T008 Add `resolveKeySource(provider, env)` helper function to router/src/config/providers.ts
-- [ ] T009 Add `resolveConfigSource(config, configPath)` helper function to router/src/config/providers.ts
-- [ ] T010 Update `resolveProvider()` in router/src/config/providers.ts to respect explicit `config.provider` field
-- [ ] T011 Add `buildResolvedConfigTuple()` function to router/src/config/providers.ts
+- [x] T007 Add `countProvidersWithKeys(env)` helper function to router/src/preflight.ts
+- [x] T008 Add `resolveKeySource(provider, env)` helper function to router/src/config/providers.ts
+- [x] T009 Add `resolveConfigSource(config, configPath)` helper function to router/src/config/providers.ts
+- [x] T010 Update `resolveProvider()` in router/src/config/providers.ts to respect explicit `config.provider` field
+- [x] T011 Add `buildResolvedConfigTuple()` function to router/src/config/providers.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 

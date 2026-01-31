@@ -17,13 +17,88 @@
  */
 
 import type { Config, AgentId } from './config.js';
-import { inferProviderFromModel, isCompletionsOnlyModel, resolveProvider } from './config.js';
+import {
+  inferProviderFromModel,
+  isCompletionsOnlyModel,
+  resolveProvider,
+  type LlmProvider,
+  type ResolvedConfigTuple,
+} from './config.js';
 // Note: ConfigError, ValidationError types are available from './types/errors.js'
 // but this module uses string-based error collection by design (see module docs)
+
+/**
+ * Maps providers to their required environment variables.
+ * Used for multi-key detection and key source logging.
+ */
+export const PROVIDER_KEY_MAPPING: Record<LlmProvider, string[]> = {
+  anthropic: ['ANTHROPIC_API_KEY'],
+  openai: ['OPENAI_API_KEY'],
+  'azure-openai': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT'],
+  ollama: ['OLLAMA_BASE_URL'], // Optional, has default
+};
+
+/**
+ * Default models for each provider.
+ * Auto-applied for single-key setups when MODEL is not configured.
+ *
+ * INVARIANT: Azure OpenAI has no default (deployment names are user-specific per FR-013).
+ */
+export const DEFAULT_MODELS: Record<LlmProvider, string | null> = {
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+  'azure-openai': null, // User must specify deployment name (no auto-apply)
+  ollama: 'codellama:7b',
+};
+
+/**
+ * Count how many providers have valid API keys configured.
+ * Used for multi-key ambiguity detection (FR-004).
+ *
+ * INVARIANT: Azure counts as one provider only when ALL three keys are present.
+ * INVARIANT: Ollama counts if OLLAMA_BASE_URL is set (optional, has default).
+ *
+ * @param env - Environment variables to check
+ * @returns Number of providers with valid keys (0-4)
+ */
+export function countProvidersWithKeys(env: Record<string, string | undefined>): number {
+  let count = 0;
+
+  // Anthropic: single key
+  if (env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '') {
+    count++;
+  }
+
+  // OpenAI: single key
+  if (env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '') {
+    count++;
+  }
+
+  // Azure OpenAI: requires all three keys as atomic bundle
+  const hasAzure =
+    env['AZURE_OPENAI_API_KEY'] &&
+    env['AZURE_OPENAI_API_KEY'].trim() !== '' &&
+    env['AZURE_OPENAI_ENDPOINT'] &&
+    env['AZURE_OPENAI_ENDPOINT'].trim() !== '' &&
+    env['AZURE_OPENAI_DEPLOYMENT'] &&
+    env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
+  if (hasAzure) {
+    count++;
+  }
+
+  // Ollama: base URL (optional, has default - but explicit setting counts)
+  if (env['OLLAMA_BASE_URL'] && env['OLLAMA_BASE_URL'].trim() !== '') {
+    count++;
+  }
+
+  return count;
+}
 
 export interface PreflightResult {
   valid: boolean;
   errors: string[];
+  /** Resolved config tuple when valid, undefined when invalid */
+  resolved?: ResolvedConfigTuple;
 }
 
 /**

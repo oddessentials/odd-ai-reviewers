@@ -25,10 +25,16 @@ export {
 
 export {
   type LlmProvider,
+  type ResolvedConfigTuple,
+  RESOLVED_CONFIG_SCHEMA_VERSION,
+  RESOLVED_CONFIG_RESOLUTION_VERSION,
   inferProviderFromModel,
   isCompletionsOnlyModel,
   resolveEffectiveModel,
   resolveProvider,
+  resolveKeySource,
+  resolveConfigSource,
+  buildResolvedConfigTuple,
 } from './config/providers.js';
 
 // Import for internal use
