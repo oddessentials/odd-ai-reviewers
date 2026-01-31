@@ -245,12 +245,30 @@ export function validateAgentSecrets(
 ): PreflightResult {
   const errors: string[] = [];
 
-  // HARD FAIL: Reject legacy keys
+  // HARD FAIL: Reject legacy keys with specific migration guidance (T027)
   for (const key of LEGACY_KEYS) {
     if (env[key] !== undefined && env[key] !== '') {
+      let migrationExample = '';
+      if (key === 'OPENAI_MODEL' || key === 'OPENCODE_MODEL') {
+        migrationExample =
+          '\n\nMigration:\n' +
+          `  Remove: ${key}=${env[key]}\n` +
+          `  Add: MODEL=${env[key]}\n\n` +
+          'Or in .ai-review.yml:\n' +
+          '  models:\n' +
+          `    default: ${env[key]}`;
+      } else if (key === 'PR_AGENT_API_KEY' || key === 'AI_SEMANTIC_REVIEW_API_KEY') {
+        migrationExample =
+          '\n\nMigration:\n' +
+          `  Remove: ${key}\n` +
+          '  Use canonical keys instead:\n' +
+          '    OPENAI_API_KEY=sk-xxx     # For OpenAI\n' +
+          '    ANTHROPIC_API_KEY=sk-xxx  # For Anthropic';
+      }
       errors.push(
         `Legacy environment variable '${key}' detected. ` +
-          `This key is no longer supported. Use canonical keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, or MODEL.`
+          `This key is no longer supported. Use canonical keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, or MODEL.` +
+          migrationExample
       );
     }
   }
@@ -545,11 +563,114 @@ export function validateAzureDeployment(env: Record<string, string | undefined>)
 
   // Deployment is required when using Azure (already checked in validateAgentSecrets)
   // but double-check here for empty string edge case
+  // T025: Single-line "set X" format for actionable fixes
   if (!deployment || deployment.trim() === '') {
+    errors.push('Set: AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate multi-key ambiguity (FR-004).
+ *
+ * When multiple provider keys are present AND MODEL is set BUT no explicit
+ * provider is specified in config, this is ambiguous and must fail.
+ *
+ * INVARIANT: Multi-key + MODEL + no explicit provider = hard fail with actionable error.
+ *
+ * @param config - Loaded configuration
+ * @param env - Environment variables
+ * @returns Validation result with actionable error message
+ */
+export function validateMultiKeyAmbiguity(
+  config: Config,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Only validate if MODEL is explicitly set
+  const hasModel = env['MODEL'] && env['MODEL'].trim() !== '';
+  if (!hasModel) {
+    // No MODEL set - auto-apply will handle this or fail elsewhere
+    return { valid: true, errors: [] };
+  }
+
+  // Count providers with keys
+  const keyCount = countProvidersWithKeys(env);
+
+  // Only problematic if multiple keys AND no explicit provider
+  if (keyCount > 1 && !config.provider) {
+    // Determine which providers are configured
+    const hasAnthropic = env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '';
+    const hasOpenAI = env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '';
+
+    let suggestion = '';
+    if (hasAnthropic && hasOpenAI) {
+      suggestion =
+        'Add to your .ai-review.yml:\n' +
+        '  provider: openai    # Use OpenAI\n' +
+        'Or:\n' +
+        '  provider: anthropic # Use Anthropic (takes precedence by default)';
+    }
+
     errors.push(
-      'AZURE_OPENAI_DEPLOYMENT is empty. ' +
-        'Set this to your Azure deployment name (e.g., "my-gpt4-deployment").'
+      `Multiple API keys detected with MODEL set but no explicit provider.\n` +
+        `This is ambiguous - please specify which provider to use.\n\n` +
+        `${suggestion}`
     );
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate that explicit provider has corresponding API keys (T026).
+ *
+ * When config.provider is explicitly set, the corresponding keys must be present.
+ * Error messages specify exactly which key(s) to set.
+ *
+ * @param config - Loaded configuration with optional provider field
+ * @param env - Environment variables
+ * @returns Validation result with actionable error message
+ */
+export function validateExplicitProviderKeys(
+  config: Config,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  if (!config.provider) {
+    // No explicit provider - other validation handles this
+    return { valid: true, errors: [] };
+  }
+
+  const provider = config.provider;
+  const requiredKeys = PROVIDER_KEY_MAPPING[provider];
+
+  // Check if all required keys are present
+  const missingKeys = requiredKeys.filter((key) => {
+    const value = env[key];
+    return !value || value.trim() === '';
+  });
+
+  if (missingKeys.length > 0) {
+    if (provider === 'azure-openai') {
+      errors.push(
+        `Provider 'azure-openai' requires all three Azure keys:\n` +
+          `  Set: ${missingKeys.join(', ')}`
+      );
+    } else {
+      errors.push(
+        `Provider '${provider}' requires: ${missingKeys.join(', ')}\n` + `  Set: ${missingKeys[0]}`
+      );
+    }
   }
 
   return {

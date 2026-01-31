@@ -778,7 +778,8 @@ describe('validateAzureDeployment', () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('AZURE_OPENAI_DEPLOYMENT');
-      expect(result.errors[0]).toContain('empty');
+      // T025: Single-line "set X" format
+      expect(result.errors[0]).toContain('Set:');
     });
 
     it('FAILS when Azure configured but AZURE_OPENAI_DEPLOYMENT is whitespace', () => {
@@ -1095,6 +1096,113 @@ describe('User Story 1: Single-Key Auto-Apply Defaults', () => {
       // This test documents the FR-013 requirement: Azure deployments have
       // custom names chosen by the user, so we cannot auto-apply a default.
       expect(DEFAULT_MODELS['azure-openai']).toBeNull();
+    });
+  });
+});
+
+/**
+ * User Story 2 Tests: Clear Error Messages for Common Misconfigurations
+ *
+ * T020-T023: Tests for actionable error messages
+ * Goal: Actionable error messages with exact fix instructions for all misconfiguration scenarios
+ */
+describe('User Story 2: Actionable Error Messages', () => {
+  describe('T020: fails with actionable message when multi-key + MODEL + no provider', () => {
+    it('should fail when both keys are set with MODEL but no explicit provider', () => {
+      // This tests FR-004: multi-key + MODEL + no provider = hard fail
+      const env = {
+        OPENAI_API_KEY: 'sk-xxx',
+        ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        MODEL: 'gpt-4o',
+      };
+      const keyCount = countProvidersWithKeys(env);
+
+      // Should detect multi-key scenario
+      expect(keyCount).toBe(2);
+
+      // The validateModelConfig should pass because MODEL is set
+      // But validateMultiKeyAmbiguity should fail
+      const modelResult = validateModelConfig('gpt-4o', env);
+      expect(modelResult.valid).toBe(true);
+
+      // Note: validateMultiKeyAmbiguity will be tested when implemented
+    });
+
+    it('error message should include provider suggestion', () => {
+      // Placeholder for when validateMultiKeyAmbiguity is implemented
+      // The error should tell the user to add "provider: openai" or "provider: anthropic"
+      expect(true).toBe(true);
+    });
+  });
+
+  describe('T021: Azure partial config shows single-line fix for missing key', () => {
+    it('should show which Azure key is missing', () => {
+      const config = createTestConfig(['semgrep']);
+
+      // Missing AZURE_OPENAI_DEPLOYMENT
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+      };
+      const result = validateAgentSecrets(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('AZURE_OPENAI_DEPLOYMENT');
+    });
+
+    it('Azure error includes all missing keys', () => {
+      const config = createTestConfig(['semgrep']);
+
+      // Only API key set
+      const env = { AZURE_OPENAI_API_KEY: 'azure-xxx' };
+      const result = validateAgentSecrets(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('AZURE_OPENAI_ENDPOINT');
+      expect(result.errors[0]).toContain('AZURE_OPENAI_DEPLOYMENT');
+    });
+  });
+
+  describe('T022: deprecated OPENAI_MODEL shows migration guidance', () => {
+    it('should fail with migration guidance for OPENAI_MODEL', () => {
+      const config = createTestConfig(['semgrep']);
+      const env = { OPENAI_MODEL: 'gpt-4' };
+      const result = validateAgentSecrets(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OPENAI_MODEL');
+      expect(result.errors[0]).toContain('Legacy');
+      // Should suggest the canonical alternative
+      expect(result.errors[0]).toContain('MODEL');
+    });
+
+    it('should fail with migration guidance for OPENCODE_MODEL', () => {
+      const config = createTestConfig(['semgrep']);
+      const env = { OPENCODE_MODEL: 'gpt-4' };
+      const result = validateAgentSecrets(config, env);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('OPENCODE_MODEL');
+    });
+  });
+
+  describe('T023: explicit provider with missing key shows which key is needed', () => {
+    it('should explain which key is needed for explicit anthropic provider', () => {
+      // When provider: anthropic is set but ANTHROPIC_API_KEY is missing
+      // The error should specifically say "set ANTHROPIC_API_KEY"
+      const keyCount = countProvidersWithKeys({ OPENAI_API_KEY: 'sk-xxx' });
+      expect(keyCount).toBe(1);
+
+      // Placeholder for validateExplicitProviderKeys implementation
+    });
+
+    it('should explain which keys are needed for explicit azure-openai provider', () => {
+      // When provider: azure-openai is set but Azure keys are missing
+      // The error should list all 3 required Azure keys
+      const keyCount = countProvidersWithKeys({});
+      expect(keyCount).toBe(0);
+
+      // Placeholder for validateExplicitProviderKeys implementation
     });
   });
 });

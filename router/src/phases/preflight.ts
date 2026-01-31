@@ -22,6 +22,8 @@ import {
   validateAzureDeployment,
   validateOllamaConfig,
   validateChatModelCompatibility,
+  validateMultiKeyAmbiguity,
+  validateExplicitProviderKeys,
   resolveEffectiveModelWithDefaults,
 } from '../preflight.js';
 
@@ -111,6 +113,18 @@ export function runPreflightChecks(
   const chatCheck = validateChatModelCompatibility(config, effectiveModel, env);
   if (!chatCheck.valid) {
     allErrors.push(...chatCheck.errors);
+  }
+
+  // 8. Multi-key ambiguity check (T024/T028 - FR-004)
+  const multiKeyCheck = validateMultiKeyAmbiguity(config, env);
+  if (!multiKeyCheck.valid) {
+    allErrors.push(...multiKeyCheck.errors);
+  }
+
+  // 9. Explicit provider key check (T026/T028)
+  const explicitProviderCheck = validateExplicitProviderKeys(config, env);
+  if (!explicitProviderCheck.valid) {
+    allErrors.push(...explicitProviderCheck.errors);
   }
 
   // Build resolved config tuple (T018)

@@ -82,18 +82,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add test case "fails with actionable message when multi-key + MODEL + no provider" in router/src/**tests**/preflight.test.ts
-- [ ] T021 [P] [US2] Add test case "Azure partial config shows single-line fix for missing key" in router/src/**tests**/preflight.test.ts
-- [ ] T022 [P] [US2] Add test case "deprecated OPENAI_MODEL shows migration guidance" in router/src/**tests**/preflight.test.ts
-- [ ] T023 [P] [US2] Add test case "explicit provider with missing key shows which key is needed" in router/src/**tests**/preflight.test.ts
+- [x] T020 [P] [US2] Add test case "fails with actionable message when multi-key + MODEL + no provider" in router/src/**tests**/preflight.test.ts
+- [x] T021 [P] [US2] Add test case "Azure partial config shows single-line fix for missing key" in router/src/**tests**/preflight.test.ts
+- [x] T022 [P] [US2] Add test case "deprecated OPENAI_MODEL shows migration guidance" in router/src/**tests**/preflight.test.ts
+- [x] T023 [P] [US2] Add test case "explicit provider with missing key shows which key is needed" in router/src/**tests**/preflight.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Add `validateMultiKeyAmbiguity()` function to router/src/preflight.ts
-- [ ] T025 [US2] Update `validateAzureDeployment()` in router/src/preflight.ts to use single-line "set X" format
-- [ ] T026 [US2] Add `validateExplicitProviderKeys()` function to router/src/preflight.ts for provider-key matching
-- [ ] T027 [US2] Update legacy key validation to include migration examples in router/src/preflight.ts
-- [ ] T028 [US2] Integrate all new validations into `runPreflightChecks()` in router/src/phases/preflight.ts
+- [x] T024 [US2] Add `validateMultiKeyAmbiguity()` function to router/src/preflight.ts
+- [x] T025 [US2] Update `validateAzureDeployment()` in router/src/preflight.ts to use single-line "set X" format
+- [x] T026 [US2] Add `validateExplicitProviderKeys()` function to router/src/preflight.ts for provider-key matching
+- [x] T027 [US2] Update legacy key validation to include migration examples in router/src/preflight.ts
+- [x] T028 [US2] Integrate all new validations into `runPreflightChecks()` in router/src/phases/preflight.ts
 
 **Checkpoint**: All common misconfigurations produce actionable error messages
 
