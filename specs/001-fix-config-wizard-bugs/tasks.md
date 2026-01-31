@@ -148,24 +148,24 @@
 
 ### Exit Code Semantics (FR-018 through FR-026)
 
-- [ ] T043 [P] Add test: validate exits 1 only if `errors.length > 0` (FR-018)
-- [ ] T044 [P] Add test: validate exits 0 with warnings only (FR-018, SC-010)
-- [ ] T045 [P] Add test: validate/review never prompt for input (fail fast) (FR-025)
-- [ ] T046 [P] Add test: no command hangs on stdin in CI (FR-026)
-- [ ] T047 Verify validate command exit logic uses `errors.length > 0 ? 1 : 0`
-- [ ] T048 Ensure validate and review fail fast with error message when input needed (FR-025)
+- [x] T043 [P] Add test: validate exits 1 only if `errors.length > 0` (FR-018)
+- [x] T044 [P] Add test: validate exits 0 with warnings only (FR-018, SC-010)
+- [x] T045 [P] Add test: validate/review never prompt for input (fail fast) (FR-025)
+- [x] T046 [P] Add test: no command hangs on stdin in CI (FR-026)
+- [x] T047 Verify validate command exit logic uses `errors.length > 0 ? 1 : 0`
+- [x] T048 Ensure validate and review fail fast with error message when input needed (FR-025)
 
 ### Validate/Review Parity Tests (FR-021, FR-022)
 
-- [ ] T049 Create test file `router/src/__tests__/validate-review-parity.test.ts`
-- [ ] T050 Add test: run both validate and review on same repo/env, assert resolved tuple identical (FR-021, SC-011)
-- [ ] T051 Add test: validate performs no resolution branches that review doesn't (FR-022)
+- [x] T049 Create test file `router/src/__tests__/validate-review-parity.test.ts`
+- [x] T050 Add test: run both validate and review on same repo/env, assert resolved tuple identical (FR-021, SC-011)
+- [x] T051 Add test: validate performs no resolution branches that review doesn't (FR-022)
 
 ### Final Verification
 
-- [ ] T052 Run `pnpm lint --max-warnings 0` and fix any warnings
-- [ ] T053 Run `pnpm typecheck` and verify no type errors
-- [ ] T054 Run `pnpm test` and verify all tests pass
+- [x] T052 Run `pnpm lint --max-warnings 0` and fix any warnings
+- [x] T053 Run `pnpm typecheck` and verify no type errors
+- [x] T054 Run `pnpm test` and verify all tests pass
 - [ ] T055 Run quickstart.md manual testing guide for all 4 bugs
 - [ ] T056 Verify all success criteria SC-001 through SC-014
 
