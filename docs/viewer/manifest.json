@@ -59,6 +59,11 @@
           "path": "../configuration/index.md"
         },
         {
+          "name": "provider-selection.md",
+          "type": "file",
+          "path": "../configuration/provider-selection.md"
+        },
+        {
           "name": "team-configurations.md",
           "type": "file",
           "path": "../configuration/team-configurations.md"
@@ -292,6 +297,11 @@
       "name": "configuration/index.md",
       "type": "file",
       "path": "../configuration/index.md"
+    },
+    {
+      "name": "configuration/provider-selection.md",
+      "type": "file",
+      "path": "../configuration/provider-selection.md"
     },
     {
       "name": "configuration/team-configurations.md",

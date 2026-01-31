@@ -1,6 +1,87 @@
 # Troubleshooting Guide
 
-Quick links to common issues by platform.
+Quick links to common issues by platform and configuration.
+
+## Configuration Errors
+
+### Multi-Key Ambiguity
+
+**Error:** `Multiple API keys detected with MODEL set but no explicit provider`
+
+**Cause:** You have both `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` set, with a `MODEL` configured, but no explicit `provider` field in your config.
+
+**Fix:** Add the `provider` field to your `.ai-review.yml`:
+
+```yaml
+version: 1
+provider: openai # or 'anthropic'
+```
+
+### Azure OpenAI Missing Keys
+
+**Error:** `Provider 'azure-openai' requires all three Azure keys`
+
+**Cause:** Azure OpenAI requires three environment variables as a complete bundle.
+
+**Fix:** Set all three Azure keys:
+
+```
+AZURE_OPENAI_API_KEY=<your-key>
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
+AZURE_OPENAI_DEPLOYMENT=<deployment-name>
+MODEL=<deployment-name>
+```
+
+### Legacy Key Detected
+
+**Error:** `Legacy environment variable 'OPENAI_MODEL' detected`
+
+**Cause:** You're using a deprecated key name from an older version.
+
+**Fix:** Migrate to the canonical key:
+
+| Old Key                      | New Key             |
+| ---------------------------- | ------------------- |
+| `OPENAI_MODEL`               | `MODEL`             |
+| `OPENCODE_MODEL`             | `MODEL`             |
+| `PR_AGENT_API_KEY`           | `OPENAI_API_KEY`    |
+| `AI_SEMANTIC_REVIEW_API_KEY` | `ANTHROPIC_API_KEY` |
+
+### Provider-Model Mismatch
+
+**Error:** `Provider-model mismatch for agent 'opencode'`
+
+**Cause:** The resolved provider doesn't match the model name. For example, `ANTHROPIC_API_KEY` is set (Anthropic wins) but `MODEL=gpt-4o` (an OpenAI model).
+
+**Fix options:**
+
+1. Use a matching model: `MODEL=claude-sonnet-4-20250514`
+2. Remove the unwanted key to use the other provider
+3. Set explicit `provider: openai` in config (and ensure `OPENAI_API_KEY` is set)
+
+### No Model Configured
+
+**Error:** `No model configured and no API keys found`
+
+**Cause:** No API key is set and no MODEL is configured.
+
+**Fix:** Set at least one API key. For single-key setups, the default model is auto-applied:
+
+- `OPENAI_API_KEY` → auto-applies `gpt-4o`
+- `ANTHROPIC_API_KEY` → auto-applies `claude-sonnet-4-20250514`
+- `OLLAMA_BASE_URL` → auto-applies `codellama:7b`
+
+### Azure Requires Explicit MODEL
+
+**Error:** `Azure OpenAI requires an explicit MODEL`
+
+**Cause:** Azure deployments have user-defined names, so we can't auto-apply a default.
+
+**Fix:** Set the `MODEL` environment variable to your deployment name:
+
+```
+MODEL=my-gpt4-deployment
+```
 
 ## Azure DevOps
 

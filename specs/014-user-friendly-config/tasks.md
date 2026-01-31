@@ -155,11 +155,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T045 [P] [US5] Update docs/configuration/quickstart.md with provider examples and single-key setup
-- [ ] T046 [P] [US5] Create docs/configuration/troubleshooting.md with all error scenarios and fixes
-- [ ] T047 [P] [US5] Update docs/getting-started/first-setup.md to emphasize single-provider path
-- [ ] T048 [P] [US5] Add Azure OpenAI deployment name guidance to docs/configuration/troubleshooting.md
-- [ ] T049 [P] [US5] Add provider selection migration guide for multi-key users in docs/configuration/
+- [x] T045 [P] [US5] Update docs/configuration/quickstart.md with provider examples and single-key setup
+- [x] T046 [P] [US5] Create docs/configuration/troubleshooting.md with all error scenarios and fixes
+- [x] T047 [P] [US5] Update docs/getting-started/first-setup.md to emphasize single-provider path
+- [x] T048 [P] [US5] Add Azure OpenAI deployment name guidance to docs/configuration/troubleshooting.md
+- [x] T049 [P] [US5] Add provider selection migration guide for multi-key users in docs/configuration/
 
 **Checkpoint**: All documentation updated with examples and troubleshooting
 
