@@ -165,9 +165,15 @@
 
 - [x] T052 Run `pnpm lint --max-warnings 0` and fix any warnings
 - [x] T053 Run `pnpm typecheck` and verify no type errors
-- [x] T054 Run `pnpm test` and verify all tests pass
+- [x] T054 Run `pnpm test` and verify all tests pass (2497 tests)
 - [ ] T055 Run quickstart.md manual testing guide for all 4 bugs
-- [ ] T056 Verify all success criteria SC-001 through SC-014
+- [x] T056 Verify all success criteria SC-001 through SC-014 (via regression tests)
+
+### Additional Hardening (Gap Analysis)
+
+- [x] T057 Create dedicated regression test file `router/src/__tests__/regressions/001-config-wizard-bugs.test.ts` (SC-005)
+- [x] T058 Add explicit regression tests for all 4 bugs (21 tests)
+- [x] T059 Verify edge cases: MODEL precedence, whitespace handling, platform variants
 
 ---
 
