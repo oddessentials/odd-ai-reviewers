@@ -102,6 +102,86 @@ export interface PreflightResult {
 }
 
 /**
+ * Detect the single provider when exactly one provider has keys configured.
+ * Used for auto-apply default model behavior.
+ *
+ * @param env - Environment variables to check
+ * @returns The single provider, or null if 0 or 2+ providers have keys
+ */
+export function detectSingleProvider(env: Record<string, string | undefined>): LlmProvider | null {
+  const hasAnthropic = env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '';
+  const hasOpenAI = env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '';
+  const hasAzure =
+    env['AZURE_OPENAI_API_KEY'] &&
+    env['AZURE_OPENAI_API_KEY'].trim() !== '' &&
+    env['AZURE_OPENAI_ENDPOINT'] &&
+    env['AZURE_OPENAI_ENDPOINT'].trim() !== '' &&
+    env['AZURE_OPENAI_DEPLOYMENT'] &&
+    env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
+  const hasOllama = env['OLLAMA_BASE_URL'] && env['OLLAMA_BASE_URL'].trim() !== '';
+
+  const providers: LlmProvider[] = [];
+  if (hasAnthropic) providers.push('anthropic');
+  if (hasOpenAI) providers.push('openai');
+  if (hasAzure) providers.push('azure-openai');
+  if (hasOllama) providers.push('ollama');
+
+  if (providers.length === 1) {
+    const provider = providers[0];
+    return provider !== undefined ? provider : null;
+  }
+  return null;
+}
+
+/**
+ * Resolve effective model with auto-apply defaults for single-key setups (FR-001).
+ *
+ * PRECEDENCE:
+ * 1. MODEL env var (explicit user override)
+ * 2. config.models.default (repo-level setting)
+ * 3. Auto-apply DEFAULT_MODELS[provider] for single-key setups
+ *
+ * INVARIANT: Azure OpenAI has no default (deployment names are user-specific).
+ * INVARIANT: Multi-key setups DO NOT auto-apply (requires explicit config).
+ *
+ * @param config - Loaded configuration
+ * @param env - Environment variables
+ * @returns Object with model and whether it was auto-applied
+ */
+export function resolveEffectiveModelWithDefaults(
+  config: Config,
+  env: Record<string, string | undefined>
+): { model: string; autoApplied: boolean; provider: LlmProvider | null } {
+  // 1. MODEL env var takes precedence (explicit user override)
+  const envModel = env['MODEL'];
+  if (envModel && envModel.trim() !== '') {
+    return { model: envModel, autoApplied: false, provider: null };
+  }
+
+  // 2. Config default (repo-level setting)
+  if (config.models.default && config.models.default.trim() !== '') {
+    return { model: config.models.default, autoApplied: false, provider: null };
+  }
+
+  // 3. Auto-apply default for single-key setups
+  const keyCount = countProvidersWithKeys(env);
+  if (keyCount === 1) {
+    const provider = detectSingleProvider(env);
+    if (provider) {
+      const defaultModel = DEFAULT_MODELS[provider];
+      if (defaultModel) {
+        // Auto-apply the default model for this provider
+        return { model: defaultModel, autoApplied: true, provider };
+      }
+      // Azure has no default (null) - fall through to fail
+    }
+  }
+
+  // No model configured and cannot auto-apply
+  return { model: '', autoApplied: false, provider: null };
+}
+
+/**
  * Legacy keys that are no longer supported.
  * Presence of any of these causes hard failure.
  */
@@ -233,9 +313,13 @@ export function validateAgentSecrets(
 
 /**
  * Validate model configuration.
- * Fails if effectiveModel is empty (no MODEL env var and no config.models.default).
+ * Fails if effectiveModel is empty (no MODEL env var, no config.models.default,
+ * and auto-apply couldn't be used).
  *
- * INVARIANT: Router owns model resolution. No hardcoded fallbacks.
+ * INVARIANT: Router owns model resolution.
+ * INVARIANT: Single-key setups can auto-apply default models (FR-001).
+ * INVARIANT: Azure OpenAI requires explicit MODEL (no auto-apply).
+ * INVARIANT: Multi-key setups require explicit MODEL or config.models.default.
  */
 export function validateModelConfig(
   effectiveModel: string,
@@ -246,9 +330,33 @@ export function validateModelConfig(
   if (!effectiveModel || effectiveModel.trim() === '') {
     const hasModelEnv = env['MODEL'] && env['MODEL'].trim() !== '';
     if (!hasModelEnv) {
-      errors.push(
-        'No model configured. Set the MODEL environment variable or configure models.default in .ai-review.yml'
-      );
+      const keyCount = countProvidersWithKeys(env);
+      const singleProvider = detectSingleProvider(env);
+
+      if (keyCount === 0) {
+        errors.push(
+          'No model configured and no API keys found. ' +
+            'Set an API key (e.g., OPENAI_API_KEY) and the model will be auto-applied, ' +
+            'or set MODEL explicitly.'
+        );
+      } else if (keyCount === 1 && singleProvider === 'azure-openai') {
+        // Azure requires explicit model - no auto-apply
+        errors.push(
+          'Azure OpenAI requires an explicit MODEL. ' +
+            'Set MODEL to your deployment name (e.g., MODEL=my-gpt4-deployment).'
+        );
+      } else if (keyCount > 1) {
+        // Multi-key - ambiguous, need explicit model
+        errors.push(
+          'Multiple API keys detected but no MODEL configured. ' +
+            'Set MODEL explicitly or configure models.default in .ai-review.yml.'
+        );
+      } else {
+        // Single key but auto-apply didn't work (shouldn't happen normally)
+        errors.push(
+          'No model configured. Set the MODEL environment variable or configure models.default in .ai-review.yml'
+        );
+      }
     }
   }
 

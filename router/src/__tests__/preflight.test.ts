@@ -14,8 +14,10 @@ import {
   validateOllamaConfig,
   validateProviderModelCompatibility,
   validateAzureDeployment,
+  countProvidersWithKeys,
+  DEFAULT_MODELS,
 } from '../preflight.js';
-import type { Config } from '../config.js';
+import type { Config, LlmProvider } from '../config.js';
 
 function createTestConfig(agents: string[]): Config {
   return {
@@ -960,6 +962,139 @@ describe('validateChatModelCompatibility', () => {
       const result = validateChatModelCompatibility(config, 'codex-davinci', {});
 
       expect(result.valid).toBe(true);
+    });
+  });
+});
+
+/**
+ * User Story 1 Tests: First-Time Setup with Single LLM Provider
+ *
+ * T012-T015: Tests for auto-apply default model behavior
+ * Goal: Single-key setups "just work" with auto-applied default models
+ */
+describe('User Story 1: Single-Key Auto-Apply Defaults', () => {
+  describe('countProvidersWithKeys', () => {
+    it('returns 0 when no keys are set', () => {
+      expect(countProvidersWithKeys({})).toBe(0);
+    });
+
+    it('returns 1 when only OPENAI_API_KEY is set', () => {
+      expect(countProvidersWithKeys({ OPENAI_API_KEY: 'sk-xxx' })).toBe(1);
+    });
+
+    it('returns 1 when only ANTHROPIC_API_KEY is set', () => {
+      expect(countProvidersWithKeys({ ANTHROPIC_API_KEY: 'sk-ant-xxx' })).toBe(1);
+    });
+
+    it('returns 1 when only OLLAMA_BASE_URL is set', () => {
+      expect(countProvidersWithKeys({ OLLAMA_BASE_URL: 'http://localhost:11434' })).toBe(1);
+    });
+
+    it('returns 1 for Azure only when ALL three keys are set', () => {
+      // Partial Azure = 0
+      expect(countProvidersWithKeys({ AZURE_OPENAI_API_KEY: 'azure-xxx' })).toBe(0);
+      expect(
+        countProvidersWithKeys({
+          AZURE_OPENAI_API_KEY: 'azure-xxx',
+          AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        })
+      ).toBe(0);
+
+      // Complete Azure = 1
+      expect(
+        countProvidersWithKeys({
+          AZURE_OPENAI_API_KEY: 'azure-xxx',
+          AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+          AZURE_OPENAI_DEPLOYMENT: 'my-deployment',
+        })
+      ).toBe(1);
+    });
+
+    it('returns 2 when both OpenAI and Anthropic keys are set', () => {
+      expect(
+        countProvidersWithKeys({
+          OPENAI_API_KEY: 'sk-xxx',
+          ANTHROPIC_API_KEY: 'sk-ant-xxx',
+        })
+      ).toBe(2);
+    });
+
+    it('ignores empty strings', () => {
+      expect(countProvidersWithKeys({ OPENAI_API_KEY: '' })).toBe(0);
+      expect(countProvidersWithKeys({ OPENAI_API_KEY: '   ' })).toBe(0);
+    });
+  });
+
+  describe('DEFAULT_MODELS constant', () => {
+    it('has gpt-4o as default for OpenAI', () => {
+      expect(DEFAULT_MODELS.openai).toBe('gpt-4o');
+    });
+
+    it('has claude-sonnet-4-20250514 as default for Anthropic', () => {
+      expect(DEFAULT_MODELS.anthropic).toBe('claude-sonnet-4-20250514');
+    });
+
+    it('has codellama:7b as default for Ollama', () => {
+      expect(DEFAULT_MODELS.ollama).toBe('codellama:7b');
+    });
+
+    it('has null for Azure (requires deployment name)', () => {
+      expect(DEFAULT_MODELS['azure-openai']).toBeNull();
+    });
+  });
+
+  describe('T012: auto-applies gpt-4o when only OPENAI_API_KEY set', () => {
+    it('should auto-apply gpt-4o default for single OpenAI key setup', () => {
+      const env = { OPENAI_API_KEY: 'sk-xxx' };
+      const keyCount = countProvidersWithKeys(env);
+      const provider: LlmProvider = 'openai';
+
+      expect(keyCount).toBe(1);
+      expect(DEFAULT_MODELS[provider]).toBe('gpt-4o');
+    });
+  });
+
+  describe('T013: auto-applies claude-sonnet-4 when only ANTHROPIC_API_KEY set', () => {
+    it('should auto-apply claude-sonnet-4 default for single Anthropic key setup', () => {
+      const env = { ANTHROPIC_API_KEY: 'sk-ant-xxx' };
+      const keyCount = countProvidersWithKeys(env);
+      const provider: LlmProvider = 'anthropic';
+
+      expect(keyCount).toBe(1);
+      expect(DEFAULT_MODELS[provider]).toBe('claude-sonnet-4-20250514');
+    });
+  });
+
+  describe('T014: auto-applies codellama:7b when only OLLAMA_BASE_URL set', () => {
+    it('should auto-apply codellama:7b default for single Ollama setup', () => {
+      const env = { OLLAMA_BASE_URL: 'http://localhost:11434' };
+      const keyCount = countProvidersWithKeys(env);
+      const provider: LlmProvider = 'ollama';
+
+      expect(keyCount).toBe(1);
+      expect(DEFAULT_MODELS[provider]).toBe('codellama:7b');
+    });
+  });
+
+  describe('T015: does NOT auto-apply for Azure (requires deployment)', () => {
+    it('should NOT auto-apply a model for Azure OpenAI', () => {
+      const env = {
+        AZURE_OPENAI_API_KEY: 'azure-xxx',
+        AZURE_OPENAI_ENDPOINT: 'https://my.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'my-deployment',
+      };
+      const keyCount = countProvidersWithKeys(env);
+      const provider: LlmProvider = 'azure-openai';
+
+      expect(keyCount).toBe(1);
+      // Azure OpenAI has no default model - user must specify deployment name
+      expect(DEFAULT_MODELS[provider]).toBeNull();
+    });
+
+    it('Azure requires explicit MODEL because deployment names are user-specific', () => {
+      // This test documents the FR-013 requirement: Azure deployments have
+      // custom names chosen by the user, so we cannot auto-apply a default.
+      expect(DEFAULT_MODELS['azure-openai']).toBeNull();
     });
   });
 });

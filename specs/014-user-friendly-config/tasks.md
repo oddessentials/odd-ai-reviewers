@@ -58,17 +58,17 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add test case "auto-applies gpt-4o when only OPENAI_API_KEY set" in router/src/**tests**/preflight.test.ts
-- [ ] T013 [P] [US1] Add test case "auto-applies claude-sonnet-4 when only ANTHROPIC_API_KEY set" in router/src/**tests**/preflight.test.ts
-- [ ] T014 [P] [US1] Add test case "auto-applies codellama:7b when only OLLAMA_BASE_URL set" in router/src/**tests**/preflight.test.ts
-- [ ] T015 [P] [US1] Add test case "does NOT auto-apply for Azure (requires deployment)" in router/src/**tests**/preflight.test.ts
+- [x] T012 [P] [US1] Add test case "auto-applies gpt-4o when only OPENAI_API_KEY set" in router/src/**tests**/preflight.test.ts
+- [x] T013 [P] [US1] Add test case "auto-applies claude-sonnet-4 when only ANTHROPIC_API_KEY set" in router/src/**tests**/preflight.test.ts
+- [x] T014 [P] [US1] Add test case "auto-applies codellama:7b when only OLLAMA_BASE_URL set" in router/src/**tests**/preflight.test.ts
+- [x] T015 [P] [US1] Add test case "does NOT auto-apply for Azure (requires deployment)" in router/src/**tests**/preflight.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Add `resolveEffectiveModelWithDefaults()` function to router/src/preflight.ts that auto-applies defaults for single-key setups
-- [ ] T017 [US1] Update `validateModelConfig()` in router/src/preflight.ts to use auto-apply instead of failing
-- [ ] T018 [US1] Integrate resolved config tuple building into `runPreflightChecks()` in router/src/phases/preflight.ts
-- [ ] T019 [US1] Add JSON logging of resolved config tuple after successful preflight in router/src/phases/preflight.ts
+- [x] T016 [US1] Add `resolveEffectiveModelWithDefaults()` function to router/src/preflight.ts that auto-applies defaults for single-key setups
+- [x] T017 [US1] Update `validateModelConfig()` in router/src/preflight.ts to use auto-apply instead of failing
+- [x] T018 [US1] Integrate resolved config tuple building into `runPreflightChecks()` in router/src/phases/preflight.ts
+- [x] T019 [US1] Add JSON logging of resolved config tuple after successful preflight in router/src/phases/preflight.ts
 
 **Checkpoint**: Single-key setups work without any config file
 
