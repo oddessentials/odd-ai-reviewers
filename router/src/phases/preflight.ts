@@ -77,9 +77,9 @@ export function runPreflightChecks(
   // Use auto-applied model if available, otherwise use context model
   const effectiveModel = resolvedModel || agentContext.effectiveModel;
 
-  // Log auto-apply behavior
+  // Log auto-apply behavior (to stderr to keep stdout JSON-clean for --json)
   if (autoApplied && resolvedModel) {
-    console.log(`[preflight] Auto-applied default model: ${resolvedModel}`);
+    console.error(`[preflight] Auto-applied default model: ${resolvedModel}`);
   }
 
   // 2. Model config validation
@@ -167,9 +167,9 @@ export function runPreflightChecks(
     configPath
   );
 
-  // FR-011 / T019: Log resolved config tuple as JSON on success
+  // FR-011 / T019: Log resolved config tuple as JSON on success (to stderr to keep stdout JSON-clean)
   if (allErrors.length === 0) {
-    console.log(`[preflight] Resolved configuration: ${JSON.stringify(resolvedTuple)}`);
+    console.error(`[preflight] Resolved configuration: ${JSON.stringify(resolvedTuple)}`);
   }
 
   return {

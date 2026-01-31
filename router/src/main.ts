@@ -269,8 +269,8 @@ configCommand
         return;
       }
 
-      // Validate platform option
-      const validPlatforms = ['github', 'ado'] as const;
+      // Validate platform option (including 'both' for dual reporting)
+      const validPlatforms = ['github', 'ado', 'both'] as const;
       platform = (options.platform || 'github') as (typeof validPlatforms)[number];
       if (!validPlatforms.includes(platform)) {
         console.error(`[config init] Invalid platform: ${options.platform}`);
@@ -306,7 +306,12 @@ configCommand
     // Run validation and show summary (US3 integration - T037-T040)
     console.log('\nValidating configuration...');
     try {
-      const config = await loadConfig(process.cwd());
+      // Parse the generated YAML directly to validate it, not CWD's .ai-review.yml
+      // This ensures validation reflects the config that was actually written,
+      // regardless of --output path
+      const { parse: parseYaml } = await import('yaml');
+      const { ConfigSchema } = await import('./config/schemas.js');
+      const config = ConfigSchema.parse(parseYaml(yaml));
       const env = process.env as Record<string, string | undefined>;
 
       // T030 (FR-009, FR-010): Build minimal AgentContext same pattern as validate command
@@ -332,7 +337,8 @@ configCommand
       };
 
       // T031: Use same pattern as validate command
-      const preflightResult = runPreflightChecks(config, minimalContext, env, process.cwd());
+      // Use outputPath (where config was written) for accurate reporting
+      const preflightResult = runPreflightChecks(config, minimalContext, env, outputPath);
       const report = formatValidationReport(preflightResult);
       printValidationReport(report);
 

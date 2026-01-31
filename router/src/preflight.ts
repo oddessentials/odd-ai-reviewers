@@ -493,7 +493,7 @@ export function validateProviderModelCompatibility(
 
   // Check each cloud agent's resolved provider against the model
   for (const agentId of cloudAgents) {
-    const resolvedProvider = resolveProvider(agentId, env);
+    const resolvedProvider = resolveProvider(agentId, env, config.provider);
 
     // Skip if no provider resolved (will fail elsewhere)
     if (!resolvedProvider) continue;
