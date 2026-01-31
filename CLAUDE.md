@@ -1,4 +1,4 @@
-﻿# odd-ai-reviewers Development Guidelines
+# odd-ai-reviewers Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-01-27
 
@@ -24,6 +24,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (stateless per run; file-based cache exists but not modified for core fixes) (406-fix-remaining-bugs)
 - TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.3.6 (schema validation), typescript (compiler API) (001-fix-feedback-bugs)
 - N/A (in-memory analysis, file-based spec checker) (001-fix-feedback-bugs)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Commander 14.x (CLI), Vitest 4.x (testing) (014-user-friendly-config)
+- N/A (file-based `.ai-review.yml` only) (014-user-friendly-config)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -51,9 +53,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 014-user-friendly-config: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Commander 14.x (CLI), Vitest 4.x (testing)
 - 001-fix-feedback-bugs: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.3.6 (schema validation), typescript (compiler API)
 - 406-fix-remaining-bugs: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing), Zod (schema validation)
-- 405-fix-grouped-comment-resolution: Added TypeScript 5.x (ES2022 target, NodeNext modules) + Octokit (GitHub API), node-fetch (ADO API), Vitest (testing)
 
 
 
