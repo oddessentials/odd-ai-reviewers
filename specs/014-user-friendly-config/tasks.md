@@ -133,15 +133,15 @@
 
 ### Tests for User Story 4
 
-- [ ] T039 [P] [US4] Add test case "explicit provider: openai uses OpenAI with both keys" in router/src/**tests**/providers.test.ts
-- [ ] T040 [P] [US4] Add test case "explicit provider: anthropic uses Anthropic with both keys" in router/src/**tests**/providers.test.ts
-- [ ] T041 [P] [US4] Add test case "single key still auto-detects without explicit provider" in router/src/**tests**/providers.test.ts
+- [x] T039 [P] [US4] Add test case "explicit provider: openai uses OpenAI with both keys" in router/src/**tests**/providers.test.ts
+- [x] T040 [P] [US4] Add test case "explicit provider: anthropic uses Anthropic with both keys" in router/src/**tests**/providers.test.ts
+- [x] T041 [P] [US4] Add test case "single key still auto-detects without explicit provider" in router/src/**tests**/providers.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T042 [US4] Update provider resolution precedence in router/src/config/providers.ts to check config.provider first
-- [ ] T043 [US4] Add validation that explicit provider has corresponding key in router/src/preflight.ts
-- [ ] T044 [US4] Update resolved config tuple to reflect explicit provider source in router/src/config/providers.ts
+- [x] T042 [US4] Update provider resolution precedence in router/src/config/providers.ts to check config.provider first
+- [x] T043 [US4] Add validation that explicit provider has corresponding key in router/src/preflight.ts
+- [x] T044 [US4] Update resolved config tuple to reflect explicit provider source in router/src/config/providers.ts
 
 **Checkpoint**: Explicit provider selection works and overrides precedence
 
