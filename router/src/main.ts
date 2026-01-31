@@ -306,12 +306,16 @@ configCommand
     // Run validation and show summary (US3 integration - T037-T040)
     console.log('\nValidating configuration...');
     try {
-      // Parse the generated YAML directly to validate it, not CWD's .ai-review.yml
-      // This ensures validation reflects the config that was actually written,
-      // regardless of --output path
+      // Parse the generated YAML and merge with defaults to match loadConfig behavior.
+      // This ensures validation uses the same merged config that runtime will see.
       const { parse: parseYaml } = await import('yaml');
       const { ConfigSchema } = await import('./config/schemas.js');
-      const config = ConfigSchema.parse(parseYaml(yaml));
+      const { loadDefaults, deepMerge } = await import('./config.js');
+
+      const generatedConfig = parseYaml(yaml) as Record<string, unknown>;
+      const defaults = await loadDefaults();
+      const mergedConfig = deepMerge(defaults, generatedConfig);
+      const config = ConfigSchema.parse(mergedConfig);
       const env = process.env as Record<string, string | undefined>;
 
       // T030 (FR-009, FR-010): Build minimal AgentContext same pattern as validate command

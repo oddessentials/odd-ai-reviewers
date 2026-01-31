@@ -713,3 +713,118 @@ describe('Regression: P3 - Non-interactive mode supports "both" platform', () =>
     expect(parsed.reporting.ado.mode).toBe('threads_and_status');
   });
 });
+
+/**
+ * Regression test for config init validation matching runtime behavior.
+ *
+ * Bug: Config init validation parsed generated YAML without merging defaults,
+ * causing false positives where validation passed but runtime failed.
+ *
+ * Scenario: provider: anthropic + ANTHROPIC_API_KEY + no MODEL
+ * - Config init without defaults merge: auto-applies Claude default → passes
+ * - Runtime with defaults merge: models.default: gpt-4o-mini → provider/model mismatch
+ */
+import { loadDefaults, deepMerge } from '../../config.js';
+import { ConfigSchema } from '../../config/schemas.js';
+
+describe('Regression: Config init validates with defaults merge', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('REGRESSION: deepMerge and loadDefaults are exported from config.js', async () => {
+    // These functions must be available for config init to use
+    expect(typeof deepMerge).toBe('function');
+    expect(typeof loadDefaults).toBe('function');
+
+    const defaults = await loadDefaults();
+    expect(defaults).toBeDefined();
+    expect(typeof defaults).toBe('object');
+  });
+
+  it('REGRESSION: deepMerge applies defaults correctly', () => {
+    const defaults = { models: { default: 'gpt-4o-mini' }, version: 1 };
+    const userConfig = { provider: 'anthropic', version: 1 };
+
+    const merged = deepMerge(defaults, userConfig);
+
+    // User config takes precedence
+    expect(merged['provider']).toBe('anthropic');
+    // Defaults fill in missing fields
+    expect((merged['models'] as Record<string, unknown>)['default']).toBe('gpt-4o-mini');
+  });
+
+  it('REGRESSION: Generated config merged with defaults matches runtime', async () => {
+    // Generate Anthropic config (no models.default set)
+    const yaml = generateConfigYaml({
+      provider: 'anthropic',
+      platform: 'github',
+      agents: ['semgrep', 'opencode'],
+      useDefaults: true,
+    });
+
+    const generatedConfig = parseYaml(yaml) as Record<string, unknown>;
+    const defaults = await loadDefaults();
+    const mergedConfig = deepMerge(defaults, generatedConfig);
+
+    // Validate merged config
+    const config = ConfigSchema.parse(mergedConfig);
+
+    // The merged config should have provider: anthropic
+    expect(config.provider).toBe('anthropic');
+
+    // If defaults have models.default, it should be merged in
+    // (unless the generated config overrides it)
+    if (defaults['models'] && (defaults['models'] as Record<string, unknown>)['default']) {
+      // The generated config doesn't set models.default, so defaults apply
+      expect(config.models.default).toBe(
+        (defaults['models'] as Record<string, unknown>)['default']
+      );
+    }
+  });
+
+  it('REGRESSION: Anthropic provider with OpenAI default model fails validation', async () => {
+    // This is the specific scenario that was failing:
+    // - provider: anthropic
+    // - ANTHROPIC_API_KEY set
+    // - defaults.models.default: gpt-4o-mini (from defaults file)
+    // - No explicit MODEL set
+    //
+    // Without defaults merge: auto-applies Claude default → passes
+    // With defaults merge: gpt-4o-mini → provider/model mismatch → fails
+
+    const yaml = generateConfigYaml({
+      provider: 'anthropic',
+      platform: 'github',
+      agents: ['semgrep', 'opencode'],
+      useDefaults: true,
+    });
+
+    const generatedConfig = parseYaml(yaml) as Record<string, unknown>;
+    const defaults = await loadDefaults();
+    const mergedConfig = deepMerge(defaults, generatedConfig);
+    const config = ConfigSchema.parse(mergedConfig);
+
+    // If the defaults have an OpenAI model, validation should catch the mismatch
+    const defaultModel = config.models.default;
+    const hasOpenAIDefaultModel = defaultModel && defaultModel.startsWith('gpt-');
+
+    if (hasOpenAIDefaultModel) {
+      const minimalContext = createMinimalContext(config);
+      const env = { ANTHROPIC_API_KEY: 'sk-ant-test' }; // Only Anthropic key
+
+      const result = runPreflightChecks(config, minimalContext, env, '/tmp/test');
+
+      // With merged defaults, this should fail due to model/provider mismatch
+      // The defaults have gpt-4o-mini but provider is anthropic
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('mismatch') || e.includes('gpt-'))).toBe(true);
+    }
+  });
+});
