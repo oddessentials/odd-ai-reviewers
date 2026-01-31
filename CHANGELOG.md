@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### User-Friendly Configuration (014-user-friendly-config)
+
+- **Auto-apply default models**: Single-key setups now auto-apply sensible default models:
+  - OpenAI: `gpt-4o`
+  - Anthropic: `claude-sonnet-4-20250514`
+  - Ollama: `codellama:7b`
+  - Azure OpenAI: No default (deployment names are user-specific)
+- **Explicit provider field**: Added `provider` field to `.ai-review.yml` schema for explicit provider selection when multiple API keys are configured.
+- **Resolved config tuple**: Preflight now logs the fully resolved configuration tuple (provider, model, keySource, configSource) for debugging and reproducibility.
+- **Config wizard**: Added `ai-review config init` command for guided configuration generation with TTY-safe `--defaults` flag.
+- **Provider selection documentation**: Added comprehensive provider selection guide with migration examples.
+- **Improved error messages**: All common misconfigurations now produce actionable error messages with specific fix instructions.
+
+### Changed
+
+#### Breaking Changes (014-user-friendly-config)
+
+- **Multi-key + MODEL requires explicit provider**: When multiple API keys are present AND `MODEL` is set, you must now specify `provider:` in your `.ai-review.yml`. This prevents ambiguous configuration where the intended provider is unclear.
+
+  **Migration example:**
+
+  ```yaml
+  # Before (ambiguous - will fail)
+  models:
+    default: gpt-4o
+
+  # After (explicit - works)
+  provider: openai
+  models:
+    default: gpt-4o
+  ```
+
+- **Legacy key rejection with migration guidance**: Legacy environment variables (`OPENAI_MODEL`, `OPENCODE_MODEL`, `PR_AGENT_API_KEY`, `AI_SEMANTIC_REVIEW_API_KEY`) now fail with specific migration instructions.
+
 #### Type System & Safety (010-type-test-optimization, 011-agent-result-unions)
 
 - **Custom error types**: Added `ConfigError`, `AgentError`, `NetworkError`, and `ValidationError` with canonical wire format for consistent error handling and serialization across all modules.

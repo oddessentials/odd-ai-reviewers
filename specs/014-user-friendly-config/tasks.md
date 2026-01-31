@@ -169,12 +169,12 @@
 
 **Purpose**: Final improvements and validation
 
-- [ ] T050 [P] Add CHANGELOG entry documenting breaking change (multi-key + MODEL requires provider)
-- [ ] T051 [P] Run `pnpm lint` with `--max-warnings 0` to verify no lint violations
-- [ ] T052 [P] Run `pnpm typecheck` to verify no type errors
-- [ ] T053 Run full test suite `pnpm test` to verify all tests pass
-- [ ] T054 Run `depcruise` to verify no circular dependencies introduced
-- [ ] T055 Validate quickstart.md scenarios manually
+- [x] T050 [P] Add CHANGELOG entry documenting breaking change (multi-key + MODEL requires provider)
+- [x] T051 [P] Run `pnpm lint` with `--max-warnings 0` to verify no lint violations
+- [x] T052 [P] Run `pnpm typecheck` to verify no type errors
+- [x] T053 Run full test suite `pnpm test` to verify all tests pass
+- [x] T054 Run `depcruise` to verify no circular dependencies introduced
+- [x] T055 Validate quickstart.md scenarios manually
 
 ---
 
