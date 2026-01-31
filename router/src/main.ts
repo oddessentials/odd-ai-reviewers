@@ -12,7 +12,7 @@
 import { Command } from 'commander';
 import { fileURLToPath } from 'url';
 import { realpathSync } from 'fs';
-import { loadConfig, resolveEffectiveModel } from './config.js';
+import { loadConfig } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
 import {
@@ -97,9 +97,9 @@ program
 
       // Build minimal agent context for preflight checks
       const env = process.env as Record<string, string | undefined>;
-      const effectiveModel = resolveEffectiveModel(config, env);
 
       // Create minimal AgentContext for validation (no diff needed)
+      // T016 (FR-003): Use placeholder - preflight will resolve the actual model
       const minimalContext: AgentContext = {
         repoPath: options.repo,
         diff: {
@@ -116,7 +116,7 @@ program
         diffContent: '',
         prNumber: undefined,
         env,
-        effectiveModel,
+        effectiveModel: '', // Placeholder - preflight resolves the actual model
         provider: null,
       };
 
@@ -545,7 +545,8 @@ export async function runReview(
     diffContent,
     prNumber: options.pr,
     env: routerEnv,
-    effectiveModel: resolveEffectiveModel(config, routerEnv),
+    // T016 (FR-003): Use placeholder - preflight will resolve the actual model
+    effectiveModel: '',
     provider: null, // Resolved per-agent in execute phase
   };
 
@@ -558,6 +559,12 @@ export async function runReview(
     }
     exitHandler(1);
     return; // For type safety when exitHandler doesn't terminate
+  }
+
+  // T015 (FR-002, FR-004): Update agentContext with resolved model from preflight
+  // This is the single source of truth - no re-resolution after preflight
+  if (preflightResult.resolved) {
+    agentContext.effectiveModel = preflightResult.resolved.model;
   }
 
   // === PHASE 5: Execute Agent Passes ===

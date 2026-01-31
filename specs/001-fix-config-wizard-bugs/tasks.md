@@ -52,17 +52,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T009 [US1] Create test file `router/src/__tests__/resolution-guardrail.test.ts`
-- [ ] T010 [US1] Add test: spy on `resolveEffectiveModelWithDefaults` and assert called exactly once per review command (FR-015)
-- [ ] T011 [US1] Add test: spy on `resolveEffectiveModelWithDefaults` and assert called exactly once per validate command (FR-015)
-- [ ] T012 [US1] Add test: verify `AgentContext.effectiveModel` matches `ResolvedConfig.model` (FR-016)
+- [x] T009 [US1] Create test file `router/src/__tests__/resolution-guardrail.test.ts`
+- [x] T010 [US1] Add test: spy on `resolveEffectiveModelWithDefaults` and assert called exactly once per review command (FR-015)
+- [x] T011 [US1] Add test: spy on `resolveEffectiveModelWithDefaults` and assert called exactly once per validate command (FR-015)
+- [x] T012 [US1] Add test: verify `AgentContext.effectiveModel` matches `ResolvedConfig.model` (FR-016)
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Modify `runPreflightChecks` in `router/src/phases/preflight.ts` to return `resolved: ResolvedConfigTuple` in PreflightResult (FR-001)
-- [ ] T014 [US1] Call `buildResolvedConfigTuple` in preflight and include result in return value
-- [ ] T015 [US1] Modify `runReview` in `router/src/main.ts` to update `agentContext.effectiveModel` from `preflightResult.resolved.model` (FR-002, FR-004)
-- [ ] T016 [US1] Remove duplicate `resolveEffectiveModel` call in main.ts after preflight (use preflight result only) (FR-003)
+- [x] T013 [US1] Modify `runPreflightChecks` in `router/src/phases/preflight.ts` to return `resolved: ResolvedConfigTuple` in PreflightResult (FR-001)
+- [x] T014 [US1] Call `buildResolvedConfigTuple` in preflight and include result in return value
+- [x] T015 [US1] Modify `runReview` in `router/src/main.ts` to update `agentContext.effectiveModel` from `preflightResult.resolved.model` (FR-002, FR-004)
+- [x] T016 [US1] Remove duplicate `resolveEffectiveModel` call in main.ts after preflight (use preflight result only) (FR-003)
 
 **Checkpoint**: Single-key setup works end-to-end; model resolution happens exactly once
 
