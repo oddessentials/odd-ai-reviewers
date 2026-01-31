@@ -9,6 +9,7 @@
 
 import { createHash } from 'crypto';
 import type { Finding, Severity } from '../agents/types.js';
+import { getAgentIcon } from './agent-icons.js';
 
 const FINGERPRINT_MARKER_PREFIX = 'odd-ai-reviewers:fingerprint:v1:';
 
@@ -347,9 +348,9 @@ export function generateSummaryMarkdown(findings: Finding[]): string {
       const emoji =
         finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
       const lineInfo = finding.line ? ` (line ${finding.line})` : '';
-      const agent = finding.sourceAgent ? ` [${finding.sourceAgent}]` : '';
+      const agentIcon = finding.sourceAgent ? ` ${getAgentIcon(finding.sourceAgent)}` : '';
 
-      lines.push(`- ${emoji}${lineInfo}${agent}: ${finding.message}`);
+      lines.push(`- ${emoji}${lineInfo}${agentIcon}: ${finding.message}`);
 
       if (finding.suggestion) {
         lines.push(`  - 💡 Suggestion: ${finding.suggestion}`);
@@ -391,8 +392,8 @@ export function toGitHubAnnotation(finding: Finding): GitHubAnnotation | null {
       ? `${finding.message}\n\n💡 Suggestion: ${finding.suggestion}`
       : finding.message,
     title: finding.ruleId
-      ? `[${finding.sourceAgent}] ${finding.ruleId}`
-      : `[${finding.sourceAgent}]`,
+      ? `${getAgentIcon(finding.sourceAgent)} ${finding.ruleId}`
+      : getAgentIcon(finding.sourceAgent),
   };
 }
 
@@ -506,16 +507,18 @@ export function generateAgentStatusTable(
 
   // Add results for agents that ran
   for (const r of results) {
+    const icon = getAgentIcon(r.agentId);
     const status = r.success ? '✅ Ran' : '❌ Failed';
     const details = r.success
       ? `${r.findings.length} finding${r.findings.length === 1 ? '' : 's'}`
       : r.error || 'Unknown error';
-    lines.push(`| ${r.agentId} | ${status} | ${details} |`);
+    lines.push(`| ${icon} ${r.agentId} | ${status} | ${details} |`);
   }
 
   // Add skipped agents
   for (const s of skipped) {
-    lines.push(`| ${s.id} | ⏭️ Skipped | ${s.reason} |`);
+    const icon = getAgentIcon(s.id);
+    lines.push(`| ${icon} ${s.id} | ⏭️ Skipped | ${s.reason} |`);
   }
 
   lines.push('');
@@ -560,9 +563,9 @@ export function renderPartialFindingsSection(partialFindings: Finding[]): string
       const emoji =
         finding.severity === 'error' ? '🔴' : finding.severity === 'warning' ? '🟡' : '🔵';
       const lineInfo = finding.line ? ` (line ${finding.line})` : '';
-      const agent = finding.sourceAgent ? ` [${finding.sourceAgent}]` : '';
+      const agentIcon = finding.sourceAgent ? ` ${getAgentIcon(finding.sourceAgent)}` : '';
 
-      lines.push(`- ${emoji}${lineInfo}${agent}: ${finding.message}`);
+      lines.push(`- ${emoji}${lineInfo}${agentIcon}: ${finding.message}`);
 
       if (finding.suggestion) {
         lines.push(`  - 💡 Suggestion: ${finding.suggestion}`);

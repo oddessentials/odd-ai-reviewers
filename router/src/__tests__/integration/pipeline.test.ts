@@ -278,7 +278,7 @@ describe('Pipeline Integration Tests', () => {
       // Findings MUST appear in section
       expect(partialSection).toContain('auth.ts');
       expect(partialSection).toContain('Hardcoded credentials');
-      expect(partialSection).toContain('[security-scanner]');
+      expect(partialSection).toContain('🤖'); // security-scanner uses default icon
 
       // Severity counts MUST be present
       expect(partialSection).toContain('Errors | 1');
@@ -319,8 +319,7 @@ describe('Pipeline Integration Tests', () => {
 
       // Render
       const section = renderPartialFindingsSection(deduped);
-      expect(section).toContain('[agent-a]');
-      expect(section).toContain('[agent-b]');
+      expect(section).toContain('🤖'); // agent-a and agent-b both use default icon
       expect(section).toContain('Errors | 1');
       expect(section).toContain('Warnings | 1');
       expect(section).toContain('Info | 1');
