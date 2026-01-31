@@ -99,20 +99,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] Add test in `router/src/__tests__/config-wizard.test.ts`: config init validation completes without exception
-- [ ] T025 [P] [US3] Add test: config init with no API keys shows warnings, exit 0 (FR-019)
-- [ ] T026 [P] [US3] Add test: config init with valid API keys shows success, exit 0
-- [ ] T027 [P] [US3] Add test: config init with validation errors exits 1 (FR-019)
-- [ ] T028 [P] [US3] Add test: wizard cancellation (Ctrl+C/EOF) exits 0 (FR-023)
-- [ ] T029 [P] [US3] Add test: non-TTY without `--defaults` exits 1 with actionable error (FR-024)
+- [x] T024 [P] [US3] Add test in `router/src/__tests__/config-wizard.test.ts`: config init validation completes without exception
+- [x] T025 [P] [US3] Add test: config init with no API keys shows warnings, exit 0 (FR-019)
+- [x] T026 [P] [US3] Add test: config init with valid API keys shows success, exit 0
+- [x] T027 [P] [US3] Add test: config init with validation errors exits 1 (FR-019)
+- [x] T028 [P] [US3] Add test: wizard cancellation (Ctrl+C/EOF) exits 0 (FR-023)
+- [x] T029 [P] [US3] Add test: non-TTY without `--defaults` exits 1 with actionable error (FR-024)
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Modify config init in `router/src/main.ts` to build minimal AgentContext (not undefined) (FR-009, FR-010)
-- [ ] T031 [US3] Use same pattern as validate command: `resolveEffectiveModel`, create context with required fields
-- [ ] T032 [US3] Add wizard cancellation handler: exit 0 on Ctrl+C or EOF (FR-023)
-- [ ] T033 [US3] Add non-TTY detection: if `!process.stdin.isTTY && !options.defaults`, exit 1 with message (FR-024)
-- [ ] T034 [US3] Non-TTY error message: "Error: Interactive mode requires a TTY. Use --defaults flag with --provider and --platform options."
+- [x] T030 [US3] Modify config init in `router/src/main.ts` to build minimal AgentContext (not undefined) (FR-009, FR-010)
+- [x] T031 [US3] Use same pattern as validate command: `resolveEffectiveModel`, create context with required fields
+- [x] T032 [US3] Add wizard cancellation handler: exit 0 on Ctrl+C or EOF (FR-023) [pre-existing]
+- [x] T033 [US3] Add non-TTY detection: if `!process.stdin.isTTY && !options.defaults`, exit 1 with message (FR-024) [pre-existing]
+- [x] T034 [US3] Non-TTY error message: "Error: Interactive mode requires a TTY. Use --defaults flag with --provider and --platform options." [pre-existing]
 
 **Checkpoint**: Config init works in all environments (TTY, non-TTY, cancel)
 

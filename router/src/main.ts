@@ -307,11 +307,32 @@ configCommand
     console.log('\nValidating configuration...');
     try {
       const config = await loadConfig(process.cwd());
-      const preflightResult = runPreflightChecks(
+      const env = process.env as Record<string, string | undefined>;
+
+      // T030 (FR-009, FR-010): Build minimal AgentContext same pattern as validate command
+      // This fixes the P2 bug where undefined was passed, causing validation to crash
+      const minimalContext: AgentContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git',
+        },
+        files: [],
         config,
-        undefined as never,
-        process.env as Record<string, string | undefined>
-      );
+        diffContent: '',
+        prNumber: undefined,
+        env,
+        effectiveModel: '', // Placeholder - preflight resolves the actual model
+        provider: null,
+      };
+
+      // T031: Use same pattern as validate command
+      const preflightResult = runPreflightChecks(config, minimalContext, env, process.cwd());
       const report = formatValidationReport(preflightResult);
       printValidationReport(report);
 

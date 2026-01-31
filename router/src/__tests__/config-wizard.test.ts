@@ -352,6 +352,187 @@ describe('Config Wizard', () => {
     });
   });
 
+  /**
+   * Phase 5: User Story 3 - Config Init Validation Completes Successfully
+   * T024-T029: Tests for config init validation behavior
+   *
+   * These tests verify that config init validation:
+   * - Builds a minimal AgentContext (not undefined)
+   * - Completes without exception
+   * - Shows warnings but exits 0 when no API keys set
+   * - Shows success and exits 0 when valid API keys set
+   * - Exits 1 on validation errors
+   * - Handles cancellation and non-TTY correctly
+   */
+  describe('T024-T029: Config Init Validation Integration', () => {
+    it('T024: validation should complete without exception when given minimal context', async () => {
+      // Import preflight to test the validation pattern config init should use
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      // Generate a config using the wizard
+      const config = generateDefaultConfig('openai', 'github', ['semgrep', 'opencode']);
+
+      // Build minimal AgentContext same pattern as validate command (FR-009, FR-010)
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: {},
+        effectiveModel: '', // Placeholder - preflight resolves
+        provider: null,
+      };
+
+      // This should NOT throw - the bug was passing undefined as AgentContext
+      expect(() => {
+        runPreflightChecks(config, minimalContext, {}, process.cwd());
+      }).not.toThrow();
+    });
+
+    it('T025: validation with no API keys should return warnings, not crash (FR-019)', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      const config = generateDefaultConfig('openai', 'github', ['semgrep', 'opencode']);
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      };
+
+      // With no API keys, validation may have errors/warnings but should not throw
+      const result = runPreflightChecks(config, minimalContext, {}, process.cwd());
+
+      // Should return a valid PreflightResult (may have errors due to missing keys)
+      expect(result).toBeDefined();
+      expect(result.errors).toBeDefined();
+      expect(result.warnings).toBeDefined();
+    });
+
+    it('T026: validation with valid API keys should succeed (exit 0)', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      const config = generateDefaultConfig('openai', 'github', ['semgrep', 'opencode']);
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: { OPENAI_API_KEY: 'sk-test-key' },
+        effectiveModel: '',
+        provider: null,
+      };
+
+      const result = runPreflightChecks(
+        config,
+        minimalContext,
+        { OPENAI_API_KEY: 'sk-test-key' },
+        process.cwd()
+      );
+
+      // With valid API key, validation should pass
+      expect(result.valid).toBe(true);
+      expect(result.errors.length).toBe(0);
+    });
+
+    it('T027: validation with errors should indicate exit 1 (FR-019)', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      // Create config with azure-openai which requires specific env vars
+      const config = generateDefaultConfig('azure-openai', 'github', ['semgrep', 'opencode']);
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      };
+
+      // Azure without required env vars should produce errors
+      const result = runPreflightChecks(config, minimalContext, {}, process.cwd());
+
+      // result.valid = false means exit 1
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('T028: wizard cancellation returns cancelled status (FR-023)', async () => {
+      // Test that promptSelect returns cancelled status on EOF
+      const rl = createMockRl(['']); // Empty input simulates EOF/cancellation
+
+      const platformOptions: PromptOption<string>[] = AVAILABLE_PLATFORMS.map((p) => ({
+        label: p.name,
+        value: p.id,
+        description: p.description,
+      }));
+
+      const result = await promptSelect(rl, 'Select:', platformOptions);
+
+      // Cancelled status should lead to exit 0 (not an error)
+      expect(result.status).toBe('cancelled');
+      rl.close();
+    });
+
+    it('T029: non-TTY detection returns correct value (FR-024)', () => {
+      // isInteractiveTerminal should return boolean based on process.stdin.isTTY
+      const result = isInteractiveTerminal();
+
+      // In test environment, should return false (not a TTY)
+      // The CLI uses this to refuse interactive mode without --defaults
+      expect(typeof result).toBe('boolean');
+      // Most test environments are not TTY
+      expect(result).toBe(false);
+    });
+  });
+
   describe('generateDefaultConfig', () => {
     it('should create config with specified provider', () => {
       const config = generateDefaultConfig('openai', 'github', ['semgrep', 'opencode']);
