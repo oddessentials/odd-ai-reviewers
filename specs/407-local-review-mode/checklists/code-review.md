@@ -137,9 +137,9 @@ Before approving any PR in Phase 407, verify ALL items below. Check each box onl
 
 ## Sign-Off
 
-**Reviewer**: ******\_\_\_******
-**Date**: ******\_\_\_******
-**PR**: ******\_\_\_******
+**Reviewer**: **\*\***\_\_\_**\*\***
+**Date**: **\*\***\_\_\_**\*\***
+**PR**: **\*\***\_\_\_**\*\***
 
 - [ ] All checklist items verified
 - [ ] Any deviations documented and justified
