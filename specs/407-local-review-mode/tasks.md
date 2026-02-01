@@ -215,13 +215,22 @@ router/src/
 - [ ] T066 Implement resolveOutputFormat(options) → OutputFormat with TTY detection
 - [ ] T067 Implement resolveBaseRef(options, gitContext) → resolved base reference
 
+### Unicode Detection (router/src/cli/output/colors.ts)
+
+- [ ] T067a Implement supportsUnicode() detection in colors.ts (check TERM, LC_ALL, LANG, Windows Terminal, ConEmu; fallback to ASCII on cmd.exe/dumb terminals)
+- [ ] T067b Wire supportsUnicode() into terminal.ts getBoxChars() call (remove hardcoded `useUnicode = true` TODO)
+
 ### Options Tests
 
 - [ ] T068 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for parsing (5 cases)
 - [ ] T069 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for validation (4 cases)
 - [ ] T070 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for defaults (4 cases)
 
-**Checkpoint**: Options parsing fully tested
+### Unicode Detection Tests
+
+- [ ] T070a [P] Create router/tests/unit/cli/output/unicode.test.ts for supportsUnicode() (6 cases: Windows Terminal, ConEmu, xterm-256color, LANG=en_US.UTF-8, cmd.exe/dumb fallback, CI environments)
+
+**Checkpoint**: Options parsing and Unicode detection fully tested
 
 ---
 
@@ -271,7 +280,7 @@ router/src/
 - [ ] T084 Wire config loading (with zero-config fallback) into runLocalReview()
 - [ ] T085 Wire local diff generation into runLocalReview()
 - [ ] T086 Wire existing executeAllPasses() into runLocalReview()
-- [ ] T087 Wire terminal reporter into runLocalReview()
+- [ ] T087 Wire terminal reporter into runLocalReview(), passing PassSummary[] from executeAllPasses() to populate JSON output passes array (critical for JSON schema completeness)
 - [ ] T088 Implement exit code logic (0=success/no-errors, 1=errors-found, 2=execution-failure)
 - [ ] T089 Implement --dry-run mode (show what would be reviewed)
 - [ ] T090 Implement --cost-only mode (estimate without execution)
@@ -282,6 +291,7 @@ router/src/
 - [ ] T092 [P] Create router/tests/unit/cli/commands/local-review.test.ts for error handling (4 cases)
 - [ ] T093 [P] Create router/tests/unit/cli/commands/local-review.test.ts for dry-run mode (2 cases)
 - [ ] T094 [P] Create router/tests/unit/cli/commands/local-review.test.ts for cost-only mode (2 cases)
+- [ ] T094a [P] Create router/tests/unit/cli/commands/local-review.test.ts for passes array population in JSON output (verify PassSummary[] flows through to terminal reporter)
 
 **Checkpoint**: Local review command tested with mocked dependencies
 
@@ -442,15 +452,15 @@ router/src/
 ### Session 3: Options & Zero-Config (~1.5 hours)
 
 **Tasks**: T063-T078 (Phases 6-7)
-**Modules**: Options parsing, Zero-config defaults
-**Tests**: 21 test cases
-**Exit Criteria**: `pnpm test cli/options config/zero-config` all pass
+**Modules**: Options parsing, Zero-config defaults, Unicode detection
+**Tests**: 27 test cases
+**Exit Criteria**: `pnpm test cli/options cli/output/unicode config/zero-config` all pass
 
 ### Session 4: Local Review Command (~1.5 hours)
 
-**Tasks**: T079-T094 (Phase 8)
+**Tasks**: T079-T094a (Phase 8)
 **Modules**: Signal handling, Local review orchestration
-**Tests**: 14 test cases
+**Tests**: 15 test cases
 **Exit Criteria**: `pnpm test cli/commands cli/signals` all pass
 
 ### Session 5: Integration & npm (~1 hour)
@@ -488,9 +498,9 @@ Tasks marked [P] can run in parallel within the same phase:
 | 3     | T031-T032 (change detection), T034-T037 (git context tests)               |
 | 4     | T044-T046 (diff tests)                                                    |
 | 5     | T057-T062 (reporter tests)                                                |
-| 6     | T068-T070 (options tests)                                                 |
+| 6     | T068-T070a (options + unicode tests)                                      |
 | 7     | T077-T078 (zero-config tests)                                             |
-| 8     | T081, T091-T094 (command tests)                                           |
+| 8     | T081, T091-T094a (command tests)                                          |
 | 11    | T122-T132a (security/schema/reliability tests - all parallel)             |
 | 12    | T133-T136 (integration tests)                                             |
 
@@ -548,15 +558,16 @@ Phase 4 (Local Diff) ──┴────────────────�
 | diff.ts (local)              | T044-T046  | -                 | 8           |
 | report/terminal.ts           | T057-T062  | -                 | 21          |
 | cli/options/\*.ts            | T068-T070  | -                 | 13          |
+| cli/output/unicode.ts        | T070a      | -                 | 6           |
 | config/zero-config.ts        | T077-T078  | -                 | 8           |
 | cli/signals.ts               | T081       | -                 | 3           |
-| cli/commands/local-review.ts | T091-T094  | T114              | 15          |
+| cli/commands/local-review.ts | T091-T094a | T114              | 16          |
 | **Security Compliance**      | T122-T126  | -                 | 11          |
 | **Schema Compliance**        | T127-T129  | -                 | 7           |
 | **Reliability Compliance**   | T130-T132a | -                 | 6           |
 | **Integration Tests**        | -          | T133-T136         | 4           |
 | **Cross-Platform Tests**     | T137-T140  | -                 | 4           |
-| **Total**                    |            |                   | **142+**    |
+| **Total**                    |            |                   | **149+**    |
 
 ---
 
