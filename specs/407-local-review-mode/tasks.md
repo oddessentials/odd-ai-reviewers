@@ -52,17 +52,17 @@ router/src/
 
 ### Type Definitions
 
-- [ ] T001 [P] Define GitContext and GitContextError types in router/src/cli/git-context.ts (empty module with exports)
-- [ ] T002 [P] Define TerminalContext and TerminalReportResult types in router/src/report/terminal.ts (empty module with exports)
-- [ ] T003 [P] Define LocalReviewOptions type in router/src/cli/options/local-review-options.ts (empty module with exports)
-- [ ] T004 [P] Define OutputFormat type ('pretty' | 'json' | 'sarif') in router/src/cli/options/local-review-options.ts
-- [ ] T005 [P] Define CLIError types (NotAGitRepoError, NoCredentialsError, NoChangesError) in router/src/cli/output/errors.ts
+- [x] T001 [P] Define GitContext and GitContextError types in router/src/cli/git-context.ts (empty module with exports)
+- [x] T002 [P] Define TerminalContext and TerminalReportResult types in router/src/report/terminal.ts (empty module with exports)
+- [x] T003 [P] Define LocalReviewOptions type in router/src/cli/options/local-review-options.ts (empty module with exports)
+- [x] T004 [P] Define OutputFormat type ('pretty' | 'json' | 'sarif') in router/src/cli/options/local-review-options.ts
+- [x] T005 [P] Define CLIError types (NotAGitRepoError, NoCredentialsError, NoChangesError) in router/src/cli/output/errors.ts
 
 ### Module Scaffolding
 
-- [ ] T006 [P] Create router/src/cli/output/index.ts barrel export
-- [ ] T007 [P] Create router/src/cli/options/index.ts barrel export
-- [ ] T008 [P] Create router/src/cli/commands/index.ts barrel export
+- [x] T006 [P] Create router/src/cli/output/index.ts barrel export
+- [x] T007 [P] Create router/src/cli/options/index.ts barrel export
+- [x] T008 [P] Create router/src/cli/commands/index.ts barrel export
 
 **Checkpoint**: All new modules scaffolded with type exports
 

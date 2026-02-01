@@ -28,6 +28,9 @@ module.exports = {
           '[.]d[.]ts$', // TypeScript declaration files
           '(^|/)tsconfig[.]json$', // TypeScript config
           '(^|/)(?:babel|webpack)[.]config[.](?:js|cjs|mjs|ts|cts|mts|json)$', // other configs
+          // 407-local-review-mode: Scaffolded modules wired up in Phase 8-9
+          '^router/src/cli/commands/index\\.ts$',
+          '^router/src/cli/options/index\\.ts$',
         ],
       },
       to: {},
