@@ -44,6 +44,7 @@ import { getAgentsByIds } from '../agents/index.js';
 import { isKnownAgentId } from '../agents/security.js';
 import { getCached, setCache } from '../cache/store.js';
 import { isMainBranchPush, isAgentForbiddenOnMain } from '../policy.js';
+import { resolveProvider } from '../config.js';
 
 // Helper to create mock agent
 function createMockAgent(
@@ -764,6 +765,81 @@ describe('executeAllPasses', () => {
       // Verify only failed agent is in skippedAgents
       expect(result.skippedAgents).toHaveLength(1);
       expect(result.skippedAgents[0]?.id).toBe('semgrep');
+    });
+  });
+
+  describe('provider resolution (T010)', () => {
+    it('should pass config.provider to resolveProvider during execution', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const mockAgent = createMockAgent(
+        'opencode',
+        'OpenCode',
+        true,
+        AgentSuccess({
+          agentId: 'opencode',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
+
+      // Create config with explicit provider override
+      const config: Config = {
+        ...createConfig([
+          { name: 'ai-review', agents: ['opencode'], enabled: true, required: false },
+        ]),
+        provider: 'anthropic', // Explicit provider override
+      };
+
+      await executeAllPasses(
+        config,
+        createAgentContext(),
+        { ANTHROPIC_API_KEY: 'test-key' },
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify resolveProvider was called with config.provider as third argument
+      expect(resolveProvider).toHaveBeenCalledWith(
+        'opencode',
+        expect.any(Object),
+        'anthropic' // The explicit provider from config
+      );
+    });
+
+    it('should pass undefined to resolveProvider when config.provider is not set', async () => {
+      vi.mocked(isKnownAgentId).mockReturnValue(true);
+
+      const mockAgent = createMockAgent(
+        'opencode',
+        'OpenCode',
+        true,
+        AgentSuccess({
+          agentId: 'opencode',
+          findings: [],
+          metrics: { durationMs: 100, filesProcessed: 1 },
+        })
+      );
+
+      vi.mocked(getAgentsByIds).mockReturnValue([mockAgent]);
+
+      // Config without explicit provider
+      const config = createConfig([
+        { name: 'ai-review', agents: ['opencode'], enabled: true, required: false },
+      ]);
+
+      await executeAllPasses(
+        config,
+        createAgentContext(),
+        { OPENAI_API_KEY: 'test-key' },
+        { allowed: true, reason: 'under budget' },
+        { configHash: 'hash123' }
+      );
+
+      // Verify resolveProvider was called without explicit provider (undefined)
+      expect(resolveProvider).toHaveBeenCalledWith('opencode', expect.any(Object), undefined);
     });
   });
 
