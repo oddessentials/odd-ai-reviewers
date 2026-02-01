@@ -14,6 +14,7 @@
 ### Path Argument Handling
 
 All git operations use the `path` argument (from CLI) as the working directory, **not** the process cwd. This enables:
+
 - Running `ai-review /some/other/repo` from any directory
 - Correct git context inference when path differs from cwd
 

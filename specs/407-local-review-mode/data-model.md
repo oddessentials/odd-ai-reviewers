@@ -186,6 +186,7 @@ Generated configuration when no `.ai-review.yml` exists.
 5. Otherwise → error: no credentials
 
 **Multi-Provider Handling**: If multiple provider keys are found, the highest-priority provider is used. Output indicates which provider was selected and which were ignored:
+
 ```
 Using Anthropic (ANTHROPIC_API_KEY found)
 Note: OPENAI_API_KEY also set but ignored due to priority order
@@ -253,9 +254,11 @@ sarif   - SARIF 2.1.0 compliant
 ```
 
 **Field Definitions:**
+
 - `schema_version`: Output format version (for consumer compatibility validation)
 - `version`: Tool version (from package.json)
 - `timestamp`: ISO 8601 format, always UTC (Z suffix)
+
 ```
 
 ### SARIF Output Schema
@@ -272,21 +275,23 @@ Follows SARIF 2.1.0 specification:
 ## Entity Relationships
 
 ```
+
 LocalReviewOptions
-    │
-    ├─ generates ─→ GitContext
-    │
-    ├─ loads ─→ Config (or ZeroConfigDefaults)
-    │
-    ├─ creates ─→ DiffSummary
-    │                │
-    │                └─ contains ─→ DiffFile[]
-    │
-    └─ produces ─→ Finding[]
-                      │
-                      └─ formatted as ─→ TerminalFinding[]
-                                            │
-                                            └─ rendered in ─→ ReviewSummary
+│
+├─ generates ─→ GitContext
+│
+├─ loads ─→ Config (or ZeroConfigDefaults)
+│
+├─ creates ─→ DiffSummary
+│ │
+│ └─ contains ─→ DiffFile[]
+│
+└─ produces ─→ Finding[]
+│
+└─ formatted as ─→ TerminalFinding[]
+│
+└─ rendered in ─→ ReviewSummary
+
 ```
 
 ---
@@ -294,37 +299,41 @@ LocalReviewOptions
 ## State Diagram: Local Review Flow
 
 ```
+
 ┌─────────────────┐
-│   CLI Invoked   │
+│ CLI Invoked │
 └────────┬────────┘
-         │
-         ▼
+│
+▼
 ┌─────────────────┐
 │ Infer GitContext│
 └────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     ┌───────────────────┐
-│  Load Config    │────▶│ ZeroConfigDefaults│
-└────────┬────────┘     │   (if missing)    │
-         │              └───────────────────┘
-         ▼
+│
+▼
+┌─────────────────┐ ┌───────────────────┐
+│ Load Config │────▶│ ZeroConfigDefaults│
+└────────┬────────┘ │ (if missing) │
+│ └───────────────────┘
+▼
 ┌─────────────────┐
-│ Generate Diff   │
+│ Generate Diff │
 └────────┬────────┘
-         │
-         ▼
+│
+▼
 ┌─────────────────┐
-│ Execute Agents  │
+│ Execute Agents │
 └────────┬────────┘
-         │
-         ▼
+│
+▼
 ┌─────────────────┐
 │ Process Findings│
 └────────┬────────┘
-         │
-         ▼
+│
+▼
 ┌─────────────────┐
 │ Terminal Output │
 └─────────────────┘
+
+```
+
 ```

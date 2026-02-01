@@ -72,18 +72,18 @@ ai-review <path> [options]
 
 ### Exit Code Truth Table
 
-| Findings | Gating Enabled | Threshold | Exit Code |
-| -------- | -------------- | --------- | --------- |
-| None | any | any | 0 |
-| Info only | any | any | 0 |
-| Warnings only | disabled | any | 0 |
-| Warnings only | enabled | error | 0 |
-| Warnings only | enabled | warning | 1 |
-| Errors present | disabled | any | 0 |
-| Errors present | enabled | error | 1 |
-| Errors present | enabled | warning | 1 |
-| Execution failure | any | any | 1 |
-| Invalid args/config | any | any | 2 |
+| Findings            | Gating Enabled | Threshold | Exit Code |
+| ------------------- | -------------- | --------- | --------- |
+| None                | any            | any       | 0         |
+| Info only           | any            | any       | 0         |
+| Warnings only       | disabled       | any       | 0         |
+| Warnings only       | enabled        | error     | 0         |
+| Warnings only       | enabled        | warning   | 1         |
+| Errors present      | disabled       | any       | 0         |
+| Errors present      | enabled        | error     | 1         |
+| Errors present      | enabled        | warning   | 1         |
+| Execution failure   | any            | any       | 1         |
+| Invalid args/config | any            | any       | 2         |
 
 **Note**: Gating threshold applies regardless of output mode (`--quiet` does not affect exit code).
 
@@ -247,9 +247,11 @@ ai-review . -c custom-config.yml
 ```
 
 **Field Definitions:**
+
 - `schema_version`: Output format version for consumer compatibility validation (FR-SCH-001)
 - `version`: Tool version from package.json
 - `timestamp`: ISO 8601 format, always UTC (Z suffix)
+
 ```
 
 ### SARIF Format
@@ -263,75 +265,91 @@ Follows SARIF 2.1.0 specification. See: https://docs.oasis-open.org/sarif/sarif/
 ### Not a Git Repository
 
 ```
+
 Error: Not a git repository (or any parent up to root)
 
 Hint: Run this command from within a git repository, or specify a path to one:
-  ai-review /path/to/repo
+ai-review /path/to/repo
+
 ```
 
 ### No Changes Detected
 
 ```
+
 ✓ No changes to review
 
 Base: main
 Head: HEAD
 
 No uncommitted or staged changes found.
+
 ```
 
 ### Missing API Credentials
 
 ```
+
 Error: No API credentials found
 
 To use AI review, set one of the following environment variables:
-  ANTHROPIC_API_KEY   - For Claude models
-  OPENAI_API_KEY      - For GPT models
-  AZURE_OPENAI_KEY    - For Azure OpenAI
-  OLLAMA_HOST         - For local Ollama
+ANTHROPIC_API_KEY - For Claude models
+OPENAI_API_KEY - For GPT models
+AZURE_OPENAI_KEY - For Azure OpenAI
+OLLAMA_HOST - For local Ollama
 
 See: https://docs.oddessentials.com/ai-review/setup
+
 ```
 
 ### Invalid Configuration
 
 ```
+
 Error: Invalid configuration in .ai-review.yml
 
-  Line 12: 'passes[0].agents' must be an array
-  Line 18: Unknown provider 'gemini'
+Line 12: 'passes[0].agents' must be an array
+Line 18: Unknown provider 'gemini'
 
 Run 'ai-review validate' for detailed diagnostics.
+
 ```
 
 ### Config File Not Found
 
 ```
+
 Error: Config file not found: custom-config.yml
 
 Hint: Remove -c flag to use zero-config defaults, or check the file path.
+
 ```
 
 ### Mutually Exclusive Options
 
 ```
+
 Error: Cannot use --quiet and --verbose together
 
 Use --quiet for minimal output (errors only), or --verbose for debug information.
+
 ```
 
 ```
+
 Warning: Both --range and --base/--head specified; using --range
+
 ```
 
 ### Nothing to Review
 
 ```
+
 Error: Nothing to review
 
 Both --staged=false and --uncommitted=false specified.
 Use --staged to review staged changes, or --uncommitted for all uncommitted changes.
+
 ```
 
 ---
@@ -354,12 +372,14 @@ When interrupted (SIGINT), partial results include:
 
 Example interrupted output:
 ```
+
 📊 SUMMARY [interrupted at 67%]
 
-   Errors:      2  (partial)
-   Warnings:    3  (partial)
+Errors: 2 (partial)
+Warnings: 3 (partial)
 
-   Agents: 2/3 completed (semgrep ✓, opencode ✓, pr-agent ✗ interrupted)
+Agents: 2/3 completed (semgrep ✓, opencode ✓, pr-agent ✗ interrupted)
+
 ```
 
 ---
@@ -372,3 +392,4 @@ Example interrupted output:
 | `FORCE_COLOR`       | Force colors even if not TTY         |
 | `AI_REVIEW_CONFIG`  | Default config file path             |
 | `AI_REVIEW_VERBOSE` | Enable verbose mode                  |
+```
