@@ -31,8 +31,35 @@ export {
   isInvalidConfigError,
 } from './errors.js';
 
-// Colors will be exported when implemented (Phase 2)
-// export * from './colors.js';
+// Colors - ANSI codes and support detection
+export {
+  ANSI,
+  type AnsiCode,
+  supportsColor,
+  colorize,
+  colorizeMulti,
+  type Severity,
+  getSeverityColor,
+  colorizeSeverity,
+  formatSeverityLabel,
+  createColorizer,
+  stripAnsi,
+  visibleLength,
+} from './colors.js';
 
-// Progress will be exported when implemented (Phase 2)
-// export * from './progress.js';
+// Progress - Spinners and agent status tracking
+export {
+  UNICODE_SPINNER_FRAMES,
+  ASCII_SPINNER_FRAMES,
+  STATUS_INDICATORS,
+  ASCII_STATUS_INDICATORS,
+  type SpinnerStatus,
+  type SpinnerOptions,
+  Spinner,
+  type AgentStatus,
+  type AgentProgressEntry,
+  AgentProgress,
+  formatDuration,
+  formatAgentStatusLine,
+  getSeverityIndicator,
+} from './progress.js';

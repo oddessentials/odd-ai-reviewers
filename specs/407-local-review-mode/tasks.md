@@ -76,40 +76,40 @@ router/src/
 
 ### Colors Module (router/src/cli/output/colors.ts)
 
-- [ ] T009 Implement ANSI color code constants (red, yellow, blue, green, gray, bold, reset)
-- [ ] T010 Implement supportsColor() detection (TTY check, NO_COLOR, FORCE_COLOR env vars)
-- [ ] T011 Implement colorize(text, color) wrapper that respects supportsColor()
-- [ ] T012 Implement severity color mapping (error→red, warning→yellow, info→blue)
+- [x] T009 Implement ANSI color code constants (red, yellow, blue, green, gray, bold, reset)
+- [x] T010 Implement supportsColor() detection (TTY check, NO_COLOR, FORCE_COLOR env vars)
+- [x] T011 Implement colorize(text, color) wrapper that respects supportsColor()
+- [x] T012 Implement severity color mapping (error→red, warning→yellow, info→blue)
 
 ### Colors Tests
 
-- [ ] T013 [P] Create router/tests/unit/cli/output/colors.test.ts with NO_COLOR tests (3 cases)
-- [ ] T014 [P] Create router/tests/unit/cli/output/colors.test.ts with FORCE_COLOR tests (3 cases)
-- [ ] T015 [P] Create router/tests/unit/cli/output/colors.test.ts with TTY detection tests (2 cases)
+- [x] T013 [P] Create router/tests/unit/cli/output/colors.test.ts with NO_COLOR tests (3 cases)
+- [x] T014 [P] Create router/tests/unit/cli/output/colors.test.ts with FORCE_COLOR tests (3 cases)
+- [x] T015 [P] Create router/tests/unit/cli/output/colors.test.ts with TTY detection tests (2 cases)
 
 ### Progress Module (router/src/cli/output/progress.ts)
 
-- [ ] T016 Implement Spinner class with start(), stop(), update() methods
-- [ ] T017 Implement spinner frames (Unicode and ASCII fallback)
-- [ ] T018 Implement AgentProgress tracker (agent name, status: pending|running|done|failed)
-- [ ] T019 Implement formatAgentStatus() with checkmarks (✓/✗) and timing
+- [x] T016 Implement Spinner class with start(), stop(), update() methods
+- [x] T017 Implement spinner frames (Unicode and ASCII fallback)
+- [x] T018 Implement AgentProgress tracker (agent name, status: pending|running|done|failed)
+- [x] T019 Implement formatAgentStatus() with checkmarks (✓/✗) and timing
 
 ### Progress Tests
 
-- [ ] T020 [P] Create router/tests/unit/cli/output/progress.test.ts with spinner tests (4 cases)
-- [ ] T021 [P] Create router/tests/unit/cli/output/progress.test.ts with agent status tests (4 cases)
+- [x] T020 [P] Create router/tests/unit/cli/output/progress.test.ts with spinner tests (4 cases)
+- [x] T021 [P] Create router/tests/unit/cli/output/progress.test.ts with agent status tests (4 cases)
 
 ### Errors Module (router/src/cli/output/errors.ts)
 
-- [ ] T022 Implement formatCLIError(error) → formatted terminal string
-- [ ] T023 Implement NotAGitRepoError formatter with guidance message
-- [ ] T024 Implement NoCredentialsError formatter with env var instructions
-- [ ] T025 Implement NoChangesError formatter with success styling
-- [ ] T026 Implement InvalidConfigError formatter with validation details
+- [x] T022 Implement formatCLIError(error) → formatted terminal string
+- [x] T023 Implement NotAGitRepoError formatter with guidance message
+- [x] T024 Implement NoCredentialsError formatter with env var instructions
+- [x] T025 Implement NoChangesError formatter with success styling
+- [x] T026 Implement InvalidConfigError formatter with validation details
 
 ### Errors Tests
 
-- [ ] T027 [P] Create router/tests/unit/cli/output/errors.test.ts with all error formatters (5 cases)
+- [x] T027 [P] Create router/tests/unit/cli/output/errors.test.ts with all error formatters (5 cases)
 
 **Checkpoint**: All CLI output utilities tested in isolation
 
