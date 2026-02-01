@@ -24,6 +24,9 @@ version: 1
 provider: anthropic # or 'openai', 'azure-openai', 'ollama'
 ```
 
+**Breaking change:** If multiple API keys are present and `MODEL` is set, validation now fails
+unless `provider` is explicitly configured. This prevents ambiguous provider selection.
+
 ### Available Providers
 
 - `anthropic` - Claude models via Anthropic API

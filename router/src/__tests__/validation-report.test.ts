@@ -33,95 +33,29 @@ function createMockResolved(
 describe('formatValidationReport', () => {
   // T026: formatValidationReport categorizes errors vs warnings
   describe('T026: categorizes errors vs warnings', () => {
-    it('should categorize messages containing WARNING as warnings', () => {
-      const preflightResult: PreflightResult = {
-        valid: true,
-        errors: ['WARNING: Legacy key detected', 'WARNING: deprecated field used'],
-        warnings: [],
-        resolved: createMockResolved({
-          provider: 'openai',
-          model: 'gpt-4o',
-          keySource: 'OPENAI_API_KEY',
-        }),
-      };
-
-      const report = formatValidationReport(preflightResult);
-
-      expect(report.errors).toHaveLength(0);
-      expect(report.warnings).toHaveLength(2);
-      expect(report.warnings).toContain('WARNING: Legacy key detected');
-      expect(report.warnings).toContain('WARNING: deprecated field used');
-      expect(report.valid).toBe(true);
-    });
-
-    it('should categorize messages containing deprecated as warnings', () => {
-      const preflightResult: PreflightResult = {
-        valid: true,
-        errors: ['Using deprecated config format'],
-        warnings: [],
-        resolved: createMockResolved({
-          provider: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          keySource: 'ANTHROPIC_API_KEY',
-        }),
-      };
-
-      const report = formatValidationReport(preflightResult);
-
-      expect(report.errors).toHaveLength(0);
-      expect(report.warnings).toHaveLength(1);
-      expect(report.warnings[0]).toBe('Using deprecated config format');
-      expect(report.valid).toBe(true);
-    });
-
-    it('should categorize other messages as errors', () => {
+    it('should keep errors and warnings separate based on preflight output', () => {
       const preflightResult: PreflightResult = {
         valid: false,
         errors: ['Missing required API key', 'Invalid provider configuration'],
-        warnings: [],
+        warnings: ['Legacy key format detected'],
         resolved: undefined,
       };
 
       const report = formatValidationReport(preflightResult);
 
       expect(report.errors).toHaveLength(2);
-      expect(report.warnings).toHaveLength(0);
+      expect(report.warnings).toHaveLength(1);
       expect(report.errors).toContain('Missing required API key');
       expect(report.errors).toContain('Invalid provider configuration');
-      expect(report.valid).toBe(false);
-    });
-
-    it('should separate errors and warnings in mixed messages', () => {
-      const preflightResult: PreflightResult = {
-        valid: false,
-        errors: [
-          'Missing OPENAI_API_KEY',
-          'WARNING: Legacy key format',
-          'Invalid config schema',
-          'Using deprecated field',
-        ],
-        warnings: [],
-        resolved: undefined,
-      };
-
-      const report = formatValidationReport(preflightResult);
-
-      expect(report.errors).toHaveLength(2);
-      expect(report.errors).toContain('Missing OPENAI_API_KEY');
-      expect(report.errors).toContain('Invalid config schema');
-
-      expect(report.warnings).toHaveLength(2);
-      expect(report.warnings).toContain('WARNING: Legacy key format');
-      expect(report.warnings).toContain('Using deprecated field');
-
+      expect(report.warnings).toContain('Legacy key format detected');
       expect(report.valid).toBe(false);
     });
 
     it('should set valid=true when no errors (only warnings)', () => {
       const preflightResult: PreflightResult = {
         valid: true,
-        errors: ['WARNING: Minor issue'],
-        warnings: [],
+        errors: [],
+        warnings: ['Minor issue'],
         resolved: createMockResolved({
           provider: 'openai',
           model: 'gpt-4o',
@@ -179,9 +113,9 @@ describe('formatValidationReport', () => {
       expect(report.valid).toBe(true);
     });
 
-    it('should combine error-categorized warnings with PreflightResult.warnings', () => {
+    it('should include only PreflightResult.warnings as warnings', () => {
       const preflightResult: PreflightResult = {
-        valid: true,
+        valid: false,
         errors: ['WARNING: Legacy config format'],
         warnings: ['Platform environment not detected'],
         resolved: createMockResolved({
@@ -193,12 +127,11 @@ describe('formatValidationReport', () => {
 
       const report = formatValidationReport(preflightResult);
 
-      // Both sources of warnings should be combined
-      expect(report.warnings).toHaveLength(2);
-      expect(report.warnings).toContain('WARNING: Legacy config format');
+      expect(report.warnings).toHaveLength(1);
       expect(report.warnings).toContain('Platform environment not detected');
-      expect(report.errors).toHaveLength(0);
-      expect(report.valid).toBe(true);
+      expect(report.errors).toHaveLength(1);
+      expect(report.errors).toContain('WARNING: Legacy config format');
+      expect(report.valid).toBe(false);
     });
   });
 });

@@ -164,11 +164,34 @@ configCommand
     const { formatValidationReport, printValidationReport } =
       await import('./cli/validation-report.js');
 
+    type WizardProvider = 'openai' | 'anthropic' | 'azure-openai' | 'ollama';
+    type WizardPlatform = 'github' | 'ado' | 'both';
     const useDefaults = options.defaults || options.yes;
-    let provider: 'openai' | 'anthropic' | 'azure-openai' | 'ollama';
-    let platform: 'github' | 'ado' | 'both';
-    let agents: string[];
+    let provider: WizardProvider;
+    let platform: WizardPlatform;
+    let agents: AgentId[];
     const outputPath = options.output;
+
+    const defaultAgentsByProvider: Record<WizardProvider, AgentId[]> = {
+      openai: ['semgrep', 'opencode'],
+      anthropic: ['semgrep', 'opencode'],
+      'azure-openai': ['semgrep', 'pr_agent'],
+      ollama: ['semgrep', 'local_llm'],
+    };
+
+    const allowedAgentsByProvider: Record<WizardProvider, AgentId[]> = {
+      openai: ['semgrep', 'reviewdog', 'opencode', 'pr_agent', 'ai_semantic_review', 'local_llm'],
+      anthropic: [
+        'semgrep',
+        'reviewdog',
+        'opencode',
+        'pr_agent',
+        'ai_semantic_review',
+        'local_llm',
+      ],
+      'azure-openai': ['semgrep', 'reviewdog', 'pr_agent', 'ai_semantic_review', 'local_llm'],
+      ollama: ['semgrep', 'reviewdog', 'local_llm'],
+    };
 
     // Check TTY for interactive mode (T022)
     if (!useDefaults && !configWizard.isInteractiveTerminal()) {
@@ -226,12 +249,31 @@ configCommand
         provider = providerResult.value;
 
         // Agent selection with provider-appropriate defaults (T019)
-        const defaultAgents =
-          provider === 'ollama' ? ['semgrep', 'local_llm'] : ['semgrep', 'opencode'];
+        const defaultAgents = defaultAgentsByProvider[provider];
+        const allowedAgents = allowedAgentsByProvider[provider];
+        const agentOptions = configWizard.AVAILABLE_AGENTS.filter((agent) =>
+          allowedAgents.includes(agent.id)
+        );
 
-        console.log(`\nRecommended agents for ${provider}: ${defaultAgents.join(', ')}`);
-        const useRecommended = await promptConfirm(rl, 'Use recommended agents?', false);
-        agents = useRecommended ? defaultAgents : defaultAgents; // For simplicity, always use recommended
+        console.log('\nSelect agents to enable (press Enter to accept defaults):');
+        const selectedAgents: AgentId[] = [];
+
+        for (const agent of agentOptions) {
+          const isRecommended = defaultAgents.includes(agent.id);
+          const descriptor = agent.description ? ` (${agent.description})` : '';
+          const label = `${agent.name}${descriptor}${isRecommended ? ' [recommended]' : ''}`;
+          const include = await promptConfirm(rl, `Include ${label}`, !isRecommended);
+          if (include) {
+            selectedAgents.push(agent.id);
+          }
+        }
+
+        if (selectedAgents.length === 0) {
+          console.log(`\nNo agents selected. Using recommended: ${defaultAgents.join(', ')}`);
+          agents = defaultAgents;
+        } else {
+          agents = selectedAgents;
+        }
 
         // Overwrite confirmation (T020)
         if (existsSync(outputPath)) {
@@ -280,7 +322,7 @@ configCommand
       }
 
       // Default agents based on provider
-      agents = provider === 'ollama' ? ['semgrep', 'local_llm'] : ['semgrep', 'opencode'];
+      agents = defaultAgentsByProvider[provider];
 
       // Check if output file already exists (no prompt in defaults mode)
       if (existsSync(outputPath)) {
@@ -295,7 +337,7 @@ configCommand
     const yaml = configWizard.generateConfigYaml({
       provider,
       platform,
-      agents: agents as AgentId[],
+      agents,
       useDefaults: true,
     });
 

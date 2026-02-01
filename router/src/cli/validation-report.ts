@@ -52,10 +52,9 @@ export interface ValidationReport {
 /**
  * Convert PreflightResult to ValidationReport with severity categorization.
  *
- * Categorizes messages based on content heuristics:
- * - Messages containing "WARNING" → warnings array
- * - Messages containing "deprecated" → warnings array
- * - All other messages → errors array
+ * Categorizes messages based on source:
+ * - result.errors → errors array
+ * - result.warnings → warnings array
  *
  * The `valid` field is true only when there are no errors (warnings are allowed).
  *
@@ -75,22 +74,8 @@ export interface ValidationReport {
  * ```
  */
 export function formatValidationReport(result: PreflightResult): ValidationReport {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  for (const msg of result.errors) {
-    // Categorize based on message content
-    if (msg.includes('WARNING') || msg.includes('deprecated')) {
-      warnings.push(msg);
-    } else {
-      errors.push(msg);
-    }
-  }
-
-  // Include warnings from PreflightResult.warnings (FR-020: warnings never block execution)
-  if (result.warnings) {
-    warnings.push(...result.warnings);
-  }
+  const errors = [...result.errors];
+  const warnings = result.warnings ? [...result.warnings] : [];
 
   return {
     errors,

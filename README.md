@@ -112,6 +112,9 @@ When multiple API keys are configured:
 2. **Azure OpenAI** — If all Azure keys are set (API key, endpoint, deployment)
 3. **OpenAI** — If only `OPENAI_API_KEY` is set
 
+> **Breaking change:** Multi-key setups now fail validation when `MODEL` is set but no explicit
+> `provider` is configured in `.ai-review.yml`. Add `provider: <provider>` to disambiguate.
+
 ### Common Mistakes
 
 | Configuration                                                | Result                                                           | Fix                                                                |
