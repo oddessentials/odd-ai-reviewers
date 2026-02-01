@@ -64,8 +64,13 @@ COPY router/package.json ./router/
 RUN pnpm install --prod --ignore-scripts --filter=@odd-ai-reviewers/router
 
 # Copy built source and config
-COPY router/dist/ ./dist/
+COPY router/dist/ ./router/dist/
 COPY config/ ./config/
+
+# Use pnpm deploy to create a deployment-ready directory with resolved symlinks
+# --legacy required for pnpm v10+ without inject-workspace-packages
+# --ignore-scripts prevents running root preinstall script
+RUN pnpm --filter=@odd-ai-reviewers/router deploy --legacy --ignore-scripts /deploy
 
 # ============================================
 # Production image - minimal attack surface
@@ -99,11 +104,11 @@ RUN pip3 install semgrep==${SEMGREP_VERSION} --break-system-packages
 COPY --from=builder /usr/local/bin/reviewdog /usr/local/bin/reviewdog
 COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
 
-# Copy application
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+# Copy deployed application (pnpm deploy creates a self-contained directory with real files, not symlinks)
+COPY --from=builder /deploy/node_modules ./node_modules
+COPY --from=builder /deploy/dist ./dist
 COPY --from=builder /app/config ./config
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /deploy/package.json ./package.json
 
 # Set ownership for non-root user (node user exists in base image with UID 1000)
 RUN chown -R node:node /app
