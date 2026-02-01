@@ -123,20 +123,20 @@ router/src/
 
 ### Git Context Implementation (router/src/cli/git-context.ts)
 
-- [ ] T028 Implement findGitRoot(cwd: string) with filesystem traversal
-- [ ] T029 Implement getCurrentBranch(repoPath: string) using git rev-parse
-- [ ] T030 Implement detectDefaultBranch(repoPath: string) with priority: origin/HEAD → main → master → develop
-- [ ] T031 [P] Implement hasUncommittedChanges(repoPath: string) using git status --porcelain
-- [ ] T032 [P] Implement hasStagedChanges(repoPath: string) using git diff --cached --name-only
-- [ ] T033 Implement inferGitContext(cwd: string): Result<GitContext, GitContextError>
+- [x] T028 Implement findGitRoot(cwd: string) with filesystem traversal
+- [x] T029 Implement getCurrentBranch(repoPath: string) using git rev-parse
+- [x] T030 Implement detectDefaultBranch(repoPath: string) with priority: origin/HEAD → main → master → develop
+- [x] T031 [P] Implement hasUncommittedChanges(repoPath: string) using git status --porcelain
+- [x] T032 [P] Implement hasStagedChanges(repoPath: string) using git diff --cached --name-only
+- [x] T033 Implement inferGitContext(cwd: string): Result<GitContext, GitContextError>
 
 ### Git Context Tests
 
-- [ ] T034 [P] Create router/tests/unit/cli/git-context.test.ts for findGitRoot (5 cases: found, not found, nested, symlink, error)
-- [ ] T035 [P] Create router/tests/unit/cli/git-context.test.ts for getCurrentBranch (3 cases: normal, detached HEAD, error)
-- [ ] T036 [P] Create router/tests/unit/cli/git-context.test.ts for detectDefaultBranch (4 cases: origin/HEAD, main, master, develop)
-- [ ] T037 [P] Create router/tests/unit/cli/git-context.test.ts for change detection (6 cases: uncommitted, staged, both, neither, error)
-- [ ] T038 Create router/tests/unit/cli/git-context.test.ts for inferGitContext integration (3 cases)
+- [x] T034 [P] Create router/tests/unit/cli/git-context.test.ts for findGitRoot (5 cases: found, not found, nested, symlink, error)
+- [x] T035 [P] Create router/tests/unit/cli/git-context.test.ts for getCurrentBranch (3 cases: normal, detached HEAD, error)
+- [x] T036 [P] Create router/tests/unit/cli/git-context.test.ts for detectDefaultBranch (4 cases: origin/HEAD, main, master, develop)
+- [x] T037 [P] Create router/tests/unit/cli/git-context.test.ts for change detection (6 cases: uncommitted, staged, both, neither, error)
+- [x] T038 Create router/tests/unit/cli/git-context.test.ts for inferGitContext integration (3 cases)
 
 **Checkpoint**: Git context inference fully tested
 

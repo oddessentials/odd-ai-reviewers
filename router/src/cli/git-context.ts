@@ -13,7 +13,6 @@ import { execFileSync } from 'child_process';
 import { existsSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { type Result, Ok, Err } from '../types/result.js';
-import { assertSafePath } from '../git-validators.js';
 
 // =============================================================================
 // Type Definitions
@@ -67,6 +66,33 @@ const GIT_TIMEOUT_MS = 30_000;
 // =============================================================================
 
 /**
+ * Validate a path for basic security requirements.
+ *
+ * Since we use execFileSync with shell: false, we don't need to block
+ * all shell metacharacters. We only validate:
+ * - Non-empty path
+ * - Reasonable length
+ * - No null bytes (which could truncate paths)
+ *
+ * @param filePath - The path to validate
+ * @returns true if valid, false otherwise
+ */
+function isValidPath(filePath: string): boolean {
+  if (!filePath || typeof filePath !== 'string') {
+    return false;
+  }
+  // Reasonable max length
+  if (filePath.length > 4096) {
+    return false;
+  }
+  // Block null bytes which could truncate paths
+  if (filePath.includes('\0')) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Find the root directory of a git repository by walking up the directory tree.
  *
  * @param cwd - Starting directory (must be absolute path)
@@ -74,12 +100,10 @@ const GIT_TIMEOUT_MS = 30_000;
  */
 export function findGitRoot(cwd: string): Result<string, GitContextError> {
   // Validate path before filesystem operations
-  try {
-    assertSafePath(cwd, 'cwd');
-  } catch (error) {
+  if (!isValidPath(cwd)) {
     return Err({
       code: GitContextErrorCode.INVALID_PATH,
-      message: `Invalid path: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Invalid path: ${cwd ? 'path is invalid' : 'path is empty or undefined'}`,
       path: cwd,
     });
   }
