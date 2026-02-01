@@ -355,7 +355,39 @@ router/src/
 
 ---
 
-## Phase 11: Victory Gates & Final Validation
+## Phase 11: PR Lessons Learned Compliance (MANDATORY)
+
+**Purpose**: Verify compliance with PR_LESSONS_LEARNED.md security and contract requirements
+
+**Duration**: ~1 hour
+
+**Authority**: These tasks are derived from PR_LESSONS_LEARNED.md and are non-negotiable. Any PR failing these checks will be rejected.
+
+### Security Compliance Tests (router/tests/security/)
+
+- [ ] T122 [P] Create router/tests/security/redaction.test.ts - verify secrets redacted in ALL output paths (terminal, JSON, SARIF)
+- [ ] T123 [P] Create router/tests/security/child-process.test.ts - verify no `shell: true` in codebase (grep + runtime test)
+- [ ] T124 [P] Create router/tests/security/path-traversal.test.ts - verify path validation prevents `../` escapes
+- [ ] T125 [P] Create router/tests/security/error-messages.test.ts - verify error messages don't echo sensitive input
+- [ ] T126 [P] Create router/tests/security/git-ref-sanitization.test.ts - verify malicious git refs rejected
+
+### Schema Compliance Tests (router/tests/schema/)
+
+- [ ] T127 [P] Create router/tests/schema/json-output.test.ts - verify JSON includes `schema_version` field
+- [ ] T128 [P] Create router/tests/schema/sarif-output.test.ts - verify SARIF includes `$schema` and version
+- [ ] T129 [P] Create router/tests/schema/version-sync.test.ts - verify runtime version matches package.json
+
+### Reliability Compliance Tests
+
+- [ ] T130 [P] Create router/tests/reliability/floating-promises.test.ts - TypeScript strict + no-floating-promises lint
+- [ ] T131 [P] Create router/tests/reliability/run-summary.test.ts - verify summary produced even on failure
+- [ ] T132 Create router/tests/reliability/config-preservation.test.ts - verify probe failures don't discard config
+
+**Checkpoint**: PR Lessons Learned compliance verified - security gates pass
+
+---
+
+## Phase 12: Victory Gates & Final Validation
 
 **Purpose**: Verify all acceptance criteria
 
@@ -363,25 +395,26 @@ router/src/
 
 ### Integration Tests
 
-- [ ] T122 [P] Create router/tests/integration/local-review.test.ts - full flow test
-- [ ] T123 [P] Create router/tests/integration/local-review.test.ts - zero-config mode test
-- [ ] T124 [P] Create router/tests/integration/local-review.test.ts - error handling tests
-- [ ] T125 [P] Create router/tests/integration/local-review.test.ts - pre-commit simulation test
+- [ ] T133 [P] Create router/tests/integration/local-review.test.ts - full flow test
+- [ ] T134 [P] Create router/tests/integration/local-review.test.ts - zero-config mode test
+- [ ] T135 [P] Create router/tests/integration/local-review.test.ts - error handling tests
+- [ ] T136 [P] Create router/tests/integration/local-review.test.ts - pre-commit simulation test
 
 ### Victory Gate Validation
 
-- [ ] T126 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
-- [ ] T127 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
-- [ ] T128 Validate Performance Gate: Local review completes in <60s
-- [ ] T129 Validate Determinism Gate: Multiple runs produce identical output
-- [ ] T130 Validate Cross-Platform Gate: Test on Windows, macOS, Linux
-- [ ] T131 Validate Regression Gate: Existing CI commands still work
+- [ ] T137 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
+- [ ] T138 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
+- [ ] T139 Validate Performance Gate: Local review completes in <60s
+- [ ] T140 Validate Determinism Gate: Multiple runs produce identical output
+- [ ] T141 Validate Cross-Platform Gate: Test on Windows, macOS, Linux
+- [ ] T142 Validate Regression Gate: Existing CI commands still work
+- [ ] T143 Validate PR Lessons Learned Gate: All Phase 11 security tests pass
 
 **Checkpoint**: All victory gates pass - ready for release
 
 ---
 
-## Session Breakdown (6 Sessions)
+## Session Breakdown (7 Sessions)
 
 ### Session 1: Foundation (~2 hours)
 
@@ -418,12 +451,20 @@ router/src/
 **Tests**: 1 smoke test
 **Exit Criteria**: `ai-review .` works, `npx` works
 
-### Session 6: Victory Gates (~1 hour)
+### Session 6: PR Lessons Learned Compliance (~1 hour)
 
-**Tasks**: T122-T131 (Phase 11)
+**Tasks**: T122-T132 (Phase 11)
+**Modules**: Security tests, Schema tests, Reliability tests
+**Tests**: 11 compliance tests
+**Exit Criteria**: `pnpm test security schema reliability` all pass
+**MANDATORY**: This session MUST pass before proceeding to Victory Gates
+
+### Session 7: Victory Gates (~1 hour)
+
+**Tasks**: T133-T143 (Phase 12)
 **Modules**: Integration tests, Victory validation
-**Tests**: 4 integration tests + 6 victory gates
-**Exit Criteria**: All victory gates pass
+**Tests**: 4 integration tests + 7 victory gates
+**Exit Criteria**: All victory gates pass (including PR Lessons Learned Gate)
 
 ---
 
@@ -441,7 +482,8 @@ Tasks marked [P] can run in parallel within the same phase:
 | 6     | T068-T070 (options tests)                                                 |
 | 7     | T077-T078 (zero-config tests)                                             |
 | 8     | T081, T091-T094 (command tests)                                           |
-| 11    | T122-T125 (integration tests)                                             |
+| 11    | T122-T131 (security/schema/reliability tests - all parallel)              |
+| 12    | T133-T136 (integration tests)                                             |
 
 ---
 
@@ -478,7 +520,10 @@ Phase 4 (Local Diff) ──┴────────────────�
                                     Phase 10 (npm Package)
                                            │
                                            ▼
-                                    Phase 11 (Victory Gates)
+                                    Phase 11 (PR Lessons Learned Compliance) ◄── MANDATORY GATE
+                                           │
+                                           ▼
+                                    Phase 12 (Victory Gates)
 ```
 
 ---
@@ -496,8 +541,12 @@ Phase 4 (Local Diff) ──┴────────────────�
 | cli/options/\*.ts            | T068-T070  | -                 | 13          |
 | config/zero-config.ts        | T077-T078  | -                 | 8           |
 | cli/signals.ts               | T081       | -                 | 3           |
-| cli/commands/local-review.ts | T091-T094  | T114, T122-T125   | 15          |
-| **Total**                    |            |                   | **110+**    |
+| cli/commands/local-review.ts | T091-T094  | T114              | 15          |
+| **Security Compliance**      | T122-T126  | -                 | 11          |
+| **Schema Compliance**        | T127-T129  | -                 | 6           |
+| **Reliability Compliance**   | T130-T132  | -                 | 5           |
+| **Integration Tests**        | -          | T133-T136         | 4           |
+| **Total**                    |            |                   | **132+**    |
 
 ---
 
@@ -508,3 +557,5 @@ Phase 4 (Local Diff) ──┴────────────────�
 - Each session ends with passing tests before proceeding
 - Parallel tasks are in different files to avoid conflicts
 - Integration tests use real git repos (created in test fixtures)
+- **Phase 11 (PR Lessons Learned Compliance) is a mandatory gate** - cannot proceed to Victory Gates without passing all security/schema/reliability tests
+- **Any PR failing code-review checklist will be rejected** - see `checklists/code-review.md`

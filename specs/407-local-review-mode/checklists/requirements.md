@@ -32,9 +32,39 @@
 
 ## Supplementary Documents
 
-- [x] [definition-of-done.md](../definition-of-done.md) - Phase completion criteria
+- [x] [definition-of-done.md](../definition-of-done.md) - Phase completion criteria (updated with PR Lessons Learned compliance)
 - [x] [victory-gates.md](../victory-gates.md) - Merge gates with parity/determinism checks
-- [x] [cli-invariants.md](../cli-invariants.md) - Non-negotiable CLI design principles
+- [x] [cli-invariants.md](../cli-invariants.md) - Non-negotiable CLI design principles (updated with security invariants)
+- [x] [code-review.md](./code-review.md) - **NEW**: Mandatory PR review checklist for Phase 407
+
+## PR Lessons Learned Compliance (MANDATORY)
+
+> Phase 407 implementation MUST comply with PR_LESSONS_LEARNED.md. Any deviation requires explicit justification.
+
+### Security Requirements (FR-SEC-001 through FR-SEC-007)
+
+- [x] Secret redaction in ALL output paths
+- [x] No `shell: true` in child processes
+- [x] Path traversal prevention
+- [x] No echoing sensitive values in errors
+- [x] Git ref sanitization
+- [x] No unsafe DOM methods
+- [x] Safe string handling for user content
+
+### Schema Requirements (FR-SCH-001 through FR-SCH-005)
+
+- [x] JSON output includes `schema_version`
+- [x] SARIF output includes `$schema` reference
+- [x] Backward-compatible terminal output
+- [x] Graceful config schema evolution
+- [x] Runtime version matches package version
+
+### Reliability Requirements (FR-REL-001 through FR-REL-004)
+
+- [x] No floating promises
+- [x] Derived values clamped to valid ranges
+- [x] User configuration preserved on failures
+- [x] Documentation examples match actual parameters
 
 ## Validation Notes
 

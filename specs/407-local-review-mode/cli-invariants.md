@@ -24,17 +24,35 @@ Output Invariants
 - JSON and SARIF outputs are schema-stable across versions
 - Pretty output is human-first but derived from structured data
 
+Schema & Contract Invariants (PR Lessons Learned Compliance)
+
+> Derived from PR_LESSONS_LEARNED.md — violations will cause PR rejection
+
+- **All structured outputs must include schema version** — JSON includes `schema_version`, SARIF includes `$schema`
+- **Schema changes must be backward-compatible** within major versions
+- **Config schema evolution handled gracefully** — unknown fields ignored, missing optional fields defaulted
+- **Runtime version must match package version** — no stale VERSION files
+- **Machine-readable status always produced** — even on failure, exit code and summary are available
+
 Exit Code Invariants
 
 - Exit codes must be consistent and documented
 - Exit code must never depend on terminal formatting
 - Non-zero exit always indicates an actionable failure state
 
-Security Invariants
+Security Invariants (PR Lessons Learned Compliance)
+
+> Derived from PR_LESSONS_LEARNED.md — violations will cause PR rejection
 
 - No secrets are read from config files by default
 - Environment variables are the primary credential source
 - Errors must never echo sensitive values
+- **Redaction applies to ALL output paths** — terminal, JSON, SARIF, logs, JSONL all use the same redaction rules
+- **`shell: true` is forbidden** in child_process calls without explicit security justification
+- **Path traversal must be prevented** — all file paths validated to stay within repository boundaries
+- **Git refs must be sanitized** before passing to git commands (no command injection via branch names)
+- **No unsafe DOM methods** (innerHTML, document.write) if CLI serves any HTML content
+- **Format strings must be safe** — user input never used as format specifier
 
 Performance Invariants
 

@@ -58,3 +58,30 @@ Documentation & Parity
 - CLI flags documented and match implementation
 - No undocumented behavior paths
 - No CI regressions introduced
+- Documentation examples use actual parameter names (copy-paste works)
+
+PR Lessons Learned Compliance (MANDATORY)
+
+> Phase 407 implementation MUST comply with PR_LESSONS_LEARNED.md. Any deviation requires explicit justification in the PR description.
+
+**Security Compliance**
+
+- [ ] Secrets redacted in ALL output paths (terminal, JSON, SARIF, logs)
+- [ ] No `shell: true` in child_process calls (or explicit justification provided)
+- [ ] Path traversal prevention validated (paths stay within repo root)
+- [ ] Error messages do not echo sensitive values
+- [ ] Git refs sanitized before passing to commands
+
+**Schema Compliance**
+
+- [ ] JSON output includes `schema_version` field
+- [ ] SARIF output includes `$schema` reference
+- [ ] Runtime version matches package.json version
+- [ ] Config schema evolution handled gracefully
+
+**Reliability Compliance**
+
+- [ ] No floating promises (all async operations awaited or explicitly handled)
+- [ ] Derived values clamped to valid ranges
+- [ ] Run summary produced even on failure
+- [ ] Probe/validation failures preserve user configuration

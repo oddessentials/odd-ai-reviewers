@@ -211,6 +211,35 @@ A developer wants to install and run the CLI from npm.
 - **FR-034**: Clear error when API credentials are missing.
 - **FR-035**: Clear error when config is invalid.
 - **FR-036**: Graceful handling of Ctrl+C interruption.
+- **FR-037**: System MUST timeout network operations within 30 seconds and display clear error with offline alternatives.
+- **FR-038**: System MUST write machine-readable status output (exit code + summary) even on failure.
+
+**Security Requirements (PR Lessons Learned Compliance)**
+
+> These requirements are derived from PR_LESSONS_LEARNED.md and are **non-negotiable** for Phase 407. Any deviation requires explicit justification in the PR description.
+
+- **FR-SEC-001**: System MUST redact API keys, tokens, and secrets in ALL output paths (terminal, JSON, SARIF, logs). No output path may bypass redaction.
+- **FR-SEC-002**: System MUST use `shell: false` when spawning child processes. `shell: true` is forbidden without explicit security review and justification.
+- **FR-SEC-003**: System MUST validate file paths to prevent path traversal. All resolved paths MUST remain within the repository root.
+- **FR-SEC-004**: System MUST NOT echo sensitive values in error messages.
+- **FR-SEC-005**: System MUST sanitize user-provided git refs before passing to git commands.
+- **FR-SEC-006**: System MUST NOT use `innerHTML`, `document.write`, or equivalent unsafe DOM methods if generating HTML output.
+- **FR-SEC-007**: System MUST use `textContent` or equivalent safe methods for user-controllable content in any UI.
+
+**Schema & Contract Requirements (PR Lessons Learned Compliance)**
+
+- **FR-SCH-001**: JSON output MUST include `schema_version` field for consumer compatibility validation.
+- **FR-SCH-002**: SARIF output MUST include `$schema` reference and version metadata.
+- **FR-SCH-003**: Terminal output format changes MUST be backward-compatible within major versions.
+- **FR-SCH-004**: Config schema evolution MUST be handled gracefully (unknown fields ignored, missing optional fields defaulted).
+- **FR-SCH-005**: Version information displayed at runtime MUST match the published package version.
+
+**Reliability Requirements (PR Lessons Learned Compliance)**
+
+- **FR-REL-001**: System MUST await all promises; no floating promises allowed.
+- **FR-REL-002**: System MUST clamp derived values (costs, percentages) to valid ranges.
+- **FR-REL-003**: When preliminary checks fail (probe, validation), system MUST NOT discard user configuration.
+- **FR-REL-004**: Documentation examples MUST use actual parameter names; copy-paste MUST work.
 
 ---
 
