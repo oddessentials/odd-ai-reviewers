@@ -227,10 +227,11 @@ jobs:
       - name: Reviewdog smoke test
         run: |
           # Verify reviewdog binary works by checking version
-          docker run --rm odd-ai-reviewers-router:ci reviewdog -version
+          # Must use --entrypoint to bypass the default node entrypoint
+          docker run --rm --entrypoint reviewdog odd-ai-reviewers-router:ci -version
           # Run against sample diff (exit 0 = no findings, which is expected)
-          docker run --rm -i odd-ai-reviewers-router:ci \
-            reviewdog -f=diff -reporter=local < tests/fixtures/reviewdog-smoke.diff
+          docker run --rm -i --entrypoint reviewdog odd-ai-reviewers-router:ci \
+            -f=diff -reporter=local < tests/fixtures/reviewdog-smoke.diff
           echo "Reviewdog smoke test passed"
 
       - name: Trivy scan (HIGH,CRITICAL)
