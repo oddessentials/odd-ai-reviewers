@@ -375,6 +375,7 @@ router/src/
 
 - [ ] T127 [P] Create router/tests/schema/json-output.test.ts - verify JSON includes `schema_version` field
 - [ ] T128 [P] Create router/tests/schema/sarif-output.test.ts - verify SARIF includes `$schema` and version
+- [ ] T128a [P] Create router/tests/schema/terminal-format-stability.test.ts - snapshot test for terminal output format
 - [ ] T129 [P] Create router/tests/schema/version-sync.test.ts - verify runtime version matches package.json
 
 ### Reliability Compliance Tests
@@ -382,6 +383,7 @@ router/src/
 - [ ] T130 [P] Create router/tests/reliability/floating-promises.test.ts - TypeScript strict + no-floating-promises lint
 - [ ] T131 [P] Create router/tests/reliability/run-summary.test.ts - verify summary produced even on failure
 - [ ] T132 Create router/tests/reliability/config-preservation.test.ts - verify probe failures don't discard config
+- [ ] T132a [P] Create router/tests/reliability/value-clamping.test.ts - verify costs clamped to ≥0, percentages to 0-100
 
 **Checkpoint**: PR Lessons Learned compliance verified - security gates pass
 
@@ -460,17 +462,17 @@ router/src/
 
 ### Session 6: PR Lessons Learned Compliance (~1 hour)
 
-**Tasks**: T122-T132 (Phase 11)
+**Tasks**: T122-T132a (Phase 11)
 **Modules**: Security tests, Schema tests, Reliability tests
-**Tests**: 11 compliance tests
+**Tests**: 13 compliance tests
 **Exit Criteria**: `pnpm test security schema reliability` all pass
 **MANDATORY**: This session MUST pass before proceeding to Victory Gates
 
 ### Session 7: Victory Gates (~1 hour)
 
-**Tasks**: T133-T143 (Phase 12)
-**Modules**: Integration tests, Victory validation
-**Tests**: 4 integration tests + 7 victory gates
+**Tasks**: T133-T147 (Phase 12)
+**Modules**: Integration tests, Cross-platform tests, Victory validation
+**Tests**: 4 integration tests + 4 cross-platform tests + 7 victory gates
 **Exit Criteria**: All victory gates pass (including PR Lessons Learned Gate)
 
 ---
@@ -489,7 +491,7 @@ Tasks marked [P] can run in parallel within the same phase:
 | 6     | T068-T070 (options tests)                                                 |
 | 7     | T077-T078 (zero-config tests)                                             |
 | 8     | T081, T091-T094 (command tests)                                           |
-| 11    | T122-T131 (security/schema/reliability tests - all parallel)              |
+| 11    | T122-T132a (security/schema/reliability tests - all parallel)             |
 | 12    | T133-T136 (integration tests)                                             |
 
 ---
@@ -550,11 +552,11 @@ Phase 4 (Local Diff) ──┴────────────────�
 | cli/signals.ts               | T081       | -                 | 3           |
 | cli/commands/local-review.ts | T091-T094  | T114              | 15          |
 | **Security Compliance**      | T122-T126  | -                 | 11          |
-| **Schema Compliance**        | T127-T129  | -                 | 6           |
-| **Reliability Compliance**   | T130-T132  | -                 | 5           |
+| **Schema Compliance**        | T127-T129  | -                 | 7           |
+| **Reliability Compliance**   | T130-T132a | -                 | 6           |
 | **Integration Tests**        | -          | T133-T136         | 4           |
 | **Cross-Platform Tests**     | T137-T140  | -                 | 4           |
-| **Total**                    |            |                   | **140+**    |
+| **Total**                    |            |                   | **142+**    |
 
 ---
 

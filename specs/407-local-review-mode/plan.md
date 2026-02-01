@@ -29,16 +29,16 @@ The implementation reuses 80%+ of existing infrastructure (agent execution, find
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle                        | Status     | Notes                                                        |
-| -------------------------------- | ---------- | ------------------------------------------------------------ |
-| I. Router Owns All Posting       | ✅ Pass    | Terminal reporter outputs to stdout, no external API posting |
-| II. Structured Findings Contract | ✅ Pass    | Uses existing Finding schema, dedup, sorting                 |
-| III. Provider-Neutral Core       | ✅ Pass    | Terminal is just another output target                       |
-| IV. Security-First Design        | ✅ Pass    | Reuses existing input validation                             |
-| V. Deterministic Outputs         | ✅ Pass    | Same sorting/dedup as CI mode                                |
-| VI. Bounded Resources            | ✅ Pass    | Existing limits enforced                                     |
-| VII. Environment Discipline      | ⚠️ Partial | Local mode is outside CI; documented as dev tool             |
-| VIII. Explicit Non-Goals         | ✅ Pass    | Complements CI, doesn't replace it                           |
+| Principle                        | Status     | Notes                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Router Owns All Posting       | ✅ Pass    | Terminal reporter outputs to stdout, no external API posting                                                                                                                                                                                                                                                                    |
+| II. Structured Findings Contract | ✅ Pass    | Uses existing Finding schema, dedup, sorting                                                                                                                                                                                                                                                                                    |
+| III. Provider-Neutral Core       | ✅ Pass    | Terminal is just another output target                                                                                                                                                                                                                                                                                          |
+| IV. Security-First Design        | ✅ Pass    | Reuses existing input validation                                                                                                                                                                                                                                                                                                |
+| V. Deterministic Outputs         | ✅ Pass    | Same sorting/dedup as CI mode                                                                                                                                                                                                                                                                                                   |
+| VI. Bounded Resources            | ✅ Pass    | Existing limits enforced                                                                                                                                                                                                                                                                                                        |
+| VII. Environment Discipline      | ⚠️ Partial | Local mode operates outside CI by design. Justification: (1) Developer workflow feature complementing CI, not replacing it; (2) All security invariants still apply (shell:false, redaction, path validation); (3) Resource bounds still enforced; (4) No production publishing from local mode. Acceptable per Principle VIII. |
+| VIII. Explicit Non-Goals         | ✅ Pass    | Complements CI, doesn't replace it                                                                                                                                                                                                                                                                                              |
 
 **Gate Status**: PASSED (no violations requiring justification)
 
@@ -571,10 +571,10 @@ Implementation is organized into 7 sessions with test gates:
 | 3       | 6-7    | Options & Zero-Config  | 21         | `pnpm test cli/options config/zero-config`    |
 | 4       | 8      | Local Review Command   | 14         | `pnpm test cli/commands cli/signals`          |
 | 5       | 9-10   | Integration & npm      | 1          | `ai-review .` works, `npx` works              |
-| 6       | 11     | **PR Lessons Learned** | 11         | `pnpm test security schema reliability`       |
+| 6       | 11     | **PR Lessons Learned** | 13         | `pnpm test security schema reliability`       |
 | 7       | 12     | Victory Gates          | 15         | All victory gates pass (incl. cross-platform) |
 
-**Total**: 147 tasks, 140+ test cases
+**Total**: 149 tasks, 142+ test cases
 
 ---
 
