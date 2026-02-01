@@ -77,6 +77,34 @@ export interface PathFilter {
 }
 
 /**
+ * Options for local (working tree/staged) diff generation
+ */
+export interface LocalDiffOptions {
+  /**
+   * Base reference to diff against (e.g., 'main', 'HEAD~1', commit SHA)
+   * Default: 'HEAD' for uncommitted changes, detected default branch for base ref
+   */
+  baseRef: string;
+
+  /**
+   * If true, only include staged (cached) changes
+   * Mutually exclusive with uncommitted
+   */
+  stagedOnly?: boolean;
+
+  /**
+   * If true, include all uncommitted changes (staged + unstaged)
+   * This is the default behavior when neither stagedOnly nor uncommitted is specified
+   */
+  uncommitted?: boolean;
+
+  /**
+   * Optional path filter to apply
+   */
+  pathFilter?: PathFilter;
+}
+
+/**
  * Unified context lines for git diff
  * Locked to GitHub's default to prevent drift between local diff and API diff
  */
@@ -637,4 +665,361 @@ export function buildCombinedDiff(files: DiffFile[], maxLines: number): string {
   }
 
   return lines.join('');
+}
+
+// =============================================================================
+// Local Diff Functions
+// =============================================================================
+
+/**
+ * Get the current HEAD commit SHA
+ *
+ * @param repoPath - Path to the repository
+ * @returns HEAD commit SHA or 'HEAD' if unable to resolve
+ */
+function getHeadSha(repoPath: string): string {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    return 'HEAD';
+  }
+}
+
+/**
+ * Pattern for valid local git refs.
+ *
+ * Allows: alphanumeric, hyphen, underscore, forward slash, dot, tilde (~), caret (^), colon (:)
+ * These are valid git ref modifiers for local operations (e.g., HEAD~1, HEAD^2, main:path)
+ * Does NOT allow shell metacharacters that could cause injection.
+ */
+const LOCAL_REF_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9\-_/.~^:]*$/;
+
+/**
+ * Validate a git ref for local operations.
+ *
+ * This is more permissive than assertSafeGitRef because local operations
+ * use execFileSync with array args (not shell), and refs like HEAD~1 are valid.
+ *
+ * @param ref - The git reference to validate
+ * @throws ValidationError if the ref is invalid
+ */
+function assertLocalRef(ref: string): void {
+  if (!ref || typeof ref !== 'string') {
+    throw new ValidationError(
+      'Invalid ref: value is empty or undefined',
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: 'ref',
+        value: ref,
+        constraint: 'non-empty',
+      }
+    );
+  }
+
+  if (ref.length > 256) {
+    throw new ValidationError(
+      `Invalid ref: length ${ref.length} exceeds 256 characters`,
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: 'ref',
+        value: ref,
+        constraint: 'max-length-256',
+      }
+    );
+  }
+
+  // Block path traversal
+  if (ref.includes('..')) {
+    throw new ValidationError(
+      'Invalid ref: contains path traversal pattern (..)',
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: 'ref',
+        value: ref,
+        constraint: 'no-traversal',
+      }
+    );
+  }
+
+  if (!LOCAL_REF_PATTERN.test(ref)) {
+    throw new ValidationError(
+      `Invalid ref: contains invalid characters. ` +
+        `Only alphanumeric, hyphen, underscore, forward slash, dot, tilde, caret, and colon are allowed.`,
+      ValidationErrorCode.INVALID_GIT_REF,
+      {
+        field: 'ref',
+        value: ref,
+        constraint: 'valid-characters',
+      }
+    );
+  }
+}
+
+/**
+ * Resolve a git ref without repo path validation.
+ *
+ * For local diff operations, we use execFileSync with cwd which doesn't
+ * involve shell execution, so Windows paths with backslashes are safe.
+ * This function resolves refs without the strict path character validation.
+ *
+ * @param repoPath - Path to the repository
+ * @param ref - Git reference to resolve
+ * @returns Resolved SHA or original ref
+ */
+function resolveLocalRef(repoPath: string, ref: string): string {
+  // Validate the ref with local-permissive rules
+  assertLocalRef(ref);
+
+  // First, try to resolve the ref directly
+  try {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', ref], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    return resolved;
+  } catch {
+    // Direct resolution failed, try alternatives
+  }
+
+  // If it's a refs/heads/* format, try origin/*
+  if (ref.startsWith('refs/heads/')) {
+    const branchName = ref.replace('refs/heads/', '');
+    try {
+      const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${branchName}`], {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      return resolved;
+    } catch {
+      // Also try without refs/heads prefix
+    }
+  }
+
+  // Try as a remote branch directly
+  try {
+    const resolved = execFileSync('git', ['rev-parse', '--verify', `origin/${ref}`], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    return resolved;
+  } catch {
+    // Fall through to return original
+  }
+
+  // Return original ref - will fail at git diff if invalid
+  return ref;
+}
+
+/**
+ * Get diff for local changes (working tree and/or staged)
+ *
+ * This function supports three modes:
+ * 1. stagedOnly: Only staged (cached) changes (git diff --cached)
+ * 2. uncommitted: All uncommitted changes including unstaged (git diff HEAD)
+ * 3. Base ref diff: Changes between baseRef and HEAD (git diff baseRef...HEAD)
+ *
+ * @param repoPath - Absolute path to the repository root
+ * @param options - Local diff options
+ * @returns DiffSummary with changed files and patches
+ */
+export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffSummary {
+  const { baseRef, stagedOnly = false, uncommitted = false, pathFilter } = options;
+
+  // Build git diff arguments based on options
+  const diffArgs: string[] = ['diff', '--numstat', '-z'];
+
+  // Determine the diff range
+  let baseSha: string;
+  let headSha: string;
+
+  if (stagedOnly) {
+    // Staged only: git diff --cached
+    diffArgs.push('--cached');
+    baseSha = 'INDEX';
+    headSha = 'STAGED';
+  } else if (uncommitted) {
+    // All uncommitted: git diff HEAD (includes staged + unstaged)
+    diffArgs.push('HEAD');
+    baseSha = getHeadSha(repoPath);
+    headSha = 'WORKTREE';
+  } else {
+    // Base ref diff: git diff baseRef...HEAD
+    const resolvedBase = resolveLocalRef(repoPath, baseRef);
+    const resolvedHead = getHeadSha(repoPath);
+    diffArgs.push(`${resolvedBase}...${resolvedHead}`);
+    baseSha = resolvedBase;
+    headSha = resolvedHead;
+  }
+
+  try {
+    // Get list of changed files with stats using NUL-delimited format
+    const diffStat = execFileSync('git', diffArgs, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      maxBuffer: MAX_OUTPUT_BYTES,
+    });
+
+    // Hard guard: output size
+    if (diffStat.length > MAX_OUTPUT_BYTES) {
+      throw new ValidationError(
+        `Diff output exceeds ${MAX_OUTPUT_BYTES / 1024 / 1024}MB - diff is too large`,
+        ValidationErrorCode.CONSTRAINT_VIOLATED,
+        {
+          field: 'diffOutput',
+          value: diffStat.length,
+          constraint: `max-bytes-${MAX_OUTPUT_BYTES}`,
+        }
+      );
+    }
+
+    // Get file statuses
+    const statusArgs: string[] = ['diff', '--name-status'];
+    if (stagedOnly) {
+      statusArgs.push('--cached');
+    } else if (uncommitted) {
+      statusArgs.push('HEAD');
+    } else {
+      const resolvedBase = resolveLocalRef(repoPath, baseRef);
+      const resolvedHead = getHeadSha(repoPath);
+      statusArgs.push(`${resolvedBase}...${resolvedHead}`);
+    }
+
+    const nameStatus = execFileSync('git', statusArgs, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+    });
+
+    const { statusMap } = parseNameStatus(nameStatus);
+    const parseResult = parseNumstatZ(diffStat, statusMap);
+    let { files } = parseResult;
+    const { errors } = parseResult;
+
+    // Hard guard: file count
+    if (files.length > MAX_FILES) {
+      throw new ValidationError(
+        `Diff contains ${files.length} files (max ${MAX_FILES}) - consider limiting the diff scope`,
+        ValidationErrorCode.CONSTRAINT_VIOLATED,
+        {
+          field: 'fileCount',
+          value: files.length,
+          constraint: `max-files-${MAX_FILES}`,
+        }
+      );
+    }
+
+    // Log parse errors if any
+    if (errors.count > 0) {
+      console.warn(
+        `[diff] ${errors.count} parse errors (samples: ${errors.samples.slice(0, 3).join(', ')})`
+      );
+    }
+
+    // Apply path filter if provided
+    if (pathFilter) {
+      files = filterFiles(files, pathFilter);
+    }
+
+    // Get patches for each file
+    const patchArgs: string[] = ['diff', `--unified=${UNIFIED_CONTEXT}`];
+    if (stagedOnly) {
+      patchArgs.push('--cached');
+    } else if (uncommitted) {
+      patchArgs.push('HEAD');
+    } else {
+      const resolvedBase = resolveLocalRef(repoPath, baseRef);
+      const resolvedHead = getHeadSha(repoPath);
+      patchArgs.push(`${resolvedBase}...${resolvedHead}`);
+    }
+
+    for (const file of files) {
+      // Skip deleted files and binary files for patches
+      if (file.status === 'deleted' || file.isBinary) continue;
+
+      const safePath = file.path?.trim();
+      if (!safePath || safePath.length === 0) continue;
+
+      try {
+        file.patch = execFileSync('git', [...patchArgs, '--', safePath], {
+          cwd: repoPath,
+          encoding: 'utf-8',
+          maxBuffer: 1024 * 1024,
+        });
+      } catch {
+        // Skip files that fail to get patch
+      }
+    }
+
+    const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
+    const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+    return {
+      files,
+      totalAdditions,
+      totalDeletions,
+      baseSha,
+      headSha,
+      contextLines: UNIFIED_CONTEXT,
+      source: 'local-git',
+    };
+  } catch (error) {
+    // Re-throw validation errors as-is
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    // Provide actionable error message for other errors
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ValidationError(
+      `Failed to get local diff: ${errorMsg}\n` +
+        `Mode: ${stagedOnly ? 'staged-only' : uncommitted ? 'uncommitted' : `base-ref (${baseRef})`}`,
+      ValidationErrorCode.INVALID_INPUT,
+      {
+        field: 'localDiff',
+        value: { baseRef, stagedOnly, uncommitted },
+        constraint: 'valid-local-diff',
+      },
+      error instanceof Error ? { cause: error } : undefined
+    );
+  }
+}
+
+/**
+ * Check if there are any local changes to review
+ *
+ * @param repoPath - Path to the repository
+ * @param options - Local diff options
+ * @returns true if there are changes, false otherwise
+ */
+export function hasLocalChanges(repoPath: string, options: LocalDiffOptions): boolean {
+  const { stagedOnly = false, uncommitted = false, baseRef } = options;
+
+  try {
+    const args: string[] = ['diff', '--name-only'];
+
+    if (stagedOnly) {
+      args.push('--cached');
+    } else if (uncommitted) {
+      args.push('HEAD');
+    } else {
+      const resolvedBase = resolveLocalRef(repoPath, baseRef);
+      const resolvedHead = getHeadSha(repoPath);
+      args.push(`${resolvedBase}...${resolvedHead}`);
+    }
+
+    const result = execFileSync('git', args, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    return result.trim().length > 0;
+  } catch {
+    return false;
+  }
 }

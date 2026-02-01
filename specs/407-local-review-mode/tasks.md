@@ -150,17 +150,17 @@ router/src/
 
 ### Local Diff Implementation (router/src/diff.ts)
 
-- [ ] T039 Add LocalDiffOptions interface { baseRef: string, stagedOnly?: boolean, uncommitted?: boolean }
-- [ ] T040 Implement getLocalDiff(repoPath, options: LocalDiffOptions): DiffSummary
-- [ ] T041 Add working tree diff support (git diff HEAD)
-- [ ] T042 Add staged-only diff support (git diff --cached)
-- [ ] T043 Wire into existing filterFiles() and canonicalizeDiffFiles() pipeline
+- [x] T039 Add LocalDiffOptions interface { baseRef: string, stagedOnly?: boolean, uncommitted?: boolean }
+- [x] T040 Implement getLocalDiff(repoPath, options: LocalDiffOptions): DiffSummary
+- [x] T041 Add working tree diff support (git diff HEAD)
+- [x] T042 Add staged-only diff support (git diff --cached)
+- [x] T043 Wire into existing filterFiles() and canonicalizeDiffFiles() pipeline
 
 ### Local Diff Tests
 
-- [ ] T044 [P] Create router/tests/unit/local-diff.test.ts for working tree diff (3 cases)
-- [ ] T045 [P] Create router/tests/unit/local-diff.test.ts for staged-only diff (3 cases)
-- [ ] T046 [P] Create router/tests/unit/local-diff.test.ts for base ref diff (2 cases)
+- [x] T044 [P] Create router/tests/unit/local-diff.test.ts for working tree diff (3 cases)
+- [x] T045 [P] Create router/tests/unit/local-diff.test.ts for staged-only diff (3 cases)
+- [x] T046 [P] Create router/tests/unit/local-diff.test.ts for base ref diff (2 cases)
 
 **Checkpoint**: Local diff generation tested, foundation complete
 
