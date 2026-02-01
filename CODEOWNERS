@@ -9,6 +9,7 @@
 CODEOWNERS                  @oddessentials
 .trivyignore                @oddessentials
 SECURITY.md                 @oddessentials
+.github/dependabot.yml      @oddessentials
 
 # Docker image (contains Go binaries with potential CVEs)
 router/Dockerfile           @oddessentials
