@@ -64,6 +64,11 @@
           "path": "../configuration/provider-selection.md"
         },
         {
+          "name": "team-configurations-part2.md",
+          "type": "file",
+          "path": "../configuration/team-configurations-part2.md"
+        },
+        {
           "name": "team-configurations.md",
           "type": "file",
           "path": "../configuration/team-configurations.md"
@@ -302,6 +307,11 @@
       "name": "configuration/provider-selection.md",
       "type": "file",
       "path": "../configuration/provider-selection.md"
+    },
+    {
+      "name": "configuration/team-configurations-part2.md",
+      "type": "file",
+      "path": "../configuration/team-configurations-part2.md"
     },
     {
       "name": "configuration/team-configurations.md",
