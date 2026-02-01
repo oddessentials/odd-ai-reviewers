@@ -129,7 +129,12 @@ export async function executeAllPasses(
         const scopedContext: AgentContext = {
           ...agentContext,
           env: buildAgentEnv(agent.id, routerEnv),
-          provider: resolveProvider(agent.id as Parameters<typeof resolveProvider>[0], routerEnv),
+          // Pass config.provider to honor explicit user override (T010)
+          provider: resolveProvider(
+            agent.id as Parameters<typeof resolveProvider>[0],
+            routerEnv,
+            config.provider
+          ),
         };
 
         let result: AgentResult | null = null;

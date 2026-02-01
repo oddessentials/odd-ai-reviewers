@@ -7,8 +7,28 @@ This guide walks you through running your first AI-powered code review and under
 Ensure you've completed the [Quick Start](./quick-start.md) setup:
 
 - ✅ Workflow file added to `.github/workflows/`
-- ✅ Configuration file `.ai-review.yml` created
-- ✅ API key secret configured
+- ✅ At least one API key secret configured
+
+### Simplest Setup: Single Provider
+
+For the fastest setup, just add one API key:
+
+| Provider  | Secret              | What Happens                            |
+| --------- | ------------------- | --------------------------------------- |
+| Anthropic | `ANTHROPIC_API_KEY` | Auto-applies `claude-sonnet-4-20250514` |
+| OpenAI    | `OPENAI_API_KEY`    | Auto-applies `gpt-4o`                   |
+| Ollama    | `OLLAMA_BASE_URL`   | Auto-applies `codellama:7b`             |
+
+No `.ai-review.yml` is required for single-key setups - sensible defaults are applied automatically.
+
+### Multi-Provider Setup
+
+If you have multiple API keys set (e.g., both OpenAI and Anthropic), you must:
+
+1. Add a `.ai-review.yml` configuration file, AND
+2. Specify the `provider` field explicitly
+
+See [Configuration Options](../configuration/config-schema.md) for details.
 
 ## Step 1: Create a Test Branch
 

@@ -25,10 +25,16 @@ export {
 
 export {
   type LlmProvider,
+  type ResolvedConfigTuple,
+  RESOLVED_CONFIG_SCHEMA_VERSION,
+  RESOLVED_CONFIG_RESOLUTION_VERSION,
   inferProviderFromModel,
   isCompletionsOnlyModel,
   resolveEffectiveModel,
   resolveProvider,
+  resolveKeySource,
+  resolveConfigSource,
+  buildResolvedConfigTuple,
 } from './config/providers.js';
 
 // Import for internal use
@@ -127,9 +133,10 @@ export async function loadConfigResult(
 }
 
 /**
- * Deep merge two objects, with source taking precedence
+ * Deep merge two objects, with source taking precedence.
+ * Exported for use in config init validation to match loadConfig behavior.
  */
-function deepMerge(
+export function deepMerge(
   target: Record<string, unknown>,
   source: Record<string, unknown>
 ): Record<string, unknown> {
@@ -157,6 +164,20 @@ function deepMerge(
   }
 
   return result;
+}
+
+/**
+ * Load the defaults configuration file.
+ * Used by config init to merge defaults before validation, matching loadConfig behavior.
+ *
+ * @returns Parsed defaults object, or empty object if defaults file not found
+ */
+export async function loadDefaults(): Promise<Record<string, unknown>> {
+  if (existsSync(DEFAULTS_PATH)) {
+    const defaultsContent = await readFile(DEFAULTS_PATH, 'utf-8');
+    return parseYaml(defaultsContent) as Record<string, unknown>;
+  }
+  return {};
 }
 
 /**

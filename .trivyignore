@@ -1,14 +1,15 @@
 # Trivy CVE Ignore List
-# 
+#
 # This file documents known CVEs that are accepted risks with justification.
 # All CVEs here are from third-party binaries we do not control.
 #
-# Last reviewed: 2026-01-19 by AI Review Router team
+# Last reviewed: 2026-01-31 by AI Review Router team
+# Next review due: 2026-04-30
 
 # ============================================================================
 # OpenCode CLI Binary (Go runtime CVEs)
-# 
-# OpenCode v1.1.26 is compiled with an older Go runtime that contains these
+#
+# OpenCode v1.1.40 is compiled with an older Go runtime that contains these
 # vulnerabilities. We are using the latest available release. The OpenCode
 # team must release a new version compiled with Go 1.24.11+ or 1.25.5+ to fix.
 #
@@ -17,24 +18,39 @@
 # ============================================================================
 
 # Go crypto/x509 - DoS via malformed certificate
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (crypto/x509)
+# Risk: LOW - OpenCode isolated subprocess, no user-controlled certificates
 # Fixed in: Go 1.24.11, 1.25.5 | OpenCode compiled with older Go
 CVE-2025-61729
 
-# Go database/sql - Postgres scanning vulnerability  
+# Go database/sql - Postgres scanning vulnerability
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (database/sql)
+# Risk: LOW - OpenCode uses LLM APIs, not Postgres
 # Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
 CVE-2025-47907
 
 # Go archive/tar - Unbounded allocation parsing GNU tar headers
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (archive/tar)
+# Risk: LOW - OpenCode doesn't parse user-controlled tar files
 # Fixed in: Go 1.23.12, 1.24.6 | OpenCode compiled with older Go
 CVE-2025-58183
 
 # ============================================================================
-# npm transitive dependencies (if any appear and need exceptions)
+# npm transitive dependencies (build-time only)
 # ============================================================================
 
 # glob package - Command injection via malicious pattern
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: glob (npm)
+# Risk: LOW - Build-time dependency, not used in application code
 # This is a transitive dependency in Docker image tooling
-# Risk: LOW - Not used in our application code, comes from build tools
 CVE-2025-64756
 
 # ============================================================================
@@ -42,54 +58,83 @@ CVE-2025-64756
 # ============================================================================
 
 # golang.org/x/oauth2/jws - Unexpected memory consumption
-# Fixed in: 0.27.0 | OpenCode compiled with older version
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: golang.org/x/oauth2/jws
 # Risk: LOW - OpenCode runs isolated with token stripping
+# Fixed in: 0.27.0 | OpenCode compiled with older version
 CVE-2025-22868
 
 # Go encoding/gob - Decoder.Decode stack exhaustion
-# Fixed in: Go 1.22.7, 1.23.1 | OpenCode compiled with older Go
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (encoding/gob)
 # Risk: LOW - OpenCode doesn't use gob in user-facing paths
+# Fixed in: Go 1.22.7, 1.23.1 | OpenCode compiled with older Go
 CVE-2024-34156
 
 # node-tar - Path traversal vulnerability in tar extraction
-# This is a transitive dependency in npm tooling
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: node-tar (npm)
 # Risk: LOW - Only used during Docker build, not at runtime
+# This is a transitive dependency in npm tooling
 CVE-2026-23745
 
 # node-tar - Arbitrary file overwrite via Unicode path collision race condition
-# This is bundled with npm in the node:22-slim base image
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: node-tar (npm)
 # Risk: LOW - Only used during npm ci in Docker build, not at runtime
+# This is bundled with npm in the node:22-slim base image
 CVE-2026-23950
 
 # node-tar - Hardlink path traversal (CVE-2026-24842)
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: node-tar (npm)
+# Risk: LOW - Only used during Docker build, not at runtime
 # tar 6.2.1 bundled in npm (node:22-slim), tar 7.4.3 bundled in OpenCode 1.1.40
 # Fixed in node-tar 7.5.7 | Waiting for upstream releases
-# Risk: LOW - Only used during Docker build, not at runtime
 CVE-2026-24842
 
 # golang.org/x/crypto/ssh - Authorization bypass in SSH handshake
-# Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: golang.org/x/crypto/ssh
 # Risk: LOW - OpenCode doesn't use SSH for LLM API calls
+# Fixed in: 0.31.0 | OpenCode compiled with v0.28.0
 CVE-2024-45337
 
 # Go net/http2 - Unlimited CONTINUATION frames causing resource exhaustion
-# Fixed in: Go 1.21.9, 1.22.2 | OpenCode compiled with older Go
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (net/http2)
 # Risk: LOW - OpenCode CLI mode doesn't run HTTP2 servers
+# Fixed in: Go 1.21.9, 1.22.2 | OpenCode compiled with older Go
 CVE-2023-45288
 
 # ============================================================================
-# Reviewdog Binary (Go runtime and library CVEs)
+# Reviewdog Binary (Go runtime CVEs)
 #
-# Reviewdog v0.20.3 is compiled with Go 1.21.7 which contains these
-# vulnerabilities. These are inherited from upstream releases.
+# Reviewdog v0.21.0 is compiled with Go 1.25.0 which contains these
+# vulnerabilities. Fixed in Go 1.25.6.
+#
+# Risk assessment: LOW - Reviewdog only parses diff/lint data.
 # ============================================================================
 
-# golang.org/x/crypto/ssh - DoS in SSH key exchange
-# Fixed in: 0.35.0 | Reviewdog compiled with v0.28.0
-# Risk: LOW - Reviewdog doesn't use SSH functionality
-CVE-2025-22869
+# Go net/url - Excessive query parsing causing resource exhaustion
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (net/url)
+# Risk: LOW - Reviewdog parses diff data, not URLs from untrusted sources
+# Fixed in: Go 1.24.12, 1.25.6 | Reviewdog compiled with Go 1.25.0
+CVE-2025-61726
 
-# Go net/netip - Unexpected behavior for IPv4-mapped IPv6 addresses
-# Fixed in: Go 1.21.11, 1.22.4 | Reviewdog compiled with Go 1.21.7
-# Risk: LOW - Reviewdog only processes diff/lint data, not network addresses
-CVE-2024-24790
+# Go archive/zip - Excessive CPU consumption building archive index
+# Created: 2026-01-31
+# Expires: 2026-07-30
+# Package: stdlib (archive/zip)
+# Risk: LOW - Reviewdog doesn't process user-controlled zip files
+# Fixed in: Go 1.24.12, 1.25.6 | Reviewdog compiled with Go 1.25.0
+CVE-2025-61728

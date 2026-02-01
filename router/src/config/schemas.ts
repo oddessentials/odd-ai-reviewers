@@ -84,6 +84,13 @@ export const ModelsSchema = z.object({
   default: z.string().optional(),
 });
 
+/**
+ * LLM Provider configuration.
+ * When set, overrides automatic provider detection.
+ * Required when multiple provider keys are present with MODEL set.
+ */
+export const ProviderSchema = z.enum(['anthropic', 'openai', 'azure-openai', 'ollama']);
+
 export const ConfigSchema = z.object({
   version: z.number().default(1),
   trusted_only: z.boolean().default(true),
@@ -107,6 +114,12 @@ export const ConfigSchema = z.object({
   path_filters: PathFiltersSchema.optional(),
   /** Control flow analysis agent configuration (T058) */
   control_flow: ControlFlowConfigSchema.optional(),
+  /**
+   * Explicit LLM provider selection.
+   * When set, overrides automatic provider detection based on API key precedence.
+   * REQUIRED when multiple provider keys are present AND MODEL is set (prevents ambiguity).
+   */
+  provider: ProviderSchema.optional(),
 });
 
 // Type exports
@@ -115,3 +128,4 @@ export type Pass = z.infer<typeof PassSchema>;
 export type Limits = z.infer<typeof LimitsSchema>;
 export type Models = z.infer<typeof ModelsSchema>;
 export type AgentId = z.infer<typeof AgentSchema>;
+export type Provider = z.infer<typeof ProviderSchema>;

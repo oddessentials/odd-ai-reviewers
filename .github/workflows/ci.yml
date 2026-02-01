@@ -224,6 +224,16 @@ jobs:
       - name: Build container image
         run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .
 
+      - name: Reviewdog smoke test
+        run: |
+          # Verify reviewdog binary works by checking version
+          # Must use --entrypoint to bypass the default node entrypoint
+          docker run --rm --entrypoint reviewdog odd-ai-reviewers-router:ci -version
+          # Run against sample diff (exit 0 = no findings, which is expected)
+          docker run --rm -i --entrypoint reviewdog odd-ai-reviewers-router:ci \
+            -f=diff -reporter=local < tests/fixtures/reviewdog-smoke.diff
+          echo "Reviewdog smoke test passed"
+
       - name: Trivy scan (HIGH,CRITICAL)
         uses: aquasecurity/trivy-action@0.28.0
         with:

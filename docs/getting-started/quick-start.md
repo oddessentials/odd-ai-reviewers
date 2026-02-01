@@ -30,12 +30,28 @@ jobs:
     secrets: inherit
 ```
 
-## Step 2: Add Configuration
+## Step 2: Add Secrets
 
-Create `.ai-review.yml` at your repository root:
+Go to your repository Settings → Secrets and variables → Actions, and add your API key:
+
+**Single-key setup (recommended):** Just set one API key and the model will be auto-applied:
+
+| Provider  | Secret              | Auto-applied Model       |
+| --------- | ------------------- | ------------------------ |
+| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| OpenAI    | `OPENAI_API_KEY`    | gpt-4o                   |
+
+## Step 3: Add Configuration (Optional)
+
+For single-key setups, you can start without any configuration file - sensible defaults are applied.
+
+To customize, create `.ai-review.yml` at your repository root:
+
+### Anthropic (Claude)
 
 ```yaml
 version: 1
+provider: anthropic
 trusted_only: true
 
 passes:
@@ -44,21 +60,55 @@ passes:
   - name: semantic
     agents: [opencode]
 
-models:
-  default: claude-sonnet-4-20250514
+limits:
+  max_usd_per_pr: 1.00
+  monthly_budget_usd: 100
+```
+
+### OpenAI (GPT-4o)
+
+```yaml
+version: 1
+provider: openai
+trusted_only: true
+
+passes:
+  - name: static
+    agents: [semgrep]
+  - name: semantic
+    agents: [opencode]
 
 limits:
   max_usd_per_pr: 1.00
   monthly_budget_usd: 100
 ```
 
-## Step 3: Add Secrets
+### Azure OpenAI
 
-Go to your repository Settings → Secrets and variables → Actions, then add:
+Azure OpenAI requires explicit configuration (no auto-apply):
 
-| Secret              | Value                  |
-| ------------------- | ---------------------- |
-| `ANTHROPIC_API_KEY` | Your Anthropic API key |
+```yaml
+version: 1
+provider: azure-openai
+trusted_only: true
+
+passes:
+  - name: static
+    agents: [semgrep]
+  - name: semantic
+    agents: [ai_semantic_review]
+
+limits:
+  max_usd_per_pr: 1.00
+  monthly_budget_usd: 100
+```
+
+**Required secrets for Azure:**
+
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_DEPLOYMENT`
+- `MODEL` (set to your deployment name)
 
 ## Step 4: Open a Pull Request
 

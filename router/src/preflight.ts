@@ -17,13 +17,168 @@
  */
 
 import type { Config, AgentId } from './config.js';
-import { inferProviderFromModel, isCompletionsOnlyModel, resolveProvider } from './config.js';
+import {
+  inferProviderFromModel,
+  isCompletionsOnlyModel,
+  resolveProvider,
+  type LlmProvider,
+  type ResolvedConfigTuple,
+} from './config.js';
 // Note: ConfigError, ValidationError types are available from './types/errors.js'
 // but this module uses string-based error collection by design (see module docs)
+
+/**
+ * Maps providers to their required environment variables.
+ * Used for multi-key detection and key source logging.
+ */
+export const PROVIDER_KEY_MAPPING: Record<LlmProvider, string[]> = {
+  anthropic: ['ANTHROPIC_API_KEY'],
+  openai: ['OPENAI_API_KEY'],
+  'azure-openai': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT'],
+  ollama: ['OLLAMA_BASE_URL'], // Optional, has default
+};
+
+/**
+ * Default models for each provider.
+ * Auto-applied for single-key setups when MODEL is not configured.
+ *
+ * INVARIANT: Azure OpenAI has no default (deployment names are user-specific per FR-013).
+ */
+export const DEFAULT_MODELS: Record<LlmProvider, string | null> = {
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+  'azure-openai': null, // User must specify deployment name (no auto-apply)
+  ollama: 'codellama:7b',
+};
+
+/**
+ * Count how many providers have valid API keys configured.
+ * Used for multi-key ambiguity detection (FR-004).
+ *
+ * INVARIANT: Azure counts as one provider only when ALL three keys are present.
+ * INVARIANT: Ollama counts if OLLAMA_BASE_URL is set (optional, has default).
+ *
+ * @param env - Environment variables to check
+ * @returns Number of providers with valid keys (0-4)
+ */
+export function countProvidersWithKeys(env: Record<string, string | undefined>): number {
+  let count = 0;
+
+  // Anthropic: single key
+  if (env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '') {
+    count++;
+  }
+
+  // OpenAI: single key
+  if (env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '') {
+    count++;
+  }
+
+  // Azure OpenAI: requires all three keys as atomic bundle
+  const hasAzure =
+    env['AZURE_OPENAI_API_KEY'] &&
+    env['AZURE_OPENAI_API_KEY'].trim() !== '' &&
+    env['AZURE_OPENAI_ENDPOINT'] &&
+    env['AZURE_OPENAI_ENDPOINT'].trim() !== '' &&
+    env['AZURE_OPENAI_DEPLOYMENT'] &&
+    env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
+  if (hasAzure) {
+    count++;
+  }
+
+  // Ollama: base URL (optional, has default - but explicit setting counts)
+  if (env['OLLAMA_BASE_URL'] && env['OLLAMA_BASE_URL'].trim() !== '') {
+    count++;
+  }
+
+  return count;
+}
 
 export interface PreflightResult {
   valid: boolean;
   errors: string[];
+  /** Resolved config tuple when valid, undefined when invalid */
+  resolved?: ResolvedConfigTuple;
+}
+
+/**
+ * Detect the single provider when exactly one provider has keys configured.
+ * Used for auto-apply default model behavior.
+ *
+ * @param env - Environment variables to check
+ * @returns The single provider, or null if 0 or 2+ providers have keys
+ */
+export function detectSingleProvider(env: Record<string, string | undefined>): LlmProvider | null {
+  const hasAnthropic = env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '';
+  const hasOpenAI = env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '';
+  const hasAzure =
+    env['AZURE_OPENAI_API_KEY'] &&
+    env['AZURE_OPENAI_API_KEY'].trim() !== '' &&
+    env['AZURE_OPENAI_ENDPOINT'] &&
+    env['AZURE_OPENAI_ENDPOINT'].trim() !== '' &&
+    env['AZURE_OPENAI_DEPLOYMENT'] &&
+    env['AZURE_OPENAI_DEPLOYMENT'].trim() !== '';
+  const hasOllama = env['OLLAMA_BASE_URL'] && env['OLLAMA_BASE_URL'].trim() !== '';
+
+  const providers: LlmProvider[] = [];
+  if (hasAnthropic) providers.push('anthropic');
+  if (hasOpenAI) providers.push('openai');
+  if (hasAzure) providers.push('azure-openai');
+  if (hasOllama) providers.push('ollama');
+
+  if (providers.length === 1) {
+    const provider = providers[0];
+    return provider !== undefined ? provider : null;
+  }
+  return null;
+}
+
+/**
+ * Resolve effective model with auto-apply defaults for single-key setups (FR-001).
+ *
+ * PRECEDENCE:
+ * 1. MODEL env var (explicit user override)
+ * 2. config.models.default (repo-level setting)
+ * 3. Auto-apply DEFAULT_MODELS[provider] for single-key setups
+ *
+ * INVARIANT: Azure OpenAI has no default (deployment names are user-specific).
+ * INVARIANT: Multi-key setups DO NOT auto-apply (requires explicit config).
+ *
+ * @param config - Loaded configuration
+ * @param env - Environment variables
+ * @returns Object with model and whether it was auto-applied
+ */
+export function resolveEffectiveModelWithDefaults(
+  config: Config,
+  env: Record<string, string | undefined>
+): { model: string; autoApplied: boolean; provider: LlmProvider | null } {
+  // 1. MODEL env var takes precedence (explicit user override)
+  const envModel = env['MODEL'];
+  if (envModel && envModel.trim() !== '') {
+    return { model: envModel, autoApplied: false, provider: null };
+  }
+
+  // 2. Config default (repo-level setting)
+  if (config.models.default && config.models.default.trim() !== '') {
+    return { model: config.models.default, autoApplied: false, provider: null };
+  }
+
+  // 3. Auto-apply default for single-key setups
+  const keyCount = countProvidersWithKeys(env);
+  if (keyCount === 1) {
+    const provider = detectSingleProvider(env);
+    if (provider) {
+      const defaultModel = DEFAULT_MODELS[provider];
+      if (defaultModel) {
+        // Auto-apply the default model for this provider
+        return { model: defaultModel, autoApplied: true, provider };
+      }
+      // Azure has no default (null) - fall through to fail
+    }
+  }
+
+  // No model configured and cannot auto-apply
+  return { model: '', autoApplied: false, provider: null };
 }
 
 /**
@@ -90,12 +245,30 @@ export function validateAgentSecrets(
 ): PreflightResult {
   const errors: string[] = [];
 
-  // HARD FAIL: Reject legacy keys
+  // HARD FAIL: Reject legacy keys with specific migration guidance (T027)
   for (const key of LEGACY_KEYS) {
     if (env[key] !== undefined && env[key] !== '') {
+      let migrationExample = '';
+      if (key === 'OPENAI_MODEL' || key === 'OPENCODE_MODEL') {
+        migrationExample =
+          '\n\nMigration:\n' +
+          `  Remove: ${key}=${env[key]}\n` +
+          `  Add: MODEL=${env[key]}\n\n` +
+          'Or in .ai-review.yml:\n' +
+          '  models:\n' +
+          `    default: ${env[key]}`;
+      } else if (key === 'PR_AGENT_API_KEY' || key === 'AI_SEMANTIC_REVIEW_API_KEY') {
+        migrationExample =
+          '\n\nMigration:\n' +
+          `  Remove: ${key}\n` +
+          '  Use canonical keys instead:\n' +
+          '    OPENAI_API_KEY=sk-xxx     # For OpenAI\n' +
+          '    ANTHROPIC_API_KEY=sk-xxx  # For Anthropic';
+      }
       errors.push(
         `Legacy environment variable '${key}' detected. ` +
-          `This key is no longer supported. Use canonical keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, or MODEL.`
+          `This key is no longer supported. Use canonical keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, or MODEL.` +
+          migrationExample
       );
     }
   }
@@ -158,9 +331,13 @@ export function validateAgentSecrets(
 
 /**
  * Validate model configuration.
- * Fails if effectiveModel is empty (no MODEL env var and no config.models.default).
+ * Fails if effectiveModel is empty (no MODEL env var, no config.models.default,
+ * and auto-apply couldn't be used).
  *
- * INVARIANT: Router owns model resolution. No hardcoded fallbacks.
+ * INVARIANT: Router owns model resolution.
+ * INVARIANT: Single-key setups can auto-apply default models (FR-001).
+ * INVARIANT: Azure OpenAI requires explicit MODEL (no auto-apply).
+ * INVARIANT: Multi-key setups require explicit MODEL or config.models.default.
  */
 export function validateModelConfig(
   effectiveModel: string,
@@ -171,9 +348,33 @@ export function validateModelConfig(
   if (!effectiveModel || effectiveModel.trim() === '') {
     const hasModelEnv = env['MODEL'] && env['MODEL'].trim() !== '';
     if (!hasModelEnv) {
-      errors.push(
-        'No model configured. Set the MODEL environment variable or configure models.default in .ai-review.yml'
-      );
+      const keyCount = countProvidersWithKeys(env);
+      const singleProvider = detectSingleProvider(env);
+
+      if (keyCount === 0) {
+        errors.push(
+          'No model configured and no API keys found. ' +
+            'Set an API key (e.g., OPENAI_API_KEY) and the model will be auto-applied, ' +
+            'or set MODEL explicitly.'
+        );
+      } else if (keyCount === 1 && singleProvider === 'azure-openai') {
+        // Azure requires explicit model - no auto-apply
+        errors.push(
+          'Azure OpenAI requires an explicit MODEL. ' +
+            'Set MODEL to your deployment name (e.g., MODEL=my-gpt4-deployment).'
+        );
+      } else if (keyCount > 1) {
+        // Multi-key - ambiguous, need explicit model
+        errors.push(
+          'Multiple API keys detected but no MODEL configured. ' +
+            'Set MODEL explicitly or configure models.default in .ai-review.yml.'
+        );
+      } else {
+        // Single key but auto-apply didn't work (shouldn't happen normally)
+        errors.push(
+          'No model configured. Set the MODEL environment variable or configure models.default in .ai-review.yml'
+        );
+      }
     }
   }
 
@@ -292,7 +493,7 @@ export function validateProviderModelCompatibility(
 
   // Check each cloud agent's resolved provider against the model
   for (const agentId of cloudAgents) {
-    const resolvedProvider = resolveProvider(agentId, env);
+    const resolvedProvider = resolveProvider(agentId, env, config.provider);
 
     // Skip if no provider resolved (will fail elsewhere)
     if (!resolvedProvider) continue;
@@ -362,11 +563,148 @@ export function validateAzureDeployment(env: Record<string, string | undefined>)
 
   // Deployment is required when using Azure (already checked in validateAgentSecrets)
   // but double-check here for empty string edge case
+  // T025: Single-line "set X" format for actionable fixes
   if (!deployment || deployment.trim() === '') {
+    errors.push('Set: AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate multi-key ambiguity (FR-004).
+ *
+ * When multiple provider keys are present AND MODEL is set BUT no explicit
+ * provider is specified in config, this is ambiguous and must fail.
+ *
+ * INVARIANT: Multi-key + MODEL + no explicit provider = hard fail with actionable error.
+ *
+ * @param config - Loaded configuration
+ * @param env - Environment variables
+ * @returns Validation result with actionable error message
+ */
+export function validateMultiKeyAmbiguity(
+  config: Config,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  // Only validate if MODEL is explicitly set
+  const hasModel = env['MODEL'] && env['MODEL'].trim() !== '';
+  if (!hasModel) {
+    // No MODEL set - auto-apply will handle this or fail elsewhere
+    return { valid: true, errors: [] };
+  }
+
+  // Count providers with keys
+  const keyCount = countProvidersWithKeys(env);
+
+  // Only problematic if multiple keys AND no explicit provider
+  if (keyCount > 1 && !config.provider) {
+    // Determine which providers are configured
+    const hasAnthropic = env['ANTHROPIC_API_KEY'] && env['ANTHROPIC_API_KEY'].trim() !== '';
+    const hasOpenAI = env['OPENAI_API_KEY'] && env['OPENAI_API_KEY'].trim() !== '';
+
+    let suggestion = '';
+    if (hasAnthropic && hasOpenAI) {
+      suggestion =
+        'Add to your .ai-review.yml:\n' +
+        '  provider: openai    # Use OpenAI\n' +
+        'Or:\n' +
+        '  provider: anthropic # Use Anthropic (takes precedence by default)';
+    }
+
     errors.push(
-      'AZURE_OPENAI_DEPLOYMENT is empty. ' +
-        'Set this to your Azure deployment name (e.g., "my-gpt4-deployment").'
+      `Multiple API keys detected with MODEL set but no explicit provider.\n` +
+        `This is ambiguous - please specify which provider to use.\n\n` +
+        `${suggestion}`
     );
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate that explicit provider has corresponding API keys (T026).
+ *
+ * When config.provider is explicitly set, the corresponding keys must be present.
+ * Error messages specify exactly which key(s) to set.
+ *
+ * @param config - Loaded configuration with optional provider field
+ * @param env - Environment variables
+ * @returns Validation result with actionable error message
+ */
+export function validateExplicitProviderKeys(
+  config: Config,
+  env: Record<string, string | undefined>
+): PreflightResult {
+  const errors: string[] = [];
+
+  if (!config.provider) {
+    // No explicit provider - other validation handles this
+    return { valid: true, errors: [] };
+  }
+
+  const provider = config.provider;
+
+  // FR-005, FR-006: Ollama provider has special handling - OLLAMA_BASE_URL is optional
+  // because it defaults to http://localhost:11434
+  if (provider === 'ollama') {
+    const ollamaUrl = env['OLLAMA_BASE_URL'];
+
+    // FR-007: If OLLAMA_BASE_URL is set, validate URL format (scheme + host)
+    if (ollamaUrl && ollamaUrl.trim() !== '') {
+      try {
+        const parsed = new URL(ollamaUrl);
+        // Ensure it has a valid scheme (http or https)
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          errors.push(
+            `Invalid OLLAMA_BASE_URL: '${ollamaUrl}'\n` +
+              `  Must use http:// or https:// scheme (e.g., http://localhost:11434)`
+          );
+        }
+      } catch {
+        // URL parsing failed - invalid format
+        errors.push(
+          `Invalid OLLAMA_BASE_URL format: '${ollamaUrl}'\n` +
+            `  Must be a valid URL (e.g., http://localhost:11434)`
+        );
+      }
+    }
+    // FR-008: Connectivity is checked at runtime, not preflight
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  // Non-Ollama providers: check required keys
+  const requiredKeys = PROVIDER_KEY_MAPPING[provider];
+
+  // Check if all required keys are present
+  const missingKeys = requiredKeys.filter((key) => {
+    const value = env[key];
+    return !value || value.trim() === '';
+  });
+
+  if (missingKeys.length > 0) {
+    if (provider === 'azure-openai') {
+      errors.push(
+        `Provider 'azure-openai' requires all three Azure keys:\n` +
+          `  Set: ${missingKeys.join(', ')}`
+      );
+    } else {
+      errors.push(
+        `Provider '${provider}' requires: ${missingKeys.join(', ')}\n` + `  Set: ${missingKeys[0]}`
+      );
+    }
   }
 
   return {

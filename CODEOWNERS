@@ -1,0 +1,15 @@
+# CODEOWNERS - Security-Sensitive File Governance
+#
+# Files listed here require review from @oddessentials before merge.
+# This ensures security-sensitive configurations are properly reviewed.
+#
+# For more information: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Security configuration files
+CODEOWNERS                  @oddessentials
+.trivyignore                @oddessentials
+SECURITY.md                 @oddessentials
+.github/dependabot.yml      @oddessentials
+
+# Docker image (contains Go binaries with potential CVEs)
+router/Dockerfile           @oddessentials
