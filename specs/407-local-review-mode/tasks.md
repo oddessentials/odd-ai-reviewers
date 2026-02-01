@@ -174,28 +174,28 @@ router/src/
 
 ### Terminal Reporter Core (router/src/report/terminal.ts)
 
-- [ ] T047 Implement box drawing utilities (Unicode borders, ASCII fallback)
-- [ ] T048 Implement code snippet extraction from diff patches (3 lines context)
-- [ ] T049 Implement formatFindingBox(finding, context) → single finding with border
-- [ ] T050 Implement formatFindingsList(findings, context) → all findings formatted
-- [ ] T051 Implement generateSummary(findings, stats) → summary section with counts
-- [ ] T052 Implement reportToTerminal(findings, partialFindings, context, config, diffFiles) main function
+- [x] T047 Implement box drawing utilities (Unicode borders, ASCII fallback)
+- [x] T048 Implement code snippet extraction from diff patches (3 lines context)
+- [x] T049 Implement formatFindingBox(finding, context) → single finding with border
+- [x] T050 Implement formatFindingsList(findings, context) → all findings formatted
+- [x] T051 Implement generateSummary(findings, stats) → summary section with counts
+- [x] T052 Implement reportToTerminal(findings, partialFindings, context, config, diffFiles) main function
 
 ### Terminal Reporter Output Modes
 
-- [ ] T053 Implement quiet mode output (errors only, minimal summary)
-- [ ] T054 Implement verbose mode output (git context, agent details, timing breakdown)
-- [ ] T055 Implement JSON output format per data-model.md schema
-- [ ] T056 Implement SARIF 2.1.0 output format
+- [x] T053 Implement quiet mode output (errors only, minimal summary)
+- [x] T054 Implement verbose mode output (git context, agent details, timing breakdown)
+- [x] T055 Implement JSON output format per data-model.md schema
+- [x] T056 Implement SARIF 2.1.0 output format
 
 ### Terminal Reporter Tests
 
-- [ ] T057 [P] Create router/tests/unit/report/terminal.test.ts for box drawing (3 cases)
-- [ ] T058 [P] Create router/tests/unit/report/terminal.test.ts for code snippet extraction (4 cases)
-- [ ] T059 [P] Create router/tests/unit/report/terminal.test.ts for finding formatting (5 cases)
-- [ ] T060 [P] Create router/tests/unit/report/terminal.test.ts for summary generation (3 cases)
-- [ ] T061 [P] Create router/tests/unit/report/terminal-json.test.ts for JSON schema validation (3 cases)
-- [ ] T062 [P] Create router/tests/unit/report/terminal-sarif.test.ts for SARIF schema validation (3 cases)
+- [x] T057 [P] Create router/tests/unit/report/terminal.test.ts for box drawing (3 cases)
+- [x] T058 [P] Create router/tests/unit/report/terminal.test.ts for code snippet extraction (4 cases)
+- [x] T059 [P] Create router/tests/unit/report/terminal.test.ts for finding formatting (5 cases)
+- [x] T060 [P] Create router/tests/unit/report/terminal.test.ts for summary generation (3 cases)
+- [x] T061 [P] Create router/tests/unit/report/terminal-json.test.ts for JSON schema validation (3 cases)
+- [x] T062 [P] Create router/tests/unit/report/terminal-sarif.test.ts for SARIF schema validation (3 cases)
 
 **Checkpoint**: Terminal reporter fully tested with all output modes
 
