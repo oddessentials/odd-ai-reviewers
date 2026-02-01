@@ -400,15 +400,22 @@ router/src/
 - [ ] T135 [P] Create router/tests/integration/local-review.test.ts - error handling tests
 - [ ] T136 [P] Create router/tests/integration/local-review.test.ts - pre-commit simulation test
 
+### Cross-Platform Tests
+
+- [ ] T137 [P] Test Unicode box drawing on Windows Terminal vs CMD vs PowerShell
+- [ ] T138 [P] Test path handling with backslashes on Windows
+- [ ] T139 [P] Test ANSI color codes on Windows Terminal (should work) vs CMD (needs fallback)
+- [ ] T140 [P] Test git command execution on Windows (git.exe path resolution)
+
 ### Victory Gate Validation
 
-- [ ] T137 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
-- [ ] T138 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
-- [ ] T139 Validate Performance Gate: Local review completes in <60s
-- [ ] T140 Validate Determinism Gate: Multiple runs produce identical output
-- [ ] T141 Validate Cross-Platform Gate: Test on Windows, macOS, Linux
-- [ ] T142 Validate Regression Gate: Existing CI commands still work
-- [ ] T143 Validate PR Lessons Learned Gate: All Phase 11 security tests pass
+- [ ] T141 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
+- [ ] T142 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
+- [ ] T143 Validate Performance Gate: Local review completes in <60s
+- [ ] T144 Validate Determinism Gate: Multiple runs produce identical output
+- [ ] T145 Validate Cross-Platform Gate: Test on Windows, macOS, Linux (T137-T140 pass)
+- [ ] T146 Validate Regression Gate: Existing CI commands still work
+- [ ] T147 Validate PR Lessons Learned Gate: All Phase 11 security tests pass
 
 **Checkpoint**: All victory gates pass - ready for release
 
@@ -546,7 +553,8 @@ Phase 4 (Local Diff) ──┴────────────────�
 | **Schema Compliance**        | T127-T129  | -                 | 6           |
 | **Reliability Compliance**   | T130-T132  | -                 | 5           |
 | **Integration Tests**        | -          | T133-T136         | 4           |
-| **Total**                    |            |                   | **132+**    |
+| **Cross-Platform Tests**     | T137-T140  | -                 | 4           |
+| **Total**                    |            |                   | **140+**    |
 
 ---
 

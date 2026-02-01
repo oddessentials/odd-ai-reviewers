@@ -53,8 +53,9 @@ Command-line options specific to local review mode.
 
 **Validation Rules**:
 
-- `range` is mutually exclusive with `base`/`head`
-- `staged` and `uncommitted` can be combined (staged takes precedence)
+- `range` is mutually exclusive with `base`/`head` — if both specified, emit warning and use `range`
+- `staged` overrides `uncommitted` — when `--staged` is set, only staged changes are reviewed regardless of `--uncommitted`
+- If both `staged=false` and `uncommitted=false`, error: "Nothing to review. Specify --staged or --uncommitted."
 - `format` must be one of: pretty, json, sarif
 - `quiet` and `verbose` are mutually exclusive
 
@@ -176,13 +177,19 @@ Generated configuration when no `.ai-review.yml` exists.
 | limits   | Limits   | conservative     | Resource limits       |
 | provider | Provider | auto-detect      | From environment      |
 
-**Auto-Detection Logic**:
+**Auto-Detection Logic** (priority order):
 
 1. If `ANTHROPIC_API_KEY` set → provider: 'anthropic'
 2. If `OPENAI_API_KEY` set → provider: 'openai'
 3. If `AZURE_OPENAI_*` set → provider: 'azure-openai'
 4. If `OLLAMA_*` set → provider: 'ollama'
 5. Otherwise → error: no credentials
+
+**Multi-Provider Handling**: If multiple provider keys are found, the highest-priority provider is used. Output indicates which provider was selected and which were ignored:
+```
+Using Anthropic (ANTHROPIC_API_KEY found)
+Note: OPENAI_API_KEY also set but ignored due to priority order
+```
 
 ---
 
@@ -216,7 +223,9 @@ sarif   - SARIF 2.1.0 compliant
 
 ```json
 {
-  "version": "1.0.0",
+  "schema_version": "1.0.0",
+  "version": "1.2.0",
+  "timestamp": "2026-02-01T12:00:00Z",
   "summary": {
     "errorCount": 0,
     "warningCount": 0,
@@ -241,6 +250,12 @@ sarif   - SARIF 2.1.0 compliant
   "passes": [],
   "config": {}
 }
+```
+
+**Field Definitions:**
+- `schema_version`: Output format version (for consumer compatibility validation)
+- `version`: Tool version (from package.json)
+- `timestamp`: ISO 8601 format, always UTC (Z suffix)
 ```
 
 ### SARIF Output Schema

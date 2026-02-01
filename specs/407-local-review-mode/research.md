@@ -208,6 +208,12 @@ getLocalDiff(
 ): DiffSummary
 ```
 
+**Implementation Note**: `DiffSummary.source` field already exists with value `'local-git'`. For working tree diffs, consider whether to:
+- Keep `'local-git'` (simpler, existing consumers unaffected)
+- Add `'working-tree'` variant (more precise, requires auditing existing usages)
+
+Recommendation: Keep `'local-git'` for v1 to minimize breaking changes. The distinction can be inferred from the diff generation context.
+
 ### Gap 3: Terminal Reporter
 
 **Status**: Not implemented

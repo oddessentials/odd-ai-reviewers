@@ -572,9 +572,9 @@ Implementation is organized into 7 sessions with test gates:
 | 4       | 8      | Local Review Command   | 14         | `pnpm test cli/commands cli/signals`          |
 | 5       | 9-10   | Integration & npm      | 1          | `ai-review .` works, `npx` works              |
 | 6       | 11     | **PR Lessons Learned** | 11         | `pnpm test security schema reliability`       |
-| 7       | 12     | Victory Gates          | 11         | All victory gates pass                        |
+| 7       | 12     | Victory Gates          | 15         | All victory gates pass (incl. cross-platform) |
 
-**Total**: 143 tasks, 132+ test cases
+**Total**: 147 tasks, 140+ test cases
 
 ---
 

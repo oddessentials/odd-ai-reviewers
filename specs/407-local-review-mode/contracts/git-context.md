@@ -11,6 +11,12 @@
 
 `router/src/cli/git-context.ts`
 
+### Path Argument Handling
+
+All git operations use the `path` argument (from CLI) as the working directory, **not** the process cwd. This enables:
+- Running `ai-review /some/other/repo` from any directory
+- Correct git context inference when path differs from cwd
+
 ### Exports
 
 ```typescript
@@ -40,16 +46,8 @@ export function hasUncommittedChanges(repoPath: string): boolean;
 
 export function hasStagedChanges(repoPath: string): boolean;
 
-export function getLocalDiff(
-  repoPath: string,
-  baseRef: string,
-  options: LocalDiffOptions
-): Result<DiffSummary, GitContextError>;
-
-export interface LocalDiffOptions {
-  stagedOnly?: boolean;
-  uncommitted?: boolean;
-}
+// NOTE: getLocalDiff is implemented in router/src/diff.ts, not this module.
+// It reuses existing diff infrastructure with security validation.
 ```
 
 ---
@@ -179,29 +177,9 @@ git diff --cached --name-only
 
 ---
 
-### getLocalDiff(repoPath, baseRef, options)
+---
 
-**Purpose**: Generate diff for local review mode.
-
-**Behavior by Options**:
-
-| options                                   | Git Command                          |
-| ----------------------------------------- | ------------------------------------ |
-| `{ stagedOnly: true }`                    | `git diff --cached {baseRef}`        |
-| `{ uncommitted: true }`                   | `git diff {baseRef}`                 |
-| `{ stagedOnly: true, uncommitted: true }` | `git diff {baseRef}` (includes both) |
-| `{}`                                      | `git diff {baseRef}`                 |
-
-**Returns**:
-
-- `Ok(DiffSummary)` - Diff between baseRef and working tree
-- `Err(GitContextError)` - If git command fails
-
-**Notes**:
-
-- Uses same parsing logic as existing `getDiff()`
-- Applies same file limits (5000 files, 50MB)
-- Applies same path filtering
+> **Note**: `getLocalDiff()` is implemented in `router/src/diff.ts` to reuse existing diff infrastructure and security validation. See plan.md Phase 4 for implementation details.
 
 ---
 

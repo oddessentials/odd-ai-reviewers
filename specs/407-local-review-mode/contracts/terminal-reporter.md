@@ -187,8 +187,9 @@ Where:
 
 ```typescript
 interface JsonOutput {
-  version: string;
-  timestamp: string; // ISO 8601
+  schema_version: string;  // Output format version (FR-SCH-001)
+  version: string;         // Tool version from package.json
+  timestamp: string;       // ISO 8601, always UTC (Z suffix)
   summary: {
     errorCount: number;
     warningCount: number;
@@ -214,6 +215,7 @@ interface JsonOutput {
 - UTF-8 encoding
 - No trailing newline
 - Valid JSON per RFC 8259
+- `schema_version` MUST be present for consumer compatibility validation
 
 ---
 
@@ -248,6 +250,11 @@ SARIF 2.1.0 (https://docs.oasis-open.org/sarif/sarif/v2.1.0/)
   }
 }
 ```
+
+**Note on `rules` Array**: The rules array is intentionally empty. Rule definitions are not populated from agent metadata because:
+1. AI agents don't have static rule IDs
+2. Semgrep rules are external and numerous
+3. SARIF validators may show warnings about undefined ruleId references — this is expected and documented
 
 ---
 

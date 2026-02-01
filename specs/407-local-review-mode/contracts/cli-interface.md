@@ -70,14 +70,37 @@ ai-review <path> [options]
 | 1    | Failure (findings exceed gating threshold, or execution error) |
 | 2    | Invalid arguments or configuration                             |
 
+### Exit Code Truth Table
+
+| Findings | Gating Enabled | Threshold | Exit Code |
+| -------- | -------------- | --------- | --------- |
+| None | any | any | 0 |
+| Info only | any | any | 0 |
+| Warnings only | disabled | any | 0 |
+| Warnings only | enabled | error | 0 |
+| Warnings only | enabled | warning | 1 |
+| Errors present | disabled | any | 0 |
+| Errors present | enabled | error | 1 |
+| Errors present | enabled | warning | 1 |
+| Execution failure | any | any | 1 |
+| Invalid args/config | any | any | 2 |
+
+**Note**: Gating threshold applies regardless of output mode (`--quiet` does not affect exit code).
+
 ---
 
-## Option Precedence
+## Option Precedence & Mutual Exclusivity
 
 1. Command-line options override config file
-2. `--range` takes precedence over `--base`/`--head`
-3. `--staged` takes precedence over `--uncommitted`
-4. `--quiet` takes precedence over `--verbose`
+2. `--range` is mutually exclusive with `--base`/`--head`:
+   - If both specified: emit warning "Both --range and --base/--head specified; using --range" and use `--range`
+3. `--staged` overrides `--uncommitted`:
+   - `--staged` alone: review staged changes only
+   - `--uncommitted` alone: review all uncommitted (staged + unstaged)
+   - Both specified: review staged changes only (staged wins)
+   - Neither + explicit `--uncommitted=false`: error "Nothing to review"
+4. `--quiet` and `--verbose` are mutually exclusive:
+   - If both specified: error "Cannot use --quiet and --verbose together"
 
 ---
 
@@ -128,12 +151,14 @@ ai-review . --agent semgrep
 ### Cost Management
 
 ```bash
-# Estimate cost before running
+# Estimate cost before running (upper bound based on input tokens + max output)
 ai-review . --cost-only
 
 # Review with custom config
 ai-review . -c custom-config.yml
 ```
+
+**Note**: `--cost-only` produces an **upper-bound estimate** based on input token count plus assumed maximum output tokens. Actual cost may be lower depending on model responses.
 
 ---
 
@@ -181,7 +206,8 @@ ai-review . -c custom-config.yml
 
 ```json
 {
-  "version": "1.0.0",
+  "schema_version": "1.0.0",
+  "version": "1.2.0",
   "timestamp": "2026-02-01T12:00:00Z",
   "summary": {
     "errorCount": 0,
@@ -218,6 +244,12 @@ ai-review . -c custom-config.yml
     }
   ]
 }
+```
+
+**Field Definitions:**
+- `schema_version`: Output format version for consumer compatibility validation (FR-SCH-001)
+- `version`: Tool version from package.json
+- `timestamp`: ISO 8601 format, always UTC (Z suffix)
 ```
 
 ### SARIF Format
@@ -273,6 +305,35 @@ Error: Invalid configuration in .ai-review.yml
 Run 'ai-review validate' for detailed diagnostics.
 ```
 
+### Config File Not Found
+
+```
+Error: Config file not found: custom-config.yml
+
+Hint: Remove -c flag to use zero-config defaults, or check the file path.
+```
+
+### Mutually Exclusive Options
+
+```
+Error: Cannot use --quiet and --verbose together
+
+Use --quiet for minimal output (errors only), or --verbose for debug information.
+```
+
+```
+Warning: Both --range and --base/--head specified; using --range
+```
+
+### Nothing to Review
+
+```
+Error: Nothing to review
+
+Both --staged=false and --uncommitted=false specified.
+Use --staged to review staged changes, or --uncommitted for all uncommitted changes.
+```
+
 ---
 
 ## Signal Handling
@@ -282,6 +343,24 @@ Run 'ai-review validate' for detailed diagnostics.
 | SIGINT (Ctrl+C) | Clean shutdown, display partial results if available |
 | SIGTERM         | Clean shutdown, no output                            |
 | SIGHUP          | Ignored (continue execution)                         |
+
+### Partial Results Definition
+
+When interrupted (SIGINT), partial results include:
+- Findings from agents that completed before interruption
+- If interrupted mid-agent execution, that agent's findings are excluded
+- Summary shows `[interrupted]` marker with completion percentage
+- Exit code is 1 (treated as execution failure)
+
+Example interrupted output:
+```
+📊 SUMMARY [interrupted at 67%]
+
+   Errors:      2  (partial)
+   Warnings:    3  (partial)
+
+   Agents: 2/3 completed (semgrep ✓, opencode ✓, pr-agent ✗ interrupted)
+```
 
 ---
 
