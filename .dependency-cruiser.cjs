@@ -28,6 +28,8 @@ module.exports = {
           '[.]d[.]ts$', // TypeScript declaration files
           '(^|/)tsconfig[.]json$', // TypeScript config
           '(^|/)(?:babel|webpack)[.]config[.](?:js|cjs|mjs|ts|cts|mts|json)$', // other configs
+          // 407-local-review-mode: WIP entry point - wired in Phase 9
+          '^router/src/cli/commands/index[.]ts$',
         ],
       },
       to: {},

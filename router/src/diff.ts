@@ -638,3 +638,183 @@ export function buildCombinedDiff(files: DiffFile[], maxLines: number): string {
 
   return lines.join('');
 }
+
+// =============================================================================
+// Local Review Mode (Phase 407)
+// =============================================================================
+
+/**
+ * Options for local diff generation
+ */
+export interface LocalDiffOptions {
+  /** Base reference for comparison (default: detected default branch) */
+  baseRef: string;
+  /** Review only staged changes (git diff --cached) */
+  stagedOnly?: boolean;
+  /** Include uncommitted changes (default: true) */
+  uncommitted?: boolean;
+  /** Path filter to apply */
+  pathFilter?: PathFilter;
+}
+
+/**
+ * Get diff for local review mode.
+ *
+ * Generates a diff for working tree changes (uncommitted and/or staged)
+ * compared to a base reference.
+ *
+ * Security: Uses execFileSync with shell: false and validates all inputs.
+ *
+ * @param repoPath - Repository root path
+ * @param options - Diff options
+ * @returns DiffSummary with files and statistics
+ */
+export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffSummary {
+  // Validate inputs
+  assertSafeRepoPath(repoPath);
+  assertSafeGitRef(options.baseRef, 'baseRef');
+
+  const { baseRef, stagedOnly = false, uncommitted = true, pathFilter } = options;
+
+  // Resolve the base reference to a SHA
+  const baseSha = normalizeGitRef(repoPath, baseRef);
+
+  // Determine diff mode based on options
+  // --staged takes precedence over --uncommitted per spec
+  let headSha: string;
+
+  if (stagedOnly) {
+    // Staged changes only: compare index to base
+    headSha = 'INDEX'; // Pseudo-SHA for staged changes
+  } else if (uncommitted) {
+    // All uncommitted changes: compare working tree to base
+    headSha = 'WORKDIR'; // Pseudo-SHA for working directory
+  } else {
+    // Neither staged nor uncommitted - this should be caught earlier
+    // but return empty diff as a safety fallback
+    return {
+      files: [],
+      totalAdditions: 0,
+      totalDeletions: 0,
+      baseSha,
+      headSha: baseSha,
+      contextLines: UNIFIED_CONTEXT,
+      source: 'local-git',
+    };
+  }
+
+  try {
+    // Get name-status for file status (needed for parseNumstatZ)
+    const nameStatusArgs = stagedOnly
+      ? ['diff', '--cached', '--name-status', baseSha]
+      : ['diff', '--name-status', baseSha];
+
+    const nameStatusOutput = execFileSync('git', nameStatusArgs, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      maxBuffer: MAX_OUTPUT_BYTES,
+      shell: false,
+    });
+
+    // Get numstat for file-level statistics (NUL-delimited for parseNumstatZ)
+    const numstatArgs = stagedOnly
+      ? ['diff', '--cached', '--numstat', '-z', baseSha]
+      : ['diff', '--numstat', '-z', baseSha];
+
+    const numstatOutput = execFileSync('git', numstatArgs, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      maxBuffer: MAX_OUTPUT_BYTES,
+      shell: false,
+    });
+
+    // Parse name-status first to get statusMap
+    const { statusMap, renameMap } = parseNameStatus(nameStatusOutput);
+
+    // Parse numstat with statusMap
+    const { files, errors } = parseNumstatZ(numstatOutput, statusMap);
+
+    // Check file limit
+    if (files.length > MAX_FILES) {
+      throw new ValidationError(
+        `Diff contains ${files.length} files, exceeding limit of ${MAX_FILES}`,
+        ValidationErrorCode.INVALID_INPUT,
+        { field: 'files', value: files.length, constraint: `max ${MAX_FILES}` }
+      );
+    }
+
+    // Apply rename mappings
+    for (const file of files) {
+      const oldPath = renameMap.get(file.path);
+      if (oldPath) file.oldPath = oldPath;
+    }
+
+    // Log parse errors if any
+    if (errors.count > 0) {
+      console.warn(
+        `[diff] ${errors.count} parse errors (samples: ${errors.samples.slice(0, 3).join(', ')})`
+      );
+    }
+
+    // Get patches for each file
+    for (const file of files) {
+      if (file.status === 'deleted' || file.isBinary) continue;
+
+      const safePath = file.path?.trim();
+      if (!safePath || safePath.length === 0) continue;
+
+      try {
+        assertSafePath(safePath, 'file path');
+      } catch {
+        console.warn(`[diff] Skipping file with unsafe path characters: ${safePath.slice(0, 50)}`);
+        continue;
+      }
+
+      try {
+        const patchArgs = stagedOnly
+          ? ['diff', '--cached', `--unified=${UNIFIED_CONTEXT}`, baseSha, '--', safePath]
+          : ['diff', `--unified=${UNIFIED_CONTEXT}`, baseSha, '--', safePath];
+
+        file.patch = execFileSync('git', patchArgs, {
+          cwd: repoPath,
+          encoding: 'utf-8',
+          maxBuffer: 1024 * 1024,
+          shell: false,
+        });
+      } catch {
+        // Skip files that fail to get patch
+      }
+    }
+
+    // Apply path filter if provided
+    const filteredFiles = pathFilter ? filterFiles(files, pathFilter) : files;
+
+    const totalAdditions = filteredFiles.reduce((sum: number, f: DiffFile) => sum + f.additions, 0);
+    const totalDeletions = filteredFiles.reduce((sum: number, f: DiffFile) => sum + f.deletions, 0);
+
+    return {
+      files: filteredFiles,
+      totalAdditions,
+      totalDeletions,
+      baseSha,
+      headSha,
+      contextLines: UNIFIED_CONTEXT,
+      source: 'local-git',
+    };
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ValidationError(
+      `Failed to get local diff against ${baseRef}: ${errorMsg}`,
+      ValidationErrorCode.INVALID_INPUT,
+      {
+        field: 'diff',
+        value: { baseRef, stagedOnly, uncommitted },
+        constraint: 'valid-local-diff',
+      },
+      error instanceof Error ? { cause: error } : undefined
+    );
+  }
+}
