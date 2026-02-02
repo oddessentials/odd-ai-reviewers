@@ -46,7 +46,8 @@ import {
   setupSignalHandlers,
   setPartialResultsContext,
   clearPartialResultsContext,
-  isShutdownTriggered,
+  getPartialResultsContext,
+  formatPartialResultsMessage,
 } from '../signals.js';
 import { countBySeverity } from '../../report/formats.js';
 import { existsSync } from 'fs';
@@ -708,13 +709,21 @@ export async function runLocalReview(
   );
 
   // 10. Setup signal handlers for graceful shutdown
-  // Use exitOnSignal: false to allow main function to handle graceful exit
+  // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
+  // This is the correct behavior for CLI tools to avoid runaway costs
   setupSignalHandlers({
     cleanup: async () => {
-      // Cleanup is handled by the main function after detecting shutdown
+      // Log partial results context if available
+      const ctx = getPartialResultsContext();
+      if (ctx && ctx.completedAgents > 0) {
+        const lines = formatPartialResultsMessage(ctx);
+        for (const line of lines) {
+          stdout.write(line + '\n');
+        }
+      }
     },
     showPartialResultsMessage: true,
-    exitOnSignal: false, // Don't exit immediately - let main function handle it
+    // exitOnSignal: true (default) - process.exit() called on first signal
     logger: {
       log: (msg) => stdout.write(msg + '\n'),
       warn: (msg) => stderr.write(msg + '\n'),
@@ -723,7 +732,6 @@ export async function runLocalReview(
 
   // 11. Execute agent passes
   let executeResult: ExecuteResult;
-  let interrupted = false;
 
   try {
     // Set up partial results tracking
@@ -743,34 +751,17 @@ export async function runLocalReview(
       configHash,
       head: diff.headSha,
     });
-
-    // Check if shutdown was triggered during execution
-    if (isShutdownTriggered()) {
-      interrupted = true;
-    }
   } catch (error) {
     clearPartialResultsContext();
 
-    // Check if the error was due to shutdown
-    if (isShutdownTriggered()) {
-      interrupted = true;
-      // Return empty results on interrupt - partial results were logged by signal handler
-      executeResult = {
-        completeFindings: [],
-        partialFindings: [],
-        allResults: [],
-        skippedAgents: [],
-      };
-    } else {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      stderr.write(c.red(`\nExecution error: ${errorMsg}\n`));
-      return {
-        exitCode: ExitCode.FAILURE,
-        findingsCount: 0,
-        partialFindingsCount: 0,
-        error: errorMsg,
-      };
-    }
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    stderr.write(c.red(`\nExecution error: ${errorMsg}\n`));
+    return {
+      exitCode: ExitCode.FAILURE,
+      findingsCount: 0,
+      partialFindingsCount: 0,
+      error: errorMsg,
+    };
   }
 
   clearPartialResultsContext();
@@ -809,10 +800,9 @@ export async function runLocalReview(
   const exitCode = determineExitCode(executeResult.completeFindings, config);
 
   return {
-    exitCode: interrupted ? ExitCode.FAILURE : exitCode,
+    exitCode,
     findingsCount: reportResult.findingsCount,
     partialFindingsCount: reportResult.partialFindingsCount,
-    interrupted,
   };
 }
 

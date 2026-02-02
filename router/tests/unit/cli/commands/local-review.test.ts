@@ -759,8 +759,8 @@ describe('runLocalReview', () => {
     });
   });
 
-  describe('interrupted execution', () => {
-    it('should set interrupted flag when shutdown triggered during execution', async () => {
+  describe('signal handling', () => {
+    it('should setup signal handlers with cleanup function', async () => {
       const mockGitContext = createMockGitContext();
       const mockDiff = createMockDiff([
         { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
@@ -795,8 +795,7 @@ describe('runLocalReview', () => {
 
       const result = await runLocalReview({ path: '/test/repo' }, deps);
 
-      // Clean execution should not be marked as interrupted
-      expect(result.interrupted).toBeFalsy();
+      // Clean execution should succeed
       expect(result.exitCode).toBe(ExitCode.SUCCESS);
 
       // Clean up
