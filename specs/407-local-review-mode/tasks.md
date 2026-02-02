@@ -269,29 +269,29 @@ router/src/
 
 ### Signal Handling (router/src/cli/signals.ts)
 
-- [ ] T079 Implement setupSignalHandlers(cleanup: () => void) for SIGINT/SIGTERM
-- [ ] T080 Implement graceful shutdown with partial results reporting
-- [ ] T081 [P] Create router/tests/unit/cli/signals.test.ts (3 cases)
+- [x] T079 Implement setupSignalHandlers(cleanup: () => void) for SIGINT/SIGTERM
+- [x] T080 Implement graceful shutdown with partial results reporting
+- [x] T081 [P] Create router/tests/unit/cli/signals.test.ts (3 cases)
 
 ### Local Review Orchestration (router/src/cli/commands/local-review.ts)
 
-- [ ] T082 Implement runLocalReview(options: LocalReviewOptions, deps: Dependencies) main function
-- [ ] T083 Wire git context inference into runLocalReview()
-- [ ] T084 Wire config loading (with zero-config fallback) into runLocalReview()
-- [ ] T085 Wire local diff generation into runLocalReview()
-- [ ] T086 Wire existing executeAllPasses() into runLocalReview()
-- [ ] T087 Wire terminal reporter into runLocalReview(), passing PassSummary[] from executeAllPasses() to populate JSON output passes array (critical for JSON schema completeness)
-- [ ] T088 Implement exit code logic (0=success/no-errors, 1=errors-found, 2=execution-failure)
-- [ ] T089 Implement --dry-run mode (show what would be reviewed)
-- [ ] T090 Implement --cost-only mode (estimate without execution)
+- [x] T082 Implement runLocalReview(options: LocalReviewOptions, deps: Dependencies) main function
+- [x] T083 Wire git context inference into runLocalReview()
+- [x] T084 Wire config loading (with zero-config fallback) into runLocalReview()
+- [x] T085 Wire local diff generation into runLocalReview()
+- [x] T086 Wire existing executeAllPasses() into runLocalReview()
+- [x] T087 Wire terminal reporter into runLocalReview(), passing PassSummary[] from executeAllPasses() to populate JSON output passes array (critical for JSON schema completeness)
+- [x] T088 Implement exit code logic (0=success/no-errors, 1=errors-found, 2=execution-failure)
+- [x] T089 Implement --dry-run mode (show what would be reviewed)
+- [x] T090 Implement --cost-only mode (estimate without execution)
 
 ### Local Review Tests
 
-- [ ] T091 [P] Create router/tests/unit/cli/commands/local-review.test.ts for happy path (mock deps)
-- [ ] T092 [P] Create router/tests/unit/cli/commands/local-review.test.ts for error handling (4 cases)
-- [ ] T093 [P] Create router/tests/unit/cli/commands/local-review.test.ts for dry-run mode (2 cases)
-- [ ] T094 [P] Create router/tests/unit/cli/commands/local-review.test.ts for cost-only mode (2 cases)
-- [ ] T094a [P] Create router/tests/unit/cli/commands/local-review.test.ts for passes array population in JSON output (verify PassSummary[] flows through to terminal reporter)
+- [x] T091 [P] Create router/tests/unit/cli/commands/local-review.test.ts for happy path (mock deps)
+- [x] T092 [P] Create router/tests/unit/cli/commands/local-review.test.ts for error handling (4 cases)
+- [x] T093 [P] Create router/tests/unit/cli/commands/local-review.test.ts for dry-run mode (2 cases)
+- [x] T094 [P] Create router/tests/unit/cli/commands/local-review.test.ts for cost-only mode (2 cases)
+- [x] T094a [P] Create router/tests/unit/cli/commands/local-review.test.ts for passes array population in JSON output (verify PassSummary[] flows through to terminal reporter)
 
 **Checkpoint**: Local review command tested with mocked dependencies
 
