@@ -52,7 +52,7 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm --filter router test:ci
+        run: pnpm --filter ./router test:ci
         env:
           CI: 'true'
 

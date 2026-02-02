@@ -59,11 +59,11 @@ jobs:
 
       - name: Build router
         if: steps.download-artifacts.outcome == 'failure'
-        run: pnpm --filter router build
+        run: pnpm --filter ./router build
 
       - name: Run tests with coverage
         if: steps.download-artifacts.outcome == 'failure'
-        run: pnpm --filter router test:ci:coverage
+        run: pnpm --filter ./router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true'

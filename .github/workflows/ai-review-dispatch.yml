@@ -59,7 +59,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build router
-        run: pnpm --filter router build
+        run: pnpm --filter ./router build
 
       - name: Install Semgrep
         run: pip3 install semgrep

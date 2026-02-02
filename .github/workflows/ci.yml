@@ -91,7 +91,7 @@ jobs:
       # FR-005: Coverage thresholds enforced via vitest.config.ts
       # CI=true automatically triggers stricter thresholds
       - name: Test with coverage
-        run: pnpm --filter router test:ci:coverage
+        run: pnpm --filter ./router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
@@ -199,7 +199,7 @@ jobs:
 
       # T145: Cross-platform tests for local review mode
       - name: Run cross-platform tests
-        run: pnpm --filter router test -- --run tests/integration/cross-platform.test.ts
+        run: pnpm --filter ./router test -- --run tests/integration/cross-platform.test.ts
 
   container-security:
     name: Container Security Scan
@@ -223,7 +223,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build router
-        run: pnpm --filter router build
+        run: pnpm --filter ./router build
 
       - name: Build container image
         run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .
