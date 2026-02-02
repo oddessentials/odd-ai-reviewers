@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for tests using HEAD~1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -185,6 +187,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for cross-platform git tests
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
