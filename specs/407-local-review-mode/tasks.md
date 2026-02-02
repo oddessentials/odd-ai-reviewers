@@ -242,20 +242,20 @@ router/src/
 
 ### Zero-Config Implementation (router/src/config/zero-config.ts)
 
-- [ ] T071 Implement detectProvider(env) → 'anthropic' | 'openai' | 'azure-openai' | 'ollama' | null
-- [ ] T072 Implement generateZeroConfigDefaults(env) → Config with single AI pass
-- [ ] T073 Implement default limits (10 findings, $0.10 budget)
-- [ ] T074 Add isZeroConfigMode flag to config for terminal indication
+- [x] T071 Implement detectProvider(env) → 'anthropic' | 'openai' | 'azure-openai' | 'ollama' | null
+- [x] T072 Implement generateZeroConfigDefaults(env) → Config with single AI pass
+- [x] T073 Implement default limits (10 findings, $0.10 budget)
+- [x] T074 Add isZeroConfigMode flag to config for terminal indication
 
 ### Zero-Config Integration (router/src/config.ts)
 
-- [ ] T075 Integrate zero-config fallback into loadConfig() when .ai-review.yml missing
-- [ ] T076 Add "(zero-config defaults)" indication to terminal output in router/src/report/terminal.ts
+- [x] T075 Integrate zero-config fallback into loadConfig() when .ai-review.yml missing
+- [x] T076 Add "(zero-config defaults)" indication to terminal output in router/src/report/terminal.ts
 
 ### Zero-Config Tests
 
-- [ ] T077 [P] Create router/tests/unit/config/zero-config.test.ts for provider detection (5 cases)
-- [ ] T078 [P] Create router/tests/unit/config/zero-config.test.ts for config generation (3 cases)
+- [x] T077 [P] Create router/tests/unit/config/zero-config.test.ts for provider detection (5 cases)
+- [x] T078 [P] Create router/tests/unit/config/zero-config.test.ts for config generation (3 cases)
 
 **Checkpoint**: Zero-config mode fully tested
 
