@@ -24,7 +24,7 @@ jobs:
   # Pre-publish quality gate - ensures code quality before publishing
   quality-gate:
     name: Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux']
 
     steps:
       - name: Checkout
@@ -58,7 +58,7 @@ jobs:
 
   publish:
     name: Publish to npm
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux']
     needs: quality-gate
     permissions:
       contents: read

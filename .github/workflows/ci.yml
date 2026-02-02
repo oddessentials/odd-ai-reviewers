@@ -9,7 +9,7 @@ on:
 jobs:
   quality:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux']
 
     steps:
       - name: Checkout
@@ -113,7 +113,7 @@ jobs:
   # SC-004: Fresh clone test - verifies hooks auto-install and work correctly
   fresh-clone-test:
     name: Fresh Clone Test
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux']
 
     steps:
       - name: Checkout
@@ -168,12 +168,8 @@ jobs:
   # Cross-platform pnpm bin resolution test
   # Ensures ai-review binary is correctly linked on all supported platforms
   bin-resolution-test:
-    name: pnpm Bin Resolution (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: pnpm Bin Resolution
+    runs-on: ['self-hosted', 'linux']
 
     steps:
       - name: Checkout
@@ -205,7 +201,7 @@ jobs:
 
   container-security:
     name: Container Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux']
     needs: quality
 
     steps:

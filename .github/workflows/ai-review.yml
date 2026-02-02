@@ -27,7 +27,7 @@ on:
         description: 'Runner labels as JSON (e.g., "ubuntu-latest" or ["self-hosted","linux"])'
         required: false
         type: string
-        default: '"ubuntu-latest"'
+        default: '["self-hosted", "linux"]'
     secrets:
       OPENAI_API_KEY:
         description: 'OpenAI API key (for opencode or pr_agent)'
