@@ -125,6 +125,15 @@ describe('T138: Path Handling with Backslashes on Windows', () => {
     });
 
     it('should handle Windows-style input paths', () => {
+      // This test is only meaningful on Windows where backslash paths are valid
+      // On Unix, converting /home/runner to \home\runner creates an invalid path
+      if (process.platform !== 'win32') {
+        // On non-Windows, just verify findGitRoot works with the normal path
+        const result = findGitRoot(REPO_ROOT);
+        expect(isOk(result)).toBe(true);
+        return;
+      }
+
       // On Windows, path.resolve might return backslashes
       const windowsStylePath = REPO_ROOT.replace(/\//g, '\\');
       const result = findGitRoot(windowsStylePath);

@@ -113,13 +113,15 @@ describe('local-diff', () => {
         expect(result.headSha).toBe(headSha);
       });
 
-      it('should resolve symbolic refs like main/master', () => {
-        // Test that we can diff against main branch
+      it('should resolve refs relative to HEAD', () => {
+        // Test that we can diff against a relative ref
+        // Use HEAD~1 instead of 'main' to avoid CI issues where
+        // main branch may not exist in shallow PR checkouts
         const options: LocalDiffOptions = {
-          baseRef: 'main',
+          baseRef: 'HEAD~1',
         };
 
-        // This should not throw - main branch should exist
+        // This should not throw - HEAD~1 should exist in any checkout with history
         const result = getLocalDiff(REPO_ROOT, options);
 
         expect(result.source).toBe('local-git');
