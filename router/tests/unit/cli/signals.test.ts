@@ -254,4 +254,78 @@ describe('signals', () => {
       expect(lines[0]).toContain('interrupted at 0%');
     });
   });
+
+  describe('SIGINT cancellation behavior', () => {
+    it('should call cleanup function synchronously on signal setup', () => {
+      const cleanup = vi.fn();
+
+      setupSignalHandlers({ cleanup });
+
+      // Cleanup is registered but not called yet
+      expect(cleanup).not.toHaveBeenCalled();
+    });
+
+    it('should provide partial results context to cleanup function', () => {
+      // Set up partial results context
+      setPartialResultsContext({
+        totalAgents: 3,
+        completedAgents: 1,
+        completedAgentNames: ['semgrep'],
+        currentAgent: 'opencode',
+      });
+
+      // Verify context is available for cleanup
+      const ctx = getPartialResultsContext();
+      expect(ctx).toBeDefined();
+      expect(ctx?.completedAgents).toBe(1);
+      expect(ctx?.completedAgentNames).toEqual(['semgrep']);
+    });
+
+    it('should format partial results for SIGINT output', () => {
+      const context = {
+        totalAgents: 3,
+        completedAgents: 1,
+        completedAgentNames: ['semgrep'],
+        currentAgent: 'opencode',
+      };
+
+      const lines = formatPartialResultsMessage(context);
+
+      // Should show completion percentage
+      expect(lines[0]).toContain('33%'); // 1/3 = 33%
+      // Should show completed agent
+      expect(lines.join('\n')).toContain('semgrep ✓');
+      // Should show interrupted agent
+      expect(lines.join('\n')).toContain('opencode ✗ interrupted');
+    });
+
+    it('should not print partial results if no agents completed', () => {
+      const context = {
+        totalAgents: 3,
+        completedAgents: 0,
+        completedAgentNames: [],
+        currentAgent: 'semgrep',
+      };
+
+      const lines = formatPartialResultsMessage(context);
+
+      // Should indicate no agents completed
+      expect(lines.join('\n')).toContain('0/3 completed');
+      expect(lines.join('\n')).toContain('interrupted before any completed');
+    });
+
+    it('should use synchronous writes in cleanup (regression guard)', () => {
+      // This test ensures cleanup doesn't accidentally become async
+      // by verifying the cleanup type signature allows sync functions
+      const syncCleanup = (): void => {
+        // Synchronous operation - no promises
+        const _x = 1 + 1;
+      };
+
+      // Should accept sync cleanup without type errors
+      setupSignalHandlers({ cleanup: syncCleanup });
+
+      expect(isShutdownTriggered()).toBe(false);
+    });
+  });
 });

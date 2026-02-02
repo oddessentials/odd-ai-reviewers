@@ -712,7 +712,9 @@ export async function runLocalReview(
   // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
   // This is the correct behavior for CLI tools to avoid runaway costs
   setupSignalHandlers({
-    cleanup: async () => {
+    // Cleanup must be SYNCHRONOUS to guarantee completion before process.exit()
+    // Only uses stdout.write() which is sync - no async I/O allowed here
+    cleanup: () => {
       // Log partial results context if available
       const ctx = getPartialResultsContext();
       if (ctx && ctx.completedAgents > 0) {
