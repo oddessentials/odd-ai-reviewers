@@ -305,35 +305,40 @@ router/src/
 
 ### Dispatcher Integration (router/src/phases/report.ts)
 
-- [ ] T095 Add 'terminal' to Platform type union
-- [ ] T096 Add terminal dispatch case to dispatchReport()
+- [x] T095 Add 'terminal' to Platform type union - N/A: local-review.ts calls terminal reporter directly
+- [x] T096 Add terminal dispatch case to dispatchReport() - N/A: local-review.ts calls terminal reporter directly
 
 ### Main.ts Registration (router/src/main.ts)
 
-- [ ] T097 Import runLocalReview from cli/commands/local-review.ts
-- [ ] T098 Register local review command with Commander (path argument + all options)
-- [ ] T099 Wire parsed options to runLocalReview() in action handler (~15 lines)
+- [x] T097 Import runLocalReview from cli/commands/local-review.ts
+- [x] T098 Register local review command with Commander (path argument + all options)
+- [x] T099 Wire parsed options to runLocalReview() in action handler (~15 lines)
 
 ### CLI Options Registration
 
-- [ ] T100 Add --base <ref> option
-- [ ] T101 Add --head <ref> option
-- [ ] T102 Add --range <range> option
-- [ ] T103 Add --staged option
-- [ ] T104 Add --uncommitted option (default: true)
-- [ ] T105 Add --pass <name> option
-- [ ] T106 Add --agent <id> option
-- [ ] T107 Add --format <fmt> option
-- [ ] T108 Add --no-color option
-- [ ] T109 Add --quiet option
-- [ ] T110 Add --verbose option
-- [ ] T111 Add --dry-run option
-- [ ] T112 Add --cost-only option
-- [ ] T113 Add -c, --config <path> option
+- [x] T100 Add --base <ref> option
+- [x] T101 Add --head <ref> option
+- [x] T102 Add --range <range> option
+- [x] T103 Add --staged option
+- [x] T104 Add --uncommitted option (default: true)
+- [x] T105 Add --pass <name> option
+- [x] T106 Add --agent <id> option
+- [x] T107 Add --format <fmt> option
+- [x] T108 Add --no-color option
+- [x] T109 Add --quiet option
+- [x] T110 Add --verbose option
+- [x] T111 Add --dry-run option
+- [x] T112 Add --cost-only option
+- [x] T113 Add -c, --config <path> option
 
 ### Integration Smoke Test
 
-- [ ] T114 Create router/tests/integration/local-review-smoke.test.ts (end-to-end with real git repo)
+- [x] T114 Create router/tests/integration/local-review-smoke.test.ts (end-to-end with real git repo)
+
+### Additional: Windows Path Normalization Fix
+
+- [x] T114a Add normalizePath() to git-context.ts for cross-platform compatibility
+- [x] T114b Update git-context.test.ts to use normalized paths for comparison
 
 **Checkpoint**: Local review command works end-to-end
 

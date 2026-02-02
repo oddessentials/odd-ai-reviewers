@@ -15,6 +15,24 @@ import { dirname, join, resolve } from 'path';
 import { type Result, Ok, Err } from '../types/result.js';
 
 // =============================================================================
+// Path Utilities
+// =============================================================================
+
+/**
+ * Normalize a path to use forward slashes.
+ *
+ * This is critical for Windows compatibility. The path validators reject
+ * backslashes as potential shell metacharacters, but Windows paths naturally
+ * use backslashes. Forward slashes work on all platforms including Windows.
+ *
+ * @param p - Path to normalize
+ * @returns Path with all backslashes converted to forward slashes
+ */
+export function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
+// =============================================================================
 // Type Definitions
 // =============================================================================
 
@@ -142,7 +160,9 @@ export function findGitRoot(cwd: string): Result<string, GitContextError> {
 
     // Check if .git exists (can be directory or file for worktrees)
     if (existsSync(gitPath)) {
-      return Ok(currentDir);
+      // Normalize to forward slashes for cross-platform compatibility
+      // Windows paths with backslashes are rejected by path validators
+      return Ok(normalizePath(currentDir));
     }
 
     previousDir = currentDir;

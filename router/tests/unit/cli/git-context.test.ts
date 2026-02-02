@@ -15,6 +15,7 @@ import {
   hasStagedChanges,
   inferGitContext,
   GitContextErrorCode,
+  normalizePath,
 } from '../../../src/cli/git-context.js';
 import { isOk, isErr } from '../../../src/types/result.js';
 
@@ -22,7 +23,8 @@ import { isOk, isErr } from '../../../src/types/result.js';
 // Calculate from __dirname to get the monorepo root (4 levels up from tests/unit/cli/)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, '../../../../');
+// Normalize to forward slashes to match what findGitRoot returns
+const REPO_ROOT = normalizePath(path.resolve(__dirname, '../../../../'));
 
 describe('git-context', () => {
   describe('findGitRoot (T034)', () => {
