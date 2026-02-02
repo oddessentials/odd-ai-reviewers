@@ -212,6 +212,19 @@ function determineExitCode(findings: Finding[], config: Config): number {
 }
 
 /**
+ * Get package version from package.json
+ */
+function getPackageVersion(): string {
+  try {
+    // Dynamic import would be needed for proper ESM handling
+    // For now, return a placeholder that will be set at build time
+    return process.env['npm_package_version'] ?? '1.0.0';
+  } catch {
+    return '1.0.0';
+  }
+}
+
+/**
  * Build terminal context from options and git context
  */
 function buildTerminalContext(
@@ -358,9 +371,9 @@ async function executeDryRun(
 }
 
 /**
- * Format dry run output
+ * Format dry run output in pretty (human-readable) format
  */
-function formatDryRunOutput(result: DryRunResult, colored: boolean): string {
+function formatDryRunOutputPretty(result: DryRunResult, colored: boolean): string {
   const c = createColorizer(colored);
   const lines: string[] = [];
 
@@ -413,6 +426,96 @@ function formatDryRunOutput(result: DryRunResult, colored: boolean): string {
   lines.push('');
 
   return lines.join('\n');
+}
+
+/**
+ * Format dry run output in JSON format (FR-SCH-001 compliant)
+ */
+function formatDryRunOutputJson(result: DryRunResult): string {
+  const output = {
+    schema_version: '1.0.0',
+    version: getPackageVersion(),
+    timestamp: new Date().toISOString(),
+    mode: 'dry-run',
+    summary: {
+      errorCount: 0,
+      warningCount: 0,
+      infoCount: 0,
+      filesAnalyzed: result.fileCount,
+      linesChanged: result.linesChanged,
+      executionTimeMs: 0,
+      estimatedCostUsd: 0,
+    },
+    findings: [],
+    partialFindings: [],
+    passes: [],
+    config: {
+      source: result.configSource,
+      path: result.configPath,
+    },
+    gitContext: {
+      repository: result.gitContext.repoRoot,
+      branch: result.gitContext.currentBranch,
+      base: result.gitContext.defaultBase,
+    },
+    files: result.files,
+    agents: result.agents,
+  };
+  return JSON.stringify(output);
+}
+
+/**
+ * Format dry run output in SARIF format (FR-SCH-002 compliant)
+ */
+function formatDryRunOutputSarif(result: DryRunResult): string {
+  const output = {
+    $schema:
+      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+    version: '2.1.0' as const,
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: 'odd-ai-reviewers',
+            version: getPackageVersion(),
+            informationUri: 'https://github.com/oddessentials/odd-ai-reviewers',
+            rules: [],
+          },
+        },
+        results: [],
+        invocations: [
+          {
+            executionSuccessful: true,
+            properties: {
+              mode: 'dry-run',
+              filesAnalyzed: result.fileCount,
+              linesChanged: result.linesChanged,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  return JSON.stringify(output);
+}
+
+/**
+ * Format dry run output based on format option
+ */
+function formatDryRunOutput(
+  result: DryRunResult,
+  colored: boolean,
+  format: 'pretty' | 'json' | 'sarif'
+): string {
+  switch (format) {
+    case 'json':
+      return formatDryRunOutputJson(result);
+    case 'sarif':
+      return formatDryRunOutputSarif(result);
+    case 'pretty':
+    default:
+      return formatDryRunOutputPretty(result, colored);
+  }
 }
 
 // =============================================================================
@@ -647,7 +750,7 @@ export async function runLocalReview(
       configPath,
       deps
     );
-    const output = formatDryRunOutput(dryRunResult, colored);
+    const output = formatDryRunOutput(dryRunResult, colored, resolvedOptions.format);
     stdout.write(output);
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
@@ -807,17 +910,4 @@ export async function runLocalReview(
     findingsCount: reportResult.findingsCount,
     partialFindingsCount: reportResult.partialFindingsCount,
   };
-}
-
-/**
- * Get package version from package.json
- */
-function getPackageVersion(): string {
-  try {
-    // Dynamic import would be needed for proper ESM handling
-    // For now, return a placeholder that will be set at build time
-    return process.env['npm_package_version'] ?? '1.0.0';
-  } catch {
-    return '1.0.0';
-  }
 }

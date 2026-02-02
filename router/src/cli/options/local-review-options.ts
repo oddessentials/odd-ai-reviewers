@@ -137,7 +137,13 @@ export function parseLocalReviewOptions(
 
   // Handle --range vs --base/--head mutual exclusivity
   if (raw.range && (raw.base || raw.head)) {
-    warnings.push('Both --range and --base/--head specified; using --range');
+    return Err(
+      new ValidationError(
+        'Cannot use --range with --base or --head. Use either --range OR --base/--head.',
+        ValidationErrorCode.INVALID_INPUT,
+        { field: 'range/base/head', value: { range: raw.range, base: raw.base, head: raw.head } }
+      )
+    );
   }
 
   // Determine staged and uncommitted values

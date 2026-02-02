@@ -99,7 +99,7 @@ describe('parseLocalReviewOptions (T068)', () => {
     }
   });
 
-  it('should handle range option and clear base/head', () => {
+  it('should reject range option with base/head (mutually exclusive)', () => {
     const raw: RawLocalReviewOptions = {
       range: 'HEAD~5..',
       base: 'main',
@@ -107,14 +107,9 @@ describe('parseLocalReviewOptions (T068)', () => {
     };
     const result = parseLocalReviewOptions(raw);
 
-    expect(isOk(result)).toBe(true);
-    if (isOk(result)) {
-      expect(result.value.options.range).toBe('HEAD~5..');
-      expect(result.value.options.base).toBeUndefined();
-      expect(result.value.options.head).toBeUndefined();
-      expect(result.value.warnings).toContain(
-        'Both --range and --base/--head specified; using --range'
-      );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.message).toContain('Cannot use --range with --base or --head');
     }
   });
 
@@ -149,19 +144,16 @@ describe('parseLocalReviewOptions validation (T069)', () => {
     }
   });
 
-  it('should emit warning for range with base/head but still succeed', () => {
+  it('should reject range with base (mutually exclusive)', () => {
     const raw: RawLocalReviewOptions = {
       range: 'main..feature',
       base: 'develop',
     };
     const result = parseLocalReviewOptions(raw);
 
-    expect(isOk(result)).toBe(true);
-    if (isOk(result)) {
-      expect(result.value.warnings).toContain(
-        'Both --range and --base/--head specified; using --range'
-      );
-      expect(result.value.options.range).toBe('main..feature');
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.message).toContain('Cannot use --range with --base or --head');
     }
   });
 
