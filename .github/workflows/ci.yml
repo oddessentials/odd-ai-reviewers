@@ -197,6 +197,10 @@ jobs:
       - name: Test pnpm bin resolution
         run: pnpm test:bin-resolution
 
+      # T145: Cross-platform tests for local review mode
+      - name: Run cross-platform tests
+        run: pnpm --filter router test -- --run tests/integration/cross-platform.test.ts
+
   container-security:
     name: Container Security Scan
     runs-on: ubuntu-latest
