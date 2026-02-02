@@ -229,3 +229,70 @@ export function stripAnsi(text: string): string {
 export function visibleLength(text: string): number {
   return stripAnsi(text).length;
 }
+
+// =============================================================================
+// Unicode Support Detection
+// =============================================================================
+
+/**
+ * Check if terminal supports Unicode characters (for box drawing, etc.).
+ *
+ * Detection logic:
+ * 1. Windows Terminal (WT_SESSION env) -> true
+ * 2. ConEmu terminal (ConEmuANSI=ON) -> true
+ * 3. TERM contains 'xterm', '256color', 'truecolor' -> true
+ * 4. LC_ALL, LC_CTYPE, or LANG contains 'UTF-8' or 'utf8' (case-insensitive) -> true
+ * 5. TERM is 'dumb' -> false
+ * 6. CI environments (CI=true, GITHUB_ACTIONS, etc.) -> true (most CI supports UTF-8)
+ * 7. Default: false (fall back to ASCII for safety)
+ *
+ * @param env - Environment variables (defaults to process.env)
+ * @returns true if Unicode characters should be used
+ */
+export function supportsUnicode(env: Record<string, string | undefined> = process.env): boolean {
+  // Windows Terminal explicitly supports Unicode
+  if (env['WT_SESSION'] !== undefined) {
+    return true;
+  }
+
+  // ConEmu supports Unicode when ANSI is enabled
+  if (env['ConEmuANSI'] === 'ON') {
+    return true;
+  }
+
+  // Check TERM for modern terminal indicators
+  const term = env['TERM']?.toLowerCase() ?? '';
+
+  // Dumb terminals don't support Unicode
+  if (term === 'dumb') {
+    return false;
+  }
+
+  // xterm variants and color terminals typically support Unicode
+  if (term.includes('xterm') || term.includes('256color') || term.includes('truecolor')) {
+    return true;
+  }
+
+  // Check locale settings for UTF-8
+  const localeVars = [env['LC_ALL'], env['LC_CTYPE'], env['LANG']].filter(Boolean);
+  for (const locale of localeVars) {
+    if (locale && /utf-?8/i.test(locale)) {
+      return true;
+    }
+  }
+
+  // CI environments typically support UTF-8
+  if (
+    env['CI'] === 'true' ||
+    env['GITHUB_ACTIONS'] !== undefined ||
+    env['GITLAB_CI'] !== undefined ||
+    env['CIRCLECI'] !== undefined ||
+    env['TRAVIS'] !== undefined ||
+    env['TF_BUILD'] !== undefined // Azure DevOps
+  ) {
+    return true;
+  }
+
+  // Default to false for safety (ASCII fallback)
+  return false;
+}

@@ -20,7 +20,13 @@ import {
   sortFindings,
   countBySeverity,
 } from './formats.js';
-import { ANSI, colorize, visibleLength, createColorizer } from '../cli/output/colors.js';
+import {
+  ANSI,
+  colorize,
+  visibleLength,
+  createColorizer,
+  supportsUnicode,
+} from '../cli/output/colors.js';
 import { formatDuration, getSeverityIndicator } from '../cli/output/progress.js';
 
 // =============================================================================
@@ -56,6 +62,8 @@ const CONTEXT_LINES = 3;
 export interface TerminalContext {
   /** Enable ANSI colors (auto-detected from TTY) */
   colored: boolean;
+  /** Enable Unicode box drawing (auto-detected from terminal) */
+  useUnicode: boolean;
   /** Show debug information */
   verbose: boolean;
   /** Errors only mode */
@@ -642,7 +650,7 @@ export function formatFindingBox(
   boxWidth: number = DEFAULT_BOX_WIDTH
 ): string {
   const colored = context.colored;
-  const useUnicode = true; // TODO: Detect based on terminal capability
+  const useUnicode = context.useUnicode;
   const chars = getBoxChars(useUnicode);
   const c = createColorizer(colored);
   const lines: string[] = [];
@@ -855,6 +863,7 @@ export function generateTerminalSummary(
   // Create minimal context for summary generation
   const context: TerminalContext = {
     colored: true,
+    useUnicode: supportsUnicode(),
     verbose: false,
     quiet: false,
     format: 'pretty',
@@ -1120,6 +1129,7 @@ export function generateVerboseOutput(
 export function createDefaultContext(): TerminalContext {
   return {
     colored: true,
+    useUnicode: supportsUnicode(),
     verbose: false,
     quiet: false,
     format: 'pretty',

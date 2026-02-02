@@ -60,6 +60,7 @@ function createTestFinding(overrides: Partial<Finding> = {}): Finding {
 function createTestContext(overrides: Partial<TerminalContext> = {}): TerminalContext {
   return {
     colored: false, // Default to no colors for easier testing
+    useUnicode: true, // Default to Unicode for consistent test output
     verbose: false,
     quiet: false,
     format: 'pretty',

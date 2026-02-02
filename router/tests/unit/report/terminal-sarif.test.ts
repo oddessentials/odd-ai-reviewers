@@ -33,6 +33,7 @@ function createTestFinding(overrides: Partial<Finding> = {}): Finding {
 function createTestContext(overrides: Partial<TerminalContext> = {}): TerminalContext {
   return {
     colored: false,
+    useUnicode: true,
     verbose: false,
     quiet: false,
     format: 'sarif',

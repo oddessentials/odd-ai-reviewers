@@ -36,6 +36,7 @@ export {
   ANSI,
   type AnsiCode,
   supportsColor,
+  supportsUnicode,
   colorize,
   colorizeMulti,
   type Severity,

@@ -209,26 +209,26 @@ router/src/
 
 ### Options Implementation (router/src/cli/options/local-review-options.ts)
 
-- [ ] T063 Implement parseLocalReviewOptions(rawOptions) → Result<LocalReviewOptions, ValidationError>
-- [ ] T064 Implement option validation rules (mutually exclusive: range vs base/head, quiet vs verbose)
-- [ ] T065 Implement applyOptionDefaults(options, gitContext) → options with defaults applied
-- [ ] T066 Implement resolveOutputFormat(options) → OutputFormat with TTY detection
-- [ ] T067 Implement resolveBaseRef(options, gitContext) → resolved base reference
+- [x] T063 Implement parseLocalReviewOptions(rawOptions) → Result<LocalReviewOptions, ValidationError>
+- [x] T064 Implement option validation rules (mutually exclusive: range vs base/head, quiet vs verbose)
+- [x] T065 Implement applyOptionDefaults(options, gitContext) → options with defaults applied
+- [x] T066 Implement resolveOutputFormat(options) → OutputFormat with TTY detection
+- [x] T067 Implement resolveBaseRef(options, gitContext) → resolved base reference
 
 ### Unicode Detection (router/src/cli/output/colors.ts)
 
-- [ ] T067a Implement supportsUnicode() detection in colors.ts (check TERM, LC_ALL, LANG, Windows Terminal, ConEmu; fallback to ASCII on cmd.exe/dumb terminals)
-- [ ] T067b Wire supportsUnicode() into terminal.ts getBoxChars() call (remove hardcoded `useUnicode = true` TODO)
+- [x] T067a Implement supportsUnicode() detection in colors.ts (check TERM, LC_ALL, LANG, Windows Terminal, ConEmu; fallback to ASCII on cmd.exe/dumb terminals)
+- [x] T067b Wire supportsUnicode() into terminal.ts getBoxChars() call (remove hardcoded `useUnicode = true` TODO)
 
 ### Options Tests
 
-- [ ] T068 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for parsing (5 cases)
-- [ ] T069 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for validation (4 cases)
-- [ ] T070 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for defaults (4 cases)
+- [x] T068 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for parsing (5 cases)
+- [x] T069 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for validation (4 cases)
+- [x] T070 [P] Create router/tests/unit/cli/options/local-review-options.test.ts for defaults (4 cases)
 
 ### Unicode Detection Tests
 
-- [ ] T070a [P] Create router/tests/unit/cli/output/unicode.test.ts for supportsUnicode() (6 cases: Windows Terminal, ConEmu, xterm-256color, LANG=en_US.UTF-8, cmd.exe/dumb fallback, CI environments)
+- [x] T070a [P] Create router/tests/unit/cli/output/unicode.test.ts for supportsUnicode() (6 cases: Windows Terminal, ConEmu, xterm-256color, LANG=en_US.UTF-8, cmd.exe/dumb fallback, CI environments)
 
 **Checkpoint**: Options parsing and Unicode detection fully tested
 
