@@ -203,10 +203,11 @@ describe('git-context', () => {
   });
 
   describe('GitContextErrorCode', () => {
-    it('should have all error codes defined', () => {
-      expect(GitContextErrorCode.NOT_GIT_REPO).toBe('GIT_NOT_GIT_REPO');
-      expect(GitContextErrorCode.GIT_NOT_FOUND).toBe('GIT_GIT_NOT_FOUND');
-      expect(GitContextErrorCode.INVALID_PATH).toBe('GIT_INVALID_PATH');
+    it('should have all error codes defined matching contract', () => {
+      // Values must match contracts/git-context.md specification
+      expect(GitContextErrorCode.NOT_GIT_REPO).toBe('NOT_GIT_REPO');
+      expect(GitContextErrorCode.GIT_NOT_FOUND).toBe('GIT_NOT_FOUND');
+      expect(GitContextErrorCode.INVALID_PATH).toBe('INVALID_PATH');
     });
   });
 

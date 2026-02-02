@@ -36,11 +36,12 @@ export interface GitContext {
 
 /**
  * Error codes for git context operations
+ * Values match the contract in contracts/git-context.md
  */
 export const GitContextErrorCode = {
-  NOT_GIT_REPO: 'GIT_NOT_GIT_REPO',
-  GIT_NOT_FOUND: 'GIT_GIT_NOT_FOUND',
-  INVALID_PATH: 'GIT_INVALID_PATH',
+  NOT_GIT_REPO: 'NOT_GIT_REPO',
+  GIT_NOT_FOUND: 'GIT_NOT_FOUND',
+  INVALID_PATH: 'INVALID_PATH',
 } as const;
 
 export type GitContextErrorCode = (typeof GitContextErrorCode)[keyof typeof GitContextErrorCode];
