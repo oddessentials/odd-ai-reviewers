@@ -352,19 +352,19 @@ router/src/
 
 ### Package Configuration
 
-- [ ] T115 Update router/package.json name to @oddessentials/ai-review
-- [ ] T116 Update router/package.json bin entry to expose ai-review executable
-- [ ] T117 Add files field to router/package.json for publish (dist/, README.md)
-- [ ] T118 Verify existing commands (config init, validate, review) still work
+- [x] T115 Update router/package.json name to @oddessentials/ai-review
+- [x] T116 Update router/package.json bin entry to expose ai-review executable
+- [x] T117 Add files field to router/package.json for publish (dist/, README.md)
+- [x] T118 Verify existing commands (config init, validate, review) still work
 
 ### Documentation
 
-- [ ] T119 Update router/README.md with local review documentation
-- [ ] T120 Add quickstart section to README.md
+- [x] T119 Update router/README.md with local review documentation
+- [x] T120 Add quickstart section to README.md
 
 ### Publishing Workflow
 
-- [ ] T121 Create .github/workflows/npm-publish.yml for automated publishing
+- [x] T121 Create .github/workflows/npm-publish.yml for automated publishing
 
 **Checkpoint**: Package ready for npm publish
 
@@ -380,25 +380,25 @@ router/src/
 
 ### Security Compliance Tests (router/tests/security/)
 
-- [ ] T122 [P] Create router/tests/security/redaction.test.ts - verify secrets redacted in ALL output paths (terminal, JSON, SARIF)
-- [ ] T123 [P] Create router/tests/security/child-process.test.ts - verify no `shell: true` in codebase (grep + runtime test)
-- [ ] T124 [P] Create router/tests/security/path-traversal.test.ts - verify path validation prevents `../` escapes
-- [ ] T125 [P] Create router/tests/security/error-messages.test.ts - verify error messages don't echo sensitive input
-- [ ] T126 [P] Create router/tests/security/git-ref-sanitization.test.ts - verify malicious git refs rejected
+- [x] T122 [P] Create router/tests/security/redaction.test.ts - verify secrets redacted in ALL output paths (terminal, JSON, SARIF)
+- [x] T123 [P] Create router/tests/security/child-process.test.ts - verify no `shell: true` in codebase (grep + runtime test)
+- [x] T124 [P] Create router/tests/security/path-traversal.test.ts - verify path validation prevents `../` escapes
+- [x] T125 [P] Create router/tests/security/error-messages.test.ts - verify error messages don't echo sensitive input
+- [x] T126 [P] Create router/tests/security/git-ref-sanitization.test.ts - verify malicious git refs rejected
 
 ### Schema Compliance Tests (router/tests/schema/)
 
-- [ ] T127 [P] Create router/tests/schema/json-output.test.ts - verify JSON includes `schema_version` field
-- [ ] T128 [P] Create router/tests/schema/sarif-output.test.ts - verify SARIF includes `$schema` and version
-- [ ] T128a [P] Create router/tests/schema/terminal-format-stability.test.ts - snapshot test for terminal output format
-- [ ] T129 [P] Create router/tests/schema/version-sync.test.ts - verify runtime version matches package.json
+- [x] T127 [P] Create router/tests/schema/json-output.test.ts - verify JSON includes `schema_version` field
+- [x] T128 [P] Create router/tests/schema/sarif-output.test.ts - verify SARIF includes `$schema` and version
+- [x] T128a [P] Create router/tests/schema/terminal-format-stability.test.ts - snapshot test for terminal output format
+- [x] T129 [P] Create router/tests/schema/version-sync.test.ts - verify runtime version matches package.json
 
 ### Reliability Compliance Tests
 
-- [ ] T130 [P] Create router/tests/reliability/floating-promises.test.ts - TypeScript strict + no-floating-promises lint
-- [ ] T131 [P] Create router/tests/reliability/run-summary.test.ts - verify summary produced even on failure
-- [ ] T132 Create router/tests/reliability/config-preservation.test.ts - verify probe failures don't discard config
-- [ ] T132a [P] Create router/tests/reliability/value-clamping.test.ts - verify costs clamped to ≥0, percentages to 0-100
+- [x] T130 [P] Create router/tests/reliability/floating-promises.test.ts - TypeScript strict + no-floating-promises lint
+- [x] T131 [P] Create router/tests/reliability/run-summary.test.ts - verify summary produced even on failure
+- [x] T132 Create router/tests/reliability/config-preservation.test.ts - verify probe failures don't discard config
+- [x] T132a [P] Create router/tests/reliability/value-clamping.test.ts - verify costs clamped to ≥0, percentages to 0-100
 
 **Checkpoint**: PR Lessons Learned compliance verified - security gates pass
 
