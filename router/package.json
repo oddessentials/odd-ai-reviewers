@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@actions/cache": "5.0.5",
+    "@actions/cache": "6.0.0",
     "@anthropic-ai/sdk": "0.71.2",
     "@octokit/rest": "^22.0.1",
     "commander": "^14.0.2",
