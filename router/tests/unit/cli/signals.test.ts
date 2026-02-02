@@ -55,6 +55,20 @@ describe('signals', () => {
 
       expect(isShutdownTriggered()).toBe(false);
     });
+
+    it('should accept exitOnSignal option', () => {
+      setupSignalHandlers({ exitOnSignal: false });
+
+      // State should be initialized
+      expect(isShutdownTriggered()).toBe(false);
+    });
+
+    it('should default exitOnSignal to true (implicit)', () => {
+      // When exitOnSignal is not specified, default behavior should apply
+      setupSignalHandlers({});
+
+      expect(isShutdownTriggered()).toBe(false);
+    });
   });
 
   describe('isShutdownTriggered', () => {

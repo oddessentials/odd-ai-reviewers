@@ -18,7 +18,7 @@ import type { AgentContext, Finding } from '../../agents/types.js';
 import type { DiffSummary, PathFilter } from '../../diff.js';
 import type { LocalReviewOptions } from '../options/local-review-options.js';
 import type { GitContext, GitContextError } from '../git-context.js';
-import type { TerminalContext, PassSummary } from '../../report/terminal.js';
+import type { TerminalContext } from '../../report/terminal.js';
 import type { ExecuteResult } from '../../phases/execute.js';
 import type { Result } from '../../types/result.js';
 import type { GenerateZeroConfigResult, ZeroConfigResult } from '../../config/zero-config.js';
@@ -28,12 +28,7 @@ import { isOk } from '../../types/result.js';
 import { inferGitContext } from '../git-context.js';
 import { parseLocalReviewOptions, applyOptionDefaults, resolveBaseRef } from '../options/index.js';
 import { loadConfig, generateZeroConfigDefaults, isZeroConfigSuccess } from '../../config.js';
-import {
-  getLocalDiff,
-  hasLocalChanges,
-  canonicalizeDiffFiles,
-  buildCombinedDiff,
-} from '../../diff.js';
+import { getLocalDiff, canonicalizeDiffFiles, buildCombinedDiff } from '../../diff.js';
 import { loadReviewIgnore } from '../../reviewignore.js';
 import { checkBudget, estimateTokens, type BudgetContext } from '../../budget.js';
 import { buildRouterEnv } from '../../agents/security.js';
@@ -663,35 +658,11 @@ export async function runLocalReview(
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
 
-  // 5. Check for changes
-  const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
-  const hasChangesFn = deps.getLocalDiff
-    ? () =>
-        getDiffFn(gitContext.repoRoot, {
-          baseRef,
-          stagedOnly: resolvedOptions.staged,
-          uncommitted: resolvedOptions.uncommitted,
-        }).files.length > 0
-    : () =>
-        hasLocalChanges(gitContext.repoRoot, {
-          baseRef,
-          stagedOnly: resolvedOptions.staged,
-          uncommitted: resolvedOptions.uncommitted,
-        });
-
-  if (!hasChangesFn()) {
-    // NoChangesError is not really an error - it's a success case
-    const output = colored
-      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`
-      : `No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`;
-    stdout.write(output);
-    return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
-  }
-
-  // 6. Load .reviewignore patterns
+  // 5. Load .reviewignore patterns (before diff to filter early)
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
 
-  // 7. Generate diff
+  // 6. Generate diff once with reviewignore filtering applied
+  const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
     stagedOnly: resolvedOptions.staged,
@@ -701,6 +672,16 @@ export async function runLocalReview(
         ? { reviewIgnorePatterns: reviewIgnoreResult.patterns }
         : undefined,
   });
+
+  // 7. Check for changes (using already-generated diff)
+  if (diff.files.length === 0) {
+    // No changes to review - could be no changes or all filtered by .reviewignore
+    const output = colored
+      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`
+      : `No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`;
+    stdout.write(output);
+    return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
+  }
 
   // 8. Build agent context
   const routerEnv = buildRouterEnv(env);
@@ -727,15 +708,13 @@ export async function runLocalReview(
   );
 
   // 10. Setup signal handlers for graceful shutdown
-  let interrupted = false;
-  let partialResults: ExecuteResult | undefined;
-
+  // Use exitOnSignal: false to allow main function to handle graceful exit
   setupSignalHandlers({
     cleanup: async () => {
-      interrupted = true;
-      // Partial results will be captured in the executeResult below
+      // Cleanup is handled by the main function after detecting shutdown
     },
     showPartialResultsMessage: true,
+    exitOnSignal: false, // Don't exit immediately - let main function handle it
     logger: {
       log: (msg) => stdout.write(msg + '\n'),
       warn: (msg) => stderr.write(msg + '\n'),
@@ -744,6 +723,8 @@ export async function runLocalReview(
 
   // 11. Execute agent passes
   let executeResult: ExecuteResult;
+  let interrupted = false;
+
   try {
     // Set up partial results tracking
     const totalAgents = config.passes.reduce(
@@ -762,12 +743,19 @@ export async function runLocalReview(
       configHash,
       head: diff.headSha,
     });
+
+    // Check if shutdown was triggered during execution
+    if (isShutdownTriggered()) {
+      interrupted = true;
+    }
   } catch (error) {
     clearPartialResultsContext();
 
+    // Check if the error was due to shutdown
     if (isShutdownTriggered()) {
       interrupted = true;
-      executeResult = partialResults ?? {
+      // Return empty results on interrupt - partial results were logged by signal handler
+      executeResult = {
         completeFindings: [],
         partialFindings: [],
         allResults: [],
@@ -807,10 +795,7 @@ export async function runLocalReview(
   terminalContext.executionTimeMs = executionTimeMs;
   terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
 
-  // 14. Build pass summaries for JSON output (future use - passed via terminalContext.passSummaries)
-  const _passSummaries: PassSummary[] = buildPassSummaries(config, executeResult);
-
-  // 15. Report findings to terminal
+  // 14. Report findings to terminal
   const reportFn = deps.reportToTerminal ?? reportToTerminal;
   const reportResult = await reportFn(
     executeResult.completeFindings,
@@ -829,46 +814,6 @@ export async function runLocalReview(
     partialFindingsCount: reportResult.partialFindingsCount,
     interrupted,
   };
-}
-
-/**
- * Build pass summaries from execution results
- */
-function buildPassSummaries(config: Config, executeResult: ExecuteResult): PassSummary[] {
-  const summaries: PassSummary[] = [];
-
-  for (const pass of config.passes) {
-    if (!pass.enabled) continue;
-
-    const agentSummaries = pass.agents.map((agentId) => {
-      const result = executeResult.allResults.find((r) => 'agentId' in r && r.agentId === agentId);
-      const skipped = executeResult.skippedAgents.find((s) => s.id === agentId);
-      const findingsCount = executeResult.completeFindings.filter(
-        (f) => f.sourceAgent === agentId
-      ).length;
-
-      return {
-        agentId,
-        agentName: agentId, // Would need agent registry for proper name
-        status: skipped
-          ? ('skipped' as const)
-          : result && 'findings' in result
-            ? ('success' as const)
-            : ('failure' as const),
-        findingsCount,
-        reason: skipped?.reason,
-      };
-    });
-
-    summaries.push({
-      passName: pass.name,
-      findingsCount: agentSummaries.reduce((sum, a) => sum + a.findingsCount, 0),
-      agentResults: agentSummaries,
-      durationMs: 0, // Would need timing data from execution
-    });
-  }
-
-  return summaries;
 }
 
 /**

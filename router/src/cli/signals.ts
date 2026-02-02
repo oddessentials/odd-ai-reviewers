@@ -42,6 +42,13 @@ export interface SignalHandlerOptions {
     log: (message: string) => void;
     warn: (message: string) => void;
   };
+  /**
+   * Whether to call process.exit() after cleanup on first signal.
+   * Set to false for graceful shutdown where the main function handles exit.
+   * Second signal (force quit) always exits immediately.
+   * @default true
+   */
+  exitOnSignal?: boolean;
 }
 
 // =============================================================================
@@ -154,10 +161,14 @@ function createSignalHandler(signal: 'SIGINT' | 'SIGTERM'): NodeJS.SignalsListen
       }
     }
 
-    // Exit with appropriate code
+    // Exit with appropriate code if exitOnSignal is true (default)
     // 128 + signal number: SIGINT = 2, SIGTERM = 15
-    const exitCode = signal === 'SIGINT' ? 130 : 143;
-    process.exit(exitCode);
+    if (registeredOptions.exitOnSignal !== false) {
+      const exitCode = signal === 'SIGINT' ? 130 : 143;
+      process.exit(exitCode);
+    }
+    // When exitOnSignal is false, the main function is responsible for checking
+    // isShutdownTriggered() and handling graceful exit
   };
 }
 
