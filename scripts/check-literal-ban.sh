@@ -17,9 +17,12 @@ HAS_ERROR=0
 
 for STATUS in success failure skipped; do
   # Match status: 'value' or status: "value" patterns in production code only
+  # Exclude union type definitions (contain |) which are type annotations, not literals
   MATCHES=$(grep -rn "status:[[:space:]]*['\"]$STATUS['\"]" router/src --include='*.ts' \
     | grep -v 'router/src/agents/types.ts' \
     | grep -v '__tests__' \
+    | grep -v "'$STATUS'[[:space:]]*|" \
+    | grep -v "|[[:space:]]*'$STATUS'" \
     || true)
 
   if [ -n "$MATCHES" ]; then
