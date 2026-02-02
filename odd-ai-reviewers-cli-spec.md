@@ -227,13 +227,13 @@ Options:
 
 ### Exit Codes & Signals
 
-| Code | Meaning                                                |
-| ---- | ------------------------------------------------------ |
-| 0    | Success - no findings above threshold                  |
-| 1    | Failure - findings exceed `fail_on_severity` threshold |
-| 2    | Invalid arguments or configuration error               |
-| 130  | Interrupted by Ctrl+C (SIGINT)                         |
-| 143  | Terminated by SIGTERM                                  |
+| Code | Meaning                                                                   |
+| ---- | ------------------------------------------------------------------------- |
+| 0    | Success - no findings above threshold and execution succeeded             |
+| 1    | Failure - findings exceed `fail_on_severity` threshold or execution error |
+| 2    | Invalid arguments or configuration error                                  |
+| 130  | Interrupted by Ctrl+C (SIGINT)                                            |
+| 143  | Terminated by SIGTERM                                                     |
 
 **Cancellation behavior:** Ctrl+C cancels immediately and may print partial results showing which agents completed before interruption. A second Ctrl+C force-quits without cleanup.
 

@@ -281,7 +281,7 @@ router/src/
 - [x] T085 Wire local diff generation into runLocalReview()
 - [x] T086 Wire existing executeAllPasses() into runLocalReview()
 - [x] T087 Wire terminal reporter into runLocalReview(), passing PassSummary[] from executeAllPasses() to populate JSON output passes array (critical for JSON schema completeness)
-- [x] T088 Implement exit code logic (0=success/no-errors, 1=errors-found, 2=execution-failure)
+- [x] T088 Implement exit code logic (0=success/no-errors, 1=errors-found or execution error, 2=invalid args/config)
 - [x] T089 Implement --dry-run mode (show what would be reviewed)
 - [x] T090 Implement --cost-only mode (estimate without execution)
 

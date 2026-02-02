@@ -101,7 +101,7 @@ export interface LocalReviewDependencies {
  * Result from local review execution
  */
 export interface LocalReviewResult {
-  /** Exit code (0=success, 1=errors-found, 2=execution-failure) */
+  /** Exit code (0=success, 1=failures or execution errors, 2=invalid args/config) */
   exitCode: number;
   /** Number of findings reported */
   findingsCount: number;
@@ -726,6 +726,7 @@ export async function runLocalReview(
     },
     showPartialResultsMessage: true,
     // exitOnSignal: true (default) - process.exit() called on first signal
+    exitOnSignal: true,
     logger: {
       log: (msg) => stdout.write(msg + '\n'),
       warn: (msg) => stderr.write(msg + '\n'),
