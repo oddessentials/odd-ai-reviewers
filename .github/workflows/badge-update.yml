@@ -19,7 +19,7 @@ on:
 jobs:
   update-badges:
     name: Update Badge Gists
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     # Only run if CI workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
