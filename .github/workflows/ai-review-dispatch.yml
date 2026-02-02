@@ -27,7 +27,7 @@ on:
 jobs:
   ai-review:
     name: Manual AI Review
-    runs-on: ['self-hosted', 'linux']
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
