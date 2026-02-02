@@ -247,7 +247,7 @@ describe('generateZeroConfigDefaults', () => {
       expect(success.config.models.default).toBe('gpt-4o');
     });
 
-    it('should generate config with opencode agent for azure-openai', () => {
+    it('should generate config with pr_agent for azure-openai (opencode does not support Azure)', () => {
       const env = {
         AZURE_OPENAI_API_KEY: 'azure-key',
         AZURE_OPENAI_ENDPOINT: 'https://myresource.openai.azure.com',
@@ -259,7 +259,7 @@ describe('generateZeroConfigDefaults', () => {
 
       const success = result as ZeroConfigResult;
       expect(success.config.provider).toBe('azure-openai');
-      expect(success.config.passes[0]?.agents).toContain('opencode');
+      expect(success.config.passes[0]?.agents).toContain('pr_agent');
       // Azure uses deployment name, not model default - models.default is undefined
       expect(success.config.models.default).toBeUndefined();
     });
@@ -335,7 +335,57 @@ describe('generateZeroConfigDefaults', () => {
       expect(error.guidance.some((g) => g.includes('OLLAMA'))).toBe(true);
     });
   });
+
+  describe('T078.4: Agent-provider capability assertion', () => {
+    it('should return an agent that supports the provider', () => {
+      // Agent capability matrix - documents which agents support which providers
+      // This test prevents regressions where we assign an incompatible agent
+      const providerAgentCapabilities: Record<string, string[]> = {
+        anthropic: ['opencode', 'pr_agent', 'ai_semantic_review'],
+        openai: ['opencode', 'pr_agent', 'ai_semantic_review'],
+        'azure-openai': ['pr_agent', 'ai_semantic_review'], // opencode does NOT support azure
+        ollama: ['local_llm'],
+      };
+
+      // Test each provider gets a compatible agent
+      for (const [provider, capableAgents] of Object.entries(providerAgentCapabilities)) {
+        const env = createEnvForProvider(provider);
+        const result = generateZeroConfigDefaults(env);
+
+        expect(isZeroConfigSuccess(result)).toBe(true);
+        const success = result as ZeroConfigResult;
+        const assignedAgent = success.config.passes[0]?.agents[0];
+
+        expect(
+          capableAgents.includes(assignedAgent ?? ''),
+          `Provider '${provider}' assigned agent '${assignedAgent}' but only ${capableAgents.join(', ')} support it`
+        ).toBe(true);
+      }
+    });
+  });
 });
+
+/**
+ * Helper to create environment variables for a given provider
+ */
+function createEnvForProvider(provider: string): Record<string, string> {
+  switch (provider) {
+    case 'anthropic':
+      return { ANTHROPIC_API_KEY: 'test-key' };
+    case 'openai':
+      return { OPENAI_API_KEY: 'test-key' };
+    case 'azure-openai':
+      return {
+        AZURE_OPENAI_API_KEY: 'test-key',
+        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
+        AZURE_OPENAI_DEPLOYMENT: 'test-deployment',
+      };
+    case 'ollama':
+      return { OLLAMA_BASE_URL: 'http://localhost:11434' };
+    default:
+      return {};
+  }
+}
 
 // =============================================================================
 // Additional Utility Tests

@@ -196,12 +196,16 @@ export function isZeroConfigSuccess(result: GenerateZeroConfigResult): result is
 /**
  * Get the default AI agent for a provider
  */
-function getDefaultAgentForProvider(provider: LlmProvider): 'opencode' | 'local_llm' {
+function getDefaultAgentForProvider(provider: LlmProvider): 'opencode' | 'pr_agent' | 'local_llm' {
   // Ollama uses local_llm agent
   if (provider === 'ollama') {
     return 'local_llm';
   }
-  // Cloud providers use opencode agent
+  // Azure OpenAI requires an Azure-capable agent (opencode doesn't support Azure)
+  if (provider === 'azure-openai') {
+    return 'pr_agent';
+  }
+  // Other cloud providers (anthropic, openai) use opencode agent
   return 'opencode';
 }
 
