@@ -96,8 +96,7 @@ jobs:
         run: pnpm --filter ./router test:ci:coverage
         env:
           CI: 'true'
-          # CI_HAS_LSOF disabled: self-hosted runner may not have lsof installed
-          # Re-enable after confirming lsof availability on runner
+          CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
 
       # FR-031: Upload test artifacts for badge-update workflow
       - name: Upload test artifacts

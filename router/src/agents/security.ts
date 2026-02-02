@@ -252,7 +252,9 @@ export async function validateNoListeningSockets(processName?: string): Promise<
 }> {
   try {
     try {
-      execSync('command -v lsof', { encoding: 'utf-8', stdio: 'ignore', timeout: 2000 });
+      // Use 'which' instead of 'command -v' because command is a shell builtin
+      // and execSync doesn't use a shell by default
+      execSync('which lsof', { encoding: 'utf-8', stdio: 'ignore', timeout: 2000 });
     } catch {
       return { safe: false, error: 'Listener detection unavailable: lsof not installed' };
     }
