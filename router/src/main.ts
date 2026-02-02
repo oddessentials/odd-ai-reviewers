@@ -61,7 +61,15 @@ export const defaultExitHandler: ExitHandler = (code: number): never => {
 
 const program = new Command();
 
-program.name('ai-review').description('AI Code Review Router').version('1.0.0');
+program
+  .name('ai-review')
+  .description('AI Code Review Router')
+  .version('1.0.0')
+  // Enable positional options mode to prevent global options from being parsed
+  // before subcommand options. This fixes the conflict between:
+  // - Root program's `--base <ref>` (for shorthand `ai-review .` usage)
+  // - Review subcommand's `--base <sha>` (for CI usage)
+  .enablePositionalOptions();
 
 program
   .command('review')
