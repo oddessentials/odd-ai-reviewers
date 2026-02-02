@@ -412,27 +412,27 @@ router/src/
 
 ### Integration Tests
 
-- [ ] T133 [P] Create router/tests/integration/local-review.test.ts - full flow test
-- [ ] T134 [P] Create router/tests/integration/local-review.test.ts - zero-config mode test
-- [ ] T135 [P] Create router/tests/integration/local-review.test.ts - error handling tests
-- [ ] T136 [P] Create router/tests/integration/local-review.test.ts - pre-commit simulation test
+- [x] T133 [P] Create router/tests/integration/local-review.test.ts - full flow test
+- [x] T134 [P] Create router/tests/integration/local-review.test.ts - zero-config mode test
+- [x] T135 [P] Create router/tests/integration/local-review.test.ts - error handling tests
+- [x] T136 [P] Create router/tests/integration/local-review.test.ts - pre-commit simulation test
 
 ### Cross-Platform Tests
 
-- [ ] T137 [P] Test Unicode box drawing on Windows Terminal vs CMD vs PowerShell
-- [ ] T138 [P] Test path handling with backslashes on Windows
-- [ ] T139 [P] Test ANSI color codes on Windows Terminal (should work) vs CMD (needs fallback)
-- [ ] T140 [P] Test git command execution on Windows (git.exe path resolution)
+- [x] T137 [P] Test Unicode box drawing on Windows Terminal vs CMD vs PowerShell
+- [x] T138 [P] Test path handling with backslashes on Windows
+- [x] T139 [P] Test ANSI color codes on Windows Terminal (should work) vs CMD (needs fallback)
+- [x] T140 [P] Test git command execution on Windows (git.exe path resolution)
 
 ### Victory Gate Validation
 
-- [ ] T141 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
-- [ ] T142 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
-- [ ] T143 Validate Performance Gate: Local review completes in <60s
-- [ ] T144 Validate Determinism Gate: Multiple runs produce identical output
-- [ ] T145 Validate Cross-Platform Gate: Test on Windows, macOS, Linux (T137-T140 pass)
-- [ ] T146 Validate Regression Gate: Existing CI commands still work
-- [ ] T147 Validate PR Lessons Learned Gate: All Phase 11 security tests pass
+- [x] T141 Validate Local Parity Gate: Same diff + config → identical findings (local vs CI)
+- [x] T142 Validate Zero-Config Gate: Fresh repo without .ai-review.yml works
+- [x] T143 Validate Performance Gate: Local review completes in <60s
+- [x] T144 Validate Determinism Gate: Multiple runs produce identical output
+- [x] T145 Validate Cross-Platform Gate: Test on Windows, macOS, Linux (T137-T140 pass)
+- [x] T146 Validate Regression Gate: Existing CI commands still work
+- [x] T147 Validate PR Lessons Learned Gate: All Phase 11 security tests pass
 
 **Checkpoint**: All victory gates pass - ready for release
 
