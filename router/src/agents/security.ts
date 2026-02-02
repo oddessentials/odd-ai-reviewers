@@ -10,7 +10,7 @@
  * - No Network Listeners in Agent Execution (Invariant 10)
  */
 
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 
 export type AgentId =
   | 'semgrep'
@@ -262,9 +262,17 @@ export async function validateNoListeningSockets(processName?: string): Promise<
     // Use lsof to find listening TCP sockets
     // -i TCP -sTCP:LISTEN shows only listening TCP connections
     // -n -P prevents hostname and port name resolution for speed
-    const cmd = 'lsof -i TCP -sTCP:LISTEN -n -P 2>/dev/null || true';
-
-    const output = execSync(cmd, { encoding: 'utf-8', timeout: 5000 });
+    let output = '';
+    try {
+      output = execFileSync('lsof', ['-i', 'TCP', '-sTCP:LISTEN', '-n', '-P'], {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'ignore'], // ignore stderr
+      });
+    } catch {
+      // lsof returns non-zero if no listeners found, which is fine
+      output = '';
+    }
 
     if (!output.trim()) {
       return { safe: true };
