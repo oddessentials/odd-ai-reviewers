@@ -55,6 +55,10 @@ export const defaultExitHandler: ExitHandler = (code: number): never => {
   process.exit(code);
 };
 
+function exitSuccess(exitHandler: ExitHandler): void {
+  exitHandler(0);
+}
+
 // =============================================================================
 // CLI Program
 // =============================================================================
@@ -616,6 +620,7 @@ export async function runReview(
     const adoContext = buildADOPRContext(routerEnv);
     if (!adoContext) {
       console.log('[router] Not running in ADO PR context - skipping review');
+      exitSuccess(exitHandler);
       return;
     }
     prContext = adoContext;
@@ -640,6 +645,7 @@ export async function runReview(
   const trustResult = checkTrust(prContext, config);
   if (!trustResult.trusted) {
     console.log(`[router] Skipping review: ${trustResult.reason}`);
+    exitSuccess(exitHandler);
     return;
   }
 
@@ -692,6 +698,7 @@ export async function runReview(
 
   if (filteredFiles.length === 0) {
     console.log('[router] No files to review after filtering');
+    exitSuccess(exitHandler);
     return;
   }
 
@@ -805,6 +812,7 @@ export async function runReview(
   checkGating(config, sorted);
 
   console.log('[router] Review complete');
+  exitSuccess(exitHandler);
 }
 
 // Only parse arguments when run directly (not when imported for testing)
