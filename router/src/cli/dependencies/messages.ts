@@ -92,17 +92,74 @@ export function formatDependencyStatus(result: DependencyCheckResult): string {
 
 /**
  * Displays dependency errors to stderr with consolidated formatting.
+ * Outputs blocking errors first, then warnings.
  *
  * @param summary - The dependency check summary
  * @param stderr - The stderr stream to write to
- *
- * @remarks
- * Implementation pending in T019. This is a stub for TDD tests.
  */
 export function displayDependencyErrors(
-  _summary: DependencyCheckSummary,
-  _stderr: NodeJS.WriteStream
+  summary: DependencyCheckSummary,
+  stderr: NodeJS.WriteStream
 ): void {
-  // T019 will implement this
-  throw new Error('Not implemented - see T019');
+  const lines: string[] = [];
+
+  // Only output if there are issues to report
+  if (!summary.hasBlockingIssues && !summary.hasWarnings) {
+    return;
+  }
+
+  // Header
+  if (summary.hasBlockingIssues) {
+    lines.push('');
+    lines.push('❌ Missing required dependencies');
+    lines.push('');
+  }
+
+  // Missing required dependencies (blocking)
+  for (const depName of summary.missingRequired) {
+    const result = summary.results.find((r) => r.name === depName);
+    if (result) {
+      lines.push(formatMissingDependencyError(result));
+      lines.push('');
+    }
+  }
+
+  // Unhealthy dependencies
+  for (const depName of summary.unhealthy) {
+    const result = summary.results.find((r) => r.name === depName);
+    if (result) {
+      lines.push(formatMissingDependencyError(result));
+      lines.push('');
+    }
+  }
+
+  // Version warnings
+  if (summary.versionWarnings.length > 0) {
+    lines.push('⚠ Version warnings:');
+    for (const warning of summary.versionWarnings) {
+      const depName = warning.split(':')[0];
+      const result = summary.results.find((r) => r.name === depName);
+      if (result) {
+        lines.push(formatMissingDependencyError(result));
+      } else {
+        lines.push(`  ${warning}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Missing optional dependencies (warnings, not blocking)
+  if (summary.missingOptional.length > 0) {
+    lines.push('⚠ Optional dependencies not found:');
+    for (const depName of summary.missingOptional) {
+      const result = summary.results.find((r) => r.name === depName);
+      if (result) {
+        lines.push(formatMissingDependencyError(result));
+      }
+    }
+    lines.push('');
+  }
+
+  // Write to stderr
+  stderr.write(lines.join('\n'));
 }
