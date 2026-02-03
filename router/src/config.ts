@@ -130,16 +130,36 @@ export async function loadConfigFromPath(configPath: string): Promise<ValidatedC
   try {
     content = await readFile(configPath, 'utf-8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+    const nodeErr = err as NodeJS.ErrnoException;
+    if (nodeErr.code === 'ENOENT') {
       throw new ConfigError(
         `Config file not found: ${configPath}`,
         ConfigErrorCode.FILE_NOT_FOUND,
         { path: configPath }
       );
     }
+    if (nodeErr.code === 'EACCES') {
+      throw new ConfigError(
+        `Config file unreadable (permission denied): ${configPath}`,
+        ConfigErrorCode.FILE_UNREADABLE,
+        { path: configPath }
+      );
+    }
     throw err; // Re-throw other errors
   }
-  const parsed = parseYaml(content);
+
+  // Parse YAML with distinct error handling
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(content);
+  } catch (err) {
+    throw new ConfigError(
+      `Failed to parse YAML: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      ConfigErrorCode.YAML_PARSE_ERROR,
+      { path: configPath },
+      err instanceof Error ? { cause: err } : undefined
+    );
+  }
   const userConfig =
     parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
 

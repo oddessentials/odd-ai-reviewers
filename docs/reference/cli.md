@@ -84,7 +84,7 @@ ai-review local [path] [options]
 |--------|-------------|
 | `--base <ref>` | Base reference for comparison (auto-detected if not specified) |
 | `--head <ref>` | Head reference (default: HEAD) |
-| `--range <range>` | Git range (e.g., `HEAD~3..`) - mutually exclusive with base/head |
+| `--range <range>` | Git range (e.g., `main...HEAD`, `HEAD~3..`). See [Range Operators](#range-operators) below. |
 | `--staged` | Review only staged changes |
 | `--uncommitted` | Include uncommitted changes (default: true) |
 | `--pass <name>` | Run specific pass only |
@@ -118,6 +118,46 @@ ai-review local --dry-run
 # Output as JSON
 ai-review local --format json
 ```
+
+#### Range Operators
+
+The `--range` option supports two git range operators:
+
+| Operator | Syntax        | Description                       | Use Case                                         |
+| -------- | ------------- | --------------------------------- | ------------------------------------------------ |
+| `...`    | `base...head` | Symmetric difference (merge-base) | Review only changes introduced on feature branch |
+| `..`     | `base..head`  | Direct comparison                 | Review all changes including merged commits      |
+
+**Default behavior**: When you specify a single ref (e.g., `--range main`), the default operator is `...` (three-dot), which shows only the changes introduced on the current branch since it diverged from the base.
+
+**Examples:**
+
+```bash
+# Changes on current branch since diverging from main (recommended for PRs)
+ai-review local --range main...HEAD
+
+# All commits reachable from HEAD but not main (includes merge commits)
+ai-review local --range main..HEAD
+
+# Last 3 commits using merge-base comparison
+ai-review local --range HEAD~3...HEAD
+
+# Last 3 commits (shorthand, defaults to HEAD)
+ai-review local --range HEAD~3..
+```
+
+**Visual comparison:**
+
+```
+      A---B---C  feature (HEAD)
+     /
+D---E---F---G    main
+
+--range main...HEAD  →  A, B, C (feature branch changes only)
+--range main..HEAD   →  A, B, C (but may behave differently with merges)
+```
+
+> **Tip**: Use `...` (three-dot) for typical PR reviews where you want to see only the changes you've made on your feature branch.
 
 ---
 

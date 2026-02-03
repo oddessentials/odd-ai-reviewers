@@ -8,6 +8,11 @@ import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 import { shouldIgnoreFile, type ReviewIgnorePattern } from './reviewignore.js';
 import { ValidationError, ValidationErrorCode } from './types/errors.js';
+import {
+  type ResolvedDiffMode,
+  type RangeOperator,
+  assertDiffModeResolved,
+} from './cli/options/local-review-options.js';
 
 // Re-export for convenience
 export type { ReviewIgnorePattern } from './reviewignore.js';
@@ -829,6 +834,48 @@ function resolveLocalRef(repoPath: string, ref: string): string {
   return ref;
 }
 
+// =============================================================================
+// T048: Compute Resolved Diff Mode (User Story 5)
+// =============================================================================
+
+/**
+ * Compute the resolved diff mode from LocalDiffOptions.
+ *
+ * This function determines which diff mode should be used based on the
+ * provided options. It returns undefined if no valid mode can be determined,
+ * which indicates a programmer error (options parsing should guarantee a mode).
+ *
+ * @param options - Local diff options
+ * @returns ResolvedDiffMode or undefined if no mode can be determined
+ */
+export function computeResolvedDiffMode(options: LocalDiffOptions): ResolvedDiffMode | undefined {
+  const { baseRef, headRef, rangeOperator, stagedOnly = false, uncommitted = false } = options;
+
+  // Priority: stagedOnly > uncommitted > range
+  if (stagedOnly) {
+    return { mode: 'staged' };
+  }
+
+  if (uncommitted) {
+    return { mode: 'uncommitted' };
+  }
+
+  // Range mode requires baseRef
+  if (baseRef) {
+    const operator: RangeOperator = rangeOperator === '..' ? '..' : '...';
+    const head = headRef ?? 'HEAD';
+    const rangeSpec = `${baseRef}${operator}${head}`;
+    return {
+      mode: 'range',
+      rangeSpec,
+      operator,
+    };
+  }
+
+  // No valid mode could be determined
+  return undefined;
+}
+
 /**
  * Get diff for local changes (working tree and/or staged)
  *
@@ -840,8 +887,13 @@ function resolveLocalRef(repoPath: string, ref: string): string {
  * @param repoPath - Absolute path to the repository root
  * @param options - Local diff options
  * @returns DiffSummary with changed files and patches
+ * @throws Error if no diff mode can be resolved (invariant violation)
  */
 export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffSummary {
+  // T049: Invariant check - ensure a valid diff mode is resolved
+  const resolvedMode = computeResolvedDiffMode(options);
+  assertDiffModeResolved(resolvedMode, 'getLocalDiff');
+
   const {
     baseRef,
     headRef,

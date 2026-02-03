@@ -459,7 +459,7 @@ program
   .description('Run AI review on local changes (uncommitted/staged)')
   .argument('[path]', 'Path to repository (default: current directory)', '.')
   .option('--base <ref>', 'Base reference for comparison (auto-detected if not specified)')
-  .option('--head <ref>', 'Head reference (default: HEAD)', 'HEAD')
+  .option('--head <ref>', 'Head reference (default: HEAD)')
   .option(
     '--range <range>',
     'Git range (e.g., main...HEAD, HEAD~3..)\n' +

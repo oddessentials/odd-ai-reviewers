@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { tmpdir } from 'os';
+import { makeTempRepo } from '../../../helpers/temp-repo.js';
 import type { LocalReviewDependencies } from '../../../../src/cli/commands/local-review.js';
 import type { GitContext } from '../../../../src/cli/git-context.js';
 import type { DiffSummary, DiffFile } from '../../../../src/diff.js';
@@ -126,12 +126,25 @@ describe('T013: local and local-review use same handler', () => {
 });
 
 describe('T028: --range option help contains operator explanation', () => {
-  it('should document range operators in --range description', () => {
-    // Note: This is a documentation test - validated by reading main.ts
-    // The actual help text is defined in main.ts as:
-    // "Git range (e.g., main...HEAD, HEAD~3..)\n" +
-    // "                              Operators: ... (default) = merge-base, .. = direct comparison"
-    expect(true).toBe(true);
+  it('should document range operators in --range description', async () => {
+    // Import main.ts to verify the help text contains operator documentation
+    // The actual help text is defined in main.ts and should contain:
+    // 1. Examples of range syntax (main...HEAD, HEAD~3..)
+    // 2. Operator explanation (... = merge-base, .. = direct comparison)
+
+    // Read main.ts content to verify help text
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const mainPath = path.resolve(__dirname, '../../../../src/main.ts');
+    const mainContent = await fs.readFile(mainPath, 'utf-8');
+
+    // Verify --range option description includes operator explanation
+    expect(mainContent).toContain('--range');
+    expect(mainContent).toContain('main...HEAD');
+    expect(mainContent).toContain('HEAD~3..');
+    expect(mainContent).toContain('Operators');
+    expect(mainContent).toContain('merge-base');
+    expect(mainContent).toContain('direct comparison');
   });
 });
 
@@ -557,6 +570,33 @@ describe('runLocalReview', () => {
   });
 
   describe('range/head handling', () => {
+    it('should default headRef to HEAD when only --base is specified', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+
+      let capturedDiffOptions:
+        | { baseRef: string; headRef?: string; rangeOperator?: '..' | '...' }
+        | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return mockDiff;
+        },
+      });
+
+      // --base main without --head should resolve to main...HEAD
+      await runLocalReview({ path: '/test/repo', base: 'main', dryRun: true }, deps);
+
+      expect(capturedDiffOptions?.baseRef).toBe('main');
+      expect(capturedDiffOptions?.headRef).toBe('HEAD');
+      expect(capturedDiffOptions?.rangeOperator).toBe('...');
+    });
+
     it('should pass headRef when --head is specified', async () => {
       const mockGitContext = createMockGitContext();
       const mockConfig = createMockConfig();
@@ -608,6 +648,34 @@ describe('runLocalReview', () => {
       expect(capturedDiffOptions?.baseRef).toBe('main');
       expect(capturedDiffOptions?.headRef).toBe('feature');
       expect(capturedDiffOptions?.rangeOperator).toBe('..');
+    });
+
+    it('should default to three-dot operator when single ref provided (--range main)', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+
+      let capturedDiffOptions:
+        | { baseRef: string; headRef?: string; rangeOperator?: '..' | '...' }
+        | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return mockDiff;
+        },
+      });
+
+      // Single ref without operator should default to three-dot (merge-base) and HEAD
+      // --range main resolves to main...HEAD
+      await runLocalReview({ path: '/test/repo', range: 'main', dryRun: true }, deps);
+
+      expect(capturedDiffOptions?.baseRef).toBe('main');
+      expect(capturedDiffOptions?.headRef).toBe('HEAD'); // Default head when not specified
+      expect(capturedDiffOptions?.rangeOperator).toBe('...');
     });
   });
 
@@ -999,8 +1067,9 @@ describe('runLocalReview', () => {
       const mockConfig = createMockConfig();
       const loadConfigMock = vi.fn().mockResolvedValue(mockConfig);
 
-      const tempDir = mkdtempSync(join(tmpdir(), 'ai-review-config-'));
-      const configPath = join(tempDir, 'custom.yml');
+      // T041: Use makeTempRepo instead of manual temp dir
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
       writeFileSync(configPath, 'version: 1\n');
 
       const loadConfigFromPathMock = vi.fn().mockResolvedValue(mockConfig);
@@ -1011,11 +1080,8 @@ describe('runLocalReview', () => {
         getLocalDiff: () => mockDiff,
       });
 
-      try {
-        await runLocalReview({ path: '/test/repo', config: configPath, dryRun: true }, deps);
-      } finally {
-        rmSync(tempDir, { recursive: true, force: true });
-      }
+      await runLocalReview({ path: '/test/repo', config: configPath, dryRun: true }, deps);
+      // makeTempRepo handles cleanup automatically via afterEach hook
 
       expect(loadConfigFromPathMock).toHaveBeenCalledWith(configPath);
       expect(loadConfigMock).not.toHaveBeenCalled();

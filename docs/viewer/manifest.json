@@ -257,6 +257,11 @@
       "path": "../index.md"
     },
     {
+      "name": "local-review.md",
+      "type": "file",
+      "path": "../local-review.md"
+    },
+    {
       "name": "troubleshooting.md",
       "type": "file",
       "path": "../troubleshooting.md"
@@ -447,6 +452,11 @@
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
+    },
+    {
+      "name": "local-review.md",
+      "type": "file",
+      "path": "../local-review.md"
     },
     {
       "name": "troubleshooting.md",

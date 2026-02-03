@@ -26,8 +26,15 @@ interface CliResult {
 
 async function runCli(args: string[], cwd?: string): Promise<CliResult> {
   return new Promise((resolve) => {
-    const child = spawn('node', ['--import', 'tsx', 'src/main.ts', ...args], {
-      cwd: cwd ?? join(process.cwd(), 'router'),
+    // Determine router directory - tests run from router/ so use process.cwd()
+    // The dist/main.js is relative to the router directory
+    const routerDir = process.cwd().endsWith('router')
+      ? process.cwd()
+      : join(process.cwd(), 'router');
+
+    // Use compiled dist/main.js instead of tsx for TypeScript
+    const child = spawn('node', [join(routerDir, 'dist/main.js'), ...args], {
+      cwd: cwd ?? routerDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, FORCE_COLOR: '0' },
     });
@@ -119,27 +126,27 @@ describe('Integration Test Matrix: Malformed Ranges (T059)', () => {
     {
       range: 'a..b..c',
       description: 'multiple two-dot operators',
-      expectedError: /MULTIPLE_OPERATORS|multiple.*operator/i,
+      expectedError: /multiple.*operator/i,
     },
     {
       range: 'main..feature..extra',
       description: 'multiple operators in named refs',
-      expectedError: /MULTIPLE_OPERATORS|multiple.*operator/i,
+      expectedError: /multiple.*operator/i,
     },
     {
       range: '..',
       description: 'empty refs with two-dot',
-      expectedError: /MISSING_REFS|EMPTY.*REF|empty|missing/i,
+      expectedError: /requires.*at least one reference/i,
     },
     {
       range: '...',
       description: 'empty refs with three-dot',
-      expectedError: /MISSING_REFS|EMPTY.*REF|empty|missing/i,
+      expectedError: /requires.*at least one reference/i,
     },
     {
       range: ' .. ',
       description: 'whitespace-only refs',
-      expectedError: /EMPTY.*REF|empty|missing/i,
+      expectedError: /requires.*at least one reference/i,
     },
   ];
 
