@@ -6,6 +6,8 @@
 
 export {
   type OutputFormat,
+  type RangeOperator,
+  type ResolvedDiffRange,
   type LocalReviewOptions,
   type RawLocalReviewOptions,
   type OptionsValidationError,
@@ -14,4 +16,5 @@ export {
   applyOptionDefaults,
   resolveOutputFormat,
   resolveBaseRef,
+  resolveDiffRange,
 } from './local-review-options.js';

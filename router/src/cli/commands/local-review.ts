@@ -25,9 +25,18 @@ import type { GenerateZeroConfigResult, ZeroConfigResult } from '../../config/ze
 import type { ValidatedConfig } from '../../types/branded.js';
 
 import { isOk } from '../../types/result.js';
-import { inferGitContext } from '../git-context.js';
-import { parseLocalReviewOptions, applyOptionDefaults, resolveBaseRef } from '../options/index.js';
-import { loadConfig, generateZeroConfigDefaults, isZeroConfigSuccess } from '../../config.js';
+import { inferGitContext, GitContextErrorCode } from '../git-context.js';
+import {
+  parseLocalReviewOptions,
+  applyOptionDefaults,
+  resolveDiffRange,
+} from '../options/index.js';
+import {
+  loadConfig,
+  loadConfigFromPath,
+  generateZeroConfigDefaults,
+  isZeroConfigSuccess,
+} from '../../config.js';
 import { getLocalDiff, canonicalizeDiffFiles, buildCombinedDiff } from '../../diff.js';
 import { loadReviewIgnore } from '../../reviewignore.js';
 import { checkBudget, estimateTokens, type BudgetContext } from '../../budget.js';
@@ -40,6 +49,8 @@ import {
   NotAGitRepoError,
   NoCredentialsError,
   InvalidConfigError,
+  GitNotFoundError,
+  InvalidPathError,
 } from '../output/errors.js';
 import { reportToTerminal } from '../../report/terminal.js';
 import {
@@ -85,6 +96,8 @@ export interface LocalReviewDependencies {
   inferGitContext?: (cwd: string) => Result<GitContext, GitContextError>;
   /** Override for config loading (for testing) */
   loadConfig?: (repoRoot: string) => Promise<ValidatedConfig<Config>>;
+  /** Override for config loading from explicit path (for testing) */
+  loadConfigFromPath?: (configPath: string) => Promise<ValidatedConfig<Config>>;
   /** Override for zero-config generation (for testing) */
   generateZeroConfig?: (env: Record<string, string | undefined>) => GenerateZeroConfigResult;
   /** Override for diff generation (for testing) */
@@ -92,6 +105,8 @@ export interface LocalReviewDependencies {
     repoPath: string,
     options: {
       baseRef: string;
+      headRef?: string;
+      rangeOperator?: '..' | '...';
       stagedOnly?: boolean;
       uncommitted?: boolean;
       pathFilter?: PathFilter;
@@ -367,10 +382,14 @@ async function loadConfigWithFallback(
 
   if (configExists) {
     // Load from file
+    if (customConfigPath) {
+      const loadConfigFromPathFn = deps.loadConfigFromPath ?? loadConfigFromPath;
+      const config = await loadConfigFromPathFn(configPath);
+      return { config, source: 'file', path: configPath };
+    }
+
     const loadConfigFn = deps.loadConfig ?? loadConfig;
-    const config = await loadConfigFn(
-      customConfigPath ? resolve(customConfigPath, '..') : repoRoot
-    );
+    const config = await loadConfigFn(repoRoot);
     return { config, source: 'file', path: configPath };
   }
 
@@ -400,7 +419,8 @@ async function executeDryRun(
   configPath: string | undefined,
   deps: LocalReviewDependencies
 ): Promise<DryRunResult> {
-  const baseRef = resolveBaseRef(options, gitContext);
+  const diffRange = resolveDiffRange(options, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // Load .reviewignore patterns
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
@@ -409,6 +429,8 @@ async function executeDryRun(
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: options.staged,
     uncommitted: options.uncommitted,
     pathFilter:
@@ -598,7 +620,8 @@ async function executeCostOnly(
   config: Config,
   deps: LocalReviewDependencies
 ): Promise<CostEstimateResult> {
-  const baseRef = resolveBaseRef(options, gitContext);
+  const diffRange = resolveDiffRange(options, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // Load .reviewignore patterns
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
@@ -607,6 +630,8 @@ async function executeCostOnly(
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: options.staged,
     uncommitted: options.uncommitted,
     pathFilter:
@@ -736,7 +761,12 @@ export async function runLocalReview(
   const gitResult = inferFn(resolve(options.path));
 
   if (!isOk(gitResult)) {
-    const error = new NotAGitRepoError(options.path);
+    const error =
+      gitResult.error.code === GitContextErrorCode.GIT_NOT_FOUND
+        ? new GitNotFoundError(gitResult.error.message)
+        : gitResult.error.code === GitContextErrorCode.INVALID_PATH
+          ? new InvalidPathError(gitResult.error.message, gitResult.error.path)
+          : new NotAGitRepoError(gitResult.error.path ?? options.path);
     stderr.write(formatCLIError(error, colored) + '\n');
     return {
       exitCode: ExitCode.INVALID_ARGS,
@@ -750,7 +780,8 @@ export async function runLocalReview(
 
   // Apply defaults from git context
   const resolvedOptions = applyOptionDefaults(options, gitContext);
-  const baseRef = resolveBaseRef(resolvedOptions, gitContext);
+  const diffRange = resolveDiffRange(resolvedOptions, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // 3. Load configuration (with zero-config fallback)
   let config: Config;
@@ -865,6 +896,8 @@ export async function runLocalReview(
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: resolvedOptions.staged,
     uncommitted: resolvedOptions.uncommitted,
     pathFilter:
@@ -876,9 +909,14 @@ export async function runLocalReview(
   // 7. Check for changes (using already-generated diff)
   if (diff.files.length === 0) {
     // No changes to review - could be no changes or all filtered by .reviewignore
+    const headLabel = resolvedOptions.staged
+      ? 'STAGED'
+      : resolvedOptions.uncommitted
+        ? 'WORKTREE'
+        : diffRange.headRef;
     const output = colored
-      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`
-      : `No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`;
+      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`
+      : `No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`;
     stdout.write(output);
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }

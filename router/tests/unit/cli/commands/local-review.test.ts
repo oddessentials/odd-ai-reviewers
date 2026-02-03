@@ -6,6 +6,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import type { LocalReviewDependencies } from '../../../../src/cli/commands/local-review.js';
 import type { GitContext } from '../../../../src/cli/git-context.js';
 import type { DiffSummary, DiffFile } from '../../../../src/diff.js';
@@ -217,6 +220,46 @@ describe('runLocalReview', () => {
       expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
       expect(result.error).toBeDefined();
       expect(deps.stderr.write).toHaveBeenCalled();
+    });
+
+    it('should surface git not found error', async () => {
+      const deps = createMockDeps({
+        inferGitContext: () =>
+          Err({
+            code: GitContextErrorCode.GIT_NOT_FOUND,
+            message: 'git command not found',
+            path: '/test/path',
+          }),
+      });
+
+      const result = await runLocalReview({ path: '/test/path' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('git command not found');
+      const stderrOutput = (deps.stderr.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+      expect(stderrOutput).toContain('git command not found');
+    });
+
+    it('should surface invalid path error', async () => {
+      const deps = createMockDeps({
+        inferGitContext: () =>
+          Err({
+            code: GitContextErrorCode.INVALID_PATH,
+            message: 'Path does not exist: /missing/path',
+            path: '/missing/path',
+          }),
+      });
+
+      const result = await runLocalReview({ path: '/missing/path' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('Path does not exist: /missing/path');
+      const stderrOutput = (deps.stderr.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+      expect(stderrOutput).toContain('Path does not exist');
     });
 
     it('should handle invalid options error', async () => {
@@ -447,6 +490,61 @@ describe('runLocalReview', () => {
 
       // When explicitly set, uncommitted should be honored
       expect(capturedDiffOptions?.uncommitted).toBe(true);
+    });
+  });
+
+  describe('range/head handling', () => {
+    it('should pass headRef when --head is specified', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+
+      let capturedDiffOptions:
+        | { baseRef: string; headRef?: string; rangeOperator?: '..' | '...' }
+        | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return mockDiff;
+        },
+      });
+
+      await runLocalReview(
+        { path: '/test/repo', base: 'main', head: 'feature', dryRun: true },
+        deps
+      );
+
+      expect(capturedDiffOptions?.headRef).toBe('feature');
+    });
+
+    it('should pass range end and operator when --range is specified', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+
+      let capturedDiffOptions:
+        | { baseRef: string; headRef?: string; rangeOperator?: '..' | '...' }
+        | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return mockDiff;
+        },
+      });
+
+      await runLocalReview({ path: '/test/repo', range: 'main..feature', dryRun: true }, deps);
+
+      expect(capturedDiffOptions?.baseRef).toBe('main');
+      expect(capturedDiffOptions?.headRef).toBe('feature');
+      expect(capturedDiffOptions?.rangeOperator).toBe('..');
     });
   });
 
@@ -830,6 +928,36 @@ describe('runLocalReview', () => {
   });
 
   describe('config loading', () => {
+    it('should load exact config path when --config is provided', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
+      ]);
+      const mockConfig = createMockConfig();
+      const loadConfigMock = vi.fn().mockResolvedValue(mockConfig);
+
+      const tempDir = mkdtempSync(join(tmpdir(), 'ai-review-config-'));
+      const configPath = join(tempDir, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      const loadConfigFromPathMock = vi.fn().mockResolvedValue(mockConfig);
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfig: loadConfigMock,
+        loadConfigFromPath: loadConfigFromPathMock,
+        getLocalDiff: () => mockDiff,
+      });
+
+      try {
+        await runLocalReview({ path: '/test/repo', config: configPath, dryRun: true }, deps);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+
+      expect(loadConfigFromPathMock).toHaveBeenCalledWith(configPath);
+      expect(loadConfigMock).not.toHaveBeenCalled();
+    });
+
     it('should use loadConfig when config file exists', async () => {
       const mockGitContext = createMockGitContext();
       const mockDiff = createMockDiff([

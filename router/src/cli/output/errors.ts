@@ -14,6 +14,8 @@
  */
 export const CLIErrorCode = {
   NOT_GIT_REPO: 'CLI_NOT_GIT_REPO',
+  GIT_NOT_FOUND: 'CLI_GIT_NOT_FOUND',
+  INVALID_PATH: 'CLI_INVALID_PATH',
   NO_CREDENTIALS: 'CLI_NO_CREDENTIALS',
   NO_CHANGES: 'CLI_NO_CHANGES',
   INVALID_CONFIG: 'CLI_INVALID_CONFIG',
@@ -55,6 +57,34 @@ export class NotAGitRepoError extends CLIError {
     this.hint =
       'Run this command from within a git repository, or specify a path to one:\n' +
       '  ai-review /path/to/repo';
+  }
+}
+
+/**
+ * Error when git is not available in PATH
+ */
+export class GitNotFoundError extends CLIError {
+  readonly code = CLIErrorCode.GIT_NOT_FOUND;
+  readonly hint: string;
+
+  constructor(message = 'git command not found') {
+    super(message);
+    this.hint = 'Install git and ensure it is available on your PATH.';
+  }
+}
+
+/**
+ * Error when the provided path is invalid or inaccessible
+ */
+export class InvalidPathError extends CLIError {
+  readonly code = CLIErrorCode.INVALID_PATH;
+  readonly hint: string;
+  readonly path?: string;
+
+  constructor(message: string, path?: string) {
+    super(message);
+    this.path = path;
+    this.hint = path ? `Check the path and try again:\n  ${path}` : 'Check the path and try again.';
   }
 }
 

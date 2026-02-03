@@ -120,6 +120,45 @@ export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Conf
 }
 
 /**
+ * Load configuration from an explicit file path.
+ *
+ * @param configPath - Absolute or relative path to a config file
+ * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
+ */
+export async function loadConfigFromPath(configPath: string): Promise<ValidatedConfig<Config>> {
+  const content = await readFile(configPath, 'utf-8');
+  const parsed = parseYaml(content);
+  const userConfig =
+    parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+
+  // Load defaults and merge with user config
+  let defaults: Record<string, unknown> = {};
+  if (existsSync(DEFAULTS_PATH)) {
+    const defaultsContent = await readFile(DEFAULTS_PATH, 'utf-8');
+    defaults = parseYaml(defaultsContent) as Record<string, unknown>;
+  }
+
+  const merged = deepMerge(defaults, userConfig);
+
+  // Validate and return branded config
+  const result = ConfigSchema.safeParse(merged);
+  if (!result.success) {
+    const issues = result.error.issues;
+    throw new ConfigError(
+      `Invalid configuration: ${result.error.message}`,
+      ConfigErrorCode.INVALID_SCHEMA,
+      {
+        path: configPath,
+        field: issues[0]?.path?.join('.'),
+        expected: issues[0]?.message,
+      }
+    );
+  }
+
+  return ValidatedConfigHelpers.brand(result.data);
+}
+
+/**
  * Load configuration, returning a Result instead of throwing.
  *
  * This is the Result-returning version for explicit error handling.

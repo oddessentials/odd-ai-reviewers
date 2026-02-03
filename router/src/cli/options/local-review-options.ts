@@ -18,6 +18,14 @@ import type { GitContext } from '../git-context.js';
  */
 export type OutputFormat = 'pretty' | 'json' | 'sarif';
 
+export type RangeOperator = '..' | '...';
+
+export interface ResolvedDiffRange {
+  baseRef: string;
+  headRef: string;
+  rangeOperator: RangeOperator;
+}
+
 /**
  * Command-line options for local review mode
  */
@@ -152,7 +160,10 @@ export function parseLocalReviewOptions(
   // - When --base or --range specified: default to false (commit comparison mode)
   // - When --staged specified: default to false (staged changes only)
   // - Otherwise: default to true (working tree changes)
-  const hasExplicitRef = raw.base !== undefined || raw.range !== undefined;
+  const hasExplicitRef =
+    raw.base !== undefined ||
+    raw.range !== undefined ||
+    (raw.head !== undefined && raw.head !== 'HEAD');
   const uncommitted = raw.uncommitted ?? (hasExplicitRef || staged ? false : true);
 
   // Check if nothing to review:
@@ -255,4 +266,35 @@ export function resolveBaseRef(options: LocalReviewOptions, gitContext: GitConte
 
   // Use explicit base or detected default
   return options.base ?? gitContext.defaultBase;
+}
+
+/**
+ * Resolve base/head references and range operator for diff generation.
+ *
+ * @param options - Parsed options
+ * @param gitContext - Inferred git context
+ * @returns Resolved diff range
+ */
+export function resolveDiffRange(
+  options: LocalReviewOptions,
+  gitContext: GitContext
+): ResolvedDiffRange {
+  if (options.range) {
+    const rangeMatch = options.range.match(/^(.*?)(\.\.\.?)(.*)$/);
+    if (rangeMatch) {
+      const baseRef = rangeMatch[1]?.trim() || 'HEAD';
+      const rangeOperator = (rangeMatch[2] === '...' ? '...' : '..') as RangeOperator;
+      const headRef = rangeMatch[3]?.trim() || 'HEAD';
+      return { baseRef, headRef, rangeOperator };
+    }
+    return { baseRef: options.range, headRef: 'HEAD', rangeOperator: '...' };
+  }
+
+  // Default to three-dot ('...') which compares against merge-base,
+  // showing only changes introduced on the head branch.
+  return {
+    baseRef: options.base ?? gitContext.defaultBase,
+    headRef: options.head ?? 'HEAD',
+    rangeOperator: '...',
+  };
 }
