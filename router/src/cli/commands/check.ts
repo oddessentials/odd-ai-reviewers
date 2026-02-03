@@ -169,11 +169,50 @@ export function formatCheckOutput(
  *
  * @param results - Dependency check results
  * @returns JSON string
- *
- * @remarks
- * Implementation pending in T025. This is a stub for TDD tests.
  */
-export function formatCheckOutputJson(_results: DependencyCheckResult[]): string {
-  // T025 will implement this
-  throw new Error('Not implemented - see T025');
+export function formatCheckOutputJson(results: DependencyCheckResult[]): string {
+  const platform = detectPlatform();
+
+  // Build summary counts
+  const summary = {
+    available: 0,
+    missing: 0,
+    unhealthy: 0,
+    versionMismatch: 0,
+    allAvailable: true,
+  };
+
+  for (const result of results) {
+    switch (result.status) {
+      case 'available':
+        summary.available++;
+        break;
+      case 'missing':
+        summary.missing++;
+        summary.allAvailable = false;
+        break;
+      case 'unhealthy':
+        summary.unhealthy++;
+        summary.allAvailable = false;
+        break;
+      case 'version-mismatch':
+        summary.versionMismatch++;
+        summary.allAvailable = false;
+        break;
+    }
+  }
+
+  const output = {
+    timestamp: new Date().toISOString(),
+    platform,
+    dependencies: results.map((r) => ({
+      name: r.name,
+      status: r.status,
+      version: r.version,
+      error: r.error,
+    })),
+    summary,
+  };
+
+  return JSON.stringify(output, null, 2);
 }
