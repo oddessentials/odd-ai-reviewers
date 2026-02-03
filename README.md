@@ -4,6 +4,8 @@
 
 [![AI Review](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
+[![Release](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml)
+[![npm version](https://img.shields.io/npm/v/@oddessentials/ai-review)](https://www.npmjs.com/package/@oddessentials/ai-review)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/2fc5b1cb256e3c48591abf95e24d3492/raw/coverage.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)

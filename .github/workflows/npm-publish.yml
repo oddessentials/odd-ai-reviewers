@@ -1,8 +1,12 @@
-name: npm Publish
+# DEPRECATED: This workflow is superseded by release.yml which uses semantic-release
+# for automated versioning and publishing. Kept temporarily for reference.
+# TODO: Remove after validating semantic-release workflow works correctly.
+name: npm Publish (DEPRECATED)
 
 on:
-  release:
-    types: [published]
+  # Disabled - semantic-release now handles releases automatically
+  # release:
+  #   types: [published]
   workflow_dispatch:
     inputs:
       dry_run:
