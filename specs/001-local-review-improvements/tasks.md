@@ -202,15 +202,15 @@
 - [x] T057 [P] Add integration test for `ai-review local --range main...HEAD` (exit code 0) in `router/tests/integration/local-review-cli.test.ts` _(skipped - requires valid git state)_
 - [x] T058 [P] Add integration test for `ai-review local --range main..HEAD` (exit code 0) in `router/tests/integration/local-review-cli.test.ts` _(skipped - requires valid git state)_
 - [x] T059 [P] Add integration tests for 5 malformed ranges in `router/tests/integration/local-review-cli.test.ts`:
-  - `a..b..c` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains `RangeErrorCode.MULTIPLE_OPERATORS`
-  - `main..feature..extra` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains `RangeErrorCode.MULTIPLE_OPERATORS`
-  - `..` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains `RangeErrorCode.MISSING_REFS`
-  - `...` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains `RangeErrorCode.MISSING_REFS`
-  - `..` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains `RangeErrorCode.EMPTY_BASE_REF`
+  - `a..b..c` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains "multiple operators"
+  - `main..feature..extra` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains "multiple operators"
+  - `..` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains "requires at least one reference"
+  - `...` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains "requires at least one reference"
+  - `..` → exit code 2 (`ExitCode.INVALID_ARGS`), error contains "requires at least one reference"
 
 ### Final Validation
 
-- [x] T060 Run full test suite and verify all tests pass: `pnpm --filter @odd-ai-reviewers/router test` _(131 test files, 3418 tests pass)_
+- [x] T060 Run full test suite and verify all tests pass: `pnpm --filter @odd-ai-reviewers/router test` _(131 test files, 3420 tests pass)_
 - [x] T061 Run typecheck: `pnpm --filter @odd-ai-reviewers/router typecheck` _(no errors)_
 - [x] T062 Run lint with zero warnings: `pnpm lint` _(clean)_
 - [x] T063 Verify no circular dependencies: `pnpm depcruise` _(no violations, 190 modules)_

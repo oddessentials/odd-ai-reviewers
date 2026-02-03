@@ -385,17 +385,17 @@ pnpm --filter @odd-ai-reviewers/router build
 
 ## Checklist
 
-Before marking implementation complete:
+Implementation complete (2026-02-03):
 
-- [ ] `local-review` alias added and tested
-- [ ] Range parsing rejects all malformed inputs
-- [ ] Error messages are distinct for validation vs git errors
-- [ ] Diff-mode invariant throws programmer error
-- [ ] `resolveBaseRef` removed from exports
-- [ ] `makeTempRepo` helper used in all temp-dir tests
-- [ ] Cleanup test verifies hooks work even on failure
-- [ ] Config error paths have full coverage
-- [ ] CLI help documents range operators
-- [ ] README updated with range operator documentation
-- [ ] Integration test matrix passes
-- [ ] All existing tests still pass
+- [x] `local-review` alias added and tested
+- [x] Range parsing rejects all malformed inputs
+- [x] Error messages are distinct for validation vs git errors
+- [x] Diff-mode invariant throws programmer error
+- [x] `resolveBaseRef` removed from exports (kept private, not in barrel)
+- [x] `makeTempRepo` helper used in all temp-dir tests (git-related)
+- [x] Cleanup test verifies hooks work even on failure
+- [x] Config error paths have full coverage
+- [x] CLI help documents range operators
+- [x] README updated with range operator documentation (docs/local-review.md)
+- [x] Integration test matrix passes
+- [x] All existing tests still pass (131 files, 3420 tests)
