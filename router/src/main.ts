@@ -455,11 +455,16 @@ configCommand
 
 program
   .command('local')
+  .alias('local-review') // T015 (US1): Add alias for command discoverability
   .description('Run AI review on local changes (uncommitted/staged)')
   .argument('[path]', 'Path to repository (default: current directory)', '.')
   .option('--base <ref>', 'Base reference for comparison (auto-detected if not specified)')
   .option('--head <ref>', 'Head reference (default: HEAD)', 'HEAD')
-  .option('--range <range>', 'Git range (e.g., HEAD~3..) - mutually exclusive with base/head')
+  .option(
+    '--range <range>',
+    'Git range (e.g., main...HEAD, HEAD~3..)\n' +
+      '                              Operators: ... (default) = merge-base, .. = direct comparison'
+  )
   .option('--staged', 'Review only staged changes')
   .option('--uncommitted', 'Include uncommitted changes (default when no --base/--range)')
   .option('--pass <name>', 'Run specific pass only')
@@ -513,7 +518,11 @@ program
   .argument('[path]', 'Path to repository for local review')
   .option('--base <ref>', 'Base reference for comparison')
   .option('--head <ref>', 'Head reference (default: HEAD)')
-  .option('--range <range>', 'Git range (e.g., HEAD~3..)')
+  .option(
+    '--range <range>',
+    'Git range (e.g., main...HEAD, HEAD~3..)\n' +
+      '                              Operators: ... (default) = merge-base, .. = direct comparison'
+  )
   .option('--staged', 'Review only staged changes')
   .option('--uncommitted', 'Include uncommitted changes (default when no --base/--range)')
   .option('--pass <name>', 'Run specific pass only')

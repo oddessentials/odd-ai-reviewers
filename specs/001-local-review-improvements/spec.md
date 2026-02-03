@@ -2,8 +2,43 @@
 
 **Feature Branch**: `001-local-review-improvements`
 **Created**: 2026-02-03
-**Status**: Draft
+**Status**: In Progress (Session 1 Complete - MVP)
 **Input**: Improve local review CLI: add local-review alias, consolidate resolveBaseRef into resolveDiffRange, add negative tests for malformed ranges, improve test cleanup, add loadConfigFromPath error tests, add defensive check for undefined rangeSpec, and document three-dot vs two-dot behavior
+
+## Implementation Progress
+
+### Session 1 (2026-02-03) - MVP Complete
+
+**Completed:**
+
+- **Phase 1 (Setup)**: Test helpers infrastructure (`makeTempRepo()`, integration test scaffold)
+- **Phase 2 (Foundational)**: All type definitions (`RangeErrorCode`, `RangeParseResult`, `ResolvedDiffMode`, etc.)
+- **Phase 3 (US1)**: CLI alias via `.alias('local-review')` with documentation
+- **Phase 4 (US2)**: Range parsing with explicit operator scan and validation errors
+
+**Test Coverage:**
+
+- 54 unit tests for range parsing and options validation (all passing)
+- 32 unit tests for local-review command behavior (all passing)
+- Integration tests scaffolded (some Windows-specific spawn issues)
+
+**Files Modified:**
+
+- `router/src/main.ts` - Added `.alias('local-review')`, improved `--range` help text
+- `router/src/cli/options/local-review-options.ts` - Added types, `parseRangeString()`, validation
+- `router/src/cli/options/index.ts` - Updated exports (note: `resolveBaseRef` NOT exported per US6)
+- `router/src/types/errors.ts` - Added `MALFORMED_RANGE_*` validation error codes
+- `router/tests/helpers/` - New `temp-repo.ts` and `index.ts`
+- `router/tests/unit/cli/options/local-review-options.test.ts` - 54 tests
+- `router/tests/integration/local-review-cli.test.ts` - Integration test scaffold
+
+**Remaining (Phase 5-9):**
+
+- US3: Documentation in `docs/local-review.md` and README
+- US4: Config error path tests and test cleanup verification
+- US5: `computeResolvedDiffMode()` and invariant check in `getLocalDiff()`
+- US6: API surface cleanup (resolveBaseRef already not exported)
+- Phase 9: Integration tests and final validation
 
 ## Clarifications
 

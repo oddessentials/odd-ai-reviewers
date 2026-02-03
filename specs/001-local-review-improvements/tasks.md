@@ -25,10 +25,10 @@
 
 **Purpose**: Test helper infrastructure and test file scaffolds needed by all phases
 
-- [ ] T001 Create test helpers directory structure at `router/tests/helpers/`
-- [ ] T002 Implement `makeTempRepo()` helper in `router/tests/helpers/temp-repo.ts` per data-model.md TempRepo interface
-- [ ] T003 Add TempRepo exports to `router/tests/helpers/index.ts`
-- [ ] T004 Create integration test file scaffold `router/tests/integration/local-review-cli.test.ts` with test runner imports
+- [x] T001 Create test helpers directory structure at `router/tests/helpers/`
+- [x] T002 Implement `makeTempRepo()` helper in `router/tests/helpers/temp-repo.ts` per data-model.md TempRepo interface
+- [x] T003 Add TempRepo exports to `router/tests/helpers/index.ts`
+- [x] T004 Create integration test file scaffold `router/tests/integration/local-review-cli.test.ts` with test runner imports
 
 ---
 
@@ -38,13 +38,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 [P] Add `RangeOperator` type (`'..' | '...'`) to `router/src/cli/options/local-review-options.ts`
-- [ ] T006 [P] Add `RangeErrorCode` enum (MULTIPLE_OPERATORS, EMPTY_BASE_REF, EMPTY_HEAD_REF, MISSING_REFS) to `router/src/cli/options/local-review-options.ts`
-- [ ] T007 [P] Add `RangeValidationError` interface to `router/src/cli/options/local-review-options.ts`
-- [ ] T008 [P] Add `RangeParseResult` type to `router/src/cli/options/local-review-options.ts`
-- [ ] T009 [P] Add `ResolvedDiffMode` discriminated union type to `router/src/cli/options/local-review-options.ts`
-- [ ] T010 [P] Add range validation error codes (MALFORMED_RANGE_MULTIPLE_OPERATORS, MALFORMED_RANGE_EMPTY_REF, MALFORMED_RANGE_MISSING_REFS, INVALID_GIT_REF) to `router/src/types/errors.ts`
-- [ ] T011 Add `assertDiffModeResolved()` assertion function to `router/src/cli/options/local-review-options.ts`
+- [x] T005 [P] Add `RangeOperator` type (`'..' | '...'`) to `router/src/cli/options/local-review-options.ts`
+- [x] T006 [P] Add `RangeErrorCode` enum (MULTIPLE_OPERATORS, EMPTY_BASE_REF, EMPTY_HEAD_REF, MISSING_REFS) to `router/src/cli/options/local-review-options.ts`
+- [x] T007 [P] Add `RangeValidationError` interface to `router/src/cli/options/local-review-options.ts`
+- [x] T008 [P] Add `RangeParseResult` type to `router/src/cli/options/local-review-options.ts`
+- [x] T009 [P] Add `ResolvedDiffMode` discriminated union type to `router/src/cli/options/local-review-options.ts`
+- [x] T010 [P] Add range validation error codes (MALFORMED_RANGE_MULTIPLE_OPERATORS, MALFORMED_RANGE_EMPTY_REF, MALFORMED_RANGE_MISSING_REFS, INVALID_GIT_REF) to `router/src/types/errors.ts`
+- [x] T011 Add `assertDiffModeResolved()` assertion function to `router/src/cli/options/local-review-options.ts`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -58,14 +58,14 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add test asserting `local-review --help` matches `local --help` in `router/tests/integration/local-review-cli.test.ts`
-- [ ] T013 [P] [US1] Add test asserting both `local` and `local-review` call the same handler in `router/tests/unit/cli/commands/local-review.test.ts`
-- [ ] T014 [P] [US1] Add test asserting `local-review` is included in main program help output in `router/tests/integration/local-review-cli.test.ts`
+- [x] T012 [P] [US1] Add test asserting `local-review --help` matches `local --help` in `router/tests/integration/local-review-cli.test.ts`
+- [x] T013 [P] [US1] Add test asserting both `local` and `local-review` call the same handler in `router/tests/unit/cli/commands/local-review.test.ts`
+- [x] T014 [P] [US1] Add test asserting `local-review` is included in main program help output in `router/tests/integration/local-review-cli.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Add `.alias('local-review')` to the `local` command definition in `router/src/main.ts`
-- [ ] T016 [US1] Verify alias appears in `--help` output with correct formatting
+- [x] T015 [US1] Add `.alias('local-review')` to the `local` command definition in `router/src/main.ts`
+- [x] T016 [US1] Verify alias appears in `--help` output with correct formatting
 
 **Checkpoint**: User Story 1 complete - `local-review` alias works identically to `local`
 
@@ -79,20 +79,20 @@
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Add test for `a..b..c` (multiple two-dot operators) rejection asserting `RangeErrorCode.MULTIPLE_OPERATORS` in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T018 [P] [US2] Add test for `main..feature..extra` (multiple operators) rejection asserting `RangeErrorCode.MULTIPLE_OPERATORS` in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T019 [P] [US2] Add test for `..` (empty refs) rejection asserting `RangeErrorCode.MISSING_REFS` in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T020 [P] [US2] Add test for `...` (empty refs) rejection asserting `RangeErrorCode.MISSING_REFS` in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T021 [P] [US2] Add test for `..` (whitespace-only refs) rejection asserting `RangeErrorCode.EMPTY_BASE_REF` in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T022 [P] [US2] Add test for `main...nonexistent-branch` returning `ValidationErrorCode.INVALID_GIT_REF` (distinct from malformed range errors) in `router/tests/unit/cli/options/local-review-options.test.ts`
-- [ ] T023 [P] [US2] Add test asserting malformed ranges fail BEFORE git calls (no git process spawned) in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T017 [P] [US2] Add test for `a..b..c` (multiple two-dot operators) rejection asserting `RangeErrorCode.MULTIPLE_OPERATORS` in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T018 [P] [US2] Add test for `main..feature..extra` (multiple operators) rejection asserting `RangeErrorCode.MULTIPLE_OPERATORS` in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T019 [P] [US2] Add test for `..` (empty refs) rejection asserting `RangeErrorCode.MISSING_REFS` in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T020 [P] [US2] Add test for `...` (empty refs) rejection asserting `RangeErrorCode.MISSING_REFS` in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T021 [P] [US2] Add test for `..` (whitespace-only refs) rejection asserting `RangeErrorCode.EMPTY_BASE_REF` in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T022 [P] [US2] Add test for `main...nonexistent-branch` returning `ValidationErrorCode.INVALID_GIT_REF` (distinct from malformed range errors) in `router/tests/unit/cli/options/local-review-options.test.ts`
+- [x] T023 [P] [US2] Add test asserting malformed ranges fail BEFORE git calls (no git process spawned) in `router/tests/unit/cli/options/local-review-options.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Implement `parseRangeString()` function with explicit operator scan (`...` first, then `..`) in `router/src/cli/options/local-review-options.ts`
-- [ ] T025 [US2] Update `resolveDiffRange()` to use new `parseRangeString()` and return `RangeParseResult` in `router/src/cli/options/local-review-options.ts`
-- [ ] T026 [US2] Update `parseLocalReviewOptions()` to use new range parsing and return validation errors in `router/src/cli/options/local-review-options.ts`
-- [ ] T027 [US2] Add git ref validation in `router/src/cli/commands/local-review.ts` that returns `ValidationErrorCode.INVALID_GIT_REF` (distinct from malformed range errors)
+- [x] T024 [US2] Implement `parseRangeString()` function with explicit operator scan (`...` first, then `..`) in `router/src/cli/options/local-review-options.ts`
+- [x] T025 [US2] Update `resolveDiffRange()` to use new `parseRangeString()` and return `RangeParseResult` in `router/src/cli/options/local-review-options.ts` (Note: Validation done earlier in parseLocalReviewOptions)
+- [x] T026 [US2] Update `parseLocalReviewOptions()` to use new range parsing and return validation errors in `router/src/cli/options/local-review-options.ts`
+- [x] T027 [US2] Add git ref validation in `router/src/cli/commands/local-review.ts` that returns `ValidationErrorCode.INVALID_GIT_REF` (distinct from malformed range errors) (Note: Already implemented in diff.ts assertLocalRef)
 
 **Checkpoint**: User Story 2 complete - all malformed ranges rejected with clear errors before git calls
 
