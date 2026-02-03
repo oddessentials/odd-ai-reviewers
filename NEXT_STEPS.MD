@@ -2,6 +2,26 @@
 
 Improvements identified during code review that require further consideration.
 
+## CLI Command Naming
+
+### 7. Consider adding `local-review` alias for discoverability
+
+**File:** `router/src/main.ts`
+
+The local review command is registered as `local`, not `local-review`. While shorter, this may confuse users who expect the hyphenated form based on documentation or intuition.
+
+**Current behavior:**
+
+- ✅ `ai-review local .` - works
+- ✅ `ai-review .` - works (shorthand alias)
+- ❌ `ai-review local-review .` - does not work
+
+**Options:**
+
+1. Add `local-review` as an alias to `local` using Commander's `.alias()` method
+2. Document clearly that the command is `local`, not `local-review`
+3. Keep as-is if the shorter name is preferred
+
 ## Local Review Range/Head Handling
 
 ### 1. Consolidate `resolveBaseRef` into `resolveDiffRange`

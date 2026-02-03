@@ -889,10 +889,10 @@ export async function runLocalReview(
     displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
   }
 
-  // 5. Load .reviewignore patterns (before diff to filter early)
+  // 6. Load .reviewignore patterns (before diff to filter early)
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
 
-  // 6. Generate diff once with reviewignore filtering applied
+  // 7. Generate diff once with reviewignore filtering applied
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
@@ -906,7 +906,7 @@ export async function runLocalReview(
         : undefined,
   });
 
-  // 7. Check for changes (using already-generated diff)
+  // 8. Check for changes (using already-generated diff)
   if (diff.files.length === 0) {
     // No changes to review - could be no changes or all filtered by .reviewignore
     const headLabel = resolvedOptions.staged
@@ -921,12 +921,12 @@ export async function runLocalReview(
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
 
-  // 8. Build agent context (using runnableConfig with filtered passes)
+  // 9. Build agent context (using runnableConfig with filtered passes)
   const routerEnv = buildRouterEnv(env);
   const agentContext = buildAgentContext(gitContext.repoRoot, diff, runnableConfig, routerEnv);
   const configHash = hashConfig(config); // Use original config for consistent cache key
 
-  // 9. Check budget
+  // 10. Check budget
   const diffContent = buildCombinedDiff(diff.files, config.limits?.max_diff_lines ?? 5000);
   const estimatedTokensCount = estimateTokens(diffContent);
   const budgetContext: BudgetContext = {
@@ -945,7 +945,7 @@ export async function runLocalReview(
     }
   );
 
-  // 10. Setup signal handlers for graceful shutdown
+  // 11. Setup signal handlers for graceful shutdown
   // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
   // This is the correct behavior for CLI tools to avoid runaway costs
   setupSignalHandlers({
@@ -970,7 +970,7 @@ export async function runLocalReview(
     },
   });
 
-  // 11. Execute agent passes
+  // 12. Execute agent passes
   let executeResult: ExecuteResult;
 
   try {
@@ -1006,7 +1006,7 @@ export async function runLocalReview(
 
   clearPartialResultsContext();
 
-  // 12. Calculate execution time and cost
+  // 13. Calculate execution time and cost
   const executionTimeMs = Date.now() - startTime;
   const estimatedCostUsd = executeResult.allResults.reduce((sum, r) => {
     if ('metrics' in r && r.metrics?.estimatedCostUsd) {
@@ -1015,7 +1015,7 @@ export async function runLocalReview(
     return sum;
   }, 0);
 
-  // 13. Build terminal context with execution info
+  // 14. Build terminal context with execution info
   const terminalContext = buildTerminalContext(
     resolvedOptions,
     gitContext,
@@ -1026,7 +1026,7 @@ export async function runLocalReview(
   terminalContext.executionTimeMs = executionTimeMs;
   terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
 
-  // 14. Report findings to terminal
+  // 15. Report findings to terminal
   const reportFn = deps.reportToTerminal ?? reportToTerminal;
   const reportResult = await reportFn(
     executeResult.completeFindings,

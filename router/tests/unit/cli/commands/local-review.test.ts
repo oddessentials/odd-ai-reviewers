@@ -491,6 +491,44 @@ describe('runLocalReview', () => {
       // When explicitly set, uncommitted should be honored
       expect(capturedDiffOptions?.uncommitted).toBe(true);
     });
+
+    it('REGRESSION: should detect files when --base is specified without uncommitted', async () => {
+      // This test guards against a bug where Commander's default value for --uncommitted
+      // was `true`, causing commit range comparisons to be ignored in favor of worktree diffs.
+      // See: 016-semantic-release branch fix for --uncommitted default behavior.
+      const mockGitContext = createMockGitContext({ hasUncommitted: false });
+      const mockConfig = createMockConfig();
+      const mockDiffFiles = [
+        { path: 'src/changed.ts', status: 'modified' as const, additions: 50, deletions: 10 },
+        { path: 'src/new.ts', status: 'added' as const, additions: 100, deletions: 0 },
+      ];
+      const mockDiff = createMockDiff(mockDiffFiles);
+
+      let capturedDiffOptions: { baseRef: string; uncommitted?: boolean } | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return mockDiff;
+        },
+      });
+
+      // Simulate CLI behavior: only base is specified, uncommitted is undefined (not true)
+      await runLocalReview({ path: '/test/repo', base: 'main', dryRun: true }, deps);
+
+      // Critical assertions:
+      // 1. uncommitted should be false when --base is specified
+      expect(capturedDiffOptions?.uncommitted).toBe(false);
+      // 2. baseRef should be set correctly
+      expect(capturedDiffOptions?.baseRef).toBe('main');
+
+      // Verify dry-run output shows files (not 0)
+      const output = (deps.stdout.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+      expect(output).toContain('Count: 2');
+    });
   });
 
   describe('range/head handling', () => {
