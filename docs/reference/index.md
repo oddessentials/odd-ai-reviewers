@@ -6,6 +6,7 @@ Additional resources, project information, and supplementary materials.
 
 | Document                        | Description                                    |
 | ------------------------------- | ---------------------------------------------- |
+| [CLI Reference](./cli.md)       | Command-line tool usage and options            |
 | [Roadmap](./roadmap.md)         | Planned features and platform support timeline |
 | [Branding](./branding.md)       | Logo, colors, and brand guidelines             |
 | [Review Team](./review-team.md) | Meet the AI-powered review team                |

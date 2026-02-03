@@ -169,6 +169,30 @@ See [config-schema.md](docs/configuration/config-schema.md) for the full Agent C
 
 ---
 
+## 💻 Local Usage
+
+Run AI reviews locally without CI/CD integration:
+
+```bash
+# Install globally
+npm install -g @oddessentials/ai-review
+
+# Review local changes
+ai-review local .
+
+# Check if dependencies are installed
+ai-review check --verbose
+```
+
+**Prerequisites:** Some agents require external tools:
+
+- **Semgrep** — `brew install semgrep` (macOS) or `pip install semgrep` (Windows/Linux)
+- **Reviewdog** — `brew install reviewdog/tap/reviewdog` (macOS) or [download from GitHub](https://github.com/reviewdog/reviewdog/releases)
+
+📖 **[Full CLI Reference →](docs/reference/cli.md)**
+
+---
+
 ## 📚 Documentation
 
 📖 **[Browse Documentation Online](https://oddessentials.github.io/odd-ai-reviewers/)**
