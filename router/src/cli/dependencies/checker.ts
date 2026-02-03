@@ -6,7 +6,8 @@
 
 import { execFileSync } from 'child_process';
 
-import { getDependencyInfo } from './catalog.js';
+import type { Pass } from '../../config/schemas.js';
+import { getDependenciesForAgent, getDependencyInfo } from './catalog.js';
 import type { DependencyCheckResult } from './types.js';
 import { meetsMinimum, parseVersion } from './version.js';
 
@@ -107,4 +108,30 @@ export function checkDependency(name: string): DependencyCheckResult {
  */
 export function checkAllDependencies(names: string[]): DependencyCheckResult[] {
   return names.map((name) => checkDependency(name));
+}
+
+/**
+ * Derives the set of external dependencies required by configured passes.
+ * Only considers enabled passes.
+ *
+ * @param passes - Array of pass configurations
+ * @returns Array of unique dependency names required by the passes
+ */
+export function getDependenciesForPasses(passes: Pass[]): string[] {
+  const dependencies = new Set<string>();
+
+  for (const pass of passes) {
+    // Skip disabled passes
+    if (!pass.enabled) continue;
+
+    // Get dependencies for each agent in the pass
+    for (const agent of pass.agents) {
+      const agentDeps = getDependenciesForAgent(agent);
+      for (const dep of agentDeps) {
+        dependencies.add(dep);
+      }
+    }
+  }
+
+  return [...dependencies];
 }

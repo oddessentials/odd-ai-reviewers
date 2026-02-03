@@ -6,7 +6,11 @@
 import { execFileSync } from 'child_process';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-import { checkDependency, checkAllDependencies } from '../../../cli/dependencies/checker.js';
+import {
+  checkDependency,
+  checkAllDependencies,
+  getDependenciesForPasses,
+} from '../../../cli/dependencies/checker.js';
 import type { DependencyCheckResult } from '../../../cli/dependencies/types.js';
 
 // Mock child_process
@@ -285,6 +289,82 @@ describe('dependency checker', () => {
       expect(result).toHaveProperty('status');
       expect(result).toHaveProperty('version');
       expect(result).toHaveProperty('error');
+    });
+  });
+
+  describe('getDependenciesForPasses', () => {
+    it('returns empty array for empty passes', () => {
+      const result = getDependenciesForPasses([]);
+      expect(result).toEqual([]);
+    });
+
+    it('returns dependencies for semgrep agent', () => {
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toContain('semgrep');
+    });
+
+    it('returns dependencies for reviewdog agent', () => {
+      const passes = [
+        { name: 'test', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toContain('semgrep');
+      expect(result).toContain('reviewdog');
+    });
+
+    it('returns empty array for AI agents with no external deps', () => {
+      const passes = [
+        { name: 'test', agents: ['opencode' as const], enabled: true, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toEqual([]);
+    });
+
+    it('skips disabled passes', () => {
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: false, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toEqual([]);
+    });
+
+    it('deduplicates dependencies across passes', () => {
+      const passes = [
+        { name: 'pass1', agents: ['semgrep' as const], enabled: true, required: false },
+        { name: 'pass2', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      // Both semgrep and reviewdog need semgrep, but it should only appear once
+      const semgrepCount = result.filter((d) => d === 'semgrep').length;
+      expect(semgrepCount).toBe(1);
+    });
+
+    it('handles mixed enabled and disabled passes', () => {
+      const passes = [
+        { name: 'enabled', agents: ['semgrep' as const], enabled: true, required: false },
+        { name: 'disabled', agents: ['reviewdog' as const], enabled: false, required: false },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toContain('semgrep');
+      expect(result).not.toContain('reviewdog');
+    });
+
+    it('handles passes with multiple agents', () => {
+      const passes = [
+        {
+          name: 'multi',
+          agents: ['semgrep' as const, 'opencode' as const],
+          enabled: true,
+          required: false,
+        },
+      ];
+      const result = getDependenciesForPasses(passes);
+      expect(result).toContain('semgrep');
+      // opencode has no deps, so result should only be semgrep
+      expect(result).toHaveLength(1);
     });
   });
 });
