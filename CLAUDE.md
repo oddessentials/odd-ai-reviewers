@@ -35,6 +35,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (schema validation), Node.js child_process (execFileSync) (001-local-deps-setup)
 - TypeScript 5.9.x (ES2022 target, NodeNext modules) + semantic-release (core), @semantic-release/changelog, @semantic-release/git, @semantic-release/npm, @semantic-release/github, commitlint (existing) (016-semantic-release)
 - N/A (file-based: CHANGELOG.md, package.json) (016-semantic-release)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander.js 14.x (CLI), Zod 4.x (validation), Node.js ≥22.0.0 (001-local-review-improvements)
+- N/A (stateless CLI) (001-local-review-improvements)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -62,9 +64,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 001-local-review-improvements: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander.js 14.x (CLI), Zod 4.x (validation), Node.js ≥22.0.0
 - 016-semantic-release: Added TypeScript 5.9.x (ES2022 target, NodeNext modules) + semantic-release (core), @semantic-release/changelog, @semantic-release/git, @semantic-release/npm, @semantic-release/github, commitlint (existing)
 - 001-local-deps-setup: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (schema validation), Node.js child_process (execFileSync)
-- 407-local-review-mode: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (validation), existing agent SDKs
 
 
 
