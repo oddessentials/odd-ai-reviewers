@@ -7,7 +7,12 @@
  * @module cli/commands/check
  */
 
-import { getAllDependencyNames, checkAllDependencies } from '../dependencies/index.js';
+import {
+  getAllDependencyNames,
+  checkAllDependencies,
+  getDependencyInfo,
+  detectPlatform,
+} from '../dependencies/index.js';
 import type { DependencyCheckResult } from '../dependencies/types.js';
 
 /**
@@ -94,16 +99,69 @@ export function runCheck(_options: CheckOptions): CheckResult {
  * @param results - Dependency check results
  * @param options - Formatting options
  * @returns Formatted output string
- *
- * @remarks
- * Implementation pending in T024. This is a stub for TDD tests.
  */
 export function formatCheckOutput(
-  _results: DependencyCheckResult[],
-  _options: { verbose: boolean }
+  results: DependencyCheckResult[],
+  options: { verbose: boolean }
 ): string {
-  // T024 will implement this
-  throw new Error('Not implemented - see T024');
+  const lines: string[] = [];
+  const platform = detectPlatform();
+
+  // Header
+  lines.push('');
+  lines.push('Dependency Status Check');
+  lines.push('─'.repeat(40));
+  lines.push('');
+
+  for (const result of results) {
+    const depInfo = getDependencyInfo(result.name);
+    const displayName = depInfo?.displayName ?? result.name;
+
+    // Status line
+    switch (result.status) {
+      case 'available':
+        lines.push(`✓ ${displayName} ${result.version}`);
+        break;
+      case 'missing':
+        lines.push(`✗ ${displayName} - missing`);
+        break;
+      case 'unhealthy':
+        lines.push(`⚠ ${displayName} - unhealthy`);
+        if (result.error) {
+          lines.push(`    Error: ${result.error}`);
+        }
+        break;
+      case 'version-mismatch':
+        lines.push(`⚠ ${displayName} ${result.version} - version mismatch`);
+        if (depInfo?.minVersion) {
+          lines.push(`    Required: ${depInfo.minVersion} or later`);
+        }
+        break;
+    }
+
+    // Verbose details
+    if (options.verbose && depInfo) {
+      if (depInfo.minVersion) {
+        lines.push(`    Minimum version: ${depInfo.minVersion}`);
+      }
+      lines.push(`    Documentation: ${depInfo.docsUrl}`);
+
+      // Install instructions for non-available dependencies
+      if (result.status !== 'available') {
+        const instructions = depInfo.installInstructions[platform];
+        if (instructions) {
+          lines.push('    Install:');
+          for (const line of instructions.split('\n')) {
+            lines.push(`      ${line}`);
+          }
+        }
+      }
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 /**
