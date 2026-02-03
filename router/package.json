@@ -38,7 +38,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
-    "test:ci:coverage": "vitest run --coverage --reporter=json --outputFile=test-results.json",
+    "test:ci:coverage": "vitest run --coverage --reporter=json --reporter=dot --outputFile=test-results.json",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
