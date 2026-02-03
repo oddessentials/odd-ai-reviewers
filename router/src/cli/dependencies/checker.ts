@@ -8,7 +8,7 @@ import { execFileSync } from 'child_process';
 
 import type { Pass } from '../../config/schemas.js';
 import { getDependenciesForAgent, getDependencyInfo } from './catalog.js';
-import type { DependencyCheckResult } from './types.js';
+import type { DependencyCheckResult, DependencyCheckSummary } from './types.js';
 import { meetsMinimum, parseVersion } from './version.js';
 
 /** Timeout for version commands in milliseconds */
@@ -134,4 +134,90 @@ export function getDependenciesForPasses(passes: Pass[]): string[] {
   }
 
   return [...dependencies];
+}
+
+/**
+ * Gets dependencies that are required (blocking) based on pass configuration.
+ * A dependency is required if any enabled pass that uses it has required: true.
+ *
+ * @param passes - Array of pass configurations
+ * @returns Set of dependency names that are required
+ */
+function getRequiredDependencies(passes: Pass[]): Set<string> {
+  const requiredDeps = new Set<string>();
+
+  for (const pass of passes) {
+    // Only consider enabled, required passes
+    if (!pass.enabled || !pass.required) continue;
+
+    for (const agent of pass.agents) {
+      const agentDeps = getDependenciesForAgent(agent);
+      for (const dep of agentDeps) {
+        requiredDeps.add(dep);
+      }
+    }
+  }
+
+  return requiredDeps;
+}
+
+/**
+ * Checks all dependencies required by configured passes and returns a summary.
+ * Determines which missing dependencies are blocking (from required passes)
+ * vs optional (from optional passes).
+ *
+ * @param passes - Array of pass configurations
+ * @returns Summary of dependency check results
+ */
+export function checkDependenciesForPasses(passes: Pass[]): DependencyCheckSummary {
+  // Get all dependencies and check them
+  const allDeps = getDependenciesForPasses(passes);
+  const results = checkAllDependencies(allDeps);
+
+  // Determine which dependencies are required (from required passes)
+  const requiredDeps = getRequiredDependencies(passes);
+
+  // Categorize results
+  const missingRequired: string[] = [];
+  const missingOptional: string[] = [];
+  const unhealthy: string[] = [];
+  const versionWarnings: string[] = [];
+
+  for (const result of results) {
+    const isRequired = requiredDeps.has(result.name);
+
+    switch (result.status) {
+      case 'missing':
+        if (isRequired) {
+          missingRequired.push(result.name);
+        } else {
+          missingOptional.push(result.name);
+        }
+        break;
+      case 'unhealthy':
+        unhealthy.push(result.name);
+        break;
+      case 'version-mismatch':
+        versionWarnings.push(`${result.name}: ${result.version} < required minimum`);
+        break;
+    }
+  }
+
+  // Blocking issues: missing required deps OR unhealthy deps from required passes
+  const unhealthyRequired = unhealthy.filter((name) => requiredDeps.has(name));
+  const hasBlockingIssues = missingRequired.length > 0 || unhealthyRequired.length > 0;
+
+  // Warnings: optional missing, any unhealthy (even if not required), version mismatches
+  const hasWarnings =
+    missingOptional.length > 0 || unhealthy.length > 0 || versionWarnings.length > 0;
+
+  return {
+    results,
+    missingRequired,
+    missingOptional,
+    unhealthy,
+    versionWarnings,
+    hasBlockingIssues,
+    hasWarnings,
+  };
 }

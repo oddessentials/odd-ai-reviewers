@@ -10,6 +10,7 @@ import {
   checkDependency,
   checkAllDependencies,
   getDependenciesForPasses,
+  checkDependenciesForPasses,
 } from '../../../cli/dependencies/checker.js';
 import type { DependencyCheckResult } from '../../../cli/dependencies/types.js';
 
@@ -365,6 +366,110 @@ describe('dependency checker', () => {
       expect(result).toContain('semgrep');
       // opencode has no deps, so result should only be semgrep
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('checkDependenciesForPasses', () => {
+    it('returns summary with no blocking issues when all deps available', () => {
+      mockExecFileSync.mockReturnValue('semgrep 1.56.0');
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: true },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.hasBlockingIssues).toBe(false);
+      expect(summary.missingRequired).toEqual([]);
+      expect(summary.results).toHaveLength(1);
+      expect(summary.results[0]?.status).toBe('available');
+    });
+
+    it('returns blocking issues when required pass has missing deps', () => {
+      const error = new Error('ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      mockExecFileSync.mockImplementation(() => {
+        throw error;
+      });
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: true },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.hasBlockingIssues).toBe(true);
+      expect(summary.missingRequired).toContain('semgrep');
+    });
+
+    it('returns no blocking issues when optional pass has missing deps', () => {
+      const error = new Error('ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      mockExecFileSync.mockImplementation(() => {
+        throw error;
+      });
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.hasBlockingIssues).toBe(false);
+      expect(summary.missingOptional).toContain('semgrep');
+      expect(summary.hasWarnings).toBe(true);
+    });
+
+    it('returns empty results for passes with no external deps', () => {
+      const passes = [
+        { name: 'test', agents: ['opencode' as const], enabled: true, required: true },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.results).toHaveLength(0);
+      expect(summary.hasBlockingIssues).toBe(false);
+    });
+
+    it('categorizes unhealthy deps correctly', () => {
+      mockExecFileSync.mockReturnValue('unexpected output');
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: true },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.unhealthy).toContain('semgrep');
+      expect(summary.hasBlockingIssues).toBe(true); // unhealthy from required pass is blocking
+    });
+
+    it('categorizes version mismatches as warnings', () => {
+      mockExecFileSync.mockReturnValue('semgrep 0.99.0');
+      const passes = [
+        { name: 'test', agents: ['semgrep' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.versionWarnings).toHaveLength(1);
+      expect(summary.hasWarnings).toBe(true);
+      expect(summary.hasBlockingIssues).toBe(false);
+    });
+
+    it('handles mixed required and optional passes', () => {
+      mockExecFileSync.mockReturnValueOnce('semgrep 1.56.0').mockImplementationOnce(() => {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      });
+      const passes = [
+        { name: 'required', agents: ['semgrep' as const], enabled: true, required: true },
+        { name: 'optional', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      // semgrep is available, reviewdog is missing but optional
+      expect(summary.hasBlockingIssues).toBe(false);
+      expect(summary.missingOptional).toContain('reviewdog');
+      expect(summary.hasWarnings).toBe(true);
     });
   });
 });
