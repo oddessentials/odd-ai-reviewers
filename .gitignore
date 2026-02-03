@@ -46,3 +46,6 @@ docs/viewer/playwright-report/
 
 AGENTS.md
 CLAUDE.md
+
+# Package manager lock files (pnpm uses pnpm-lock.yaml)
+package-lock.json

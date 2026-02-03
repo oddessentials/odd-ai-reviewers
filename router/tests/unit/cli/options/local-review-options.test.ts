@@ -213,6 +213,44 @@ describe('parseLocalReviewOptions validation (T069)', () => {
       expect(result.value.options.staged).toBe(false);
     }
   });
+
+  it('should reject malformed range with multiple .. operators', () => {
+    const raw: RawLocalReviewOptions = {
+      range: 'main..feature..extra',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.message).toContain('Invalid range format');
+      expect(result.error.message).toContain('main..feature..extra');
+      expect(result.error.message).toContain('single operator only');
+    }
+  });
+
+  it('should reject malformed range with multiple ... operators', () => {
+    const raw: RawLocalReviewOptions = {
+      range: 'main...feature...extra',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.message).toContain('Invalid range format');
+    }
+  });
+
+  it('should reject malformed range with mixed .. and ... operators', () => {
+    const raw: RawLocalReviewOptions = {
+      range: 'main..feature...extra',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) {
+      expect(result.error.message).toContain('Invalid range format');
+    }
+  });
 });
 
 // =============================================================================

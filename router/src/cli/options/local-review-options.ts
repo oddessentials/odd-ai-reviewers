@@ -154,6 +154,20 @@ export function parseLocalReviewOptions(
     );
   }
 
+  // Validate range format - reject malformed ranges with multiple operators
+  if (raw.range) {
+    const operatorCount = (raw.range.match(/\.{2,3}/g) || []).length;
+    if (operatorCount > 1) {
+      return Err(
+        new ValidationError(
+          `Invalid range format: "${raw.range}". Use "base..head" or "base...head" (single operator only).`,
+          ValidationErrorCode.INVALID_INPUT,
+          { field: 'range', value: raw.range, constraint: 'single-operator' }
+        )
+      );
+    }
+  }
+
   // Determine staged and uncommitted values
   const staged = raw.staged ?? false;
   // Default uncommitted behavior:

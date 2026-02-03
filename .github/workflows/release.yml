@@ -115,15 +115,17 @@ jobs:
           TAG_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           echo "Git tag version: $TAG_VERSION"
 
-          # Check npm (with retry for propagation delay)
+          # Check npm (with retry for propagation delay using exponential backoff)
           echo "Checking npm registry..."
-          for i in 1 2 3 4 5; do
+          DELAY=5
+          for i in 1 2 3 4 5 6; do
             NPM_VERSION=$(npm view @oddessentials/ai-review version 2>/dev/null || echo "")
-            if [[ -n "$NPM_VERSION" ]]; then
+            if [[ -n "$NPM_VERSION" && "$NPM_VERSION" == "$EXPECTED" ]]; then
               break
             fi
-            echo "Waiting for npm registry (attempt $i)..."
-            sleep 10
+            echo "Waiting for npm registry (attempt $i, sleeping ${DELAY}s)..."
+            sleep $DELAY
+            DELAY=$((DELAY + 5))
           done
           echo "npm registry version: $NPM_VERSION"
 
