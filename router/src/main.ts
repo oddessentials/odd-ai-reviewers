@@ -55,6 +55,10 @@ export const defaultExitHandler: ExitHandler = (code: number): never => {
   process.exit(code);
 };
 
+function exitSuccess(exitHandler: ExitHandler): void {
+  exitHandler(0);
+}
+
 // =============================================================================
 // CLI Program
 // =============================================================================
@@ -593,9 +597,6 @@ export async function runReview(
 ): Promise<void> {
   const env = deps.env ?? (process.env as Record<string, string | undefined>);
   const exitHandler = deps.exitHandler ?? defaultExitHandler;
-  const exitSuccess = (): void => {
-    exitHandler(0);
-  };
   console.log('[router] Starting AI Review');
   console.log(`[router] Repository: ${options.repo}`);
   console.log(`[router] Diff: ${options.base}...${options.head}`);
@@ -619,7 +620,7 @@ export async function runReview(
     const adoContext = buildADOPRContext(routerEnv);
     if (!adoContext) {
       console.log('[router] Not running in ADO PR context - skipping review');
-      exitSuccess();
+      exitSuccess(exitHandler);
       return;
     }
     prContext = adoContext;
@@ -644,7 +645,7 @@ export async function runReview(
   const trustResult = checkTrust(prContext, config);
   if (!trustResult.trusted) {
     console.log(`[router] Skipping review: ${trustResult.reason}`);
-    exitSuccess();
+    exitSuccess(exitHandler);
     return;
   }
 
@@ -697,7 +698,7 @@ export async function runReview(
 
   if (filteredFiles.length === 0) {
     console.log('[router] No files to review after filtering');
-    exitSuccess();
+    exitSuccess(exitHandler);
     return;
   }
 
@@ -811,7 +812,7 @@ export async function runReview(
   checkGating(config, sorted);
 
   console.log('[router] Review complete');
-  exitSuccess();
+  exitSuccess(exitHandler);
 }
 
 // Only parse arguments when run directly (not when imported for testing)
