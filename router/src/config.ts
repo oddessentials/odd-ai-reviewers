@@ -126,7 +126,19 @@ export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Conf
  * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
  */
 export async function loadConfigFromPath(configPath: string): Promise<ValidatedConfig<Config>> {
-  const content = await readFile(configPath, 'utf-8');
+  let content: string;
+  try {
+    content = await readFile(configPath, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new ConfigError(
+        `Config file not found: ${configPath}`,
+        ConfigErrorCode.FILE_NOT_FOUND,
+        { path: configPath }
+      );
+    }
+    throw err; // Re-throw other errors
+  }
   const parsed = parseYaml(content);
   const userConfig =
     parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};

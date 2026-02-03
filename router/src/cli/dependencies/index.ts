@@ -59,6 +59,7 @@ export {
 } from './checker.js';
 
 // ============= Messages =============
+export type { WritableLike } from './messages.js';
 export {
   formatMissingDependencyError,
   formatDependencyStatus,

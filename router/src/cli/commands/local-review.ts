@@ -23,6 +23,7 @@ import type { ExecuteResult } from '../../phases/execute.js';
 import type { Result } from '../../types/result.js';
 import type { GenerateZeroConfigResult, ZeroConfigResult } from '../../config/zero-config.js';
 import type { ValidatedConfig } from '../../types/branded.js';
+import type { DependencyCheckSummary, SkippedPassInfo } from '../dependencies/types.js';
 
 import { isOk } from '../../types/result.js';
 import { inferGitContext, GitContextErrorCode } from '../git-context.js';
@@ -300,8 +301,6 @@ function buildAgentContext(
     provider: config.provider ?? null,
   };
 }
-
-import type { DependencyCheckSummary, SkippedPassInfo } from '../dependencies/types.js';
 
 /**
  * Build info about skipped passes for warning display.
@@ -864,7 +863,7 @@ export async function runLocalReview(
   // 5. Dependency preflight check (only needed when actually running agents)
   const depSummary = checkDependenciesForPasses(config.passes);
   if (depSummary.hasBlockingIssues) {
-    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
+    displayDependencyErrors(depSummary, stderr);
     return {
       exitCode: ExitCode.FAILURE,
       findingsCount: 0,
@@ -878,7 +877,7 @@ export async function runLocalReview(
 
   // Show warnings for skipped passes (graceful degradation)
   if (skippedPassInfo.length > 0 && !resolvedOptions.quiet) {
-    displaySkippedPassWarnings(skippedPassInfo, stderr as unknown as NodeJS.WriteStream);
+    displaySkippedPassWarnings(skippedPassInfo, stderr);
   }
 
   // Filter config to only include runnable passes
@@ -886,7 +885,7 @@ export async function runLocalReview(
 
   // Show warnings for other optional missing dependencies
   if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {
-    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
+    displayDependencyErrors(depSummary, stderr);
   }
 
   // 6. Load .reviewignore patterns (before diff to filter early)

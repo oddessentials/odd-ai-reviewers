@@ -41,6 +41,8 @@ export const DependencyCheckSummarySchema = z.object({
   versionWarnings: z.array(z.string()),
   hasBlockingIssues: z.boolean(),
   hasWarnings: z.boolean(),
+  runnablePasses: z.array(z.string()),
+  skippedPasses: z.array(z.string()),
 });
 
 // Inferred types from schemas (for type-safe usage)

@@ -129,8 +129,8 @@ jobs:
           done
           echo "npm registry version: $NPM_VERSION"
 
-          # Check CHANGELOG
-          CHANGELOG_VERSION=$(grep -oP '## \[\K[^\]]+' router/CHANGELOG.md | head -1)
+          # Check CHANGELOG (portable: grep -oE works on both GNU and BSD grep)
+          CHANGELOG_VERSION=$(grep -oE '## \[[^]]+\]' router/CHANGELOG.md | head -1 | sed 's/## \[//;s/\]//')
           echo "CHANGELOG version: $CHANGELOG_VERSION"
 
           # Verify all match

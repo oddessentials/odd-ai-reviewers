@@ -9,6 +9,15 @@ import { detectPlatform } from './platform.js';
 import type { DependencyCheckResult, DependencyCheckSummary } from './types.js';
 
 /**
+ * Minimal writable interface compatible with both:
+ * - process.stderr (full NodeJS.WriteStream)
+ * - Test mocks ({ write: (s: string) => void })
+ */
+export interface WritableLike {
+  write(text: string): void;
+}
+
+/**
  * Formats a missing or problematic dependency error with platform-specific
  * install instructions and documentation link.
  *
@@ -99,7 +108,7 @@ export function formatDependencyStatus(result: DependencyCheckResult): string {
  */
 export function displayDependencyErrors(
   summary: DependencyCheckSummary,
-  stderr: NodeJS.WriteStream
+  stderr: WritableLike
 ): void {
   const lines: string[] = [];
 
@@ -195,7 +204,7 @@ export function formatSkippedPassWarning(
  */
 export function displaySkippedPassWarnings(
   skippedPasses: { name: string; missingDep: string; reason: 'missing' | 'unhealthy' }[],
-  stderr: NodeJS.WriteStream
+  stderr: WritableLike
 ): void {
   if (skippedPasses.length === 0) {
     return;
