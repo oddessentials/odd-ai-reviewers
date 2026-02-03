@@ -1,0 +1,279 @@
+# Research: Automated npm Publishing with semantic-release
+
+**Feature**: 016-semantic-release
+**Date**: 2026-02-03
+
+## Research Tasks
+
+### 1. semantic-release Monorepo Configuration
+
+**Decision**: Use semantic-release with `pkgRoot` option pointing to `router/` directory
+
+**Rationale**:
+
+- semantic-release supports monorepos via the `pkgRoot` configuration option
+- This allows the tool to read/write package.json from a subdirectory while keeping config at root
+- The router/ package is the only published package, so single-package semantic-release is sufficient
+- No need for semantic-release-monorepo plugin since we only publish one package
+
+**Alternatives considered**:
+
+- semantic-release-monorepo plugin: Overkill for single-package publish
+- Separate semantic-release config in router/: Would complicate workflow and create maintenance burden
+- Lerna/Nx release: Would add significant complexity for single package
+
+### 2. GitHub App vs PAT for Protected Branch Push
+
+**Decision**: Create a GitHub App with "Contents: write" and "Workflows: write" permissions, configured with branch protection bypass
+
+**Rationale**:
+
+- GitHub Apps provide fine-grained permissions and dedicated bot identity
+- Actions can authenticate using the App's installation token
+- Bot commits are clearly attributable (e.g., `release-bot[bot]`)
+- Environment protection can scope the App's private key to only the release workflow
+- No personal token required, eliminating single-point-of-failure
+
+**Alternatives considered**:
+
+- Personal Access Token (PAT): Tied to individual user, less auditable, broad permissions
+- Default GITHUB_TOKEN: Cannot bypass branch protection rules
+- Deploy keys: Cannot be used with branch protection bypass
+
+**Implementation**:
+
+1. Create GitHub App in org settings with minimal permissions
+2. Install App on repository
+3. Store App ID and private key as environment secrets in "release" environment
+4. Use `actions/create-github-app-token` action to generate installation token
+5. Use token for git push and npm publish
+
+### 3. semantic-release Plugin Order for Idempotent Retries
+
+**Decision**: Configure plugins in order: verifyConditions → analyzeCommits → generateNotes → prepare → publish → success
+
+**Rationale**:
+
+- semantic-release handles tag-exists scenarios gracefully by default when properly configured
+- The `@semantic-release/git` plugin with `assets` config commits CHANGELOG.md and package.json
+- If a tag already exists, semantic-release skips to verification of published state
+- The `@semantic-release/npm` plugin checks npm registry before attempting publish
+
+**Plugin configuration**:
+
+```json
+{
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    ["@semantic-release/npm", { "pkgRoot": "router" }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["router/package.json", "router/CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
+```
+
+**Alternatives considered**:
+
+- Custom retry logic: Unnecessary given semantic-release's built-in idempotency
+- Manual state tracking: Would add complexity without benefit
+
+### 4. PR Title Validation Approach
+
+**Decision**: Use `amannn/action-semantic-pull-request` GitHub Action in CI workflow
+
+**Rationale**:
+
+- Purpose-built for validating PR titles against conventional commit format
+- Integrates with GitHub's required checks
+- Provides clear error messages to contributors
+- Works with squash-merge workflow (validates the title that becomes the commit message)
+- No custom code needed
+
+**Configuration**:
+
+```yaml
+- uses: amannn/action-semantic-pull-request@v5
+  with:
+    types: |
+      feat
+      fix
+      docs
+      style
+      refactor
+      perf
+      test
+      build
+      ci
+      chore
+      revert
+    requireScope: false
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Alternatives considered**:
+
+- Custom validation script: More maintenance, less battle-tested
+- commitlint on all commits: Doesn't work well with squash-merge (intermediate commits don't matter)
+- GitHub branch rule "Require linear history": Only enforces rebase, not commit format
+
+### 5. CHANGELOG Modification Detection
+
+**Decision**: Add CI job that fails if CHANGELOG.md is modified in PR, unless actor is release bot
+
+**Rationale**:
+
+- Simple conditional check in workflow file
+- Clear error message to contributors
+- Exception path for release bot is straightforward
+
+**Implementation**:
+
+```yaml
+- name: Check CHANGELOG not modified by humans
+  if: github.actor != 'release-bot[bot]'
+  run: |
+    if git diff --name-only origin/main...HEAD | grep -q "^router/CHANGELOG.md$"; then
+      echo "ERROR: CHANGELOG.md is machine-owned and cannot be modified in PRs."
+      echo "Changes to CHANGELOG.md will be auto-generated by semantic-release."
+      exit 1
+    fi
+```
+
+**Alternatives considered**:
+
+- CODEOWNERS with bot-only approval: Overly complex for simple file protection
+- GitHub branch rule path restriction: Cannot make exception for specific actors
+
+### 6. Post-Release Verification Strategy
+
+**Decision**: Add verification job that runs after semantic-release completes, checking all artifacts match
+
+**Rationale**:
+
+- Catches silent failures (npm publish reports success but package not available)
+- Provides explicit confirmation of successful release
+- Can fail workflow even if all previous steps "succeeded"
+
+**Implementation**:
+
+```yaml
+verify-release:
+  needs: release
+  steps:
+    - name: Verify version sync
+      run: |
+        # Get versions from all sources
+        TAG_VERSION="${{ needs.release.outputs.version }}"
+        PKG_VERSION=$(node -p "require('./router/package.json').version")
+        NPM_VERSION=$(npm view @oddessentials/ai-review version 2>/dev/null || echo "not-found")
+        CHANGELOG_VERSION=$(grep -oP '## \[\K[^\]]+' router/CHANGELOG.md | head -1)
+
+        # Compare
+        if [[ "$TAG_VERSION" != "$PKG_VERSION" ]] || \
+           [[ "$TAG_VERSION" != "$NPM_VERSION" ]] || \
+           [[ "$TAG_VERSION" != "$CHANGELOG_VERSION" ]]; then
+          echo "ERROR: Version mismatch detected"
+          echo "  Git tag: $TAG_VERSION"
+          echo "  package.json: $PKG_VERSION"
+          echo "  npm registry: $NPM_VERSION"
+          echo "  CHANGELOG.md: $CHANGELOG_VERSION"
+          exit 1
+        fi
+        echo "✓ All versions match: $TAG_VERSION"
+```
+
+**Alternatives considered**:
+
+- Trust semantic-release output: Doesn't catch npm registry propagation issues
+- External monitoring: Out of scope, post-hoc rather than workflow-integrated
+
+### 7. Dry-Run Implementation
+
+**Decision**: Use `semantic-release --dry-run` flag with identical configuration
+
+**Rationale**:
+
+- Built-in semantic-release feature
+- Uses exact same config file and plugin order
+- Outputs what would happen without making changes
+- Can be triggered via workflow_dispatch input
+
+**Implementation**:
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    steps:
+      - name: Run semantic-release
+        run: |
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            pnpm exec semantic-release --dry-run
+          else
+            pnpm exec semantic-release
+          fi
+```
+
+**Alternatives considered**:
+
+- Separate dry-run script: Would diverge from real release config
+- Preview in PR comments: Interesting but out of scope for MVP
+
+### 8. Environment Protection Configuration
+
+**Decision**: Create "release" environment with required reviewers disabled but deployment branch restriction to `main`
+
+**Rationale**:
+
+- Secrets in this environment are only accessible when running on main branch
+- Prevents feature branches from accessing release credentials
+- No manual approval needed (would defeat automation purpose)
+- Environment protection rules provide audit log
+
+**Configuration steps**:
+
+1. Create "release" environment in repository settings
+2. Configure deployment branch restriction: `main` only
+3. Add secrets: `APP_ID`, `APP_PRIVATE_KEY`, `NPM_TOKEN`
+4. Reference environment in workflow: `environment: release`
+
+**Alternatives considered**:
+
+- Repository-level secrets: Accessible from any branch, less secure
+- Required reviewers: Would require manual approval for each release, defeating automation
+
+## Dependencies Summary
+
+| Dependency                          | Version | Purpose                                |
+| ----------------------------------- | ------- | -------------------------------------- |
+| semantic-release                    | ^24.0.0 | Core release automation                |
+| @semantic-release/changelog         | ^6.0.0  | CHANGELOG.md generation                |
+| @semantic-release/git               | ^10.0.0 | Commit version files back to repo      |
+| @semantic-release/npm               | ^12.0.0 | npm publish                            |
+| @semantic-release/github            | ^10.0.0 | GitHub release creation                |
+| amannn/action-semantic-pull-request | v5      | PR title validation (GitHub Action)    |
+| actions/create-github-app-token     | v1      | Generate GitHub App installation token |
+
+## Risks & Mitigations
+
+| Risk                                        | Impact | Mitigation                                                                 |
+| ------------------------------------------- | ------ | -------------------------------------------------------------------------- |
+| GitHub App setup complexity                 | Medium | Document step-by-step in quickstart.md                                     |
+| Breaking existing manual release flow       | Low    | Keep npm-publish.yml as backup, deprecate later                            |
+| npm registry unavailability                 | Low    | Retry logic built into semantic-release, verification job catches failures |
+| First release may need manual version reset | Low    | Can set initial version in package.json before enabling                    |
