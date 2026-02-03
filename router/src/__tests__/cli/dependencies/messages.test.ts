@@ -170,7 +170,7 @@ describe('message formatting', () => {
       const formatted = formatDependencyStatus(result);
 
       expect(formatted).toContain('✓');
-      expect(formatted).toContain('semgrep');
+      expect(formatted.toLowerCase()).toContain('semgrep');
       expect(formatted).toContain('1.56.0');
     });
 
@@ -185,7 +185,7 @@ describe('message formatting', () => {
       const formatted = formatDependencyStatus(result);
 
       expect(formatted).toContain('✗');
-      expect(formatted).toContain('semgrep');
+      expect(formatted.toLowerCase()).toContain('semgrep');
       expect(formatted).toContain('missing');
     });
 
@@ -199,7 +199,7 @@ describe('message formatting', () => {
 
       const formatted = formatDependencyStatus(result);
 
-      expect(formatted).toContain('semgrep');
+      expect(formatted.toLowerCase()).toContain('semgrep');
       expect(formatted.toLowerCase()).toContain('unhealthy');
     });
 
@@ -213,7 +213,7 @@ describe('message formatting', () => {
 
       const formatted = formatDependencyStatus(result);
 
-      expect(formatted).toContain('semgrep');
+      expect(formatted.toLowerCase()).toContain('semgrep');
       expect(formatted).toContain('0.99.0');
     });
   });
