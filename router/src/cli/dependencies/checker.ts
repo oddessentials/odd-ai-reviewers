@@ -100,14 +100,11 @@ export function checkDependency(name: string): DependencyCheckResult {
 
 /**
  * Checks multiple dependencies and returns all results.
+ * Continues checking remaining dependencies even if one fails.
  *
  * @param names - Array of dependency names to check
- * @returns Array of check results
- *
- * @remarks
- * Implementation pending in T015. This is a stub for TDD tests.
+ * @returns Array of check results in the same order as input
  */
-export function checkAllDependencies(_names: string[]): DependencyCheckResult[] {
-  // T015 will implement this
-  throw new Error('Not implemented - see T015');
+export function checkAllDependencies(names: string[]): DependencyCheckResult[] {
+  return names.map((name) => checkDependency(name));
 }

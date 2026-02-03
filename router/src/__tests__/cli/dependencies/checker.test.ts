@@ -28,7 +28,7 @@ describe('dependency checker', () => {
   describe('checkDependency', () => {
     describe('available state', () => {
       it('returns available when dependency exists with valid version', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('semgrep 1.56.0'));
+        mockExecFileSync.mockReturnValue('semgrep 1.56.0');
 
         const result = checkDependency('semgrep');
 
@@ -39,7 +39,7 @@ describe('dependency checker', () => {
       });
 
       it('returns available for reviewdog with valid version', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('reviewdog version: 0.17.4'));
+        mockExecFileSync.mockReturnValue('reviewdog version: 0.17.4');
 
         const result = checkDependency('reviewdog');
 
@@ -50,7 +50,7 @@ describe('dependency checker', () => {
       });
 
       it('calls execFileSync with correct arguments for semgrep', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('semgrep 1.56.0'));
+        mockExecFileSync.mockReturnValue('semgrep 1.56.0');
 
         checkDependency('semgrep');
 
@@ -61,7 +61,7 @@ describe('dependency checker', () => {
       });
 
       it('calls execFileSync with correct arguments for reviewdog', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('reviewdog version: 0.17.4'));
+        mockExecFileSync.mockReturnValue('reviewdog version: 0.17.4');
 
         checkDependency('reviewdog');
 
@@ -72,7 +72,7 @@ describe('dependency checker', () => {
       });
 
       it('returns available when version exceeds minimum', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('semgrep 2.0.0'));
+        mockExecFileSync.mockReturnValue('semgrep 2.0.0');
 
         const result = checkDependency('semgrep');
 
@@ -81,7 +81,7 @@ describe('dependency checker', () => {
       });
 
       it('returns available when version equals minimum', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('semgrep 1.0.0'));
+        mockExecFileSync.mockReturnValue('semgrep 1.0.0');
 
         const result = checkDependency('semgrep');
 
@@ -150,7 +150,7 @@ describe('dependency checker', () => {
       });
 
       it('returns unhealthy when version output cannot be parsed', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('unexpected output format'));
+        mockExecFileSync.mockReturnValue('unexpected output format');
 
         const result = checkDependency('semgrep');
 
@@ -160,7 +160,7 @@ describe('dependency checker', () => {
       });
 
       it('returns unhealthy when version output is empty', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from(''));
+        mockExecFileSync.mockReturnValue('');
 
         const result = checkDependency('semgrep');
 
@@ -171,7 +171,7 @@ describe('dependency checker', () => {
 
     describe('version-mismatch state', () => {
       it('returns version-mismatch when semgrep version is below minimum', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('semgrep 0.99.0'));
+        mockExecFileSync.mockReturnValue('semgrep 0.99.0');
 
         const result = checkDependency('semgrep');
 
@@ -182,7 +182,7 @@ describe('dependency checker', () => {
       });
 
       it('returns version-mismatch when reviewdog version is below minimum', () => {
-        mockExecFileSync.mockReturnValue(Buffer.from('reviewdog version: 0.13.0'));
+        mockExecFileSync.mockReturnValue('reviewdog version: 0.13.0');
 
         const result = checkDependency('reviewdog');
 
@@ -203,8 +203,8 @@ describe('dependency checker', () => {
   describe('checkAllDependencies', () => {
     it('checks multiple dependencies and returns all results', () => {
       mockExecFileSync
-        .mockReturnValueOnce(Buffer.from('semgrep 1.56.0'))
-        .mockReturnValueOnce(Buffer.from('reviewdog version: 0.17.4'));
+        .mockReturnValueOnce('semgrep 1.56.0')
+        .mockReturnValueOnce('reviewdog version: 0.17.4');
 
       const results = checkAllDependencies(['semgrep', 'reviewdog']);
 
@@ -223,7 +223,7 @@ describe('dependency checker', () => {
     });
 
     it('handles mixed availability states', () => {
-      mockExecFileSync.mockReturnValueOnce(Buffer.from('semgrep 1.56.0'));
+      mockExecFileSync.mockReturnValueOnce('semgrep 1.56.0');
 
       const missingError = new Error('ENOENT') as NodeJS.ErrnoException;
       missingError.code = 'ENOENT';
@@ -245,7 +245,7 @@ describe('dependency checker', () => {
         throw missingError;
       });
 
-      mockExecFileSync.mockReturnValueOnce(Buffer.from('reviewdog version: 0.17.4'));
+      mockExecFileSync.mockReturnValueOnce('reviewdog version: 0.17.4');
 
       const results = checkAllDependencies(['semgrep', 'reviewdog']);
 
@@ -257,7 +257,7 @@ describe('dependency checker', () => {
 
   describe('DependencyCheckResult contract', () => {
     it('returns result matching DependencyCheckResult interface for available state', () => {
-      mockExecFileSync.mockReturnValue(Buffer.from('semgrep 1.56.0'));
+      mockExecFileSync.mockReturnValue('semgrep 1.56.0');
 
       const result: DependencyCheckResult = checkDependency('semgrep');
 
