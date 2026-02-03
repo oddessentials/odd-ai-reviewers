@@ -7,6 +7,7 @@
  * @module cli/commands/check
  */
 
+import { getAllDependencyNames, checkAllDependencies } from '../dependencies/index.js';
 import type { DependencyCheckResult } from '../dependencies/types.js';
 
 /**
@@ -40,15 +41,51 @@ export interface CheckResult {
 /**
  * Run the check command to validate all known dependencies.
  *
- * @param options - Command options
+ * @param _options - Command options (verbose, json flags)
  * @returns Check result with exit code and dependency status
- *
- * @remarks
- * Implementation pending in T023. This is a stub for TDD tests.
  */
 export function runCheck(_options: CheckOptions): CheckResult {
-  // T023 will implement this
-  throw new Error('Not implemented - see T023');
+  // Get all known dependency names and check them
+  const depNames = getAllDependencyNames();
+  const results = checkAllDependencies(depNames);
+
+  // Build summary
+  const summary = {
+    available: 0,
+    missing: 0,
+    unhealthy: 0,
+    versionMismatch: 0,
+    allAvailable: true,
+  };
+
+  for (const result of results) {
+    switch (result.status) {
+      case 'available':
+        summary.available++;
+        break;
+      case 'missing':
+        summary.missing++;
+        summary.allAvailable = false;
+        break;
+      case 'unhealthy':
+        summary.unhealthy++;
+        summary.allAvailable = false;
+        break;
+      case 'version-mismatch':
+        summary.versionMismatch++;
+        summary.allAvailable = false;
+        break;
+    }
+  }
+
+  // Exit code: 0 if all available, 1 otherwise
+  const exitCode = summary.allAvailable ? 0 : 1;
+
+  return {
+    exitCode,
+    results,
+    summary,
+  };
 }
 
 /**
