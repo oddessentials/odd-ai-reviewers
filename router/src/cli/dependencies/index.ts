@@ -48,3 +48,18 @@ export {
   getAllDependencyNames,
   agentRequiresExternalDeps,
 } from './catalog.js';
+
+// ============= Checker =============
+export {
+  checkDependency,
+  checkAllDependencies,
+  getDependenciesForPasses,
+  checkDependenciesForPasses,
+} from './checker.js';
+
+// ============= Messages =============
+export {
+  formatMissingDependencyError,
+  formatDependencyStatus,
+  displayDependencyErrors,
+} from './messages.js';

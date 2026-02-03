@@ -52,6 +52,7 @@ import {
 import { countBySeverity } from '../../report/formats.js';
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
+import { checkDependenciesForPasses, displayDependencyErrors } from '../dependencies/index.js';
 
 // =============================================================================
 // Types
@@ -743,7 +744,24 @@ export async function runLocalReview(
     stdout.write(c.gray('Tip: Create .ai-review.yml to customize settings\n\n'));
   }
 
-  // 4. Handle special modes (dry-run and cost-only)
+  // 4. Dependency preflight check
+  const depSummary = checkDependenciesForPasses(config.passes);
+  if (depSummary.hasBlockingIssues) {
+    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
+    return {
+      exitCode: ExitCode.FAILURE,
+      findingsCount: 0,
+      partialFindingsCount: 0,
+      error: 'Missing required dependencies',
+    };
+  }
+
+  // Show warnings for optional missing dependencies
+  if (depSummary.hasWarnings && !resolvedOptions.quiet) {
+    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
+  }
+
+  // 5. Handle special modes (dry-run and cost-only)
   if (resolvedOptions.dryRun) {
     const dryRunResult = await executeDryRun(
       resolvedOptions,
