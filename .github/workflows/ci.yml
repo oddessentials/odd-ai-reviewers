@@ -177,7 +177,7 @@ jobs:
       matrix:
         include:
           - os: Linux
-            runs-on: ubuntu-linux
+            runs-on: ubuntu-latest
           - os: macOS
             runs-on: macos-latest
           - os: Windows
@@ -215,7 +215,7 @@ jobs:
 
   container-security:
     name: Container Security Scan
-    runs-on: ubuntu-linux
+    runs-on: ubuntu-latest
     needs: quality
 
     steps:
