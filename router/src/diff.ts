@@ -428,9 +428,10 @@ export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] 
     }
 
     // Check exclude patterns from config
+    // Note: dot:true ensures dotfiles (e.g., .releaserc.json) match patterns like **/*.json
     if (filter.exclude) {
       for (const pattern of filter.exclude) {
-        if (minimatch(file.path, pattern)) {
+        if (minimatch(file.path, pattern, { dot: true })) {
           return false;
         }
       }
@@ -439,7 +440,7 @@ export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] 
     // If include patterns exist, file must match at least one
     if (filter.include && filter.include.length > 0) {
       for (const pattern of filter.include) {
-        if (minimatch(file.path, pattern)) {
+        if (minimatch(file.path, pattern, { dot: true })) {
           return true;
         }
       }
