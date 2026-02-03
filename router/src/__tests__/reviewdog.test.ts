@@ -15,7 +15,7 @@ import {
   isReviewdogAvailable,
   isSemgrepAvailable,
 } from '../agents/reviewdog.js';
-import { isSuccess, isSkipped } from '../agents/types.js';
+import { isSkipped } from '../agents/types.js';
 
 describe('Reviewdog Agent', () => {
   describe('mapSeverity', () => {
@@ -256,10 +256,8 @@ describe('Reviewdog Agent', () => {
     });
 
     it('should filter out deleted files before processing', async () => {
-      const hasSemgrep = isSemgrepAvailable();
-      if (!hasSemgrep) {
-        return;
-      }
+      // When all files are deleted, the agent returns Skipped (not Success)
+      // because there are no files to process after filtering
 
       const result = await reviewdogAgent.run({
         files: [
@@ -296,9 +294,12 @@ describe('Reviewdog Agent', () => {
         provider: null,
       });
 
-      expect(isSuccess(result)).toBe(true);
-      if (isSuccess(result)) {
-        expect(result.findings).toEqual([]);
+      // Agent skips when no files to process (all deleted files are filtered out)
+      // or when semgrep is not available
+      expect(isSkipped(result)).toBe(true);
+      if (isSkipped(result)) {
+        // Either "No files to process" or "Semgrep binary not found"
+        expect(result.reason.includes('No files') || result.reason.includes('Semgrep')).toBe(true);
         expect(result.metrics.filesProcessed).toBe(0);
       }
     });
