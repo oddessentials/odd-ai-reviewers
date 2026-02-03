@@ -174,6 +174,14 @@ export function checkDependenciesForPasses(passes: Pass[]): DependencyCheckSumma
   const allDeps = getDependenciesForPasses(passes);
   const results = checkAllDependencies(allDeps);
 
+  // Build a set of unavailable deps (missing or unhealthy)
+  const unavailableDeps = new Set<string>();
+  for (const result of results) {
+    if (result.status === 'missing' || result.status === 'unhealthy') {
+      unavailableDeps.add(result.name);
+    }
+  }
+
   // Determine which dependencies are required (from required passes)
   const requiredDeps = getRequiredDependencies(passes);
 
@@ -203,6 +211,36 @@ export function checkDependenciesForPasses(passes: Pass[]): DependencyCheckSumma
     }
   }
 
+  // Determine runnable and skipped passes
+  const runnablePasses: string[] = [];
+  const skippedPasses: string[] = [];
+
+  for (const pass of passes) {
+    // Skip disabled passes entirely
+    if (!pass.enabled) continue;
+
+    // Get dependencies for this pass
+    const passDeps = new Set<string>();
+    for (const agent of pass.agents) {
+      const agentDeps = getDependenciesForAgent(agent);
+      for (const dep of agentDeps) {
+        passDeps.add(dep);
+      }
+    }
+
+    // Check if all deps are available
+    const hasUnavailableDep = [...passDeps].some((dep) => unavailableDeps.has(dep));
+
+    if (hasUnavailableDep) {
+      // Only skip optional passes (required passes cause blocking issue)
+      if (!pass.required) {
+        skippedPasses.push(pass.name);
+      }
+    } else {
+      runnablePasses.push(pass.name);
+    }
+  }
+
   // Blocking issues: missing required deps OR unhealthy deps from required passes
   const unhealthyRequired = unhealthy.filter((name) => requiredDeps.has(name));
   const hasBlockingIssues = missingRequired.length > 0 || unhealthyRequired.length > 0;
@@ -219,5 +257,7 @@ export function checkDependenciesForPasses(passes: Pass[]): DependencyCheckSumma
     versionWarnings,
     hasBlockingIssues,
     hasWarnings,
+    runnablePasses,
+    skippedPasses,
   };
 }

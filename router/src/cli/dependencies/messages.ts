@@ -163,3 +163,57 @@ export function displayDependencyErrors(
   // Write to stderr
   stderr.write(lines.join('\n'));
 }
+
+/**
+ * Formats a warning message for a skipped pass.
+ *
+ * @param passName - Name of the skipped pass
+ * @param missingDep - The dependency that caused the skip
+ * @param reason - Why it was skipped: 'missing' or 'unhealthy'
+ * @returns Formatted warning message
+ */
+export function formatSkippedPassWarning(
+  passName: string,
+  missingDep: string,
+  reason: 'missing' | 'unhealthy'
+): string {
+  const depInfo = getDependencyInfo(missingDep);
+  const displayName = depInfo?.displayName ?? missingDep;
+
+  if (reason === 'missing') {
+    return `⚠ Pass "${passName}" skipped: ${displayName} is missing`;
+  } else {
+    return `⚠ Pass "${passName}" skipped: ${displayName} is unhealthy`;
+  }
+}
+
+/**
+ * Displays warnings for skipped passes to stderr.
+ *
+ * @param skippedPasses - Array of skipped pass info
+ * @param stderr - The stderr stream to write to
+ */
+export function displaySkippedPassWarnings(
+  skippedPasses: { name: string; missingDep: string; reason: 'missing' | 'unhealthy' }[],
+  stderr: NodeJS.WriteStream
+): void {
+  if (skippedPasses.length === 0) {
+    return;
+  }
+
+  const lines: string[] = [];
+
+  lines.push('');
+  lines.push('⚠ Some passes were skipped due to missing dependencies:');
+  lines.push('');
+
+  for (const pass of skippedPasses) {
+    lines.push(formatSkippedPassWarning(pass.name, pass.missingDep, pass.reason));
+  }
+
+  lines.push('');
+  lines.push('  Run "ai-review check" to see installation instructions.');
+  lines.push('');
+
+  stderr.write(lines.join('\n'));
+}

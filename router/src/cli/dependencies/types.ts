@@ -82,6 +82,22 @@ export interface DependencyCheckSummary {
   hasBlockingIssues: boolean;
   /** True if any non-blocking issues exist */
   hasWarnings: boolean;
+  /** Names of passes that can run (all deps available) */
+  runnablePasses: string[];
+  /** Names of passes skipped due to missing/unhealthy deps */
+  skippedPasses: string[];
+}
+
+/**
+ * Information about a skipped pass and why it was skipped.
+ */
+export interface SkippedPassInfo {
+  /** Pass name */
+  name: string;
+  /** The missing dependency that caused the skip */
+  missingDep: string;
+  /** Reason for skip: missing or unhealthy */
+  reason: 'missing' | 'unhealthy';
 }
 
 // ============= Pass Mapping =============

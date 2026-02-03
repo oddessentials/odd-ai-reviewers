@@ -14,6 +14,14 @@ export {
   type CostEstimateResult,
 } from './local-review.js';
 
+export {
+  runCheck,
+  formatCheckOutput,
+  formatCheckOutputJson,
+  type CheckOptions,
+  type CheckResult,
+} from './check.js';
+
 /**
  * Command registry version - used for module loading verification
  */

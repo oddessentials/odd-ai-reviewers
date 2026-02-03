@@ -15,6 +15,7 @@ export type {
   PassDependencyInfo,
   DependencyCatalog,
   AgentDependencyMap,
+  SkippedPassInfo,
 } from './types.js';
 
 // ============= Schemas =============
@@ -62,4 +63,6 @@ export {
   formatMissingDependencyError,
   formatDependencyStatus,
   displayDependencyErrors,
+  formatSkippedPassWarning,
+  displaySkippedPassWarnings,
 } from './messages.js';

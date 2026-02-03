@@ -471,5 +471,86 @@ describe('dependency checker', () => {
       expect(summary.missingOptional).toContain('reviewdog');
       expect(summary.hasWarnings).toBe(true);
     });
+
+    it('includes skippedPasses for optional passes with missing deps', () => {
+      mockExecFileSync.mockReturnValueOnce('semgrep 1.56.0').mockImplementationOnce(() => {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      });
+      const passes = [
+        { name: 'sast', agents: ['semgrep' as const], enabled: true, required: true },
+        { name: 'linting', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.skippedPasses).toBeDefined();
+      expect(summary.skippedPasses).toContain('linting');
+      expect(summary.skippedPasses).not.toContain('sast');
+    });
+
+    it('returns empty skippedPasses when all deps available', () => {
+      mockExecFileSync
+        .mockReturnValueOnce('semgrep 1.56.0')
+        .mockReturnValueOnce('reviewdog version: 0.17.4');
+      const passes = [
+        { name: 'sast', agents: ['semgrep' as const], enabled: true, required: true },
+        { name: 'linting', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.skippedPasses).toEqual([]);
+    });
+
+    it('includes runnablePasses for passes with available deps', () => {
+      mockExecFileSync.mockReturnValueOnce('semgrep 1.56.0').mockImplementationOnce(() => {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      });
+      const passes = [
+        { name: 'sast', agents: ['semgrep' as const], enabled: true, required: true },
+        { name: 'linting', agents: ['reviewdog' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      expect(summary.runnablePasses).toBeDefined();
+      expect(summary.runnablePasses).toContain('sast');
+      expect(summary.runnablePasses).not.toContain('linting');
+    });
+
+    it('includes passes with no external deps in runnablePasses', () => {
+      const error = new Error('ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      mockExecFileSync.mockImplementation(() => {
+        throw error;
+      });
+      const passes = [
+        { name: 'ai-review', agents: ['opencode' as const], enabled: true, required: true },
+        { name: 'sast', agents: ['semgrep' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      // opencode has no deps, so it should be runnable even though semgrep is missing
+      expect(summary.runnablePasses).toContain('ai-review');
+      expect(summary.skippedPasses).toContain('sast');
+    });
+
+    it('skips passes with unhealthy deps (warning mode)', () => {
+      mockExecFileSync.mockReturnValue('unexpected output');
+      const passes = [
+        { name: 'sast', agents: ['semgrep' as const], enabled: true, required: false },
+      ];
+
+      const summary = checkDependenciesForPasses(passes);
+
+      // unhealthy deps from optional passes should cause skip with warning
+      expect(summary.skippedPasses).toContain('sast');
+      expect(summary.hasWarnings).toBe(true);
+    });
   });
 });

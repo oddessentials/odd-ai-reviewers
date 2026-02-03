@@ -52,7 +52,12 @@ import {
 import { countBySeverity } from '../../report/formats.js';
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
-import { checkDependenciesForPasses, displayDependencyErrors } from '../dependencies/index.js';
+import {
+  checkDependenciesForPasses,
+  displayDependencyErrors,
+  displaySkippedPassWarnings,
+  getDependenciesForAgent,
+} from '../dependencies/index.js';
 
 // =============================================================================
 // Types
@@ -278,6 +283,64 @@ function buildAgentContext(
     env,
     effectiveModel: config.models?.default ?? '',
     provider: config.provider ?? null,
+  };
+}
+
+import type { DependencyCheckSummary, SkippedPassInfo } from '../dependencies/types.js';
+
+/**
+ * Build info about skipped passes for warning display.
+ * Determines which dependency caused each pass to be skipped.
+ */
+function buildSkippedPassInfo(
+  passes: Config['passes'],
+  depSummary: DependencyCheckSummary
+): SkippedPassInfo[] {
+  const skippedInfo: SkippedPassInfo[] = [];
+
+  // Build set of unavailable deps with their reason
+  const unavailableDeps = new Map<string, 'missing' | 'unhealthy'>();
+  for (const result of depSummary.results) {
+    if (result.status === 'missing') {
+      unavailableDeps.set(result.name, 'missing');
+    } else if (result.status === 'unhealthy') {
+      unavailableDeps.set(result.name, 'unhealthy');
+    }
+  }
+
+  for (const pass of passes) {
+    if (!pass.enabled || pass.required) continue;
+
+    // Check if this pass has unavailable deps
+    for (const agent of pass.agents) {
+      const agentDeps = getDependenciesForAgent(agent);
+      for (const dep of agentDeps) {
+        const reason = unavailableDeps.get(dep);
+        if (reason) {
+          skippedInfo.push({
+            name: pass.name,
+            missingDep: dep,
+            reason,
+          });
+          break; // Only report first unavailable dep per pass
+        }
+      }
+    }
+  }
+
+  return skippedInfo;
+}
+
+/**
+ * Filter config to only include passes whose dependencies are available.
+ */
+function filterToRunnablePasses(config: Config, runnablePassNames: string[]): Config {
+  const runnableSet = new Set(runnablePassNames);
+  return {
+    ...config,
+    passes: config.passes.filter(
+      (pass) => !pass.enabled || pass.required || runnableSet.has(pass.name)
+    ),
   };
 }
 
@@ -744,24 +807,8 @@ export async function runLocalReview(
     stdout.write(c.gray('Tip: Create .ai-review.yml to customize settings\n\n'));
   }
 
-  // 4. Dependency preflight check
-  const depSummary = checkDependenciesForPasses(config.passes);
-  if (depSummary.hasBlockingIssues) {
-    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
-    return {
-      exitCode: ExitCode.FAILURE,
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      error: 'Missing required dependencies',
-    };
-  }
-
-  // Show warnings for optional missing dependencies
-  if (depSummary.hasWarnings && !resolvedOptions.quiet) {
-    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
-  }
-
-  // 5. Handle special modes (dry-run and cost-only)
+  // 4. Handle special modes (dry-run and cost-only) - before dependency check
+  // These modes don't execute agents, so dependencies are not required
   if (resolvedOptions.dryRun) {
     const dryRunResult = await executeDryRun(
       resolvedOptions,
@@ -781,6 +828,34 @@ export async function runLocalReview(
     const output = formatCostOutput(costResult, colored);
     stdout.write(output);
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
+  }
+
+  // 5. Dependency preflight check (only needed when actually running agents)
+  const depSummary = checkDependenciesForPasses(config.passes);
+  if (depSummary.hasBlockingIssues) {
+    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
+    return {
+      exitCode: ExitCode.FAILURE,
+      findingsCount: 0,
+      partialFindingsCount: 0,
+      error: 'Missing required dependencies',
+    };
+  }
+
+  // Build skipped pass info for warnings
+  const skippedPassInfo = buildSkippedPassInfo(config.passes, depSummary);
+
+  // Show warnings for skipped passes (graceful degradation)
+  if (skippedPassInfo.length > 0 && !resolvedOptions.quiet) {
+    displaySkippedPassWarnings(skippedPassInfo, stderr as unknown as NodeJS.WriteStream);
+  }
+
+  // Filter config to only include runnable passes
+  const runnableConfig = filterToRunnablePasses(config, depSummary.runnablePasses);
+
+  // Show warnings for other optional missing dependencies
+  if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {
+    displayDependencyErrors(depSummary, stderr as unknown as NodeJS.WriteStream);
   }
 
   // 5. Load .reviewignore patterns (before diff to filter early)
@@ -808,10 +883,10 @@ export async function runLocalReview(
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
 
-  // 8. Build agent context
+  // 8. Build agent context (using runnableConfig with filtered passes)
   const routerEnv = buildRouterEnv(env);
-  const agentContext = buildAgentContext(gitContext.repoRoot, diff, config, routerEnv);
-  const configHash = hashConfig(config);
+  const agentContext = buildAgentContext(gitContext.repoRoot, diff, runnableConfig, routerEnv);
+  const configHash = hashConfig(config); // Use original config for consistent cache key
 
   // 9. Check budget
   const diffContent = buildCombinedDiff(diff.files, config.limits?.max_diff_lines ?? 5000);
@@ -861,8 +936,8 @@ export async function runLocalReview(
   let executeResult: ExecuteResult;
 
   try {
-    // Set up partial results tracking
-    const totalAgents = config.passes.reduce(
+    // Set up partial results tracking (using runnableConfig which excludes skipped passes)
+    const totalAgents = runnableConfig.passes.reduce(
       (sum, p) => (p.enabled ? sum + p.agents.length : sum),
       0
     );
@@ -874,7 +949,7 @@ export async function runLocalReview(
     });
 
     const executeFn = deps.executeAllPasses ?? executeAllPasses;
-    executeResult = await executeFn(config, agentContext, routerEnv, budgetCheck, {
+    executeResult = await executeFn(runnableConfig, agentContext, routerEnv, budgetCheck, {
       configHash,
       head: diff.headSha,
     });

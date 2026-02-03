@@ -152,6 +152,27 @@ program
     }
   });
 
+// Check command (Feature 001-local-deps-setup - Dependency validation)
+program
+  .command('check')
+  .description('Check external dependency availability')
+  .option('--verbose', 'Show additional details (minimum version, docs URL)')
+  .option('--json', 'Output results in JSON format')
+  .action(async (options) => {
+    const { runCheck, formatCheckOutput, formatCheckOutputJson } =
+      await import('./cli/commands/check.js');
+
+    const result = runCheck({ verbose: options.verbose, json: options.json });
+
+    if (options.json) {
+      console.log(formatCheckOutputJson(result.results));
+    } else {
+      console.log(formatCheckOutput(result.results, { verbose: options.verbose ?? false }));
+    }
+
+    defaultExitHandler(result.exitCode);
+  });
+
 // Config init command (Feature 015 - Interactive Configuration Wizard)
 const configCommand = program.command('config').description('Configuration management commands');
 

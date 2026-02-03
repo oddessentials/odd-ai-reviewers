@@ -229,6 +229,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: true,
         hasWarnings: false,
+        runnablePasses: [],
+        skippedPasses: [],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -248,6 +250,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: false,
         hasWarnings: false,
+        runnablePasses: ['semgrep-pass'],
+        skippedPasses: [],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -272,6 +276,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: true,
         hasWarnings: false,
+        runnablePasses: [],
+        skippedPasses: [],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -292,6 +298,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: true,
         hasWarnings: false,
+        runnablePasses: [],
+        skippedPasses: [],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -313,6 +321,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: false,
         hasWarnings: true,
+        runnablePasses: ['semgrep-pass'],
+        skippedPasses: ['reviewdog-pass'],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -331,6 +341,8 @@ describe('message formatting', () => {
         versionWarnings: [],
         hasBlockingIssues: false,
         hasWarnings: true,
+        runnablePasses: [],
+        skippedPasses: ['semgrep-pass'],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -356,6 +368,8 @@ describe('message formatting', () => {
         versionWarnings: ['semgrep: 0.99.0 < 1.0.0'],
         hasBlockingIssues: false,
         hasWarnings: true,
+        runnablePasses: ['semgrep-pass'],
+        skippedPasses: [],
       };
 
       displayDependencyErrors(summary, mockStderr as unknown as NodeJS.WriteStream);
@@ -408,6 +422,109 @@ describe('message formatting', () => {
       const message = formatMissingDependencyError(result);
 
       expect(message).toContain('curl');
+    });
+  });
+
+  describe('formatSkippedPassWarning', () => {
+    // Need to import from messages.js
+    let formatSkippedPassWarning: (
+      passName: string,
+      missingDep: string,
+      reason: 'missing' | 'unhealthy'
+    ) => string;
+
+    beforeEach(async () => {
+      const messages = await import('../../../cli/dependencies/messages.js');
+      formatSkippedPassWarning = messages.formatSkippedPassWarning;
+    });
+
+    it('includes pass name in warning', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'missing');
+      expect(warning).toContain('sast-pass');
+    });
+
+    it('includes missing dependency name', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'missing');
+      expect(warning.toLowerCase()).toContain('semgrep');
+    });
+
+    it('indicates the pass was skipped', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'missing');
+      expect(warning.toLowerCase()).toContain('skip');
+    });
+
+    it('explains dependency is missing', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'missing');
+      expect(warning.toLowerCase()).toContain('missing');
+    });
+
+    it('explains dependency is unhealthy when applicable', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'unhealthy');
+      expect(warning.toLowerCase()).toContain('unhealthy');
+    });
+
+    it('uses warning indicator symbol', () => {
+      const warning = formatSkippedPassWarning('sast-pass', 'semgrep', 'missing');
+      expect(warning).toContain('⚠');
+    });
+  });
+
+  describe('displaySkippedPassWarnings', () => {
+    let displaySkippedPassWarnings: (
+      skippedPasses: { name: string; missingDep: string; reason: 'missing' | 'unhealthy' }[],
+      stderr: NodeJS.WriteStream
+    ) => void;
+
+    beforeEach(async () => {
+      const messages = await import('../../../cli/dependencies/messages.js');
+      displaySkippedPassWarnings = messages.displaySkippedPassWarnings;
+    });
+
+    it('writes warnings for each skipped pass', () => {
+      const mockStderr = { write: vi.fn() };
+      const skippedPasses = [
+        { name: 'sast-pass', missingDep: 'semgrep', reason: 'missing' as const },
+        { name: 'lint-pass', missingDep: 'reviewdog', reason: 'missing' as const },
+      ];
+
+      displaySkippedPassWarnings(skippedPasses, mockStderr as unknown as NodeJS.WriteStream);
+
+      expect(mockStderr.write).toHaveBeenCalled();
+      const output = mockStderr.write.mock.calls.map((c) => c[0]).join('');
+      expect(output).toContain('sast-pass');
+      expect(output).toContain('lint-pass');
+    });
+
+    it('does not write when no passes skipped', () => {
+      const mockStderr = { write: vi.fn() };
+
+      displaySkippedPassWarnings([], mockStderr as unknown as NodeJS.WriteStream);
+
+      expect(mockStderr.write).not.toHaveBeenCalled();
+    });
+
+    it('includes header indicating passes were skipped', () => {
+      const mockStderr = { write: vi.fn() };
+      const skippedPasses = [
+        { name: 'sast-pass', missingDep: 'semgrep', reason: 'missing' as const },
+      ];
+
+      displaySkippedPassWarnings(skippedPasses, mockStderr as unknown as NodeJS.WriteStream);
+
+      const output = mockStderr.write.mock.calls.map((c) => c[0]).join('');
+      expect(output.toLowerCase()).toMatch(/skip|pass/);
+    });
+
+    it('explains how to install missing dependencies', () => {
+      const mockStderr = { write: vi.fn() };
+      const skippedPasses = [
+        { name: 'sast-pass', missingDep: 'semgrep', reason: 'missing' as const },
+      ];
+
+      displaySkippedPassWarnings(skippedPasses, mockStderr as unknown as NodeJS.WriteStream);
+
+      const output = mockStderr.write.mock.calls.map((c) => c[0]).join('');
+      expect(output).toContain('ai-review check');
     });
   });
 });
