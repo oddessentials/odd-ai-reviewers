@@ -1,12 +1,35 @@
 {
-  "name": "@odd-ai-reviewers/router",
+  "name": "@oddessentials/ai-review",
   "version": "1.0.0",
-  "description": "Review Router - orchestrates AI code review passes",
+  "description": "AI-powered code review CLI - run locally or in CI/CD pipelines",
   "type": "module",
   "main": "dist/main.js",
   "bin": {
     "ai-review": "dist/main.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oddessentials/odd-ai-reviewers.git"
+  },
+  "keywords": [
+    "ai",
+    "code-review",
+    "cli",
+    "llm",
+    "openai",
+    "anthropic",
+    "developer-tools"
+  ],
+  "author": "ODD Essentials",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/oddessentials/odd-ai-reviewers/issues"
+  },
+  "homepage": "https://github.com/oddessentials/odd-ai-reviewers#readme",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -15,7 +38,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
-    "test:ci:coverage": "vitest run --coverage --reporter=json --outputFile=test-results.json",
+    "test:ci:coverage": "vitest run --coverage --reporter=json --reporter=dot --outputFile=test-results.json",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

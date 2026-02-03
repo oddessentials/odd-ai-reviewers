@@ -61,7 +61,15 @@ export const defaultExitHandler: ExitHandler = (code: number): never => {
 
 const program = new Command();
 
-program.name('ai-review').description('AI Code Review Router').version('1.0.0');
+program
+  .name('ai-review')
+  .description('AI Code Review Router')
+  .version('1.0.0')
+  // Enable positional options mode to prevent global options from being parsed
+  // before subcommand options. This fixes the conflict between:
+  // - Root program's `--base <ref>` (for shorthand `ai-review .` usage)
+  // - Review subcommand's `--base <sha>` (for CI usage)
+  .enablePositionalOptions();
 
 program
   .command('review')
@@ -413,6 +421,123 @@ configCommand
       // Config validation failed but file was written
       console.log('\n⚠ Could not validate config (this is expected for new projects)');
       defaultExitHandler(0);
+    }
+  });
+
+// =============================================================================
+// Local Review Command (Phase 407 - T097-T113)
+// =============================================================================
+
+program
+  .command('local')
+  .description('Run AI review on local changes (uncommitted/staged)')
+  .argument('[path]', 'Path to repository (default: current directory)', '.')
+  .option('--base <ref>', 'Base reference for comparison (auto-detected if not specified)')
+  .option('--head <ref>', 'Head reference (default: HEAD)', 'HEAD')
+  .option('--range <range>', 'Git range (e.g., HEAD~3..) - mutually exclusive with base/head')
+  .option('--staged', 'Review only staged changes')
+  .option('--uncommitted', 'Include uncommitted changes (default: true)', true)
+  .option('--pass <name>', 'Run specific pass only')
+  .option('--agent <id>', 'Run specific agent only')
+  .option('--format <fmt>', 'Output format: pretty, json, sarif (default: pretty)', 'pretty')
+  .option('--no-color', 'Disable colored output')
+  .option('--quiet', 'Minimal output (errors only)')
+  .option('--verbose', 'Show debug information')
+  .option('--dry-run', 'Show what would be reviewed without running agents')
+  .option('--cost-only', 'Estimate cost without running agents')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (path: string, options) => {
+    // Dynamically import to avoid circular dependencies
+    const { runLocalReview, createDefaultDependencies } =
+      await import('./cli/commands/local-review.js');
+
+    const deps = createDefaultDependencies();
+
+    // Build raw options object matching RawLocalReviewOptions
+    const rawOptions = {
+      path,
+      base: options.base,
+      head: options.head,
+      range: options.range,
+      staged: options.staged,
+      uncommitted: options.uncommitted,
+      pass: options.pass,
+      agent: options.agent,
+      format: options.format,
+      noColor: options.noColor,
+      color: options.color, // Commander sets color=false for --no-color
+      quiet: options.quiet,
+      verbose: options.verbose,
+      dryRun: options.dryRun,
+      costOnly: options.costOnly,
+      config: options.config,
+    };
+
+    try {
+      const result = await runLocalReview(rawOptions, deps);
+      deps.exitHandler(result.exitCode);
+    } catch (error) {
+      console.error('[local] Fatal error:', error);
+      deps.exitHandler(1);
+    }
+  });
+
+// Alias: `ai-review .` as shorthand for `ai-review local .`
+// This provides the zero-friction experience: npx @oddessentials/ai-review .
+program
+  .argument('[path]', 'Path to repository for local review')
+  .option('--base <ref>', 'Base reference for comparison')
+  .option('--head <ref>', 'Head reference (default: HEAD)')
+  .option('--range <range>', 'Git range (e.g., HEAD~3..)')
+  .option('--staged', 'Review only staged changes')
+  .option('--uncommitted', 'Include uncommitted changes (default: true)')
+  .option('--pass <name>', 'Run specific pass only')
+  .option('--agent <id>', 'Run specific agent only')
+  .option('--format <fmt>', 'Output format: pretty, json, sarif')
+  .option('--no-color', 'Disable colored output')
+  .option('--quiet', 'Minimal output (errors only)')
+  .option('--verbose', 'Show debug information')
+  .option('--dry-run', 'Show what would be reviewed without running agents')
+  .option('--cost-only', 'Estimate cost without running agents')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (path: string | undefined, options) => {
+    // Skip if no path provided and no relevant options - let Commander show help
+    // This handles the case where user runs `ai-review` with no arguments
+    if (!path && !options.base && !options.staged && !options.range) {
+      program.outputHelp();
+      return;
+    }
+
+    const { runLocalReview, createDefaultDependencies } =
+      await import('./cli/commands/local-review.js');
+
+    const deps = createDefaultDependencies();
+
+    const rawOptions = {
+      path: path ?? '.',
+      base: options.base,
+      head: options.head,
+      range: options.range,
+      staged: options.staged,
+      uncommitted: options.uncommitted,
+      pass: options.pass,
+      agent: options.agent,
+      format: options.format,
+      noColor: options.noColor,
+      color: options.color,
+      quiet: options.quiet,
+      verbose: options.verbose,
+      dryRun: options.dryRun,
+      costOnly: options.costOnly,
+      config: options.config,
+    };
+
+    try {
+      const result = await runLocalReview(rawOptions, deps);
+      deps.exitHandler(result.exitCode);
+    } catch (error) {
+      console.error('[local] Fatal error:', error);
+      deps.exitHandler(1);
     }
   });
 

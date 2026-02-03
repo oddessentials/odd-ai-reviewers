@@ -61,7 +61,7 @@ COPY router/package.json ./router/
 
 # Install dependencies (production only) for router workspace
 # --ignore-scripts skips prepare hooks (husky) not needed in container
-RUN pnpm install --prod --ignore-scripts --filter=@odd-ai-reviewers/router
+RUN pnpm install --prod --ignore-scripts --filter=./router
 
 # Copy built source and config
 COPY router/dist/ ./router/dist/
@@ -70,7 +70,7 @@ COPY config/ ./config/
 # Use pnpm deploy to create a deployment-ready directory with resolved symlinks
 # --legacy required for pnpm v10+ without inject-workspace-packages
 # --ignore-scripts prevents running root preinstall script
-RUN pnpm --filter=@odd-ai-reviewers/router deploy --legacy --ignore-scripts /deploy
+RUN pnpm --filter=./router deploy --legacy --ignore-scripts /deploy
 
 # ============================================
 # Production image - minimal attack surface

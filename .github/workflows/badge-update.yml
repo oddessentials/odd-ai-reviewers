@@ -19,7 +19,7 @@ on:
 jobs:
   update-badges:
     name: Update Badge Gists
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     # Only run if CI workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
@@ -59,11 +59,11 @@ jobs:
 
       - name: Build router
         if: steps.download-artifacts.outcome == 'failure'
-        run: pnpm --filter router build
+        run: pnpm --filter ./router build
 
       - name: Run tests with coverage
         if: steps.download-artifacts.outcome == 'failure'
-        run: pnpm --filter router test:ci:coverage
+        run: pnpm --filter ./router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true'

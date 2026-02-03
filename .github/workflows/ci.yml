@@ -9,11 +9,13 @@ on:
 jobs:
   quality:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for tests using HEAD~1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -91,7 +93,7 @@ jobs:
       # FR-005: Coverage thresholds enforced via vitest.config.ts
       # CI=true automatically triggers stricter thresholds
       - name: Test with coverage
-        run: pnpm --filter router test:ci:coverage
+        run: pnpm --filter ./router test:ci:coverage
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
@@ -113,7 +115,7 @@ jobs:
   # SC-004: Fresh clone test - verifies hooks auto-install and work correctly
   fresh-clone-test:
     name: Fresh Clone Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
 
     steps:
       - name: Checkout
@@ -169,15 +171,24 @@ jobs:
   # Ensures ai-review binary is correctly linked on all supported platforms
   bin-resolution-test:
     name: pnpm Bin Resolution (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: Linux
+            runs-on: [self-hosted, Linux]
+          # Temporarily disabled during GitHub Actions outage
+          # - os: macOS
+          #   runs-on: macos-latest
+          # - os: Windows
+          #   runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for cross-platform git tests
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -197,9 +208,15 @@ jobs:
       - name: Test pnpm bin resolution
         run: pnpm test:bin-resolution
 
+      # T145: Cross-platform tests for local review mode
+      # Invoke vitest directly: `pnpm test -- file.ts` passes args incorrectly,
+      # causing vitest to run all tests instead of just the specified file.
+      - name: Run cross-platform tests
+        run: pnpm --filter ./router exec vitest run tests/integration/cross-platform.test.ts
+
   container-security:
     name: Container Security Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     needs: quality
 
     steps:
@@ -219,7 +236,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build router
-        run: pnpm --filter router build
+        run: pnpm --filter ./router build
 
       - name: Build container image
         run: docker build -t odd-ai-reviewers-router:ci -f router/Dockerfile .

@@ -31,6 +31,6 @@ pnpm run build
 
 # 6. Run tests
 echo ">> Tests..."
-pnpm --filter router test
+pnpm --filter ./router test
 
 echo "All pre-push checks passed!"

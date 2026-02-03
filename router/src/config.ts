@@ -37,6 +37,22 @@ export {
   buildResolvedConfigTuple,
 } from './config/providers.js';
 
+// Re-export zero-config functionality
+export {
+  type ProviderDetectionResult,
+  type ZeroConfigResult,
+  type NoCredentialsResult,
+  type GenerateZeroConfigResult,
+  ZERO_CONFIG_LIMITS,
+  ZERO_CONFIG_PASS_NAME,
+  detectProvider,
+  detectProviderWithDetails,
+  generateZeroConfigDefaults,
+  isZeroConfigSuccess,
+  formatZeroConfigMessage,
+  getZeroConfigDescription,
+} from './config/zero-config.js';
+
 // Import for internal use
 import { ConfigSchema, type Config, type AgentId } from './config/schemas.js';
 
@@ -189,4 +205,183 @@ export function getEnabledAgents(config: Config, passName: string): AgentId[] {
     return [];
   }
   return pass.agents;
+}
+
+// =============================================================================
+// Local Review Mode Config Loading (with Zero-Config Fallback)
+// =============================================================================
+
+// Import zero-config utilities for internal use
+import {
+  generateZeroConfigDefaults,
+  isZeroConfigSuccess,
+  type ZeroConfigResult,
+  type NoCredentialsResult,
+} from './config/zero-config.js';
+
+/**
+ * Result of loading config for local review mode
+ */
+export interface LocalConfigResult {
+  /** Loaded configuration */
+  config: ValidatedConfig<Config>;
+  /** Configuration source information */
+  source: {
+    /** Where config came from */
+    type: 'file' | 'zero-config';
+    /** Path to config file if file source */
+    path?: string;
+    /** Zero-config details if zero-config source */
+    zeroConfig?: {
+      provider: string;
+      keySource: string;
+      ignoredProviders: { provider: string; keySource: string }[];
+    };
+  };
+}
+
+/**
+ * Error result when config loading fails
+ */
+export interface LocalConfigError {
+  /** No configuration available */
+  config: null;
+  /** Error information */
+  error: {
+    /** Error type */
+    type: 'no_credentials' | 'invalid_config' | 'parse_error';
+    /** Error message */
+    message: string;
+    /** Guidance for the user */
+    guidance: string[];
+  };
+}
+
+/**
+ * Load configuration for local review mode with zero-config fallback.
+ *
+ * Unlike loadConfig() which falls back to static-only analysis,
+ * this function attempts to generate a zero-config configuration
+ * when no .ai-review.yml exists.
+ *
+ * @param repoRoot - Repository root path
+ * @param env - Environment variables for provider detection
+ * @returns Config result or error
+ */
+export async function loadConfigForLocalReview(
+  repoRoot: string,
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>
+): Promise<LocalConfigResult | LocalConfigError> {
+  const configPath = join(repoRoot, CONFIG_FILENAME);
+
+  // Try to load config file first
+  if (existsSync(configPath)) {
+    try {
+      const content = await readFile(configPath, 'utf-8');
+      const userConfig = parseYaml(content) as Record<string, unknown>;
+
+      // Load defaults and merge with user config
+      let defaults: Record<string, unknown> = {};
+      if (existsSync(DEFAULTS_PATH)) {
+        const defaultsContent = await readFile(DEFAULTS_PATH, 'utf-8');
+        defaults = parseYaml(defaultsContent) as Record<string, unknown>;
+      }
+
+      const merged = deepMerge(defaults, userConfig);
+
+      // Validate
+      const result = ConfigSchema.safeParse(merged);
+      if (!result.success) {
+        const issues = result.error.issues;
+        return {
+          config: null,
+          error: {
+            type: 'invalid_config',
+            message: `Invalid configuration: ${issues[0]?.message || 'Unknown error'}`,
+            guidance: [
+              `Check your ${CONFIG_FILENAME} file for errors.`,
+              `Field: ${issues[0]?.path?.join('.') || 'unknown'}`,
+              'Run "ai-review config validate" to check your configuration.',
+            ],
+          },
+        };
+      }
+
+      return {
+        config: ValidatedConfigHelpers.brand(result.data),
+        source: {
+          type: 'file',
+          path: configPath,
+        },
+      };
+    } catch (error) {
+      return {
+        config: null,
+        error: {
+          type: 'parse_error',
+          message: error instanceof Error ? error.message : 'Failed to parse configuration',
+          guidance: [
+            'Check that your .ai-review.yml file contains valid YAML.',
+            'Run "ai-review config validate" to validate your configuration.',
+          ],
+        },
+      };
+    }
+  }
+
+  // No config file - attempt zero-config generation
+  const zeroConfigResult = generateZeroConfigDefaults(env);
+
+  if (!isZeroConfigSuccess(zeroConfigResult)) {
+    // Cast to NoCredentialsResult for TypeScript
+    const noCredsResult = zeroConfigResult as NoCredentialsResult;
+    return {
+      config: null,
+      error: {
+        type: 'no_credentials',
+        message: noCredsResult.error,
+        guidance: noCredsResult.guidance,
+      },
+    };
+  }
+
+  // Cast to ZeroConfigResult for TypeScript
+  const successResult = zeroConfigResult as ZeroConfigResult;
+
+  // Validate the generated config (should always pass)
+  const validated = ConfigSchema.safeParse(successResult.config);
+  if (!validated.success) {
+    // This should never happen - indicates a bug in zero-config generation
+    return {
+      config: null,
+      error: {
+        type: 'invalid_config',
+        message: 'Internal error: Generated zero-config is invalid',
+        guidance: [
+          'Please report this bug at https://github.com/oddessentials/odd-ai-reviewers/issues',
+        ],
+      },
+    };
+  }
+
+  return {
+    config: ValidatedConfigHelpers.brand(validated.data),
+    source: {
+      type: 'zero-config',
+      zeroConfig: {
+        provider: successResult.provider,
+        keySource: successResult.keySource,
+        ignoredProviders: successResult.ignoredProviders,
+      },
+    },
+  };
+}
+
+/**
+ * Check if local config result is successful
+ */
+export function isLocalConfigSuccess(
+  result: LocalConfigResult | LocalConfigError
+): result is LocalConfigResult {
+  return result.config !== null;
 }

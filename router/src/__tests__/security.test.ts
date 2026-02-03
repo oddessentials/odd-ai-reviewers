@@ -9,6 +9,7 @@
  * These tests MUST pass before any release.
  */
 
+import { execSync } from 'child_process';
 import { describe, it, expect } from 'vitest';
 import {
   stripTokensFromEnv,
@@ -223,9 +224,14 @@ describe('Security Module', () => {
   });
 
   describe('validateNoListeningSockets (Invariant 10)', () => {
-    // These tests require lsof (Linux/macOS only)
-    // Set CI_HAS_LSOF=true in CI environments where lsof is available
-    const hasLsof = process.env['CI_HAS_LSOF'] === 'true';
+    // Detect lsof availability dynamically using 'which' (not 'command -v' which is a shell builtin)
+    let hasLsof = false;
+    try {
+      execSync('which lsof', { stdio: 'ignore', timeout: 2000 });
+      hasLsof = true;
+    } catch {
+      // lsof not available
+    }
 
     it.skipIf(!hasLsof)('should return safe when no listeners detected', async () => {
       const result = await validateNoListeningSockets('nonexistent-process-xyz');

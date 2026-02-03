@@ -34,3 +34,19 @@ export {
   resolveConfigSource,
   buildResolvedConfigTuple,
 } from './providers.js';
+
+// Re-export zero-config types and functions
+export {
+  type ProviderDetectionResult,
+  type ZeroConfigResult,
+  type NoCredentialsResult,
+  type GenerateZeroConfigResult,
+  ZERO_CONFIG_LIMITS,
+  ZERO_CONFIG_PASS_NAME,
+  detectProvider,
+  detectProviderWithDetails,
+  generateZeroConfigDefaults,
+  isZeroConfigSuccess,
+  formatZeroConfigMessage,
+  getZeroConfigDescription,
+} from './zero-config.js';
