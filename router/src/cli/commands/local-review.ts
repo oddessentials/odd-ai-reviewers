@@ -119,6 +119,8 @@ export interface LocalReviewResult {
 export interface DryRunResult {
   /** Git context information */
   gitContext: GitContext;
+  /** Resolved base reference used for diff */
+  baseRef: string;
   /** Config source (file or zero-config) */
   configSource: 'file' | 'zero-config';
   /** Config file path if from file */
@@ -361,6 +363,7 @@ async function executeDryRun(
 
   return {
     gitContext,
+    baseRef,
     configSource,
     configPath,
     fileCount: diff.files.length,
@@ -387,7 +390,7 @@ function formatDryRunOutputPretty(result: DryRunResult, colored: boolean): strin
   lines.push(c.bold('Git Context:'));
   lines.push(`  Repository: ${result.gitContext.repoRoot}`);
   lines.push(`  Branch: ${result.gitContext.currentBranch}`);
-  lines.push(`  Base: ${result.gitContext.defaultBase}`);
+  lines.push(`  Base: ${result.baseRef}`);
   lines.push('');
 
   // Config
@@ -456,7 +459,7 @@ function formatDryRunOutputJson(result: DryRunResult): string {
     gitContext: {
       repository: result.gitContext.repoRoot,
       branch: result.gitContext.currentBranch,
-      base: result.gitContext.defaultBase,
+      base: result.baseRef,
     },
     files: result.files,
     agents: result.agents,

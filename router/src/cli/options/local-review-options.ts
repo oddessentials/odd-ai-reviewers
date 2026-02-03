@@ -148,14 +148,19 @@ export function parseLocalReviewOptions(
 
   // Determine staged and uncommitted values
   const staged = raw.staged ?? false;
-  // Default uncommitted to true unless explicitly set to false
-  const uncommitted = raw.uncommitted ?? true;
+  // Default uncommitted behavior:
+  // - When --base or --range specified: default to false (commit comparison mode)
+  // - When --staged specified: default to false (staged changes only)
+  // - Otherwise: default to true (working tree changes)
+  const hasExplicitRef = raw.base !== undefined || raw.range !== undefined;
+  const uncommitted = raw.uncommitted ?? (hasExplicitRef || staged ? false : true);
 
-  // Check if nothing to review
-  if (!staged && !uncommitted) {
+  // Check if nothing to review:
+  // - Need at least one of: staged, uncommitted, or explicit ref (base/range)
+  if (!staged && !uncommitted && !hasExplicitRef) {
     return Err(
       new ValidationError(
-        'Nothing to review. Specify --staged or --uncommitted.',
+        'Nothing to review. Specify --staged, --uncommitted, or --base/--range.',
         ValidationErrorCode.INVALID_INPUT,
         { field: 'staged/uncommitted', value: { staged, uncommitted } }
       )

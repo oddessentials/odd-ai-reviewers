@@ -343,6 +343,111 @@ describe('runLocalReview', () => {
       expect(output).toContain('src/test.ts');
       expect(output).toContain('src/other.ts');
     });
+
+    it('should display the resolved base reference in output', async () => {
+      const mockGitContext = createMockGitContext({ defaultBase: 'main' });
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+      const mockConfig = createMockConfig();
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+      });
+
+      // When --base is specified, the output should show that base, not defaultBase
+      const result = await runLocalReview(
+        { path: '/test/repo', dryRun: true, base: 'develop' },
+        deps
+      );
+
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+
+      const output = (deps.stdout.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+
+      // Should display the specified base reference, not the default
+      expect(output).toContain('Base: develop');
+      expect(output).not.toContain('Base: main');
+    });
+
+    it('should display defaultBase when no explicit base is specified', async () => {
+      const mockGitContext = createMockGitContext({ defaultBase: 'main' });
+      const mockDiff = createMockDiff([
+        { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+      ]);
+      const mockConfig = createMockConfig();
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', dryRun: true }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+
+      const output = (deps.stdout.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+
+      // Should display the default base reference
+      expect(output).toContain('Base: main');
+    });
+  });
+
+  describe('--base option behavior', () => {
+    it('should default uncommitted=false when --base is specified', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+
+      // Track what options are passed to getLocalDiff
+      let capturedDiffOptions: { uncommitted?: boolean } | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return createMockDiff([
+            { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+          ]);
+        },
+      });
+
+      await runLocalReview({ path: '/test/repo', base: 'HEAD~5', dryRun: true }, deps);
+
+      // uncommitted should be false when --base is specified
+      expect(capturedDiffOptions?.uncommitted).toBe(false);
+    });
+
+    it('should allow explicit uncommitted=true with --base', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockConfig = createMockConfig();
+
+      let capturedDiffOptions: { uncommitted?: boolean } | undefined;
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: (_repoPath, options) => {
+          capturedDiffOptions = options;
+          return createMockDiff([
+            { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5 },
+          ]);
+        },
+      });
+
+      await runLocalReview(
+        { path: '/test/repo', base: 'HEAD~5', uncommitted: true, dryRun: true },
+        deps
+      );
+
+      // When explicitly set, uncommitted should be honored
+      expect(capturedDiffOptions?.uncommitted).toBe(true);
+    });
   });
 
   describe('cost-only mode', () => {

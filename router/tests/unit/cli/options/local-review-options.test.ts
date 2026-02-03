@@ -157,7 +157,7 @@ describe('parseLocalReviewOptions validation (T069)', () => {
     }
   });
 
-  it('should reject when nothing to review (staged=false, uncommitted=false)', () => {
+  it('should reject when nothing to review (staged=false, uncommitted=false, no base/range)', () => {
     const raw: RawLocalReviewOptions = {
       staged: false,
       uncommitted: false,
@@ -180,6 +180,117 @@ describe('parseLocalReviewOptions validation (T069)', () => {
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
       expect(result.value.options.staged).toBe(true);
+      expect(result.value.options.uncommitted).toBe(false);
+    }
+  });
+
+  it('should accept --base with implicit uncommitted=false (commit comparison mode)', () => {
+    const raw: RawLocalReviewOptions = {
+      base: 'HEAD~5',
+      // uncommitted not specified - should default to false when base is set
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.base).toBe('HEAD~5');
+      expect(result.value.options.uncommitted).toBe(false);
+      expect(result.value.options.staged).toBe(false);
+    }
+  });
+
+  it('should accept --range with implicit uncommitted=false (commit comparison mode)', () => {
+    const raw: RawLocalReviewOptions = {
+      range: 'main..feature',
+      // uncommitted not specified - should default to false when range is set
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.range).toBe('main..feature');
+      expect(result.value.options.uncommitted).toBe(false);
+      expect(result.value.options.staged).toBe(false);
+    }
+  });
+});
+
+// =============================================================================
+// Uncommitted Default Behavior Tests
+// =============================================================================
+
+describe('parseLocalReviewOptions uncommitted defaults', () => {
+  it('should default uncommitted=true when no base/range/staged specified', () => {
+    const raw: RawLocalReviewOptions = {
+      path: '.',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.uncommitted).toBe(true);
+    }
+  });
+
+  it('should default uncommitted=false when --base is specified', () => {
+    const raw: RawLocalReviewOptions = {
+      base: 'develop',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.uncommitted).toBe(false);
+    }
+  });
+
+  it('should default uncommitted=false when --range is specified', () => {
+    const raw: RawLocalReviewOptions = {
+      range: 'HEAD~3..',
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.uncommitted).toBe(false);
+    }
+  });
+
+  it('should default uncommitted=false when --staged is specified', () => {
+    const raw: RawLocalReviewOptions = {
+      staged: true,
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.uncommitted).toBe(false);
+    }
+  });
+
+  it('should honor explicit uncommitted=true even when --base is specified', () => {
+    const raw: RawLocalReviewOptions = {
+      base: 'develop',
+      uncommitted: true, // Explicit override
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.options.base).toBe('develop');
+      expect(result.value.options.uncommitted).toBe(true);
+    }
+  });
+
+  it('should honor explicit uncommitted=false even without base/range', () => {
+    const raw: RawLocalReviewOptions = {
+      staged: true,
+      uncommitted: false, // Explicit
+    };
+    const result = parseLocalReviewOptions(raw);
+
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
       expect(result.value.options.uncommitted).toBe(false);
     }
   });
