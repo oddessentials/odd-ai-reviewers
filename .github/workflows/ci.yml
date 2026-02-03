@@ -9,7 +9,7 @@ on:
 jobs:
   quality:
     name: Quality Gates
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -115,7 +115,7 @@ jobs:
   # SC-004: Fresh clone test - verifies hooks auto-install and work correctly
   fresh-clone-test:
     name: Fresh Clone Test
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -177,12 +177,11 @@ jobs:
       matrix:
         include:
           - os: Linux
-            runs-on: [self-hosted, Linux]
-          # Temporarily disabled during GitHub Actions outage
-          # - os: macOS
-          #   runs-on: macos-latest
-          # - os: Windows
-          #   runs-on: windows-latest
+            runs-on: ubuntu-linux
+          - os: macOS
+            runs-on: macos-latest
+          - os: Windows
+            runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -216,7 +215,7 @@ jobs:
 
   container-security:
     name: Container Security Scan
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-linux
     needs: quality
 
     steps:
