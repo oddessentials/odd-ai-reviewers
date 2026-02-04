@@ -246,6 +246,7 @@ describe('Security Module', () => {
       // lsof not available
     }
 
+    // Environment-gated: runs in Linux CI with lsof (CI_HAS_LSOF=true)
     it.skipIf(!hasLsof)('should return safe when no listeners detected', async () => {
       const result = await validateNoListeningSockets('nonexistent-process-xyz');
 
@@ -263,6 +264,7 @@ describe('Security Module', () => {
       expect(typeof result.safe).toBe('boolean');
     });
 
+    // Environment-gated: runs in Linux CI with lsof (CI_HAS_LSOF=true)
     it.skipIf(!hasLsof)('should fail when a listening socket is detected', async () => {
       const { createServer } = await import('net');
       const server = createServer();

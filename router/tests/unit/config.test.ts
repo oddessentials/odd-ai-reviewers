@@ -70,6 +70,7 @@ describe('config error handling', () => {
   describe('T035: FILE_UNREADABLE for permission denied', () => {
     const isWindows = process.platform === 'win32';
 
+    // Environment-gated: runs in Linux/macOS CI; Windows lacks Unix chmod semantics
     it.skipIf(isWindows)('should return FILE_UNREADABLE for permission denied', async () => {
       const repo = makeTempRepo({ initGit: false });
       const configPath = join(repo.path, '.ai-review.yml');

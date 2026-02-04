@@ -90,6 +90,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Install reviewdog for environment-gated integration tests
+      - name: Install reviewdog
+        run: |
+          curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b /usr/local/bin
+          reviewdog -version
+
       # FR-005: Coverage thresholds enforced via vitest.config.ts
       # CI=true automatically triggers stricter thresholds
       - name: Test with coverage
@@ -97,6 +103,7 @@ jobs:
         env:
           CI: 'true'
           CI_HAS_LSOF: 'true' # Ubuntu has lsof - enables socket detection tests
+          CI_HAS_REVIEWDOG: 'true' # Installed above - enables reviewdog integration tests
 
       # FR-031: Upload test artifacts for badge-update workflow
       - name: Upload test artifacts

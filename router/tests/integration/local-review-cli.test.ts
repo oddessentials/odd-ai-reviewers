@@ -103,16 +103,25 @@ describe('User Story 1: CLI Command Discoverability', () => {
 // =============================================================================
 
 describe('Integration Test Matrix: Success Paths', () => {
-  // These tests require a valid git repo context - skipped in basic integration
-  // Full integration tests with repo setup are in separate file
+  // Tests use --dry-run to validate CLI execution without actual review operations
 
   describe('T055-T058: Basic command execution', () => {
-    it.skip('ai-review local . executes with exit code 0', async () => {
-      // Requires valid git repo with changes
+    it('ai-review local . executes with exit code 0', async () => {
+      const result = await runCli(['local', '.', '--dry-run']);
+
+      // Exit code 0 indicates successful dry-run execution
+      expect(result.exitCode).toBe(0);
+      // Dry-run should produce output indicating what would happen
+      expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
     });
 
-    it.skip('ai-review local-review . executes with exit code 0', async () => {
-      // Requires valid git repo with changes
+    it('ai-review local-review . executes with exit code 0', async () => {
+      const result = await runCli(['local-review', '.', '--dry-run']);
+
+      // Exit code 0 indicates successful dry-run execution
+      expect(result.exitCode).toBe(0);
+      // Dry-run should produce output indicating what would happen
+      expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
     });
   });
 });
