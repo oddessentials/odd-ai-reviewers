@@ -878,6 +878,7 @@ In the "No changes to review" output, if `headRef` is undefined, it will display
 **File:** `router/src/cli/options/local-review-options.ts:269`
 **Type:** Dead Code
 **Severity:** Low
+**Status:** Resolved (see AI-008)
 
 The function `resolveBaseRef` is still present and exported but not re-exported from the index barrel. If not used, it should be removed.
 
@@ -890,10 +891,38 @@ The function `resolveBaseRef` is still present and exported but not re-exported 
 **File:** `router/src/cli/options/local-review-options.ts:376`
 **Type:** API Cleanup
 **Severity:** Low
+**Status:** Resolved (see AI-008)
 
 The function `resolveBaseRef` is exported from the file but not re-exported from the barrel (`index.ts`). This creates inconsistency.
 
 **Fix:** Remove the `export` keyword from `resolveBaseRef` if not meant for external use, or add a deprecation comment.
+
+---
+
+### AI-008: resolveBaseRef API Pattern Clarification
+
+**File:** `router/src/cli/options/local-review-options.ts:364`
+**Type:** Architecture Decision
+**Severity:** Info
+**Status:** Resolved
+
+**Context:** The `resolveBaseRef` function is exported from the source file but not from the barrel (`index.ts`). Tests in `local-review-options.test.ts` import and test it directly. This raised questions about whether the "exported from source but not barrel" pattern violates spec requirement TR-007 ("Tests MUST verify no internal code uses `resolveBaseRef` directly").
+
+**Resolution:** Not a violation if the line is drawn clearly:
+
+1. **Keep `resolveBaseRef` in source (non-exported from barrel) only as a private compatibility/helper.** Tests that reference it should only be in "legacy/internal" test files. This satisfies "public API is `resolveDiffRange`" while still allowing unit-testing of the legacy helper.
+
+2. **TR-007 interpretation:** "Production/internal runtime code must not call `resolveBaseRef`." Tests are not "internal code" in that sense; they're verification code. Tests calling it directly does **not** violate TR-007.
+
+3. **The "exported from source but not barrel" pattern is acceptable, but be explicit:**
+   - If you want it truly private: don't export it from the source module at all; test it via the module it lives in.
+   - If you keep it exported from the source file for tests: document it as `@internal` / `@deprecated`, and enforce "not in barrel" with a test (already exists in `exports.test.ts`).
+
+**Canonical rule to remove ambiguity:**
+
+> **TR-007** = "No non-test (`src/**`) imports/calls `resolveBaseRef`." Tests may call it directly to validate behavior and to ensure it stays unused by runtime code.
+
+**Action:** Add `@internal` JSDoc tag to `resolveBaseRef` to document its status explicitly.
 
 ---
 

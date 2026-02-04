@@ -357,6 +357,9 @@ export function resolveOutputFormat(options: LocalReviewOptions, isTTY: boolean)
 /**
  * Resolve the base reference for diff generation.
  *
+ * @internal This function is not part of the public API. Use {@link resolveDiffRange} instead.
+ * @deprecated Use {@link resolveDiffRange} which returns the full range (base, head, operator).
+ *
  * @param options - Parsed options
  * @param gitContext - Inferred git context
  * @returns Resolved base reference
