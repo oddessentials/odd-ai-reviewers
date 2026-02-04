@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.0.0...v1.0.1) (2026-02-04)
+
+### Bug Fixes
+
+* **release:** remove NPM_TOKEN and add --provenance for OIDC ([#132](https://github.com/oddessentials/odd-ai-reviewers/issues/132)) ([59fdce0](https://github.com/oddessentials/odd-ai-reviewers/commit/59fdce08fc490766903bc171d3da9e5f90242787))
+
 ## 1.0.0 (2026-02-04)
 
 ### ⚠ BREAKING CHANGES
