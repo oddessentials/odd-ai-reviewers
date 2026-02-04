@@ -173,13 +173,15 @@ flowchart LR
     subgraph Agents
         S[Semgrep] -->|5 findings| A[allFindings]
         R[Reviewdog] -->|3 findings| A
+        CF[Control Flow] -->|2 findings| A
         O[OpenCode] -->|8 findings| A
         P[PR-Agent] -->|4 findings| A
+        ASR[AI Semantic] -->|3 findings| A
         L[Local LLM] -->|2 findings| A
     end
 
-    A -->|22 raw| D[Deduplicate]
-    D -->|15 unique| Sort[Sort by Severity]
+    A -->|27 raw| D[Deduplicate]
+    D -->|18 unique| Sort[Sort by Severity]
     Sort --> Report[Single GitHub Report]
 ```
 
@@ -241,14 +243,20 @@ Each agent receives a **scoped context** with only its allowed environment varia
 flowchart TD
     E[process.env] --> Router[buildRouterEnv]
     Router --> A1[buildAgentEnv 'semgrep']
-    Router --> A2[buildAgentEnv 'opencode']
-    Router --> A3[buildAgentEnv 'pr_agent']
-    Router --> A4[buildAgentEnv 'local_llm']
+    Router --> A2[buildAgentEnv 'reviewdog']
+    Router --> A3[buildAgentEnv 'control_flow']
+    Router --> A4[buildAgentEnv 'opencode']
+    Router --> A5[buildAgentEnv 'pr_agent']
+    Router --> A6[buildAgentEnv 'ai_semantic_review']
+    Router --> A7[buildAgentEnv 'local_llm']
 
     A1 -->|Minimal env| Semgrep
-    A2 -->|OPENAI_API_KEY, ANTHROPIC_API_KEY| OpenCode
-    A3 -->|OPENAI_API_KEY| PRAgent
-    A4 -->|OLLAMA_BASE_URL, OLLAMA_MODEL| LocalLLM
+    A2 -->|Minimal env| Reviewdog
+    A3 -->|Minimal env| ControlFlow
+    A4 -->|OPENAI_API_KEY, ANTHROPIC_API_KEY| OpenCode
+    A5 -->|OPENAI_API_KEY| PRAgent
+    A6 -->|OPENAI_API_KEY, ANTHROPIC_API_KEY| AISemanticReview
+    A7 -->|OLLAMA_BASE_URL, OLLAMA_MODEL| LocalLLM
 ```
 
 ---

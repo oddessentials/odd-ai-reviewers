@@ -96,6 +96,42 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 
 ---
 
+## Control Flow
+
+<table>
+  <tr>
+    <td width="200">
+      🔀
+    </td>
+    <td valign="top">
+      <h3>Control Flow</h3>
+      <em>The Flow Inspector</em>
+      <p>Control Flow performs flow-sensitive static analysis with mitigation pattern recognition. It analyzes execution paths to detect vulnerabilities, unreachable code, and complex control flow issues. Built-in to odd-ai-reviewers with zero external dependencies.</p>
+      <p><strong>Built-in Agent</strong> — No external setup required</p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## AI Semantic Review
+
+<table>
+  <tr>
+    <td width="200">
+      🔬
+    </td>
+    <td valign="top">
+      <h3>AI Semantic Review</h3>
+      <em>The Semantic Analyzer</em>
+      <p>AI Semantic Review provides direct integration with OpenAI and Anthropic APIs for deep semantic code analysis. It understands code context, identifies potential issues, and provides detailed explanations and suggestions for improvements.</p>
+      <p><strong>Built-in Agent</strong> — Requires API key (OpenAI or Anthropic)</p>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Why odd-ai-reviewers?
 
 <table>
@@ -106,8 +142,8 @@ Meet the AI-powered code review team that helps maintain code quality, security,
     <td valign="top">
       <h3>Why odd-ai-reviewers?</h3>
       <em>The Power of the Team</em>
-      <p>Each tool in our review team excels at something different: Ollama provides local AI inference, OpenCode assists with intelligent coding, PR Agent automates PR reviews, Review Dog bridges linters to PRs, and Semgrep catches security vulnerabilities. Individually, they're powerful. Together, they're unstoppable.</p>
-      <p>odd-ai-reviewers integrates all five tools into a unified code review pipeline. Instead of configuring each tool separately, you get a pre-configured, battle-tested setup that combines their strengths. The result? Comprehensive code reviews that catch bugs, enforce standards, identify security issues, and provide AI-powered insights - all in one cohesive workflow.</p>
+      <p>Each tool in our review team excels at something different: Ollama provides local AI inference, OpenCode assists with intelligent coding, PR Agent automates PR reviews, Review Dog bridges linters to PRs, Semgrep catches security vulnerabilities, Control Flow analyzes execution paths, and AI Semantic Review provides deep semantic analysis. Individually, they're powerful. Together, they're unstoppable.</p>
+      <p>odd-ai-reviewers integrates all seven agents into a unified code review pipeline. Instead of configuring each tool separately, you get a pre-configured, battle-tested setup that combines their strengths. The result? Comprehensive code reviews that catch bugs, enforce standards, identify security issues, and provide AI-powered insights - all in one cohesive workflow.</p>
       <p><a href="https://github.com/oddessentials/odd-ai-reviewers">View odd-ai-reviewers on GitHub</a></p>
     </td>
   </tr>
@@ -152,12 +188,26 @@ Meet the AI-powered code review team that helps maintain code quality, security,
 - Deterministic signal that complements LLM reasoning
 - First-line defense for security posture
 
+### 🔀 **Control Flow — The Flow Inspector**
+
+- Flow-sensitive static analysis
+- Detects unreachable code and complex control flow issues
+- Mitigation pattern recognition
+- Built-in, zero external dependencies
+
+### 🔬 **AI Semantic Review — The Semantic Analyzer**
+
+- Direct OpenAI/Anthropic SDK integration
+- Deep semantic code understanding
+- Context-aware suggestions and explanations
+- Complements deterministic static analysis
+
 ---
 
 ## Why odd-ai-reviewers
 
 - This is **not** a single AI reviewer
-- This is a **team**, each member with a clear specialty
+- This is a **team** of **7 agents**, each with a clear specialty
 - Tools are intentionally _composed_, not duplicated
 - The value is the **pre-configured, battle-tested integration**
 - Outcome:
