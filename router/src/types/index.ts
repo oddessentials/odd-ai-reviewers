@@ -12,6 +12,7 @@
  *   NetworkError, NetworkErrorCode, isNetworkError,
  *   ValidationError, ValidationErrorCode, isValidationError,
  *   ErrorWireFormat, ErrorWireFormatSchema, errorFromWireFormat,
+ *   NodeError, isNodeError,
  *
  *   // Result
  *   Result, Ok, Err, isOk, isErr,
@@ -69,6 +70,10 @@ export {
 
   // Generic guard
   isBaseError,
+
+  // Node.js error type guard
+  NodeError,
+  isNodeError,
 } from './errors.js';
 
 // =============================================================================

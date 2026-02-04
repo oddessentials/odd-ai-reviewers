@@ -9,7 +9,7 @@ import { readFile } from 'fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { ConfigError, ConfigErrorCode } from './types/errors.js';
+import { ConfigError, ConfigErrorCode, isNodeError } from './types/errors.js';
 import { type ValidatedConfig, createValidatedConfigHelpers } from './types/branded.js';
 import { type Result, Err } from './types/result.js';
 
@@ -130,22 +130,25 @@ export async function loadConfigFromPath(configPath: string): Promise<ValidatedC
   try {
     content = await readFile(configPath, 'utf-8');
   } catch (err) {
-    const nodeErr = err as NodeJS.ErrnoException;
-    if (nodeErr.code === 'ENOENT') {
-      throw new ConfigError(
-        `Config file not found: ${configPath}`,
-        ConfigErrorCode.FILE_NOT_FOUND,
-        { path: configPath }
-      );
+    // Use type guard for safe error property access
+    if (isNodeError(err)) {
+      if (err.code === 'ENOENT') {
+        throw new ConfigError(
+          `Config file not found: ${configPath}`,
+          ConfigErrorCode.FILE_NOT_FOUND,
+          { path: configPath }
+        );
+      }
+      if (err.code === 'EACCES') {
+        throw new ConfigError(
+          `Config file unreadable (permission denied): ${configPath}`,
+          ConfigErrorCode.FILE_UNREADABLE,
+          { path: configPath }
+        );
+      }
     }
-    if (nodeErr.code === 'EACCES') {
-      throw new ConfigError(
-        `Config file unreadable (permission denied): ${configPath}`,
-        ConfigErrorCode.FILE_UNREADABLE,
-        { path: configPath }
-      );
-    }
-    throw err; // Re-throw other errors
+    // Re-throw original error (preserves stack trace for unexpected errors)
+    throw err;
   }
 
   // Parse YAML with distinct error handling

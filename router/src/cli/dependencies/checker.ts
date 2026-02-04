@@ -7,6 +7,7 @@
 import { execFileSync } from 'child_process';
 
 import type { Pass } from '../../config/schemas.js';
+import { isNodeError } from '../../types/errors.js';
 import { getDependenciesForAgent, getDependencyInfo } from './catalog.js';
 import type { DependencyCheckResult, DependencyCheckSummary } from './types.js';
 import { meetsMinimum, parseVersion } from './version.js';
@@ -67,34 +68,43 @@ export function checkDependency(name: string): DependencyCheckResult {
       error: null,
     };
   } catch (err) {
-    const error = err as NodeJS.ErrnoException;
+    // Use type guard for safe error property access
+    if (isNodeError(err)) {
+      // ENOENT means binary not found
+      if (err.code === 'ENOENT') {
+        return {
+          name,
+          status: 'missing',
+          version: null,
+          error: `${depInfo.displayName} not found in PATH`,
+        };
+      }
 
-    // ENOENT means binary not found
-    if (error.code === 'ENOENT') {
-      return {
-        name,
-        status: 'missing',
-        version: null,
-        error: `${depInfo.displayName} not found in PATH`,
-      };
-    }
+      // ETIMEDOUT means version command timed out
+      if (err.code === 'ETIMEDOUT') {
+        return {
+          name,
+          status: 'unhealthy',
+          version: null,
+          error: `${depInfo.displayName} version command timed out after ${VERSION_COMMAND_TIMEOUT}ms`,
+        };
+      }
 
-    // ETIMEDOUT means version command timed out
-    if (error.code === 'ETIMEDOUT') {
+      // Other Node.js errors indicate unhealthy state
       return {
         name,
         status: 'unhealthy',
         version: null,
-        error: `${depInfo.displayName} version command timed out after ${VERSION_COMMAND_TIMEOUT}ms`,
+        error: `${depInfo.displayName} version check failed: ${err.message}`,
       };
     }
 
-    // Other errors indicate unhealthy state
+    // Handle non-Error throws (rare but possible)
     return {
       name,
       status: 'unhealthy',
       version: null,
-      error: `${depInfo.displayName} version check failed: ${error.message}`,
+      error: `${depInfo.displayName} version check failed: ${String(err)}`,
     };
   }
 }
