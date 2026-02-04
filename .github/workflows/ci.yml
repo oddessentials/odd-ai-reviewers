@@ -293,9 +293,6 @@ jobs:
             chore
             revert
           requireScope: false
-          subjectPattern: ^[A-Z].*$
-          subjectPatternError: |
-            The subject "{subject}" found in the PR title should start with an uppercase letter.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
