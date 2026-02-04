@@ -144,15 +144,18 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Audit .github/workflows/badge-update.yml - should only use official GitHub actions or SHA-pinned third-party actions
 
-**Status**: ⏳ NOT STARTED
+**Status**: ✅ COMPLETE
 
 ### Implementation for User Story 5
 
-- [ ] T014 [US5] Replace `exuanbo/actions-deploy-gist@v1` with `actions/github-script@v7` for test badge update in .github/workflows/badge-update.yml
-- [ ] T015 [US5] Replace `exuanbo/actions-deploy-gist@v1` with `actions/github-script@v7` for coverage badge update in .github/workflows/badge-update.yml
-- [ ] T016 [US5] Add inline Octokit script to update Gist via REST API in .github/workflows/badge-update.yml
+- [x] T014 [US5] Replace `exuanbo/actions-deploy-gist@v1` with `actions/github-script@v7` for test badge update in .github/workflows/badge-update.yml
+  - **Status**: ✅ COMPLETE - `badge-update.yml:113` uses `actions/github-script@v7`
+- [x] T015 [US5] Replace `exuanbo/actions-deploy-gist@v1` with `actions/github-script@v7` for coverage badge update in .github/workflows/badge-update.yml
+  - **Status**: ✅ COMPLETE - `badge-update.yml:127` uses `actions/github-script@v7`
+- [x] T016 [US5] Add inline Octokit script to update Gist via REST API in .github/workflows/badge-update.yml
+  - **Status**: ✅ COMPLETE - Both steps use `github.rest.gists.update()` with inline Octokit
 
-**Checkpoint**: No unpinned third-party actions receive secrets
+**Checkpoint**: ✅ No unpinned third-party actions receive secrets
 
 ---
 
@@ -210,13 +213,13 @@ Based on plan.md, this project uses:
 | US2 - Windows Semgrep   | ✅ COMPLETE    | 2/2            |
 | US3 - OpenAI Models     | ⏳ NOT STARTED | 0/2            |
 | US4 - Error Handling    | ✅ COMPLETE    | 3/3            |
-| US5 - Supply Chain      | ⏳ NOT STARTED | 0/3            |
+| US5 - Supply Chain      | ✅ COMPLETE    | 3/3            |
 | US6 - Dead Code         | ⏳ NOT STARTED | 0/1            |
 | US7 - Integration Tests | ⏳ NOT STARTED | 0/2            |
 | Phase 10 - Polish       | ⏳ NOT STARTED | 0/5            |
 
 **P1 User Stories**: 2/3 complete (US3 remaining)
-**P2 User Stories**: 1/3 complete (US5, US6 remaining)
+**P2 User Stories**: 2/3 complete (US6 remaining)
 **P3 User Stories**: 0/1 complete (US7 remaining)
 
 ---
@@ -228,17 +231,15 @@ Based on plan.md, this project uses:
 The following user stories are NOT YET COMPLETE:
 
 1. **US3 (P1)**: OpenAI model parameter switching - T009, T010
-2. **US5 (P2)**: Badge action pinning - T014, T015, T016
-3. **US6 (P2)**: Delete deprecated workflow - T017
-4. **US7 (P3)**: Integration test implementation - T018, T019
+2. **US6 (P2)**: Delete deprecated workflow - T017
+3. **US7 (P3)**: Integration test implementation - T018, T019
 
 ### Recommended Next Steps
 
 1. Complete US3 (P1) - Critical for GPT-5 users
-2. Complete US5 (P2) - Security improvement
-3. Complete US6 (P2) - Remove dead code
-4. Complete US7 (P3) - Test coverage
-5. Run Phase 10 for final validation
+2. Complete US6 (P2) - Remove dead code
+3. Complete US7 (P3) - Test coverage
+4. Run Phase 10 for final validation
 
 ---
 
@@ -250,5 +251,5 @@ The following user stories are NOT YET COMPLETE:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Total tasks: 24
-- Completed tasks: 8 (Phase 1 + US1 + US2)
-- Remaining tasks: 16
+- Completed tasks: 11 (Phase 1 + US1 + US2 + US4 + US5)
+- Remaining tasks: 13

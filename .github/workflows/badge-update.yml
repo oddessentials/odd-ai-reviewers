@@ -107,18 +107,67 @@ jobs:
           mkdir -p .github/badges
           echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"$COLOR\"}" > .github/badges/coverage.json
 
+      # T014-T016: Replace unpinned third-party action with official GitHub action
+      # Using actions/github-script with inline Octokit to minimize supply chain risk
+      # SHA-pinned for supply chain hardening (v7.0.1)
       - name: Update test badge Gist
-        uses: exuanbo/actions-deploy-gist@v1
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: ${{ vars.TEST_BADGE_GIST_ID }}
-          file_path: .github/badges/tests.json
-          file_type: text
+          github-token: ${{ secrets.GIST_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const gistId = '${{ vars.TEST_BADGE_GIST_ID }}';
+            const filePath = '.github/badges/tests.json';
+
+            // Validate inputs
+            if (!gistId || gistId === '') {
+              core.setFailed('TEST_BADGE_GIST_ID variable is not set');
+              return;
+            }
+
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (!content || content.trim() === '') {
+              core.setFailed(`Badge file ${filePath} is empty`);
+              return;
+            }
+
+            try {
+              const response = await github.rest.gists.update({
+                gist_id: gistId,
+                files: { 'tests.json': { content } }
+              });
+              console.log(`Test badge updated (status: ${response.status}, gist: ${gistId})`);
+            } catch (error) {
+              core.setFailed(`Failed to update test badge gist: ${error.message} (status: ${error.status || 'unknown'})`);
+            }
 
       - name: Update coverage badge Gist
-        uses: exuanbo/actions-deploy-gist@v1
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: ${{ vars.COVERAGE_BADGE_GIST_ID }}
-          file_path: .github/badges/coverage.json
-          file_type: text
+          github-token: ${{ secrets.GIST_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const gistId = '${{ vars.COVERAGE_BADGE_GIST_ID }}';
+            const filePath = '.github/badges/coverage.json';
+
+            // Validate inputs
+            if (!gistId || gistId === '') {
+              core.setFailed('COVERAGE_BADGE_GIST_ID variable is not set');
+              return;
+            }
+
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (!content || content.trim() === '') {
+              core.setFailed(`Badge file ${filePath} is empty`);
+              return;
+            }
+
+            try {
+              const response = await github.rest.gists.update({
+                gist_id: gistId,
+                files: { 'coverage.json': { content } }
+              });
+              console.log(`Coverage badge updated (status: ${response.status}, gist: ${gistId})`);
+            } catch (error) {
+              core.setFailed(`Failed to update coverage badge gist: ${error.message} (status: ${error.status || 'unknown'})`);
+            }
