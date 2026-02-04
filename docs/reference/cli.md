@@ -23,6 +23,8 @@ Some agents require external tools to be installed:
 
 AI-only agents (`opencode`, `pr_agent`, `ai_semantic_review`, `local_llm`) don't require external tools—just API keys.
 
+The `control_flow` agent is built-in and requires no external tools or API keys.
+
 ### Installing Semgrep
 
 **macOS:**

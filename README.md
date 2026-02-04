@@ -42,6 +42,10 @@ Click here to watch the trailer on YouTube →</a>
 - ⚙️ **Zero CI Changes** — Works via reusable workflows
 - 📁 **Flexible Filtering** — `.reviewignore` files and path filters to control what gets reviewed
 
+> [!NOTE]
+> **Pull Request Review** is battle-tested and production-ready.
+> **CLI Local Review** (`ai-review local`) is experimental and still being optimized.
+
 ---
 
 ## 🚀 Quick Start (GitHub)
@@ -162,6 +166,7 @@ If you see a 404 error during AI code review:
 | -------------------- | ------ | ------------- | ------- | ------- |
 | `semgrep`            | Static | ✅            | ❌      | Free    |
 | `reviewdog`          | Static | ✅            | ❌      | Free    |
+| `control_flow`       | Static | ✅            | ❌      | Free    |
 | `opencode`           | AI     | ❌            | ✅      | Medium  |
 | `pr_agent`           | AI     | ❌            | ✅      | Low     |
 | `local_llm`          | AI     | ❌            | ❌      | Compute |

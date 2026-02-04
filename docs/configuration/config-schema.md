@@ -83,6 +83,7 @@ Available agents:
 
 - `semgrep` — Static security analysis (free)
 - `reviewdog` — Annotation formatter
+- `control_flow` — Control flow analysis with vulnerability detection (free)
 - `opencode` — OpenCode.ai semantic review
 - `pr_agent` — PR-Agent AI review
 - `local_llm` — Local Ollama-based review
@@ -94,6 +95,7 @@ Available agents:
 | -------------------- | ------------- | ---------- | -------------- | ------------ |
 | `semgrep`            | ✅            | ❌         | ❌             | Free         |
 | `reviewdog`          | ✅            | ❌         | ❌             | Free         |
+| `control_flow`       | ✅            | ❌         | ❌             | Free         |
 | `opencode`           | ❌            | ✅         | ✅             | Medium       |
 | `pr_agent`           | ❌            | ✅         | ✅             | Low          |
 | `local_llm`          | ❌            | ✅         | ❌             | Compute-only |

@@ -183,7 +183,7 @@ npx @oddessentials/odd-ai-reviewers . --staged --quiet || exit 1
 
 This package uses [semantic-release](https://semantic-release.gitbook.io/) for automated versioning and changelog generation. The changelog is auto-generated from conventional commit messages.
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
+See [CHANGELOG.md](../CHANGELOG.md) for the full release history.
 
 ## License
 

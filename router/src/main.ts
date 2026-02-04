@@ -11,7 +11,15 @@
 
 import { Command } from 'commander';
 import { fileURLToPath } from 'url';
-import { realpathSync } from 'fs';
+import { realpathSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
+
+// Read version from package.json at startup (not hardcoded)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJsonPath = join(__dirname, '..', 'package.json');
+const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as { version: string };
+const CLI_VERSION = packageJson.version;
 import { loadConfig } from './config.js';
 import { checkTrust, buildADOPRContext, type PullRequestContext } from './trust.js';
 import { checkBudget, estimateTokens, type BudgetContext } from './budget.js';
@@ -68,7 +76,7 @@ const program = new Command();
 program
   .name('ai-review')
   .description('AI Code Review Router')
-  .version('1.0.0')
+  .version(CLI_VERSION)
   // Enable positional options mode to prevent global options from being parsed
   // before subcommand options. This fixes the conflict between:
   // - Root program's `--base <ref>` (for shorthand `ai-review .` usage)
