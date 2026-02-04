@@ -162,6 +162,7 @@ If you see a 404 error during AI code review:
 | -------------------- | ------ | ------------- | ------- | ------- |
 | `semgrep`            | Static | ✅            | ❌      | Free    |
 | `reviewdog`          | Static | ✅            | ❌      | Free    |
+| `control_flow`       | Static | ✅            | ❌      | Free    |
 | `opencode`           | AI     | ❌            | ✅      | Medium  |
 | `pr_agent`           | AI     | ❌            | ✅      | Low     |
 | `local_llm`          | AI     | ❌            | ❌      | Compute |
