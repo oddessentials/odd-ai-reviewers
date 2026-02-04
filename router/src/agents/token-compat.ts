@@ -164,8 +164,18 @@ export async function withTokenCompatibility<T>(
       `[token-compat] Fallback engaged: model=${model}, retrying with max_tokens (was max_completion_tokens)`
     );
 
-    // T023: Retry exactly once with fallback parameter (max_tokens)
+    // T023, T028: Retry exactly once with fallback parameter (max_tokens)
+    // T029: Only the token parameter key changes; all other params preserved in closure
     const fallbackParam = buildFallbackTokenLimit(tokenLimit);
-    return fn(fallbackParam);
+
+    try {
+      return await fn(fallbackParam);
+    } catch (fallbackError: unknown) {
+      // T030: Add context when fallback retry also fails (FR-006)
+      const fallbackMsg = extractErrorMessage(fallbackError);
+      throw new Error(
+        `Token parameter fallback failed: ${fallbackMsg} (attempted max_tokens after max_completion_tokens was rejected)`
+      );
+    }
   }
 }
