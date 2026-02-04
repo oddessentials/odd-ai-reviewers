@@ -1,5 +1,5 @@
 {
-  "name": "@oddessentials/ai-review",
+  "name": "@oddessentials/odd-ai-reviewers",
   "version": "1.0.0",
   "description": "AI-powered code review CLI - run locally or in CI/CD pipelines",
   "type": "module",

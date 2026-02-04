@@ -78,6 +78,7 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GIT_AUTHOR_NAME: odd-ai-reviewers-release-bot[bot]
           GIT_AUTHOR_EMAIL: odd-ai-reviewers-release-bot[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: odd-ai-reviewers-release-bot[bot]
@@ -121,7 +122,7 @@ jobs:
           echo "Checking npm registry..."
           DELAY=5
           for i in 1 2 3 4 5 6; do
-            NPM_VERSION=$(npm view @oddessentials/ai-review version 2>/dev/null || echo "")
+            NPM_VERSION=$(npm view @oddessentials/odd-ai-reviewers version 2>/dev/null || echo "")
             if [[ -n "$NPM_VERSION" && "$NPM_VERSION" == "$EXPECTED" ]]; then
               break
             fi

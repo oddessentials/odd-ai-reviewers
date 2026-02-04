@@ -513,7 +513,7 @@ program
   });
 
 // Alias: `ai-review .` as shorthand for `ai-review local .`
-// This provides the zero-friction experience: npx @oddessentials/ai-review .
+// This provides the zero-friction experience: npx @oddessentials/odd-ai-reviewers .
 program
   .argument('[path]', 'Path to repository for local review')
   .option('--base <ref>', 'Base reference for comparison')
