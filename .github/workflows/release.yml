@@ -112,7 +112,8 @@ jobs:
           echo "package.json version: $PKG_VERSION"
 
           # Check git tag
-          TAG_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          TAG=$(git describe --tags --abbrev=0)
+          TAG_VERSION=${TAG#v}
           echo "Git tag version: $TAG_VERSION"
 
           # Check npm (with retry for propagation delay using exponential backoff)
@@ -130,7 +131,7 @@ jobs:
           echo "npm registry version: $NPM_VERSION"
 
           # Check CHANGELOG (portable: grep -oE works on both GNU and BSD grep)
-          CHANGELOG_VERSION=$(grep -oE '## \[[^]]+\]' router/CHANGELOG.md | head -1 | sed 's/## \[//;s/\]//')
+          CHANGELOG_VERSION=$(grep -oE '## \[[^]]+\]' CHANGELOG.md | head -1 | sed 's/## \[//;s/\]//')
           echo "CHANGELOG version: $CHANGELOG_VERSION"
 
           # Verify all match
