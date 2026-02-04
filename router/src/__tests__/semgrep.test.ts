@@ -24,13 +24,60 @@ vi.mock('../agents/path-filter.js', () => ({
   })),
 }));
 
-// Mock security - same directory
+// Mock security - pass through input env with agent ID marker
 vi.mock('../agents/security.js', () => ({
   buildAgentEnv: vi.fn((agentId, env) => ({ ...env, AGENT_ID: agentId })),
 }));
 
 import { execFileSync } from 'child_process';
 import { filterSafePaths } from '../agents/path-filter.js';
+import { buildAgentEnv } from '../agents/security.js';
+
+// Shared test helpers - lifted to file scope for reuse
+const createFile = (
+  path: string,
+  status: 'added' | 'modified' | 'deleted' = 'modified'
+): DiffFile => ({
+  path,
+  status,
+  additions: 10,
+  deletions: 5,
+});
+
+const createContext = (files: DiffFile[] = []): AgentContext => ({
+  repoPath: '/test/repo',
+  diff: {
+    files: [],
+    totalAdditions: 10,
+    totalDeletions: 5,
+    baseSha: 'abc123',
+    headSha: 'def456',
+    contextLines: 3,
+    source: 'local-git',
+  },
+  files,
+  config: {
+    version: 1,
+    trusted_only: true,
+    triggers: { on: ['pull_request'], branches: ['main'] },
+    passes: [],
+    limits: {
+      max_files: 50,
+      max_diff_lines: 2000,
+      max_tokens_per_pr: 12000,
+      max_usd_per_pr: 1.0,
+      monthly_budget_usd: 100,
+    },
+    models: { default: 'gpt-4o-mini' },
+    reporting: {},
+    gating: { enabled: false, fail_on_severity: 'error' },
+  },
+  diffContent: 'test diff',
+  prNumber: 123,
+  env: {},
+  effectiveModel: 'gpt-4o-mini',
+  provider: 'openai',
+});
 
 describe('semgrepAgent', () => {
   beforeEach(() => {
@@ -52,16 +99,6 @@ describe('semgrepAgent', () => {
   });
 
   describe('supports()', () => {
-    const createFile = (
-      path: string,
-      status: 'added' | 'modified' | 'deleted' = 'modified'
-    ): DiffFile => ({
-      path,
-      status,
-      additions: 10,
-      deletions: 5,
-    });
-
     describe('supported extensions', () => {
       const supportedExtensions = [
         '.ts',
@@ -155,41 +192,6 @@ describe('semgrepAgent.run()', () => {
     }));
   });
 
-  const createContext = (files: DiffFile[] = []): AgentContext => ({
-    repoPath: '/test/repo',
-    diff: {
-      files: [],
-      totalAdditions: 10,
-      totalDeletions: 5,
-      baseSha: 'abc123',
-      headSha: 'def456',
-      contextLines: 3,
-      source: 'local-git',
-    },
-    files,
-    config: {
-      version: 1,
-      trusted_only: true,
-      triggers: { on: ['pull_request'], branches: ['main'] },
-      passes: [],
-      limits: {
-        max_files: 50,
-        max_diff_lines: 2000,
-        max_tokens_per_pr: 12000,
-        max_usd_per_pr: 1.0,
-        monthly_budget_usd: 100,
-      },
-      models: { default: 'gpt-4o-mini' },
-      reporting: {},
-      gating: { enabled: false, fail_on_severity: 'error' },
-    },
-    diffContent: 'test diff',
-    prNumber: 123,
-    env: {},
-    effectiveModel: 'gpt-4o-mini',
-    provider: 'openai',
-  });
-
   it('should return empty result for no supported files', async () => {
     const context = createContext([
       { path: 'readme.md', status: 'modified', additions: 10, deletions: 5 },
@@ -253,6 +255,25 @@ describe('semgrepAgent.run()', () => {
         shell: false,
         maxBuffer: 50 * 1024 * 1024,
         timeout: 300000,
+      })
+    );
+  });
+
+  it('should pass buildAgentEnv result to execFileSync (PEP 540 wiring)', async () => {
+    // Regression test: verifies that the env from buildAgentEnv is passed to spawn.
+    // The actual PYTHONUTF8=1 value is tested in security.test.ts; this test
+    // ensures the wiring is correct so that centralized env reaches the subprocess.
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ results: [], errors: [] }));
+
+    const context = createContext([createFile('src/app.ts')]);
+    await semgrepAgent.run(context);
+
+    expect(vi.mocked(buildAgentEnv)).toHaveBeenCalledWith('semgrep', context.env);
+    expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+      'semgrep',
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({ AGENT_ID: 'semgrep' }),
       })
     );
   });

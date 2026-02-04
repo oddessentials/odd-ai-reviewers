@@ -83,17 +83,6 @@ export const semgrepAgent: ReviewAgent = {
     try {
       const agentEnv = buildAgentEnv('semgrep', context.env);
 
-      // PEP 540 UTF-8 Mode for Windows compatibility:
-      // Windows uses cp1252 encoding by default, which causes Python-based tools
-      // like Semgrep to crash with encoding errors when processing UTF-8 source files.
-      // Setting PYTHONUTF8=1 forces Python to use UTF-8 for all I/O operations,
-      // matching the behavior on Unix systems.
-      // See: https://peps.python.org/pep-0540/
-      const semgrepEnv = {
-        ...agentEnv,
-        PYTHONUTF8: '1',
-      };
-
       // Build file list for Semgrep and filter for safe paths
       const filePaths = supportedFiles.map((f) => f.path);
       const { safePaths } = filterSafePaths(filePaths, 'semgrep');
@@ -116,7 +105,7 @@ export const semgrepAgent: ReviewAgent = {
         shell: false, // Critical: no shell interpretation
         maxBuffer: 50 * 1024 * 1024,
         timeout: 300000, // 5 minute timeout
-        env: semgrepEnv,
+        env: agentEnv,
       });
 
       const parsed = JSON.parse(result) as SemgrepResult;

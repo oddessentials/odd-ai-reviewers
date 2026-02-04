@@ -334,6 +334,12 @@ export function createSafeAgentEnv(
     LC_ALL: clean['LC_ALL'] ?? 'en_US.UTF-8',
     // Disable color output for consistent parsing
     NO_COLOR: '1',
+    // PEP 540 UTF-8 Mode: Forces Python to use UTF-8 for all I/O, preventing
+    // Windows cp1252 encoding crashes in Python-based tools (Semgrep, etc.).
+    // Harmless no-op for non-Python subprocesses - the env var is simply ignored.
+    // We intentionally override any user-provided value as a safety invariant.
+    // See: https://peps.python.org/pep-0540/
+    PYTHONUTF8: '1',
     // Set HOME for tools that need it
     HOME: clean['HOME'] ?? '/tmp',
     // Preserve TERM for proper output handling

@@ -247,18 +247,7 @@ export const reviewdogAgent: ReviewAgent = {
 
     // ROUTER MONOPOLY RULE: Strip ALL tokens from environment
     // Agents must NOT have access to posting credentials
-    const baseEnv = buildAgentEnv('reviewdog', context.env);
-
-    // PEP 540 UTF-8 Mode for Windows compatibility:
-    // Windows uses cp1252 encoding by default, which causes Python-based tools
-    // like Semgrep to crash with encoding errors when processing UTF-8 source files.
-    // Setting PYTHONUTF8=1 forces Python to use UTF-8 for all I/O operations,
-    // matching the behavior on Unix systems.
-    // See: https://peps.python.org/pep-0540/
-    const cleanEnv = {
-      ...baseEnv,
-      PYTHONUTF8: '1',
-    };
+    const cleanEnv = buildAgentEnv('reviewdog', context.env);
 
     // Primary path: Run semgrep directly and parse structured output
     const result = await runSemgrepStructured(context.repoPath, filePaths, cleanEnv);
