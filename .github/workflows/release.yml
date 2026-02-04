@@ -78,6 +78,7 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GIT_AUTHOR_NAME: odd-ai-reviewers-release-bot[bot]
           GIT_AUTHOR_EMAIL: odd-ai-reviewers-release-bot[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: odd-ai-reviewers-release-bot[bot]
