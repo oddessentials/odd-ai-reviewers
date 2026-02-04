@@ -26,8 +26,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      # id-token: write - Removed for P1 (token-only publish without provenance)
-      # Re-enable in P2 after basic publish is confirmed working
+      id-token: write # Required for npm provenance OIDC signing
 
     outputs:
       version: ${{ steps.semantic.outputs.new_release_version }}
