@@ -108,7 +108,7 @@ As a developer troubleshooting issues, I want clear log messages when the fallba
 - **FR-005**: System MUST surface the original error unchanged when it is not a token parameter compatibility error.
 - **FR-006**: System MUST surface the retry error with additional context when the fallback retry also fails.
 - **FR-007**: System MUST allow users to configure the token limit via a configuration setting.
-- **FR-008**: System MUST validate configured token limits are within acceptable bounds (minimum 16, reasonable maximum).
+- **FR-008**: System MUST validate configured token limits are within acceptable bounds (minimum 16). Maximum is not enforced as it varies by model and OpenAI may change limits over time.
 - **FR-009**: System MUST use a default token limit when no custom limit is configured.
 - **FR-010**: System MUST log at warning level when the token parameter fallback mechanism is engaged, including model name and parameter used.
 - **FR-011**: System MUST NOT log sensitive information (API keys, full request/response payloads) in any log messages.

@@ -86,11 +86,9 @@ router/src/
     └── errors.ts             # REFERENCE: Existing error types
 
 router/tests/
-├── unit/
-│   └── agents/
-│       └── token-compat.test.ts  # NEW: Unit tests for compatibility logic
-└── integration/
-    └── openai-compat.test.ts     # NEW: Integration tests (if API keys available)
+└── unit/
+    └── agents/
+        └── token-compat.test.ts  # NEW: Unit tests for compatibility logic
 ```
 
 **Structure Decision**: Single project structure. Changes are localized to the `router/src/agents/` directory with a new utility module for token parameter compatibility. This follows the existing pattern of agent-specific code in the agents directory.

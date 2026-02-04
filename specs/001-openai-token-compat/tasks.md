@@ -103,16 +103,14 @@
 ### Tests for User Story 3
 
 - [ ] T025 [P] [US3] Add test: withTokenCompatibility performs exactly one retry on compat error (not zero, not two) in router/tests/unit/agents/token-compat.test.ts
-- [ ] T026 [P] [US3] Add test: withTokenCompatibility does NOT retry on network errors in router/tests/unit/agents/token-compat.test.ts
-- [ ] T027 [P] [US3] Add test: withTokenCompatibility does NOT retry on auth errors in router/tests/unit/agents/token-compat.test.ts
-- [ ] T028 [P] [US3] Add test: withTokenCompatibility surfaces second error when both attempts fail in router/tests/unit/agents/token-compat.test.ts
-- [ ] T029 [US3] Add test: retry request is identical except for token limit parameter key swap (FR-013) in router/tests/unit/agents/token-compat.test.ts
+- [ ] T026 [P] [US3] Add test: withTokenCompatibility surfaces second error when both attempts fail in router/tests/unit/agents/token-compat.test.ts
+- [ ] T027 [US3] Add test: retry request is identical except for token limit parameter key swap (FR-013) in router/tests/unit/agents/token-compat.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Verify retry logic is bounded to single attempt in withTokenCompatibility() in router/src/agents/token-compat.ts
-- [ ] T031 [US3] Ensure retry request preserves all parameters except token limit key in router/src/agents/token-compat.ts
-- [ ] T032 [US3] Add context to error when fallback retry also fails in router/src/agents/token-compat.ts
+- [ ] T028 [US3] Verify retry logic is bounded to single attempt in withTokenCompatibility() in router/src/agents/token-compat.ts
+- [ ] T029 [US3] Ensure retry request preserves all parameters except token limit key in router/src/agents/token-compat.ts
+- [ ] T030 [US3] Add context to error when fallback retry also fails in router/src/agents/token-compat.ts
 
 **Checkpoint**: Retry behavior is deterministic and bounded
 
@@ -126,17 +124,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] Add test: LimitsSchema accepts optional max_completion_tokens field in router/tests/unit/config/schemas.test.ts
-- [ ] T034 [P] [US4] Add test: LimitsSchema uses default 4000 when max_completion_tokens not specified in router/tests/unit/config/schemas.test.ts
-- [ ] T035 [P] [US4] Add test: LimitsSchema validates min 16 for max_completion_tokens in router/tests/unit/config/schemas.test.ts
-- [ ] T036 [P] [US4] Add test: LimitsSchema rejects negative max_completion_tokens in router/tests/unit/config/schemas.test.ts
+- [ ] T031 [P] [US4] Add test: LimitsSchema accepts optional max_completion_tokens field in router/tests/unit/config/schemas.test.ts
+- [ ] T032 [P] [US4] Add test: LimitsSchema uses default 4000 when max_completion_tokens not specified in router/tests/unit/config/schemas.test.ts
+- [ ] T033 [P] [US4] Add test: LimitsSchema validates min 16 for max_completion_tokens in router/tests/unit/config/schemas.test.ts
+- [ ] T034 [P] [US4] Add test: LimitsSchema rejects negative max_completion_tokens in router/tests/unit/config/schemas.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] Add max_completion_tokens field to LimitsSchema with z.number().int().min(16).optional().default(4000) in router/src/config/schemas.ts
-- [ ] T038 [US4] Update opencode.ts to read token limit from context.config.limits.max_completion_tokens in router/src/agents/opencode.ts
-- [ ] T039 [P] [US4] Update pr_agent.ts to read token limit from config in router/src/agents/pr_agent.ts
-- [ ] T040 [P] [US4] Update ai_semantic_review.ts to read token limit from config in router/src/agents/ai_semantic_review.ts
+- [ ] T035 [US4] Add max_completion_tokens field to LimitsSchema with z.number().int().min(16).optional().default(4000) in router/src/config/schemas.ts (Zod validates at config parse time, satisfying SC-004 startup validation)
+- [ ] T036 [US4] Update opencode.ts to read token limit from context.config.limits.max_completion_tokens in router/src/agents/opencode.ts
+- [ ] T037 [P] [US4] Update pr_agent.ts to read token limit from config in router/src/agents/pr_agent.ts
+- [ ] T038 [P] [US4] Update ai_semantic_review.ts to read token limit from config in router/src/agents/ai_semantic_review.ts
 
 **Checkpoint**: Token limits are configurable via .ai-review.yml
 
@@ -150,16 +148,16 @@
 
 ### Tests for User Story 5
 
-- [ ] T041 [P] [US5] Add test: withTokenCompatibility logs at warn level when fallback engages in router/tests/unit/agents/token-compat.test.ts
-- [ ] T042 [P] [US5] Add test: log message includes model name in router/tests/unit/agents/token-compat.test.ts
-- [ ] T043 [P] [US5] Add test: log message includes which parameter was used in router/tests/unit/agents/token-compat.test.ts
-- [ ] T044 [US5] Add test: log message does NOT include API key or token limit value in router/tests/unit/agents/token-compat.test.ts
+- [ ] T039 [P] [US5] Add test: withTokenCompatibility logs at warn level when fallback engages in router/tests/unit/agents/token-compat.test.ts
+- [ ] T040 [P] [US5] Add test: log message includes model name in router/tests/unit/agents/token-compat.test.ts
+- [ ] T041 [P] [US5] Add test: log message includes which parameter was used in router/tests/unit/agents/token-compat.test.ts
+- [ ] T042 [US5] Add test: log message does NOT include API key or token limit value in router/tests/unit/agents/token-compat.test.ts
 
 ### Implementation for User Story 5
 
-- [ ] T045 [US5] Add console.warn() call when fallback retry is triggered in withTokenCompatibility() in router/src/agents/token-compat.ts
-- [ ] T046 [US5] Format log message as "[token-compat] Fallback engaged: model={modelName}, retrying with max_tokens (was max_completion_tokens)" in router/src/agents/token-compat.ts
-- [ ] T047 [US5] Verify no sensitive data (API keys, payloads, token values) in log output in router/src/agents/token-compat.ts
+- [ ] T043 [US5] Add console.warn() call when fallback retry is triggered in withTokenCompatibility() in router/src/agents/token-compat.ts
+- [ ] T044 [US5] Format log message as "[token-compat] Fallback engaged: model={modelName}, retrying with max_tokens (was max_completion_tokens)" in router/src/agents/token-compat.ts
+- [ ] T045 [US5] Verify no sensitive data (API keys, payloads, token values) in log output in router/src/agents/token-compat.ts
 
 **Checkpoint**: Fallback events are logged with diagnostic info, no sensitive data
 
@@ -169,12 +167,12 @@
 
 **Purpose**: Final validation and cleanup
 
-- [ ] T048 Run pnpm lint --max-warnings 0 to verify zero lint warnings
-- [ ] T049 Run pnpm typecheck to verify TypeScript compilation
-- [ ] T050 Run pnpm test to verify all tests pass with 65% coverage
-- [ ] T051 Verify no circular dependencies with pnpm depcruise
-- [ ] T052 [P] Update quickstart.md with final implementation details in specs/001-openai-token-compat/quickstart.md
-- [ ] T053 Run full test suite against mock OpenAI responses
+- [ ] T046 Run pnpm lint --max-warnings 0 to verify zero lint warnings
+- [ ] T047 Run pnpm typecheck to verify TypeScript compilation
+- [ ] T048 Run pnpm test to verify all tests pass with 65% coverage
+- [ ] T049 Verify no circular dependencies with pnpm depcruise
+- [ ] T050 [P] Update quickstart.md with final implementation details in specs/001-openai-token-compat/quickstart.md
+- [ ] T051 Run full test suite against mock OpenAI responses
 
 ---
 
@@ -231,16 +229,16 @@ Foundational (Phase 2) ──┬──► US1 (Modern Support) ──► US2 (Le
 
 **Within User Story 3**:
 
-- T025, T026, T027, T028 can run in parallel (independent test cases)
+- T025, T026 can run in parallel (independent test cases)
 
 **Within User Story 4**:
 
-- T033, T034, T035, T036 can run in parallel (independent test cases)
-- T039, T040 can run in parallel (different agent files)
+- T031, T032, T033, T034 can run in parallel (independent test cases)
+- T037, T038 can run in parallel (different agent files)
 
 **Within User Story 5**:
 
-- T041, T042, T043 can run in parallel (independent test cases)
+- T039, T040, T041 can run in parallel (independent test cases)
 
 ---
 
@@ -295,6 +293,7 @@ After each user story:
 - US1 is the MVP - modern models will work after completing it
 - US2 adds backward compatibility
 - US3 ensures enterprise-grade determinism
-- US4 and US5 are polish features
+- US4 (Config) is independent of other stories
+- US5 (Logging) requires US2's fallback mechanism to exist for testing, but can be implemented in parallel
 - Commit after each task or logical group
 - All tests use Vitest 4.x patterns
