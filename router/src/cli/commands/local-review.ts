@@ -26,6 +26,7 @@ import type { ValidatedConfig } from '../../types/branded.js';
 import type { DependencyCheckSummary, SkippedPassInfo } from '../dependencies/types.js';
 
 import { isOk } from '../../types/result.js';
+import { wrapNonError } from '../../types/errors.js';
 import { inferGitContext, GitContextErrorCode } from '../git-context.js';
 import {
   parseLocalReviewOptions,
@@ -392,17 +393,8 @@ async function loadConfigWithFallback(
       const config = await loadConfigFn(repoRoot);
       return { config, source: 'file', path: configPath };
     } catch (error) {
-      // Wrap non-Error throws (rare but possible) to ensure consistent error handling
-      // This guards against code that throws strings, numbers, or other non-Error values
-      if (error instanceof Error) {
-        throw error;
-      }
-      // Use JSON.stringify for objects to provide informative error messages
-      // String() on objects produces unhelpful "[object Object]"
-      if (error !== null && typeof error === 'object') {
-        throw new Error(JSON.stringify(error));
-      }
-      throw new Error(String(error));
+      // Wrap non-Error throws to ensure consistent error handling
+      throw wrapNonError(error);
     }
   }
 
@@ -896,6 +888,20 @@ export async function runLocalReview(
 
   // Filter config to only include runnable passes
   const runnableConfig = filterToRunnablePasses(config, depSummary.runnablePasses);
+
+  // Check if all passes were filtered out (all optional, all missing dependencies)
+  const enabledRunnablePasses = runnableConfig.passes.filter((p) => p.enabled);
+  if (enabledRunnablePasses.length === 0) {
+    const warnMsg = colored
+      ? `${c.yellow('⚠')} All review passes were skipped due to missing dependencies.\n` +
+        `  Run 'ai-review check' to see what's missing.\n` +
+        `  No review will be performed.\n`
+      : `Warning: All review passes were skipped due to missing dependencies.\n` +
+        `  Run 'ai-review check' to see what's missing.\n` +
+        `  No review will be performed.\n`;
+    stderr.write(warnMsg);
+    return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
+  }
 
   // Show warnings for other optional missing dependencies
   if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {

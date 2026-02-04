@@ -694,6 +694,37 @@ export function isNodeError(error: unknown): error is NodeError {
 }
 
 /**
+ * Wrap a non-Error thrown value into an Error instance.
+ *
+ * Use this in catch blocks to ensure consistent error handling when code
+ * may throw non-Error values (strings, objects, etc.).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   someFunctionThatMightThrowAnything();
+ * } catch (error) {
+ *   throw wrapNonError(error); // Always returns an Error
+ * }
+ * ```
+ *
+ * @param error - Unknown caught value (typically from a catch block)
+ * @returns The original Error if already an Error instance, otherwise a new Error
+ *          wrapping the value with an informative message
+ */
+export function wrapNonError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  // Use JSON.stringify for objects to provide informative error messages
+  // String() on objects produces unhelpful "[object Object]"
+  if (error !== null && typeof error === 'object') {
+    return new Error(JSON.stringify(error));
+  }
+  return new Error(String(error));
+}
+
+/**
  * Deserialize any error from wire format
  * Determines the correct error class based on the code prefix
  */

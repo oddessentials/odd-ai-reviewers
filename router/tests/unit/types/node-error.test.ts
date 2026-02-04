@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isNodeError, type NodeError } from '../../../src/types/errors.js';
+import { isNodeError, wrapNonError, type NodeError } from '../../../src/types/errors.js';
 
 describe('isNodeError', () => {
   describe('basic Error instances', () => {
@@ -467,6 +467,135 @@ describe('isNodeError', () => {
         expect(_errno).toBeUndefined();
         expect(_path).toBeUndefined();
         expect(_syscall).toBeUndefined();
+      }
+    });
+  });
+});
+
+describe('wrapNonError', () => {
+  describe('Error passthrough', () => {
+    it('should return the same Error instance unchanged', () => {
+      const original = new Error('Original error');
+      const result = wrapNonError(original);
+      expect(result).toBe(original);
+    });
+
+    it('should return TypeError unchanged', () => {
+      const original = new TypeError('Type error');
+      const result = wrapNonError(original);
+      expect(result).toBe(original);
+    });
+
+    it('should return custom Error subclass unchanged', () => {
+      class CustomError extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = 'CustomError';
+        }
+      }
+      const original = new CustomError('Custom error');
+      const result = wrapNonError(original);
+      expect(result).toBe(original);
+    });
+  });
+
+  describe('string wrapping', () => {
+    it('should wrap string into Error', () => {
+      const result = wrapNonError('string error');
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('string error');
+    });
+
+    it('should wrap empty string into Error', () => {
+      const result = wrapNonError('');
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('');
+    });
+  });
+
+  describe('primitive wrapping', () => {
+    it('should wrap number into Error', () => {
+      const result = wrapNonError(42);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('42');
+    });
+
+    it('should wrap boolean into Error', () => {
+      const result = wrapNonError(false);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('false');
+    });
+
+    it('should wrap undefined into Error', () => {
+      const result = wrapNonError(undefined);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('undefined');
+    });
+
+    it('should wrap null into Error with string "null"', () => {
+      const result = wrapNonError(null);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('null');
+    });
+  });
+
+  describe('object wrapping', () => {
+    it('should wrap plain object using JSON.stringify', () => {
+      const obj = { code: 'ERR', message: 'fail' };
+      const result = wrapNonError(obj);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('{"code":"ERR","message":"fail"}');
+    });
+
+    it('should wrap array using JSON.stringify', () => {
+      const arr = [1, 2, 3];
+      const result = wrapNonError(arr);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('[1,2,3]');
+    });
+
+    it('should wrap nested object using JSON.stringify', () => {
+      const obj = { outer: { inner: 'value' } };
+      const result = wrapNonError(obj);
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('{"outer":{"inner":"value"}}');
+    });
+
+    it('should handle circular references gracefully', () => {
+      const obj: Record<string, unknown> = { a: 1 };
+      obj['self'] = obj;
+      // JSON.stringify throws on circular refs, so this should throw
+      expect(() => wrapNonError(obj)).toThrow();
+    });
+  });
+
+  describe('use in catch blocks', () => {
+    it('should handle thrown Error', () => {
+      try {
+        throw new Error('thrown error');
+      } catch (e) {
+        const result = wrapNonError(e);
+        expect(result.message).toBe('thrown error');
+      }
+    });
+
+    it('should handle thrown string', () => {
+      try {
+        throw 'thrown string';
+      } catch (e) {
+        const result = wrapNonError(e);
+        expect(result).toBeInstanceOf(Error);
+        expect(result.message).toBe('thrown string');
+      }
+    });
+
+    it('should handle thrown object', () => {
+      try {
+        throw { error: true, code: 500 };
+      } catch (e) {
+        const result = wrapNonError(e);
+        expect(result).toBeInstanceOf(Error);
+        expect(result.message).toBe('{"error":true,"code":500}');
       }
     });
   });
