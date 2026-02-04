@@ -2,12 +2,24 @@
 
 **Feature Branch**: `001-pr-blocking-fixes`
 **Created**: 2026-02-03
-**Status**: Draft
+**Status**: In Progress (6/7 User Stories Complete)
 **Input**: User description: "Resolve all PR-blocking issues from PR_FEEDBACK.md"
+
+## Implementation Status
+
+| User Story              | Priority | Status         | Notes                                          |
+| ----------------------- | -------- | -------------- | ---------------------------------------------- |
+| US1 - Release Pipeline  | P1       | ✅ COMPLETE    | CHANGELOG path, breaking rules, tag extraction |
+| US2 - Windows Semgrep   | P1       | ✅ COMPLETE    | PYTHONUTF8=1 centralized in createSafeAgentEnv |
+| US3 - OpenAI Models     | P1       | ⏳ NOT STARTED | See `NEW_CODER.md` for implementation details  |
+| US4 - Error Handling    | P2       | ✅ COMPLETE    | isNodeError guard, error wrapping              |
+| US5 - Supply Chain      | P2       | ✅ COMPLETE    | github-script@SHA replaces unpinned action     |
+| US6 - Dead Code         | P2       | ✅ COMPLETE    | npm-publish.yml does not exist                 |
+| US7 - Integration Tests | P3       | ✅ COMPLETE    | Tests implemented with --dry-run               |
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Release Pipeline Produces Correct Artifacts (Priority: P1)
+### User Story 1 - Release Pipeline Produces Correct Artifacts (Priority: P1) ✅ COMPLETE
 
 A maintainer merges code to main and expects the automated release pipeline to create consistent, verifiable release artifacts with correct version numbers across all locations (npm, GitHub releases, CHANGELOG).
 
@@ -23,7 +35,7 @@ A maintainer merges code to main and expects the automated release pipeline to c
 
 ---
 
-### User Story 2 - Local Review Works on Windows (Priority: P1)
+### User Story 2 - Local Review Works on Windows (Priority: P1) ✅ COMPLETE
 
 A developer on Windows runs `ai-review local` and expects the review to complete successfully, including static analysis with Semgrep.
 
@@ -38,9 +50,11 @@ A developer on Windows runs `ai-review local` and expects the review to complete
 
 ---
 
-### User Story 3 - Local Review Works with Latest OpenAI Models (Priority: P1)
+### User Story 3 - Local Review Works with Latest OpenAI Models (Priority: P1) ⏳ NOT STARTED
 
 A developer using GPT-5.x models runs local review and expects the AI-powered code review to complete successfully.
+
+> **Implementation Guide**: See `NEW_CODER.md` in repository root for detailed implementation instructions.
 
 **Why this priority**: Hard failures when using current-generation models make the tool unusable for users who have upgraded their OpenAI access.
 
@@ -53,7 +67,7 @@ A developer using GPT-5.x models runs local review and expects the AI-powered co
 
 ---
 
-### User Story 4 - Errors Are Handled Safely (Priority: P2)
+### User Story 4 - Errors Are Handled Safely (Priority: P2) ✅ COMPLETE
 
 A developer runs local review and encounters an error. The error is handled gracefully with clear messaging and no undefined behavior.
 
@@ -68,7 +82,7 @@ A developer runs local review and encounters an error. The error is handled grac
 
 ---
 
-### User Story 5 - CI/CD Has Minimal Supply Chain Risk (Priority: P2)
+### User Story 5 - CI/CD Has Minimal Supply Chain Risk (Priority: P2) ✅ COMPLETE
 
 A security-conscious organization reviews the CI/CD pipeline and needs assurance that third-party actions with secrets access are pinned and trustworthy.
 
@@ -83,7 +97,7 @@ A security-conscious organization reviews the CI/CD pipeline and needs assurance
 
 ---
 
-### User Story 6 - No Deprecated or Dead Code in CI (Priority: P2)
+### User Story 6 - No Deprecated or Dead Code in CI (Priority: P2) ✅ COMPLETE
 
 A maintainer reviews the CI configuration and expects no ambiguity about which workflows are active and authoritative.
 
@@ -97,7 +111,7 @@ A maintainer reviews the CI configuration and expects no ambiguity about which w
 
 ---
 
-### User Story 7 - Integration Tests Cover Critical Paths (Priority: P3)
+### User Story 7 - Integration Tests Cover Critical Paths (Priority: P3) ✅ COMPLETE
 
 A maintainer reviews test coverage and needs confidence that critical execution paths are actually tested, not skipped.
 

@@ -165,13 +165,14 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Verify .github/workflows/npm-publish.yml does not exist
 
-**Status**: ⏳ NOT STARTED
+**Status**: ✅ COMPLETE
 
 ### Implementation for User Story 6
 
-- [ ] T017 [US6] Delete deprecated workflow file .github/workflows/npm-publish.yml
+- [x] T017 [US6] Delete deprecated workflow file .github/workflows/npm-publish.yml
+  - **Status**: ✅ COMPLETE - File does not exist (verified: no files found)
 
-**Checkpoint**: No deprecated workflow files exist in repository
+**Checkpoint**: ✅ No deprecated workflow files exist in repository
 
 ---
 
@@ -181,14 +182,17 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Run test suite and verify no skipped tests on critical paths
 
-**Status**: ⏳ NOT STARTED
+**Status**: ✅ COMPLETE
 
 ### Implementation for User Story 7
 
-- [ ] T018 [US7] Implement skipped test `ai-review local . executes with exit code 0` with --dry-run in router/tests/integration/local-review-cli.test.ts
-- [ ] T019 [US7] Implement skipped test `ai-review local-review . executes with exit code 0` with --dry-run in router/tests/integration/local-review-cli.test.ts
+- [x] T018 [US7] Implement skipped test `ai-review local . executes with exit code 0` with --dry-run in router/tests/integration/local-review-cli.test.ts
+  - **Status**: ✅ COMPLETE - `local-review-cli.test.ts:109` implements test with --dry-run
+- [x] T019 [US7] Implement skipped test `ai-review local-review . executes with exit code 0` with --dry-run in router/tests/integration/local-review-cli.test.ts
+  - **Status**: ✅ COMPLETE - `local-review-cli.test.ts:118` implements test with --dry-run
+  - **Commit**: `5787bf2 test(ci): implement skipped integration tests and harden environment gates`
 
-**Checkpoint**: All critical path tests are implemented and passing
+**Checkpoint**: ✅ All critical path tests are implemented and passing
 
 ---
 
@@ -214,13 +218,13 @@ Based on plan.md, this project uses:
 | US3 - OpenAI Models     | ⏳ NOT STARTED | 0/2            |
 | US4 - Error Handling    | ✅ COMPLETE    | 3/3            |
 | US5 - Supply Chain      | ✅ COMPLETE    | 3/3            |
-| US6 - Dead Code         | ⏳ NOT STARTED | 0/1            |
-| US7 - Integration Tests | ⏳ NOT STARTED | 0/2            |
+| US6 - Dead Code         | ✅ COMPLETE    | 1/1            |
+| US7 - Integration Tests | ✅ COMPLETE    | 2/2            |
 | Phase 10 - Polish       | ⏳ NOT STARTED | 0/5            |
 
 **P1 User Stories**: 2/3 complete (US3 remaining)
-**P2 User Stories**: 2/3 complete (US6 remaining)
-**P3 User Stories**: 0/1 complete (US7 remaining)
+**P2 User Stories**: 3/3 complete ✅
+**P3 User Stories**: 1/1 complete ✅
 
 ---
 
@@ -231,15 +235,11 @@ Based on plan.md, this project uses:
 The following user stories are NOT YET COMPLETE:
 
 1. **US3 (P1)**: OpenAI model parameter switching - T009, T010
-2. **US6 (P2)**: Delete deprecated workflow - T017
-3. **US7 (P3)**: Integration test implementation - T018, T019
 
 ### Recommended Next Steps
 
 1. Complete US3 (P1) - Critical for GPT-5 users
-2. Complete US6 (P2) - Remove dead code
-3. Complete US7 (P3) - Test coverage
-4. Run Phase 10 for final validation
+2. Run Phase 10 for final validation
 
 ---
 
@@ -251,5 +251,5 @@ The following user stories are NOT YET COMPLETE:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Total tasks: 24
-- Completed tasks: 11 (Phase 1 + US1 + US2 + US4 + US5)
-- Remaining tasks: 13
+- Completed tasks: 19 (Phase 1 + US1 + US2 + US4 + US5 + US6 + US7)
+- Remaining tasks: 7 (US3: 2, Phase 10: 5)
