@@ -24,6 +24,7 @@ import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
+import { withTokenCompatibility } from './token-compat.js';
 import { getCurrentDateUTC } from './date-utils.js';
 import { AgentError, AgentErrorCode } from '../types/errors.js';
 
@@ -168,17 +169,22 @@ async function runWithOpenAI(
   const estimatedInputTokens = estimateTokens(system + user);
 
   try {
-    const response = await withRetry(() =>
-      openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: 4000,
-        temperature: 0.3,
-      })
+    const response = await withTokenCompatibility(
+      (tokenParam) =>
+        withRetry(() =>
+          openai.chat.completions.create({
+            model,
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            response_format: { type: 'json_object' },
+            ...tokenParam,
+            temperature: 0.3,
+          })
+        ),
+      4000, // Token limit (will be configurable in Phase 6)
+      model
     );
 
     const content = response.choices[0]?.message?.content;
