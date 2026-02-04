@@ -73,13 +73,14 @@ jobs:
       - name: Semantic Release
         id: semantic
         run: |
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             echo "Running in dry-run mode..."
             pnpm exec semantic-release --dry-run
           else
             pnpm exec semantic-release
           fi
         env:
+          DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GIT_AUTHOR_NAME: release-bot[bot]

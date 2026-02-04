@@ -69,13 +69,14 @@ jobs:
       - name: Semantic Release
         id: semantic
         run: |
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             echo "Running in dry-run mode..."
             pnpm exec semantic-release --dry-run
           else
             pnpm exec semantic-release
           fi
         env:
+          DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GIT_AUTHOR_NAME: odd-ai-reviewers-release-bot[bot]
           GIT_AUTHOR_EMAIL: odd-ai-reviewers-release-bot[bot]@users.noreply.github.com

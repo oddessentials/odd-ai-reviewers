@@ -13,7 +13,7 @@
  * @module cli/commands/local-review
  */
 
-import type { Config } from '../../config.js';
+import type { Config, Pass } from '../../config.js';
 import type { AgentContext, Finding } from '../../agents/types.js';
 import type { DiffSummary, PathFilter } from '../../diff.js';
 import type { LocalReviewOptions } from '../options/local-review-options.js';
@@ -118,6 +118,8 @@ export interface LocalReviewDependencies {
   executeAllPasses?: typeof executeAllPasses;
   /** Override for terminal reporting (for testing) */
   reportToTerminal?: typeof reportToTerminal;
+  /** Override for dependency checking (for testing) */
+  checkDependenciesForPasses?: (passes: Pass[]) => DependencyCheckSummary;
 }
 
 /**
@@ -867,7 +869,8 @@ export async function runLocalReview(
   }
 
   // 5. Dependency preflight check (only needed when actually running agents)
-  const depSummary = checkDependenciesForPasses(config.passes);
+  const checkDepsFn = deps.checkDependenciesForPasses ?? checkDependenciesForPasses;
+  const depSummary = checkDepsFn(config.passes);
   if (depSummary.hasBlockingIssues) {
     displayDependencyErrors(depSummary, stderr);
     return {

@@ -106,6 +106,20 @@ function createMockDeps(overrides: Partial<LocalReviewDependencies> = {}): Local
     exitHandler: vi.fn(),
     stdout,
     stderr,
+    // Default mock for dependency checking - no blocking issues
+    // This allows tests to reach their intended code paths without requiring
+    // real system tools like semgrep to be installed
+    checkDependenciesForPasses: () => ({
+      results: [],
+      missingRequired: [],
+      missingOptional: [],
+      unhealthy: [],
+      versionWarnings: [],
+      hasBlockingIssues: false,
+      hasWarnings: false,
+      runnablePasses: ['static', 'static-analysis', 'ai-review'],
+      skippedPasses: [],
+    }),
     ...overrides,
   };
 }
@@ -361,6 +375,50 @@ describe('runLocalReview', () => {
 
       expect(result.exitCode).toBe(ExitCode.FAILURE);
       expect(result.error).toContain('Agent execution failed');
+    });
+
+    it('should exit early when required dependencies are missing', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 10,
+          deletions: 5,
+          patch: '+line\n-line',
+        },
+      ]);
+      const mockConfig = createMockConfig();
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+        // Override default mock to simulate missing required dependencies
+        checkDependenciesForPasses: () => ({
+          results: [
+            { name: 'semgrep', status: 'missing' as const, version: null, error: 'Not found' },
+          ],
+          missingRequired: ['semgrep'],
+          missingOptional: [],
+          unhealthy: [],
+          versionWarnings: [],
+          hasBlockingIssues: true,
+          hasWarnings: false,
+          runnablePasses: [],
+          skippedPasses: ['static'],
+        }),
+        // executeAllPasses should NOT be called when dependencies are missing
+        executeAllPasses: async () => {
+          throw new Error('Should not be called when dependencies are missing');
+        },
+      });
+
+      const result = await runLocalReview({ path: '/test/repo' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.FAILURE);
+      expect(result.error).toBe('Missing required dependencies');
+      expect(result.findingsCount).toBe(0);
     });
   });
 
