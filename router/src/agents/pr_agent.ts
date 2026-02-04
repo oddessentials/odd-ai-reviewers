@@ -11,6 +11,7 @@ import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
 import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
+import { withTokenCompatibility } from './token-compat.js';
 import { parseJsonResponse } from './json-utils.js';
 import { getCurrentDateUTC } from './date-utils.js';
 
@@ -299,17 +300,22 @@ Analyze this pull request and provide your review as a JSON object with the foll
     }
 
     try {
-      const response = await withRetry(() =>
-        openai.chat.completions.create({
-          model: effectiveModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          max_tokens: 4000,
-          temperature: 0.3,
-        })
+      const response = await withTokenCompatibility(
+        (tokenParam) =>
+          withRetry(() =>
+            openai.chat.completions.create({
+              model: effectiveModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              response_format: { type: 'json_object' },
+              ...tokenParam,
+              temperature: 0.3,
+            })
+          ),
+        4000, // Token limit (will be configurable in Phase 6)
+        effectiveModel
       );
 
       const content = response.choices[0]?.message?.content;
