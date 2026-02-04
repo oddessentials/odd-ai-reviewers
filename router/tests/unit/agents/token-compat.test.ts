@@ -4,7 +4,7 @@
  * @module token-compat.test
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import OpenAI from 'openai';
 import {
   buildPreferredTokenLimit,
@@ -351,6 +351,155 @@ describe('withTokenCompatibility', () => {
 
       expect(calls[0]).toEqual({ max_completion_tokens: 8192 });
       expect(calls[1]).toEqual({ max_tokens: 8192 });
+    });
+  });
+
+  // T039-T042: Fallback logging tests
+  describe('fallback logging (T039-T042)', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // Mock console.warn to capture log calls without output
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    // T039: Logs at warn level when fallback engages
+    it('logs at warn level when fallback engages', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 4000, 'gpt-3.5-turbo');
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // T040: Log message includes model name
+    it('log message includes model name', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 4000, 'gpt-3.5-turbo-legacy');
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('model=gpt-3.5-turbo-legacy'));
+    });
+
+    // T041: Log message includes which parameter was used
+    it('log message includes parameter transition info', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 4000, 'test-model');
+
+      const logMessage = warnSpy.mock.calls[0][0] as string;
+      expect(logMessage).toContain('max_tokens');
+      expect(logMessage).toContain('max_completion_tokens');
+      expect(logMessage).toContain('[token-compat]');
+    });
+
+    // T042: Log message does NOT include sensitive data
+    it('log message does NOT include API key or token limit value', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      // Use a specific token limit to verify it's not logged
+      await withTokenCompatibility(mockFn, 8192, 'test-model');
+
+      const logMessage = warnSpy.mock.calls[0][0] as string;
+      // Should NOT contain the token limit value
+      expect(logMessage).not.toContain('8192');
+      // Should NOT contain common API key patterns
+      expect(logMessage).not.toMatch(/sk-[a-zA-Z0-9]+/);
+      expect(logMessage).not.toContain('api_key');
+      expect(logMessage).not.toContain('apiKey');
+    });
+
+    it('does not log when no fallback is needed', async () => {
+      const mockFn = async () => 'success';
+
+      await withTokenCompatibility(mockFn, 4000, 'gpt-4o');
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not log for non-compatibility errors', async () => {
+      const authError = new OpenAI.AuthenticationError(
+        401,
+        { message: 'Invalid API key' },
+        'Unauthorized',
+        createMockHeaders()
+      );
+
+      const mockFn = async () => {
+        throw authError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'gpt-4o')).rejects.toThrow();
+
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 });

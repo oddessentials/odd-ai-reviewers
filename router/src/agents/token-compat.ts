@@ -120,9 +120,12 @@ export function isTokenParamCompatibilityError(error: unknown): boolean {
  *    retry exactly once with legacy `max_tokens` parameter
  * 3. Non-compatibility errors are thrown immediately without retry
  *
+ * When fallback engages, a warning is logged with the model name (FR-010).
+ * No sensitive data (API keys, payloads, token values) is logged (FR-011).
+ *
  * @param fn - Function that makes the OpenAI API call, receiving the token limit param
  * @param tokenLimit - The maximum tokens for the completion
- * @param _model - Model name (reserved for future logging)
+ * @param model - Model name (used in fallback warning log)
  * @returns Promise resolving to the API response
  *
  * @example
@@ -141,7 +144,7 @@ export function isTokenParamCompatibilityError(error: unknown): boolean {
 export async function withTokenCompatibility<T>(
   fn: (tokenParam: TokenLimitParam) => Promise<T>,
   tokenLimit: number,
-  _model: string
+  model: string
 ): Promise<T> {
   // Attempt 1: Use preferred parameter (max_completion_tokens)
   const preferredParam = buildPreferredTokenLimit(tokenLimit);
@@ -154,6 +157,12 @@ export async function withTokenCompatibility<T>(
       // T024: Non-compatibility errors are thrown immediately
       throw error;
     }
+
+    // T043-T044: Log fallback event at warning level (FR-010)
+    // Note: Only model name logged, no sensitive data (API keys, payloads, token values) per FR-011
+    console.warn(
+      `[token-compat] Fallback engaged: model=${model}, retrying with max_tokens (was max_completion_tokens)`
+    );
 
     // T023: Retry exactly once with fallback parameter (max_tokens)
     const fallbackParam = buildFallbackTokenLimit(tokenLimit);
