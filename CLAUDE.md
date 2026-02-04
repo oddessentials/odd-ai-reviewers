@@ -41,6 +41,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (stateless CLI, file-based cache exists but not modified for core fixes) (001-pr-blocking-fixes)
 - GitHub Actions YAML, Bash + semantic-release, @semantic-release/exec, pnpm (408-fix-npm-publish)
 - N/A (CI workflow configuration only) (408-fix-npm-publish)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + OpenAI SDK 6.17.0, Zod 4.3.6 (validation), existing error types from `router/src/types/errors.ts` (001-openai-token-compat)
+- N/A (stateless per run, existing file-based cache unaffected) (001-openai-token-compat)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -68,9 +70,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 001-openai-token-compat: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + OpenAI SDK 6.17.0, Zod 4.3.6 (validation), existing error types from `router/src/types/errors.ts`
 - 408-fix-npm-publish: Added GitHub Actions YAML, Bash + semantic-release, @semantic-release/exec, pnpm
 - 001-pr-blocking-fixes: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules), Node.js >=22.0.0 + Commander 14.x (CLI), Zod 4.x (validation), OpenAI SDK 6.x, Anthropic SDK 0.71.x, Octokit 22.x
-- 001-local-review-improvements: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander.js 14.x (CLI), Zod 4.x (validation), Node.js ≥22.0.0
 
 
 
