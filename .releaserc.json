@@ -47,10 +47,10 @@
       }
     ],
     [
-      "@anolilab/semantic-release-pnpm",
+      "@semantic-release/exec",
       {
-        "pkgRoot": "router",
-        "npmPublish": true
+        "prepareCmd": "node -e \"const p=require('./router/package.json');p.version='${nextRelease.version}';require('fs').writeFileSync('./router/package.json',JSON.stringify(p,null,2)+'\\n')\"",
+        "publishCmd": "cd router && pnpm publish --no-git-checks --access public"
       }
     ],
     [

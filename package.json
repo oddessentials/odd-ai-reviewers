@@ -37,12 +37,12 @@
   "author": "OddEssentials",
   "license": "MIT",
   "devDependencies": {
-    "@anolilab/semantic-release-pnpm": "5.0.0",
     "@commitlint/cli": "20.3.1",
     "@commitlint/config-conventional": "20.3.1",
     "@eslint/js": "9.39.2",
     "@oddessentials/repo-standards": "7.1.1",
     "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/exec": "7.1.0",
     "@semantic-release/git": "10.0.1",
     "@semantic-release/github": "12.0.3",
     "@types/dompurify": "3.2.0",
@@ -79,7 +79,7 @@
     ]
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": ">=22.0.0"
   },
   "packageManager": "pnpm@10.28.2",
   "overrides": {
