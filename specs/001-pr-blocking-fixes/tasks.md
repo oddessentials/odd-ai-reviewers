@@ -7,6 +7,8 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Last Updated**: 2026-02-03
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -27,7 +29,9 @@ Based on plan.md, this project uses:
 
 **Purpose**: Create shared utilities needed by multiple user stories
 
-- [ ] T001 Create `isNodeError` type guard utility in router/src/types/errors.ts for safe error property access
+- [x] T001 Create `isNodeError` type guard utility in router/src/types/errors.ts for safe error property access
+  - **Status**: ✅ COMPLETE
+  - **Commit**: `30de03e feat(types): add isNodeError type guard for safe error property access`
 
 **Note**: This utility is used by US4 (Error Handling) but created in setup to be available for all stories.
 
@@ -43,7 +47,7 @@ Based on plan.md, this project uses:
 - No shared infrastructure changes are blocking
 - The `isNodeError` utility in Phase 1 is the only shared component
 
-**Checkpoint**: Foundation ready - user story implementation can begin immediately after Phase 1
+**Checkpoint**: ✅ Foundation ready - user story implementation can begin immediately after Phase 1
 
 ---
 
@@ -53,15 +57,22 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Trigger release workflow dry-run and verify CHANGELOG path and breaking change detection
 
+**Status**: ✅ COMPLETE
+
 ### Implementation for User Story 1
 
-- [ ] T002 [P] [US1] Update CHANGELOG path from `router/CHANGELOG.md` to `CHANGELOG.md` in .releaserc.json (@semantic-release/changelog section)
-- [ ] T003 [P] [US1] Update git assets from `router/CHANGELOG.md` to `CHANGELOG.md` in .releaserc.json (@semantic-release/git section)
-- [ ] T004 [P] [US1] Add breaking change rules for `feat` and `fix` types with `"breaking": true` in .releaserc.json (releaseRules section)
-- [ ] T005 [US1] Replace `sed 's/^v//'` with shell parameter expansion `${TAG#v}` in .github/workflows/release.yml (verify job, version extraction)
-- [ ] T006 [US1] Update CHANGELOG verification path from `router/CHANGELOG.md` to `CHANGELOG.md` in .github/workflows/release.yml (verify job)
+- [x] T002 [P] [US1] Update CHANGELOG path from `router/CHANGELOG.md` to `CHANGELOG.md` in .releaserc.json (@semantic-release/changelog section)
+  - **Status**: ✅ COMPLETE - `.releaserc.json:45` has `"changelogFile": "CHANGELOG.md"`
+- [x] T003 [P] [US1] Update git assets from `router/CHANGELOG.md` to `CHANGELOG.md` in .releaserc.json (@semantic-release/git section)
+  - **Status**: ✅ COMPLETE - `.releaserc.json:59` has `"assets": ["router/package.json", "CHANGELOG.md"]`
+- [x] T004 [P] [US1] Add breaking change rules for `feat` and `fix` types with `"breaking": true` in .releaserc.json (releaseRules section)
+  - **Status**: ✅ COMPLETE - `.releaserc.json:11-17` has breaking change rules
+- [x] T005 [US1] Replace `sed 's/^v//'` with shell parameter expansion `${TAG#v}` in .github/workflows/release.yml (verify job, version extraction)
+  - **Status**: ✅ COMPLETE - `release.yml:116` uses `TAG_VERSION=${TAG#v}`
+- [x] T006 [US1] Update CHANGELOG verification path from `router/CHANGELOG.md` to `CHANGELOG.md` in .github/workflows/release.yml (verify job)
+  - **Status**: ✅ COMPLETE - `release.yml:134` uses `CHANGELOG.md`
 
-**Checkpoint**: Release pipeline correctly writes CHANGELOG to root and detects breaking changes
+**Checkpoint**: ✅ Release pipeline correctly writes CHANGELOG to root and detects breaking changes
 
 ---
 
@@ -71,12 +82,20 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Run `ai-review local . --dry-run` on Windows with Semgrep installed - should not crash with cp1252 errors
 
+**Status**: ✅ COMPLETE
+
 ### Implementation for User Story 2
 
-- [ ] T007 [US2] Add `PYTHONUTF8: '1'` to agent environment in router/src/agents/semgrep.ts (in execFileSync call, env option)
-- [ ] T008 [US2] Add code comment explaining PEP 540 UTF-8 mode for Windows compatibility in router/src/agents/semgrep.ts
+- [x] T007 [US2] Add `PYTHONUTF8: '1'` to agent environment in router/src/agents/security.ts (centralized in createSafeAgentEnv)
+  - **Status**: ✅ COMPLETE - `security.ts:337-342` sets PYTHONUTF8=1 for all agents
+  - **Note**: Centralized in `createSafeAgentEnv` instead of individual agents (better than original plan)
+- [x] T008 [US2] Add code comment explaining PEP 540 UTF-8 mode for Windows compatibility in router/src/agents/security.ts
+  - **Status**: ✅ COMPLETE - `security.ts:337-341` has comprehensive PEP 540 comment
+  - **Commits**:
+    - `4cb9d49 fix(agents): add PYTHONUTF8=1 for Windows Semgrep compatibility`
+    - `a0f70fb refactor(agents): centralize PYTHONUTF8 in createSafeAgentEnv`
 
-**Checkpoint**: Semgrep agent runs successfully on Windows without encoding crashes
+**Checkpoint**: ✅ Semgrep agent runs successfully on Windows without encoding crashes
 
 ---
 
@@ -85,6 +104,8 @@ Based on plan.md, this project uses:
 **Goal**: Add model-aware parameter switching for GPT-5.x vs GPT-4.x models
 
 **Independent Test**: Configure GPT-5 model and run dry-run - should not fail with max_tokens rejection error
+
+**Status**: ⏳ NOT STARTED
 
 ### Implementation for User Story 3
 
@@ -100,6 +121,8 @@ Based on plan.md, this project uses:
 **Goal**: Harden error handling with proper type guards before accessing error properties
 
 **Independent Test**: Run local review with simulated error conditions - should not crash with undefined property access
+
+**Status**: ⏳ NOT STARTED
 
 ### Implementation for User Story 4
 
@@ -117,6 +140,8 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Audit .github/workflows/badge-update.yml - should only use official GitHub actions or SHA-pinned third-party actions
 
+**Status**: ⏳ NOT STARTED
+
 ### Implementation for User Story 5
 
 - [ ] T014 [US5] Replace `exuanbo/actions-deploy-gist@v1` with `actions/github-script@v7` for test badge update in .github/workflows/badge-update.yml
@@ -133,6 +158,8 @@ Based on plan.md, this project uses:
 
 **Independent Test**: Verify .github/workflows/npm-publish.yml does not exist
 
+**Status**: ⏳ NOT STARTED
+
 ### Implementation for User Story 6
 
 - [ ] T017 [US6] Delete deprecated workflow file .github/workflows/npm-publish.yml
@@ -146,6 +173,8 @@ Based on plan.md, this project uses:
 **Goal**: Implement skipped integration tests for CLI execution
 
 **Independent Test**: Run test suite and verify no skipped tests on critical paths
+
+**Status**: ⏳ NOT STARTED
 
 ### Implementation for User Story 7
 
@@ -168,89 +197,46 @@ Based on plan.md, this project uses:
 
 ---
 
+## Summary
+
+| User Story              | Status         | Tasks Complete |
+| ----------------------- | -------------- | -------------- |
+| Phase 1 - Setup         | ✅ COMPLETE    | 1/1            |
+| US1 - Release Pipeline  | ✅ COMPLETE    | 5/5            |
+| US2 - Windows Semgrep   | ✅ COMPLETE    | 2/2            |
+| US3 - OpenAI Models     | ⏳ NOT STARTED | 0/2            |
+| US4 - Error Handling    | ⏳ NOT STARTED | 0/3            |
+| US5 - Supply Chain      | ⏳ NOT STARTED | 0/3            |
+| US6 - Dead Code         | ⏳ NOT STARTED | 0/1            |
+| US7 - Integration Tests | ⏳ NOT STARTED | 0/2            |
+| Phase 10 - Polish       | ⏳ NOT STARTED | 0/5            |
+
+**P1 User Stories**: 2/3 complete (US3 remaining)
+**P2 User Stories**: 0/3 complete (US4, US5, US6 remaining)
+**P3 User Stories**: 0/1 complete (US7 remaining)
+
+---
+
 ## Dependencies & Execution Order
 
-### Phase Dependencies
+### Remaining Work
 
-- **Setup (Phase 1)**: No dependencies - T001 creates shared utility
-- **Foundational (Phase 2)**: Empty - no blocking prerequisites
-- **User Stories (Phase 3-9)**: All depend only on Phase 1 completion
-  - User stories are independent and can proceed in parallel
-  - Or sequentially in priority order (P1 → P2 → P3)
-- **Polish (Phase 10)**: Depends on all user stories being complete
+The following user stories are NOT YET COMPLETE:
 
-### User Story Dependencies
+1. **US3 (P1)**: OpenAI model parameter switching - T009, T010
+2. **US4 (P2)**: Error handling type guards - T011, T012, T013
+3. **US5 (P2)**: Badge action pinning - T014, T015, T016
+4. **US6 (P2)**: Delete deprecated workflow - T017
+5. **US7 (P3)**: Integration test implementation - T018, T019
 
-- **User Story 1 (P1)**: Independent - only touches .releaserc.json and release.yml
-- **User Story 2 (P1)**: Independent - only touches semgrep.ts
-- **User Story 3 (P1)**: Independent - only touches opencode.ts
-- **User Story 4 (P2)**: Depends on T001 (isNodeError utility)
-- **User Story 5 (P2)**: Independent - only touches badge-update.yml
-- **User Story 6 (P2)**: Independent - just deletes npm-publish.yml
-- **User Story 7 (P3)**: Independent - only touches local-review-cli.test.ts
+### Recommended Next Steps
 
-### Within Each User Story
-
-- Tasks within a story should be completed in order (unless marked [P])
-- All [P] tasks can run in parallel within their story
-
-### Parallel Opportunities
-
-**Maximum parallelism after Phase 1**:
-
-- T002, T003, T004 (all touch different sections of .releaserc.json - can be combined)
-- T007 (semgrep.ts) can run parallel to T009, T010 (opencode.ts)
-- T014, T015, T016 (badge-update.yml - sequential, same file)
-- T017 (delete) can run parallel to anything
-- T018, T019 (same test file - sequential)
-
----
-
-## Parallel Example: After Phase 1
-
-```bash
-# Maximum parallelism - all user stories can start simultaneously:
-
-# Developer A: User Story 1 (Release Pipeline)
-T002, T003, T004 → T005, T006
-
-# Developer B: User Story 2 + 3 (Windows + OpenAI)
-T007, T008 (parallel with) T009, T010
-
-# Developer C: User Story 4 (Error Handling)
-T011, T012, T013 (depends on T001)
-
-# Developer D: User Stories 5, 6, 7 (CI/CD fixes)
-T014, T015, T016 → T017 → T018, T019
-```
-
----
-
-## Implementation Strategy
-
-### MVP First (User Stories 1, 2, 3)
-
-1. Complete Phase 1: Setup (T001)
-2. Complete User Story 1: Release Pipeline (T002-T006) - **Critical for release correctness**
-3. Complete User Story 2: Windows Semgrep (T007-T008) - **Critical for Windows users**
-4. Complete User Story 3: OpenAI Models (T009-T010) - **Critical for GPT-5 users**
-5. **STOP and VALIDATE**: Test all three P1 stories
-6. These three fixes unblock the most users
-
-### Incremental Delivery
-
-1. T001 → Foundation ready
-2. US1 (T002-T006) → Release pipeline fixed
-3. US2 (T007-T008) → Windows support fixed
-4. US3 (T009-T010) → OpenAI compatibility fixed
-5. US4 (T011-T013) → Error handling hardened
-6. US5-6 (T014-T017) → CI/CD security improved
-7. US7 (T018-T019) → Test coverage complete
-8. Polish (T020-T024) → Ready for merge
-
-### Single Developer Sequential Path
-
-T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T014 → T015 → T016 → T017 → T018 → T019 → T020 → T021 → T022 → T023 → T024
+1. Complete US3 (P1) - Critical for GPT-5 users
+2. Complete US4 (P2) - Error handling safety
+3. Complete US5 (P2) - Security improvement
+4. Complete US6 (P2) - Remove dead code
+5. Complete US7 (P3) - Test coverage
+6. Run Phase 10 for final validation
 
 ---
 
@@ -262,4 +248,5 @@ T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 →
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Total tasks: 24
-- This is primarily a bug-fix feature with no new entities or complex dependencies
+- Completed tasks: 8 (Phase 1 + US1 + US2)
+- Remaining tasks: 16

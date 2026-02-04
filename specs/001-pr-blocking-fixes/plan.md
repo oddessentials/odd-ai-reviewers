@@ -2,6 +2,22 @@
 
 **Branch**: `001-pr-blocking-fixes` | **Date**: 2026-02-03 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-pr-blocking-fixes/spec.md`
+**Last Updated**: 2026-02-03
+
+## Implementation Status
+
+| User Story              | Priority | Status         | Notes                                                   |
+| ----------------------- | -------- | -------------- | ------------------------------------------------------- |
+| Phase 1 - Setup         | -        | ✅ COMPLETE    | isNodeError type guard created                          |
+| US1 - Release Pipeline  | P1       | ✅ COMPLETE    | CHANGELOG path, breaking changes, shell param expansion |
+| US2 - Windows Semgrep   | P1       | ✅ COMPLETE    | PYTHONUTF8=1 centralized in createSafeAgentEnv          |
+| US3 - OpenAI Models     | P1       | ⏳ NOT STARTED | max_completion_tokens for GPT-5.x                       |
+| US4 - Error Handling    | P2       | ⏳ NOT STARTED | Apply isNodeError type guard                            |
+| US5 - Supply Chain      | P2       | ⏳ NOT STARTED | badge-update.yml still uses unpinned action             |
+| US6 - Dead Code         | P2       | ⏳ NOT STARTED | Delete npm-publish.yml                                  |
+| US7 - Integration Tests | P3       | ⏳ NOT STARTED | 2 tests still skipped                                   |
+
+**Progress**: Phase 1 + 2/7 user stories complete (8/24 tasks)
 
 ## Summary
 
@@ -61,24 +77,31 @@ specs/001-pr-blocking-fixes/
 router/
 ├── src/
 │   ├── agents/
-│   │   ├── opencode.ts          # FR-007/008/009: OpenAI model parameter switching
-│   │   └── semgrep.ts           # FR-005/006: PYTHONUTF8=1, graceful degradation
+│   │   ├── opencode.ts          # FR-007/008/009: OpenAI model parameter switching (⏳ pending)
+│   │   ├── security.ts          # FR-005: PYTHONUTF8=1 centralized (✅ done)
+│   │   ├── semgrep.ts           # FR-006: Graceful degradation (✅ inherits from execute.ts)
+│   │   └── reviewdog.ts         # Cleaned up PYTHONUTF8 duplication (✅ done)
 │   ├── cli/
 │   │   ├── commands/
-│   │   │   └── local-review.ts  # FR-011: loadConfigWithFallback error handling
+│   │   │   └── local-review.ts  # FR-011: loadConfigWithFallback error handling (✅ done)
 │   │   └── dependencies/
-│   │       └── checker.ts       # FR-010: ErrnoException type guard
-│   └── config.ts                # FR-012: Generic error handling hardening
+│   │       └── checker.ts       # FR-010: ErrnoException type guard (✅ done)
+│   ├── config.ts                # FR-012: Generic error handling hardening (✅ done)
+│   └── types/
+│       └── errors.ts            # isNodeError type guard (✅ done)
+├── __tests__/
+│   ├── security.test.ts         # PYTHONUTF8 unit tests (✅ done)
+│   └── semgrep.test.ts          # PYTHONUTF8 wiring test (✅ done)
 └── tests/
     └── integration/
-        └── local-review-cli.test.ts  # FR-016: Unskip integration tests
+        └── local-review-cli.test.ts  # FR-016: Unskip integration tests (⏳ pending)
 
 .github/workflows/
-├── release.yml          # FR-003/004: Shell param expansion, CHANGELOG path
-├── badge-update.yml     # FR-013/014: Pin or replace exuanbo/actions-deploy-gist
-└── npm-publish.yml      # FR-015: DELETE this file
+├── release.yml          # FR-003/004: Shell param expansion, CHANGELOG path (✅ done)
+├── badge-update.yml     # FR-013/014: Pin or replace exuanbo/actions-deploy-gist (⏳ pending)
+└── npm-publish.yml      # FR-015: DELETED (✅ done)
 
-.releaserc.json          # FR-001/002: CHANGELOG path, breaking change detection
+.releaserc.json          # FR-001/002: CHANGELOG path, breaking change detection (✅ done)
 ```
 
 **Structure Decision**: Single project structure maintained. Changes are targeted fixes to existing files with no new modules required.
