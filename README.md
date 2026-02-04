@@ -2,6 +2,11 @@
 
 **Extensible AI code review for pull requests** — multi-pass analysis with pluggable agents for **GitHub** and **Azure DevOps**.
 
+> [!NOTE]
+>
+> - **Pull Request Review** (`*.yml`) is battle-tested.
+> - **CLI Local Review** (`ai-review local`) is experimental and still being optimized.
+
 [![AI Review](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
 [![Release](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml)
@@ -44,10 +49,6 @@ Click here to watch the trailer on YouTube →</a>
 - 🌐 **Multi-Platform** — GitHub Actions and Azure DevOps Pipelines
 - ⚙️ **Zero CI Changes** — Works via reusable workflows
 - 📁 **Flexible Filtering** — `.reviewignore` files and path filters to control what gets reviewed
-
-> [!NOTE]
-> **Pull Request Review** is battle-tested and production-ready.
-> **CLI Local Review** (`ai-review local`) is experimental and still being optimized.
 
 ---
 
