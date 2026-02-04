@@ -103,7 +103,7 @@ async function runWithAnthropic(
     const response = await withRetry(() =>
       client.messages.create({
         model,
-        max_tokens: 4000,
+        max_tokens: context.config.limits.max_completion_tokens,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       })
@@ -314,7 +314,7 @@ Analyze this pull request and provide your review as a JSON object with the foll
               temperature: 0.3,
             })
           ),
-        4000, // Token limit (will be configurable in Phase 6)
+        context.config.limits.max_completion_tokens,
         effectiveModel
       );
 

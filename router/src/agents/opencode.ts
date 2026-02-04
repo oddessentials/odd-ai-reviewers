@@ -183,7 +183,7 @@ async function runWithOpenAI(
             temperature: 0.3,
           })
         ),
-      4000, // Token limit (will be configurable in Phase 6)
+      context.config.limits.max_completion_tokens,
       model
     );
 
@@ -309,7 +309,7 @@ async function runWithAnthropic(
     const response = await withRetry(() =>
       client.messages.create({
         model,
-        max_tokens: 4000,
+        max_tokens: context.config.limits.max_completion_tokens,
         system,
         messages: [{ role: 'user', content: user }],
       })
