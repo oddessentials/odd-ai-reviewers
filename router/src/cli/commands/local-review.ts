@@ -380,16 +380,25 @@ async function loadConfigWithFallback(
   const configExists = existsSync(configPath);
 
   if (configExists) {
-    // Load from file
-    if (customConfigPath) {
-      const loadConfigFromPathFn = deps.loadConfigFromPath ?? loadConfigFromPath;
-      const config = await loadConfigFromPathFn(configPath);
-      return { config, source: 'file', path: configPath };
-    }
+    try {
+      // Load from file
+      if (customConfigPath) {
+        const loadConfigFromPathFn = deps.loadConfigFromPath ?? loadConfigFromPath;
+        const config = await loadConfigFromPathFn(configPath);
+        return { config, source: 'file', path: configPath };
+      }
 
-    const loadConfigFn = deps.loadConfig ?? loadConfig;
-    const config = await loadConfigFn(repoRoot);
-    return { config, source: 'file', path: configPath };
+      const loadConfigFn = deps.loadConfig ?? loadConfig;
+      const config = await loadConfigFn(repoRoot);
+      return { config, source: 'file', path: configPath };
+    } catch (error) {
+      // Wrap non-Error throws (rare but possible) to ensure consistent error handling
+      // This guards against code that throws strings, numbers, or other non-Error values
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
   }
 
   // Use zero-config defaults

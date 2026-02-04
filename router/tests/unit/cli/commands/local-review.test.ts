@@ -1121,6 +1121,212 @@ describe('runLocalReview', () => {
     });
   });
 
+  // =============================================================================
+  // Tests: User Story 4 - Error Handling Safety (T011-T013)
+  // =============================================================================
+
+  describe('T013: error wrapping for non-Error throws', () => {
+    it('should wrap non-Error throws from loadConfigFromPath in Error', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file so loadConfigFromPath is called
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate a non-Error throw (rare but possible in edge cases)
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        throw 'string error from config loader';
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      // Should handle error gracefully and return INVALID_ARGS
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('string error from config loader');
+    });
+
+    it('should wrap number throws from loadConfig in Error', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file so loadConfig is called
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, '.ai-review.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate a number throw (extremely rare but tests the guard)
+      const loadConfigMock = vi.fn().mockImplementation(() => {
+        throw 42;
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok({ ...mockGitContext, repoRoot: repo.path }),
+        loadConfig: loadConfigMock,
+      });
+
+      const result = await runLocalReview({ path: repo.path }, deps);
+
+      // Should handle error gracefully
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('42');
+    });
+
+    it('should preserve Error instances from loadConfigFromPath', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file so loadConfigFromPath is called
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Throw a proper Error with specific message
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        throw new Error('Specific config error message');
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      // Error message should be preserved
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('Specific config error message');
+    });
+
+    it('should wrap object throws in Error with string representation', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file so loadConfigFromPath is called
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate an object throw
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        throw { code: 'CUSTOM_ERROR', detail: 'something failed' };
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      // Object.toString() produces [object Object]
+      expect(result.error).toBe('[object Object]');
+    });
+  });
+
+  describe('error condition simulation', () => {
+    it('should handle config file permission error', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate EACCES error from config loading
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        const err = new Error('Permission denied');
+        (err as NodeJS.ErrnoException).code = 'EACCES';
+        throw err;
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toContain('Permission denied');
+    });
+
+    it('should handle YAML parse error in config', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'invalid: yaml: syntax::\n');
+
+      // Simulate YAML parse error
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        throw new Error('YAML parse error at line 1, column 15');
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toContain('YAML parse error');
+    });
+
+    it('should handle schema validation error in config', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate schema validation error
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        throw new Error("Invalid configuration: Required field 'passes' is missing");
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toContain('passes');
+    });
+
+    it('should handle async rejection with non-Error value', async () => {
+      const mockGitContext = createMockGitContext();
+
+      // Create a temp config file
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, 'custom.yml');
+      writeFileSync(configPath, 'version: 1\n');
+
+      // Simulate async rejection with a string (Promise.reject with non-Error)
+      const loadConfigFromPathMock = vi.fn().mockImplementation(() => {
+        return Promise.reject('async rejection string');
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        loadConfigFromPath: loadConfigFromPathMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
+      expect(result.error).toBe('async rejection string');
+    });
+  });
+
   describe('signal handling', () => {
     it('should setup signal handlers with cleanup function', async () => {
       const mockGitContext = createMockGitContext();
