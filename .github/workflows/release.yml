@@ -26,7 +26,8 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      id-token: write # For npm provenance
+      # id-token: write - Removed for P1 (token-only publish without provenance)
+      # Re-enable in P2 after basic publish is confirmed working
 
     outputs:
       version: ${{ steps.semantic.outputs.new_release_version }}
@@ -65,7 +66,50 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # P1-FR-011: Fail fast if NPM_TOKEN is not configured
+      - name: Verify NPM_TOKEN is set
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "::error::NPM_TOKEN is not set in the release environment"
+            echo "Please configure NPM_TOKEN in Settings → Environments → release → Environment secrets"
+            exit 1
+          fi
+          echo "✓ NPM_TOKEN is configured"
+
+      # P1-FR-005: Verify npm authentication before publish
+      # This step validates that NODE_AUTH_TOKEN works and registry is correct
+      # Keep permanently until multiple green releases confirm stability
+      - name: Verify npm authentication
+        run: |
+          echo "=== Verifying npm authentication ==="
+
+          # Verify we can authenticate to npm
+          echo "Running npm whoami..."
+          NPM_USER=$(npm whoami 2>&1) || {
+            echo "::error::npm whoami failed - authentication is not working"
+            echo "Verify NPM_TOKEN has publish permission for @oddessentials scope"
+            exit 1
+          }
+          echo "✓ Authenticated as: $NPM_USER"
+
+          # Verify registry URL is correct
+          echo "Checking registry configuration..."
+          REGISTRY=$(npm config get registry)
+          EXPECTED_REGISTRY="https://registry.npmjs.org/"
+          if [ "$REGISTRY" != "$EXPECTED_REGISTRY" ]; then
+            echo "::error::Unexpected registry URL: $REGISTRY (expected: $EXPECTED_REGISTRY)"
+            exit 1
+          fi
+          echo "✓ Registry URL: $REGISTRY"
+
+          echo "=== npm authentication verified successfully ==="
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+
       # FR-009: Dry-run uses identical config
+      # P1-FR-003: NODE_AUTH_TOKEN must be set in the SAME step that runs semantic-release
+      # P1-FR-004: NPM_CONFIG_REGISTRY locks the registry URL
       - name: Semantic Release
         id: semantic
         run: |
@@ -78,6 +122,11 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          # P1-FR-003: npm/pnpm requires NODE_AUTH_TOKEN for authentication
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # P1-FR-004: Lock registry to prevent misdirection
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          # FR-009: Disable husky hooks during release commits
           HUSKY: '0'
           GIT_AUTHOR_NAME: odd-ai-reviewers-release-bot[bot]
           GIT_AUTHOR_EMAIL: odd-ai-reviewers-release-bot[bot]@users.noreply.github.com
