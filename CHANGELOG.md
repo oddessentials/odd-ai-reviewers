@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.0.2...v1.1.0) (2026-02-04)
+
+### Features
+
+* **release:** enable npm provenance attestation ([#134](https://github.com/oddessentials/odd-ai-reviewers/issues/134)) ([b037f15](https://github.com/oddessentials/odd-ai-reviewers/commit/b037f153a4b1ba17eb43d99cb43e91f4e696832e)), closes [#133](https://github.com/oddessentials/odd-ai-reviewers/issues/133) [#408](https://github.com/oddessentials/odd-ai-reviewers/issues/408)
+
 ## [1.0.2](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.0.1...v1.0.2) (2026-02-04)
 
 ### Bug Fixes
