@@ -44,6 +44,9 @@ docs/viewer/playwright-report/
 .claude/
 .codex/
 
+# AI review cache
+.ai-review-cache/
+
 AGENTS.md
 CLAUDE.md
 
