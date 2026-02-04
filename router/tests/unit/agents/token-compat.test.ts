@@ -10,6 +10,8 @@ import {
   buildPreferredTokenLimit,
   buildFallbackTokenLimit,
   isTokenParamCompatibilityError,
+  withTokenCompatibility,
+  type TokenLimitParam,
 } from '../../../src/agents/token-compat.js';
 
 // =============================================================================
@@ -222,6 +224,133 @@ describe('isTokenParamCompatibilityError', () => {
     it('returns false for generic Error', () => {
       const error = new Error('max_tokens is not supported, use max_completion_tokens');
       expect(isTokenParamCompatibilityError(error)).toBe(false);
+    });
+  });
+});
+
+// =============================================================================
+// T021: withTokenCompatibility retry tests
+// =============================================================================
+
+describe('withTokenCompatibility', () => {
+  // T021: Retries once with max_tokens on compatibility error
+  describe('fallback retry behavior (T021)', () => {
+    it('uses max_completion_tokens on first attempt', async () => {
+      const calls: TokenLimitParam[] = [];
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 4000, 'gpt-4o');
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toEqual({ max_completion_tokens: 4000 });
+    });
+
+    it('retries with max_tokens when compatibility error occurs', async () => {
+      const calls: TokenLimitParam[] = [];
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message:
+            "Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.",
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        if (calls.length === 1) {
+          throw compatError;
+        }
+        return 'success after retry';
+      };
+
+      const result = await withTokenCompatibility(mockFn, 4000, 'legacy-model');
+
+      expect(calls).toHaveLength(2);
+      expect(calls[0]).toEqual({ max_completion_tokens: 4000 });
+      expect(calls[1]).toEqual({ max_tokens: 4000 });
+      expect(result).toBe('success after retry');
+    });
+
+    it('throws non-compatibility errors immediately without retry', async () => {
+      const calls: TokenLimitParam[] = [];
+      const authError = new OpenAI.AuthenticationError(
+        401,
+        { message: 'Invalid API key' },
+        'Unauthorized',
+        createMockHeaders()
+      );
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        throw authError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'gpt-4o')).rejects.toThrow(authError);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('throws rate limit errors immediately without retry', async () => {
+      const calls: TokenLimitParam[] = [];
+      const rateLimitError = new OpenAI.RateLimitError(
+        429,
+        { message: 'Rate limit exceeded' },
+        'Too Many Requests',
+        createMockHeaders()
+      );
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        throw rateLimitError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'gpt-4o')).rejects.toThrow(rateLimitError);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('throws network errors immediately without retry', async () => {
+      const calls: TokenLimitParam[] = [];
+      const networkError = new OpenAI.APIConnectionError({
+        message: 'Connection failed',
+        cause: new Error('ECONNREFUSED'),
+      });
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        throw networkError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'gpt-4o')).rejects.toThrow(networkError);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('preserves token limit value in retry', async () => {
+      const calls: TokenLimitParam[] = [];
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        calls.push(tokenParam);
+        if (calls.length === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 8192, 'legacy-model');
+
+      expect(calls[0]).toEqual({ max_completion_tokens: 8192 });
+      expect(calls[1]).toEqual({ max_tokens: 8192 });
     });
   });
 });

@@ -108,15 +108,17 @@ export function isTokenParamCompatibilityError(error: unknown): boolean {
 }
 
 // =============================================================================
-// Compatibility Wrapper (T012)
+// Compatibility Wrapper (T012, T022-T024)
 // =============================================================================
 
 /**
  * Execute an OpenAI API call with token parameter compatibility handling.
  *
- * This wrapper attempts the call with the modern `max_completion_tokens` parameter
- * first. In future phases, it will detect compatibility errors and retry with
- * `max_tokens` for legacy models.
+ * Strategy:
+ * 1. Attempt with modern `max_completion_tokens` parameter (preferred for o-series)
+ * 2. If a token parameter compatibility error is detected (HTTP 400 with specific message),
+ *    retry exactly once with legacy `max_tokens` parameter
+ * 3. Non-compatibility errors are thrown immediately without retry
  *
  * @param fn - Function that makes the OpenAI API call, receiving the token limit param
  * @param tokenLimit - The maximum tokens for the completion
@@ -141,8 +143,20 @@ export async function withTokenCompatibility<T>(
   tokenLimit: number,
   _model: string
 ): Promise<T> {
-  // Phase 1: Use preferred parameter (max_completion_tokens)
-  // Retry logic will be added in Phase 2 (T022-T024)
-  const tokenParam = buildPreferredTokenLimit(tokenLimit);
-  return fn(tokenParam);
+  // Attempt 1: Use preferred parameter (max_completion_tokens)
+  const preferredParam = buildPreferredTokenLimit(tokenLimit);
+
+  try {
+    return await fn(preferredParam);
+  } catch (error: unknown) {
+    // T022: Check if this is a token parameter compatibility error
+    if (!isTokenParamCompatibilityError(error)) {
+      // T024: Non-compatibility errors are thrown immediately
+      throw error;
+    }
+
+    // T023: Retry exactly once with fallback parameter (max_tokens)
+    const fallbackParam = buildFallbackTokenLimit(tokenLimit);
+    return fn(fallbackParam);
+  }
 }
