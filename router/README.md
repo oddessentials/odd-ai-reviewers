@@ -1,4 +1,4 @@
-# @oddessentials/ai-review
+# @oddessentials/odd-ai-reviewers
 
 AI-powered code review CLI that runs locally or in CI/CD pipelines. Get instant feedback on your code changes using LLMs like GPT-4 and Claude.
 
@@ -6,10 +6,10 @@ AI-powered code review CLI that runs locally or in CI/CD pipelines. Get instant 
 
 ```bash
 # Run local review on current changes
-npx @oddessentials/ai-review .
+npx @oddessentials/odd-ai-reviewers .
 
 # Or install globally
-npm install -g @oddessentials/ai-review
+npm install -g @oddessentials/odd-ai-reviewers
 ai-review .
 ```
 
@@ -167,7 +167,7 @@ repos:
     hooks:
       - id: ai-review
         name: AI Code Review
-        entry: npx @oddessentials/ai-review . --staged --quiet
+        entry: npx @oddessentials/odd-ai-reviewers . --staged --quiet
         language: system
         pass_filenames: false
 ```
@@ -176,7 +176,7 @@ Or use with Husky:
 
 ```bash
 # .husky/pre-commit
-npx @oddessentials/ai-review . --staged --quiet || exit 1
+npx @oddessentials/odd-ai-reviewers . --staged --quiet || exit 1
 ```
 
 ## Changelog

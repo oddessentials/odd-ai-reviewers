@@ -6,10 +6,10 @@ The `ai-review` CLI tool allows you to run AI-powered code reviews locally on yo
 
 ```bash
 # Install globally
-npm install -g @oddessentials/ai-review
+npm install -g @oddessentials/odd-ai-reviewers
 
 # Or run directly with npx
-npx @oddessentials/ai-review
+npx @oddessentials/odd-ai-reviewers
 ```
 
 ## Prerequisites

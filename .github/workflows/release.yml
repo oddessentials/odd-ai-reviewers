@@ -121,7 +121,7 @@ jobs:
           echo "Checking npm registry..."
           DELAY=5
           for i in 1 2 3 4 5 6; do
-            NPM_VERSION=$(npm view @oddessentials/ai-review version 2>/dev/null || echo "")
+            NPM_VERSION=$(npm view @oddessentials/odd-ai-reviewers version 2>/dev/null || echo "")
             if [[ -n "$NPM_VERSION" && "$NPM_VERSION" == "$EXPECTED" ]]; then
               break
             fi
