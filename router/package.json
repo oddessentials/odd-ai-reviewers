@@ -46,7 +46,7 @@
     "@anthropic-ai/sdk": "0.71.2",
     "@octokit/rest": "^22.0.1",
     "commander": "^14.0.2",
-    "minimatch": "^10.1.1",
+    "minimatch": "^10.1.2",
     "openai": "^6.17.0",
     "typescript": "5.9.3",
     "yaml": "^2.8.2",
