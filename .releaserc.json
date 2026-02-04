@@ -47,7 +47,7 @@
       }
     ],
     [
-      "@semantic-release/npm",
+      "@anolilab/semantic-release-pnpm",
       {
         "pkgRoot": "router",
         "npmPublish": true
