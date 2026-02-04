@@ -1201,7 +1201,7 @@ describe('runLocalReview', () => {
       expect(result.error).toBe('Specific config error message');
     });
 
-    it('should wrap object throws in Error with string representation', async () => {
+    it('should wrap object throws in Error with JSON representation', async () => {
       const mockGitContext = createMockGitContext();
 
       // Create a temp config file so loadConfigFromPath is called
@@ -1222,8 +1222,8 @@ describe('runLocalReview', () => {
       const result = await runLocalReview({ path: '/test/repo', config: configPath }, deps);
 
       expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
-      // Object.toString() produces [object Object]
-      expect(result.error).toBe('[object Object]');
+      // Objects are JSON stringified for informative error messages
+      expect(result.error).toBe('{"code":"CUSTOM_ERROR","detail":"something failed"}');
     });
   });
 

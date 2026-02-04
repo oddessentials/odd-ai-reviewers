@@ -397,6 +397,11 @@ async function loadConfigWithFallback(
       if (error instanceof Error) {
         throw error;
       }
+      // Use JSON.stringify for objects to provide informative error messages
+      // String() on objects produces unhelpful "[object Object]"
+      if (error !== null && typeof error === 'object') {
+        throw new Error(JSON.stringify(error));
+      }
       throw new Error(String(error));
     }
   }
