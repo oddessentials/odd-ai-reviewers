@@ -42,6 +42,10 @@ Click here to watch the trailer on YouTube →</a>
 - ⚙️ **Zero CI Changes** — Works via reusable workflows
 - 📁 **Flexible Filtering** — `.reviewignore` files and path filters to control what gets reviewed
 
+> [!NOTE]
+> **Pull Request Review** is battle-tested and production-ready.
+> **CLI Local Review** (`ai-review local`) is experimental and still being optimized.
+
 ---
 
 ## 🚀 Quick Start (GitHub)
