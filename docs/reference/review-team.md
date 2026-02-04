@@ -35,7 +35,7 @@ Meet the AI-powered code review team that helps maintain code quality, security,
       <h3>OpenCode</h3>
       <em>The AI Coding Assistant</em>
       <p>OpenCode brings AI-powered coding assistance directly into your workflow. It helps with code generation, refactoring suggestions, and understanding complex codebases. When integrated into the review pipeline, it provides intelligent insights that help developers write better code faster.</p>
-      <p><a href="https://github.com/opencode-ai/opencode">View on GitHub</a></p>
+      <p><a href="https://github.com/anomalyco/opencode">View on GitHub</a></p>
     </td>
   </tr>
 </table>
