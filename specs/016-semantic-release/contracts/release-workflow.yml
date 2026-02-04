@@ -1,0 +1,164 @@
+# Contract: Release Workflow (.github/workflows/release.yml)
+# This is the target structure for the release workflow
+# Actual implementation should match this contract
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Perform a dry-run (no actual release)'
+        required: false
+        default: false
+        type: boolean
+
+# FR-006: Single concurrency group prevents parallel releases
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    # FR-014: Environment protection scopes secrets to main branch only
+    environment: release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write # For npm provenance
+
+    outputs:
+      version: ${{ steps.semantic.outputs.new_release_version }}
+      released: ${{ steps.semantic.outputs.new_release_published }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for semantic-release
+          persist-credentials: false # Use App token instead
+
+      # FR-014: Generate GitHub App token with bypass permission
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # FR-018: Pinned Node.js major version
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      # FR-018: Frozen lockfile ensures reproducibility
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # FR-009: Dry-run uses identical config
+      - name: Semantic Release
+        id: semantic
+        run: |
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Running in dry-run mode..."
+            pnpm exec semantic-release --dry-run
+          else
+            pnpm exec semantic-release
+          fi
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GIT_AUTHOR_NAME: release-bot[bot]
+          GIT_AUTHOR_EMAIL: release-bot[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: release-bot[bot]
+          GIT_COMMITTER_EMAIL: release-bot[bot]@users.noreply.github.com
+
+  # FR-017: Post-release verification job
+  verify:
+    name: Verify Release
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main # Get latest including release commit
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # FR-012: Verify all artifacts have matching versions
+      - name: Verify version sync
+        run: |
+          EXPECTED="${{ needs.release.outputs.version }}"
+          echo "Expected version: $EXPECTED"
+
+          # Check package.json
+          PKG_VERSION=$(node -p "require('./router/package.json').version")
+          echo "package.json version: $PKG_VERSION"
+
+          # Check git tag
+          TAG_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          echo "Git tag version: $TAG_VERSION"
+
+          # Check npm (with retry for propagation delay)
+          echo "Checking npm registry..."
+          for i in 1 2 3 4 5; do
+            NPM_VERSION=$(npm view @oddessentials/ai-review version 2>/dev/null || echo "")
+            if [[ -n "$NPM_VERSION" ]]; then
+              break
+            fi
+            echo "Waiting for npm registry (attempt $i)..."
+            sleep 10
+          done
+          echo "npm registry version: $NPM_VERSION"
+
+          # Check CHANGELOG
+          CHANGELOG_VERSION=$(grep -oP '## \[\K[^\]]+' router/CHANGELOG.md | head -1)
+          echo "CHANGELOG version: $CHANGELOG_VERSION"
+
+          # Verify all match
+          ERRORS=0
+          if [[ "$PKG_VERSION" != "$EXPECTED" ]]; then
+            echo "ERROR: package.json version mismatch"
+            ERRORS=$((ERRORS + 1))
+          fi
+          if [[ "$TAG_VERSION" != "$EXPECTED" ]]; then
+            echo "ERROR: Git tag version mismatch"
+            ERRORS=$((ERRORS + 1))
+          fi
+          if [[ "$NPM_VERSION" != "$EXPECTED" ]]; then
+            echo "ERROR: npm registry version mismatch"
+            ERRORS=$((ERRORS + 1))
+          fi
+          if [[ "$CHANGELOG_VERSION" != "$EXPECTED" ]]; then
+            echo "ERROR: CHANGELOG version mismatch"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo "FAILED: $ERRORS version mismatches detected"
+            exit 1
+          fi
+
+          echo "✓ All versions match: $EXPECTED"

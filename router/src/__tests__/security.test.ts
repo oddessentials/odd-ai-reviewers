@@ -221,6 +221,19 @@ describe('Security Module', () => {
       expect(result['OPENAI_API_KEY']).toBe('sk-xxx');
       expect(result['CUSTOM_VAR']).toBe('value');
     });
+
+    describe('PYTHONUTF8 for Windows compatibility', () => {
+      it('should set PYTHONUTF8=1 for Python UTF-8 mode (PEP 540)', () => {
+        const result = createSafeAgentEnv({});
+        expect(result['PYTHONUTF8']).toBe('1');
+      });
+
+      it('should force PYTHONUTF8=1 even if user sets PYTHONUTF8=0', () => {
+        // Safety invariant: we always force UTF-8 mode to prevent Windows cp1252 crashes
+        const result = createSafeAgentEnv({ PYTHONUTF8: '0' });
+        expect(result['PYTHONUTF8']).toBe('1');
+      });
+    });
   });
 
   describe('validateNoListeningSockets (Invariant 10)', () => {
@@ -233,6 +246,7 @@ describe('Security Module', () => {
       // lsof not available
     }
 
+    // Environment-gated: runs in Linux CI with lsof (CI_HAS_LSOF=true)
     it.skipIf(!hasLsof)('should return safe when no listeners detected', async () => {
       const result = await validateNoListeningSockets('nonexistent-process-xyz');
 
@@ -250,6 +264,7 @@ describe('Security Module', () => {
       expect(typeof result.safe).toBe('boolean');
     });
 
+    // Environment-gated: runs in Linux CI with lsof (CI_HAS_LSOF=true)
     it.skipIf(!hasLsof)('should fail when a listening socket is detected', async () => {
       const { createServer } = await import('net');
       const server = createServer();

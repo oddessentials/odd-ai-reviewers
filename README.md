@@ -4,6 +4,8 @@
 
 [![AI Review](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/dogfood-review.yml)
 [![CI](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ci.yml)
+[![Release](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/release.yml)
+[![npm version](https://img.shields.io/npm/v/@oddessentials/ai-review)](https://www.npmjs.com/package/@oddessentials/ai-review)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/7d21479bad2bab83f3674bd1464e349e/raw/tests.json)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddessentials/2fc5b1cb256e3c48591abf95e24d3492/raw/coverage.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
@@ -166,6 +168,30 @@ If you see a 404 error during AI code review:
 | `ai_semantic_review` | AI     | ❌            | ✅      | Medium  |
 
 See [config-schema.md](docs/configuration/config-schema.md) for the full Agent Capability Matrix.
+
+---
+
+## 💻 Local Usage
+
+Run AI reviews locally without CI/CD integration:
+
+```bash
+# Install globally
+npm install -g @oddessentials/ai-review
+
+# Review local changes
+ai-review local .
+
+# Check if dependencies are installed
+ai-review check --verbose
+```
+
+**Prerequisites:** Some agents require external tools:
+
+- **Semgrep** — `brew install semgrep` (macOS) or `pip install semgrep` (Windows/Linux)
+- **Reviewdog** — `brew install reviewdog/tap/reviewdog` (macOS) or [download from GitHub](https://github.com/reviewdog/reviewdog/releases)
+
+📖 **[Full CLI Reference →](docs/reference/cli.md)**
 
 ---
 

@@ -8,6 +8,11 @@ import { minimatch } from 'minimatch';
 import { assertSafeGitRef, assertSafePath, assertSafeRepoPath } from './git-validators.js';
 import { shouldIgnoreFile, type ReviewIgnorePattern } from './reviewignore.js';
 import { ValidationError, ValidationErrorCode } from './types/errors.js';
+import {
+  type ResolvedDiffMode,
+  type RangeOperator,
+  assertDiffModeResolved,
+} from './cli/options/local-review-options.js';
 
 // Re-export for convenience
 export type { ReviewIgnorePattern } from './reviewignore.js';
@@ -85,6 +90,17 @@ export interface LocalDiffOptions {
    * Default: 'HEAD' for uncommitted changes, detected default branch for base ref
    */
   baseRef: string;
+
+  /**
+   * Optional head reference for commit range diffs (e.g., 'feature', commit SHA)
+   * Default: 'HEAD' when not provided
+   */
+  headRef?: string;
+
+  /**
+   * Range operator for commit diffs ('..' or '...'). Defaults to '...'.
+   */
+  rangeOperator?: '..' | '...';
 
   /**
    * If true, only include staged (cached) changes
@@ -428,9 +444,10 @@ export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] 
     }
 
     // Check exclude patterns from config
+    // Note: dot:true ensures dotfiles (e.g., .releaserc.json) match patterns like **/*.json
     if (filter.exclude) {
       for (const pattern of filter.exclude) {
-        if (minimatch(file.path, pattern)) {
+        if (minimatch(file.path, pattern, { dot: true })) {
           return false;
         }
       }
@@ -439,7 +456,7 @@ export function filterFiles(files: DiffFile[], filter?: PathFilter): DiffFile[] 
     // If include patterns exist, file must match at least one
     if (filter.include && filter.include.length > 0) {
       for (const pattern of filter.include) {
-        if (minimatch(file.path, pattern)) {
+        if (minimatch(file.path, pattern, { dot: true })) {
           return true;
         }
       }
@@ -817,20 +834,74 @@ function resolveLocalRef(repoPath: string, ref: string): string {
   return ref;
 }
 
+// =============================================================================
+// T048: Compute Resolved Diff Mode (User Story 5)
+// =============================================================================
+
+/**
+ * Compute the resolved diff mode from LocalDiffOptions.
+ *
+ * This function determines which diff mode should be used based on the
+ * provided options. It returns undefined if no valid mode can be determined,
+ * which indicates a programmer error (options parsing should guarantee a mode).
+ *
+ * @param options - Local diff options
+ * @returns ResolvedDiffMode or undefined if no mode can be determined
+ */
+export function computeResolvedDiffMode(options: LocalDiffOptions): ResolvedDiffMode | undefined {
+  const { baseRef, headRef, rangeOperator, stagedOnly = false, uncommitted = false } = options;
+
+  // Priority: stagedOnly > uncommitted > range
+  if (stagedOnly) {
+    return { mode: 'staged' };
+  }
+
+  if (uncommitted) {
+    return { mode: 'uncommitted' };
+  }
+
+  // Range mode requires baseRef
+  if (baseRef) {
+    const operator: RangeOperator = rangeOperator === '..' ? '..' : '...';
+    const head = headRef ?? 'HEAD';
+    const rangeSpec = `${baseRef}${operator}${head}`;
+    return {
+      mode: 'range',
+      rangeSpec,
+      operator,
+    };
+  }
+
+  // No valid mode could be determined
+  return undefined;
+}
+
 /**
  * Get diff for local changes (working tree and/or staged)
  *
  * This function supports three modes:
  * 1. stagedOnly: Only staged (cached) changes (git diff --cached)
  * 2. uncommitted: All uncommitted changes including unstaged (git diff HEAD)
- * 3. Base ref diff: Changes between baseRef and HEAD (git diff baseRef...HEAD)
+ * 3. Base/head diff: Changes between baseRef and headRef (git diff baseRef...headRef)
  *
  * @param repoPath - Absolute path to the repository root
  * @param options - Local diff options
  * @returns DiffSummary with changed files and patches
+ * @throws Error if no diff mode can be resolved (invariant violation)
  */
 export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffSummary {
-  const { baseRef, stagedOnly = false, uncommitted = false, pathFilter } = options;
+  // T049: Invariant check - ensure a valid diff mode is resolved
+  const resolvedMode = computeResolvedDiffMode(options);
+  assertDiffModeResolved(resolvedMode, 'getLocalDiff');
+
+  const {
+    baseRef,
+    headRef,
+    rangeOperator,
+    stagedOnly = false,
+    uncommitted = false,
+    pathFilter,
+  } = options;
 
   // Build git diff arguments based on options
   const diffArgs: string[] = ['diff', '--numstat', '-z'];
@@ -838,6 +909,7 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
   // Determine the diff range
   let baseSha: string;
   let headSha: string;
+  let rangeSpec: string | undefined;
 
   if (stagedOnly) {
     // Staged only: git diff --cached
@@ -850,10 +922,12 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
     baseSha = getHeadSha(repoPath);
     headSha = 'WORKTREE';
   } else {
-    // Base ref diff: git diff baseRef...HEAD
+    // Base/head diff: git diff baseRef...headRef (operator defaults to '...')
     const resolvedBase = resolveLocalRef(repoPath, baseRef);
-    const resolvedHead = getHeadSha(repoPath);
-    diffArgs.push(`${resolvedBase}...${resolvedHead}`);
+    const resolvedHead = resolveLocalRef(repoPath, headRef ?? 'HEAD');
+    const operator = rangeOperator === '..' || rangeOperator === '...' ? rangeOperator : '...';
+    rangeSpec = `${resolvedBase}${operator}${resolvedHead}`;
+    diffArgs.push(rangeSpec);
     baseSha = resolvedBase;
     headSha = resolvedHead;
   }
@@ -885,10 +959,8 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
       statusArgs.push('--cached');
     } else if (uncommitted) {
       statusArgs.push('HEAD');
-    } else {
-      const resolvedBase = resolveLocalRef(repoPath, baseRef);
-      const resolvedHead = getHeadSha(repoPath);
-      statusArgs.push(`${resolvedBase}...${resolvedHead}`);
+    } else if (rangeSpec) {
+      statusArgs.push(rangeSpec);
     }
 
     const nameStatus = execFileSync('git', statusArgs, {
@@ -932,10 +1004,8 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
       patchArgs.push('--cached');
     } else if (uncommitted) {
       patchArgs.push('HEAD');
-    } else {
-      const resolvedBase = resolveLocalRef(repoPath, baseRef);
-      const resolvedHead = getHeadSha(repoPath);
-      patchArgs.push(`${resolvedBase}...${resolvedHead}`);
+    } else if (rangeSpec) {
+      patchArgs.push(rangeSpec);
     }
 
     for (const file of files) {
@@ -977,11 +1047,17 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
     const errorMsg = error instanceof Error ? error.message : String(error);
     throw new ValidationError(
       `Failed to get local diff: ${errorMsg}\n` +
-        `Mode: ${stagedOnly ? 'staged-only' : uncommitted ? 'uncommitted' : `base-ref (${baseRef})`}`,
+        `Mode: ${
+          stagedOnly
+            ? 'staged-only'
+            : uncommitted
+              ? 'uncommitted'
+              : `base-ref (${baseRef}${rangeOperator ?? '...'}${headRef ?? 'HEAD'})`
+        }`,
       ValidationErrorCode.INVALID_INPUT,
       {
         field: 'localDiff',
-        value: { baseRef, stagedOnly, uncommitted },
+        value: { baseRef, headRef, rangeOperator, stagedOnly, uncommitted },
         constraint: 'valid-local-diff',
       },
       error instanceof Error ? { cause: error } : undefined
@@ -997,7 +1073,7 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
  * @returns true if there are changes, false otherwise
  */
 export function hasLocalChanges(repoPath: string, options: LocalDiffOptions): boolean {
-  const { stagedOnly = false, uncommitted = false, baseRef } = options;
+  const { stagedOnly = false, uncommitted = false, baseRef, headRef, rangeOperator } = options;
 
   try {
     const args: string[] = ['diff', '--name-only'];
@@ -1008,8 +1084,9 @@ export function hasLocalChanges(repoPath: string, options: LocalDiffOptions): bo
       args.push('HEAD');
     } else {
       const resolvedBase = resolveLocalRef(repoPath, baseRef);
-      const resolvedHead = getHeadSha(repoPath);
-      args.push(`${resolvedBase}...${resolvedHead}`);
+      const resolvedHead = resolveLocalRef(repoPath, headRef ?? 'HEAD');
+      const operator = rangeOperator === '..' || rangeOperator === '...' ? rangeOperator : '...';
+      args.push(`${resolvedBase}${operator}${resolvedHead}`);
     }
 
     const result = execFileSync('git', args, {

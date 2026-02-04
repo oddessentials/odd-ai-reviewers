@@ -19,6 +19,92 @@ import type { GitContext } from '../git-context.js';
 export type OutputFormat = 'pretty' | 'json' | 'sarif';
 
 /**
+ * Range operator type for git diff ranges.
+ * - '..' - Two-dot: direct comparison (base..head)
+ * - '...' - Three-dot: symmetric difference / merge-base (base...head)
+ */
+export type RangeOperator = '..' | '...';
+
+/**
+ * Error codes for range validation (before git calls).
+ */
+export enum RangeErrorCode {
+  /** Multiple range operators found (e.g., "a..b..c") */
+  MULTIPLE_OPERATORS = 'MULTIPLE_OPERATORS',
+  /** Base reference is empty or whitespace-only */
+  EMPTY_BASE_REF = 'EMPTY_BASE_REF',
+  /** Head reference is empty or whitespace-only */
+  EMPTY_HEAD_REF = 'EMPTY_HEAD_REF',
+  /** Both refs are missing (e.g., ".." or "...") */
+  MISSING_REFS = 'MISSING_REFS',
+}
+
+/**
+ * Range validation error details.
+ */
+export interface RangeValidationError {
+  readonly code: RangeErrorCode;
+  readonly message: string;
+  readonly input: string;
+}
+
+/**
+ * Successful parse result from range string.
+ */
+export interface ParsedRange {
+  readonly baseRef: string;
+  readonly headRef: string | undefined; // undefined = defaults to HEAD
+  readonly operator: RangeOperator;
+}
+
+/**
+ * Result type for range parsing.
+ */
+export type RangeParseResult =
+  | { readonly ok: true; readonly value: ParsedRange }
+  | { readonly ok: false; readonly error: RangeValidationError };
+
+/**
+ * Represents a resolved diff mode after CLI option parsing.
+ * Exactly one mode must be selected; undefined is a programmer error.
+ */
+export type ResolvedDiffMode =
+  | { readonly mode: 'staged' }
+  | { readonly mode: 'uncommitted' }
+  | { readonly mode: 'range'; readonly rangeSpec: string; readonly operator: RangeOperator };
+
+/**
+ * Type guard for ResolvedDiffMode.
+ */
+export function isResolvedDiffMode(value: unknown): value is ResolvedDiffMode {
+  if (!value || typeof value !== 'object') return false;
+  const mode = (value as { mode?: unknown }).mode;
+  return mode === 'staged' || mode === 'uncommitted' || mode === 'range';
+}
+
+/**
+ * Assertion function for diff mode invariant.
+ * Throws programmer error if mode is undefined.
+ */
+export function assertDiffModeResolved(
+  mode: ResolvedDiffMode | undefined,
+  context?: string
+): asserts mode is ResolvedDiffMode {
+  if (!mode) {
+    throw new Error(
+      `INVARIANT VIOLATION: No diff mode resolved${context ? ` (${context})` : ''}. ` +
+        'This is a programmer error—options parsing must guarantee a mode is set.'
+    );
+  }
+}
+
+export interface ResolvedDiffRange {
+  baseRef: string;
+  headRef: string;
+  rangeOperator: RangeOperator;
+}
+
+/**
  * Command-line options for local review mode
  */
 export interface LocalReviewOptions {
@@ -146,16 +232,55 @@ export function parseLocalReviewOptions(
     );
   }
 
+  // Validate range format using parseRangeString for comprehensive validation
+  if (raw.range) {
+    const rangeResult = parseRangeString(raw.range);
+    if (!rangeResult.ok) {
+      // Map RangeErrorCode to ValidationErrorCode
+      let validationCode: ValidationErrorCode;
+      switch (rangeResult.error.code) {
+        case RangeErrorCode.MULTIPLE_OPERATORS:
+          validationCode = ValidationErrorCode.MALFORMED_RANGE_MULTIPLE_OPERATORS;
+          break;
+        case RangeErrorCode.EMPTY_BASE_REF:
+        case RangeErrorCode.EMPTY_HEAD_REF:
+          validationCode = ValidationErrorCode.MALFORMED_RANGE_EMPTY_REF;
+          break;
+        case RangeErrorCode.MISSING_REFS:
+          validationCode = ValidationErrorCode.MALFORMED_RANGE_MISSING_REFS;
+          break;
+        default:
+          validationCode = ValidationErrorCode.INVALID_INPUT;
+      }
+
+      return Err(
+        new ValidationError(rangeResult.error.message, validationCode, {
+          field: 'range',
+          value: raw.range,
+          constraint: rangeResult.error.code,
+        })
+      );
+    }
+  }
+
   // Determine staged and uncommitted values
   const staged = raw.staged ?? false;
-  // Default uncommitted to true unless explicitly set to false
-  const uncommitted = raw.uncommitted ?? true;
+  // Default uncommitted behavior:
+  // - When --base or --range specified: default to false (commit comparison mode)
+  // - When --staged specified: default to false (staged changes only)
+  // - Otherwise: default to true (working tree changes)
+  const hasExplicitRef =
+    raw.base !== undefined ||
+    raw.range !== undefined ||
+    (raw.head !== undefined && raw.head !== 'HEAD');
+  const uncommitted = raw.uncommitted ?? (hasExplicitRef || staged ? false : true);
 
-  // Check if nothing to review
-  if (!staged && !uncommitted) {
+  // Check if nothing to review:
+  // - Need at least one of: staged, uncommitted, or explicit ref (base/range)
+  if (!staged && !uncommitted && !hasExplicitRef) {
     return Err(
       new ValidationError(
-        'Nothing to review. Specify --staged or --uncommitted.',
+        'Nothing to review. Specify --staged, --uncommitted, or --base/--range.',
         ValidationErrorCode.INVALID_INPUT,
         { field: 'staged/uncommitted', value: { staged, uncommitted } }
       )
@@ -232,6 +357,9 @@ export function resolveOutputFormat(options: LocalReviewOptions, isTTY: boolean)
 /**
  * Resolve the base reference for diff generation.
  *
+ * @internal This function is not part of the public API. Use {@link resolveDiffRange} instead.
+ * @deprecated Use {@link resolveDiffRange} which returns the full range (base, head, operator).
+ *
  * @param options - Parsed options
  * @param gitContext - Inferred git context
  * @returns Resolved base reference
@@ -250,4 +378,159 @@ export function resolveBaseRef(options: LocalReviewOptions, gitContext: GitConte
 
   // Use explicit base or detected default
   return options.base ?? gitContext.defaultBase;
+}
+
+/**
+ * Resolve base/head references and range operator for diff generation.
+ *
+ * @param options - Parsed options
+ * @param gitContext - Inferred git context
+ * @returns Resolved diff range
+ */
+export function resolveDiffRange(
+  options: LocalReviewOptions,
+  gitContext: GitContext
+): ResolvedDiffRange {
+  if (options.range) {
+    const rangeMatch = options.range.match(/^(.*?)(\.\.\.?)(.*)$/);
+    if (rangeMatch) {
+      const baseRef = rangeMatch[1]?.trim() || 'HEAD';
+      const rangeOperator = (rangeMatch[2] === '...' ? '...' : '..') as RangeOperator;
+      const headRef = rangeMatch[3]?.trim() || 'HEAD';
+      return { baseRef, headRef, rangeOperator };
+    }
+    return { baseRef: options.range, headRef: 'HEAD', rangeOperator: '...' };
+  }
+
+  // Default to three-dot ('...') which compares against merge-base,
+  // showing only changes introduced on the head branch.
+  return {
+    baseRef: options.base ?? gitContext.defaultBase,
+    headRef: options.head ?? 'HEAD',
+    rangeOperator: '...',
+  };
+}
+
+// =============================================================================
+// Range String Parsing (T024)
+// =============================================================================
+
+/**
+ * Parse a range string into its components.
+ *
+ * Algorithm (per research.md):
+ * 1. Count occurrences of '...' in input
+ * 2. Count occurrences of '..' in input (subtract 3-dot count to avoid double-counting)
+ * 3. If total operators > 1: REJECT "multiple operators"
+ * 4. If '...' found: split on first '...'
+ * 5. Else if '..' found: split on first '..'
+ * 6. Else: single ref (base only, head defaults to HEAD)
+ * 7. Trim both parts; reject if either is empty
+ *
+ * @param input - Range string (e.g., "main...HEAD", "HEAD~3..", "main..feature")
+ * @returns RangeParseResult with parsed range or validation error
+ *
+ * @example
+ * ```typescript
+ * parseRangeString("main...HEAD")  // { ok: true, value: { baseRef: "main", headRef: "HEAD", operator: "..." } }
+ * parseRangeString("a..b..c")      // { ok: false, error: { code: "MULTIPLE_OPERATORS", ... } }
+ * parseRangeString("..")           // { ok: false, error: { code: "MISSING_REFS", ... } }
+ * ```
+ */
+export function parseRangeString(input: string): RangeParseResult {
+  const trimmed = input.trim();
+
+  // Count operators: check '...' first to avoid partial match with '..'
+  // Use regex to count non-overlapping occurrences
+  const threeDotMatches = trimmed.match(/\.\.\./g);
+  const threeDotCount = threeDotMatches ? threeDotMatches.length : 0;
+
+  // For two-dot count, we need to exclude three-dot sequences
+  // Replace '...' with placeholder, then count '..'
+  const withoutThreeDot = trimmed.replace(/\.\.\./g, '\x00');
+  const twoDotMatches = withoutThreeDot.match(/\.\./g);
+  const twoDotCount = twoDotMatches ? twoDotMatches.length : 0;
+
+  const totalOperators = threeDotCount + twoDotCount;
+
+  // Reject multiple operators
+  if (totalOperators > 1) {
+    return {
+      ok: false,
+      error: {
+        code: RangeErrorCode.MULTIPLE_OPERATORS,
+        message: `Invalid range format: multiple operators found in '${input}'. Use 'base..head' or 'base...head'.`,
+        input,
+      },
+    };
+  }
+
+  // Determine operator and split
+  let operator: RangeOperator;
+  let parts: string[];
+
+  if (threeDotCount === 1) {
+    operator = '...';
+    // Split on first '...' only
+    const idx = trimmed.indexOf('...');
+    parts = [trimmed.slice(0, idx), trimmed.slice(idx + 3)];
+  } else if (twoDotCount === 1) {
+    operator = '..';
+    // Split on first '..' only
+    const idx = trimmed.indexOf('..');
+    parts = [trimmed.slice(0, idx), trimmed.slice(idx + 2)];
+  } else {
+    // No operator - single ref (base only)
+    if (!trimmed) {
+      return {
+        ok: false,
+        error: {
+          code: RangeErrorCode.MISSING_REFS,
+          message: `Invalid range format: empty input. Provide a base reference.`,
+          input,
+        },
+      };
+    }
+    return {
+      ok: true,
+      value: { baseRef: trimmed, headRef: undefined, operator: '...' },
+    };
+  }
+
+  const baseRef = parts[0]?.trim() ?? '';
+  const headRef = parts[1]?.trim() ?? '';
+
+  // Validate non-empty refs - both empty = MISSING_REFS
+  if (!baseRef && !headRef) {
+    return {
+      ok: false,
+      error: {
+        code: RangeErrorCode.MISSING_REFS,
+        message: `Invalid range format: '${input}' requires at least one reference.`,
+        input,
+      },
+    };
+  }
+
+  // Empty base ref (but head is present) = EMPTY_BASE_REF
+  if (!baseRef) {
+    return {
+      ok: false,
+      error: {
+        code: RangeErrorCode.EMPTY_BASE_REF,
+        message: `Invalid range format: empty base reference in '${input}'.`,
+        input,
+      },
+    };
+  }
+
+  // Return successful parse (empty headRef becomes undefined, defaults to HEAD later)
+  return {
+    ok: true,
+    value: {
+      baseRef,
+      headRef: headRef || undefined,
+      operator,
+    },
+  };
 }

@@ -156,6 +156,27 @@ program
     }
   });
 
+// Check command (Feature 001-local-deps-setup - Dependency validation)
+program
+  .command('check')
+  .description('Check external dependency availability')
+  .option('--verbose', 'Show additional details (minimum version, docs URL)')
+  .option('--json', 'Output results in JSON format')
+  .action(async (options) => {
+    const { runCheck, formatCheckOutput, formatCheckOutputJson } =
+      await import('./cli/commands/check.js');
+
+    const result = runCheck({ verbose: options.verbose, json: options.json });
+
+    if (options.json) {
+      console.log(formatCheckOutputJson(result.results));
+    } else {
+      console.log(formatCheckOutput(result.results, { verbose: options.verbose ?? false }));
+    }
+
+    defaultExitHandler(result.exitCode);
+  });
+
 // Config init command (Feature 015 - Interactive Configuration Wizard)
 const configCommand = program.command('config').description('Configuration management commands');
 
@@ -434,13 +455,18 @@ configCommand
 
 program
   .command('local')
+  .alias('local-review') // T015 (US1): Add alias for command discoverability
   .description('Run AI review on local changes (uncommitted/staged)')
   .argument('[path]', 'Path to repository (default: current directory)', '.')
   .option('--base <ref>', 'Base reference for comparison (auto-detected if not specified)')
-  .option('--head <ref>', 'Head reference (default: HEAD)', 'HEAD')
-  .option('--range <range>', 'Git range (e.g., HEAD~3..) - mutually exclusive with base/head')
+  .option('--head <ref>', 'Head reference (default: HEAD)')
+  .option(
+    '--range <range>',
+    'Git range (e.g., main...HEAD, HEAD~3..)\n' +
+      '                              Operators: ... (default) = merge-base, .. = direct comparison'
+  )
   .option('--staged', 'Review only staged changes')
-  .option('--uncommitted', 'Include uncommitted changes (default: true)', true)
+  .option('--uncommitted', 'Include uncommitted changes (default when no --base/--range)')
   .option('--pass <name>', 'Run specific pass only')
   .option('--agent <id>', 'Run specific agent only')
   .option('--format <fmt>', 'Output format: pretty, json, sarif (default: pretty)', 'pretty')
@@ -492,9 +518,13 @@ program
   .argument('[path]', 'Path to repository for local review')
   .option('--base <ref>', 'Base reference for comparison')
   .option('--head <ref>', 'Head reference (default: HEAD)')
-  .option('--range <range>', 'Git range (e.g., HEAD~3..)')
+  .option(
+    '--range <range>',
+    'Git range (e.g., main...HEAD, HEAD~3..)\n' +
+      '                              Operators: ... (default) = merge-base, .. = direct comparison'
+  )
   .option('--staged', 'Review only staged changes')
-  .option('--uncommitted', 'Include uncommitted changes (default: true)')
+  .option('--uncommitted', 'Include uncommitted changes (default when no --base/--range)')
   .option('--pass <name>', 'Run specific pass only')
   .option('--agent <id>', 'Run specific agent only')
   .option('--format <fmt>', 'Output format: pretty, json, sarif')

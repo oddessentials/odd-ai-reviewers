@@ -179,6 +179,12 @@ Or use with Husky:
 npx @oddessentials/ai-review . --staged --quiet || exit 1
 ```
 
+## Changelog
+
+This package uses [semantic-release](https://semantic-release.gitbook.io/) for automated versioning and changelog generation. The changelog is auto-generated from conventional commit messages.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
+
 ## License
 
 MIT

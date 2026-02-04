@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
@@ -308,6 +309,24 @@ describe('Reviewdog Agent', () => {
   describe('Integration tests (requires reviewdog binary)', () => {
     const hasReviewdog = process.env['CI_HAS_REVIEWDOG'] === 'true';
 
+    // Prevent silent drift: validate CI_HAS_REVIEWDOG contract
+    if (hasReviewdog) {
+      let reviewdogFound = false;
+      try {
+        execSync('which reviewdog', { stdio: 'ignore', timeout: 2000 });
+        reviewdogFound = true;
+      } catch {
+        // Binary not found
+      }
+      if (!reviewdogFound) {
+        throw new Error(
+          'CI_HAS_REVIEWDOG=true but reviewdog binary not found in PATH. ' +
+            'Either install reviewdog or unset CI_HAS_REVIEWDOG.'
+        );
+      }
+    }
+
+    // Environment-gated: runs in Linux CI with reviewdog installed (CI_HAS_REVIEWDOG=true)
     it.skipIf(!hasReviewdog)('should pipe semgrep JSON through reviewdog', async () => {
       // This test requires:
       // 1. reviewdog binary in PATH

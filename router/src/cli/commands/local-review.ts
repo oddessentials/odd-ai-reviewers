@@ -13,7 +13,7 @@
  * @module cli/commands/local-review
  */
 
-import type { Config } from '../../config.js';
+import type { Config, Pass } from '../../config.js';
 import type { AgentContext, Finding } from '../../agents/types.js';
 import type { DiffSummary, PathFilter } from '../../diff.js';
 import type { LocalReviewOptions } from '../options/local-review-options.js';
@@ -23,11 +23,22 @@ import type { ExecuteResult } from '../../phases/execute.js';
 import type { Result } from '../../types/result.js';
 import type { GenerateZeroConfigResult, ZeroConfigResult } from '../../config/zero-config.js';
 import type { ValidatedConfig } from '../../types/branded.js';
+import type { DependencyCheckSummary, SkippedPassInfo } from '../dependencies/types.js';
 
 import { isOk } from '../../types/result.js';
-import { inferGitContext } from '../git-context.js';
-import { parseLocalReviewOptions, applyOptionDefaults, resolveBaseRef } from '../options/index.js';
-import { loadConfig, generateZeroConfigDefaults, isZeroConfigSuccess } from '../../config.js';
+import { wrapNonError } from '../../types/errors.js';
+import { inferGitContext, GitContextErrorCode } from '../git-context.js';
+import {
+  parseLocalReviewOptions,
+  applyOptionDefaults,
+  resolveDiffRange,
+} from '../options/index.js';
+import {
+  loadConfig,
+  loadConfigFromPath,
+  generateZeroConfigDefaults,
+  isZeroConfigSuccess,
+} from '../../config.js';
 import { getLocalDiff, canonicalizeDiffFiles, buildCombinedDiff } from '../../diff.js';
 import { loadReviewIgnore } from '../../reviewignore.js';
 import { checkBudget, estimateTokens, type BudgetContext } from '../../budget.js';
@@ -40,6 +51,8 @@ import {
   NotAGitRepoError,
   NoCredentialsError,
   InvalidConfigError,
+  GitNotFoundError,
+  InvalidPathError,
 } from '../output/errors.js';
 import { reportToTerminal } from '../../report/terminal.js';
 import {
@@ -52,6 +65,12 @@ import {
 import { countBySeverity } from '../../report/formats.js';
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
+import {
+  checkDependenciesForPasses,
+  displayDependencyErrors,
+  displaySkippedPassWarnings,
+  getDependenciesForAgent,
+} from '../dependencies/index.js';
 
 // =============================================================================
 // Types
@@ -79,6 +98,8 @@ export interface LocalReviewDependencies {
   inferGitContext?: (cwd: string) => Result<GitContext, GitContextError>;
   /** Override for config loading (for testing) */
   loadConfig?: (repoRoot: string) => Promise<ValidatedConfig<Config>>;
+  /** Override for config loading from explicit path (for testing) */
+  loadConfigFromPath?: (configPath: string) => Promise<ValidatedConfig<Config>>;
   /** Override for zero-config generation (for testing) */
   generateZeroConfig?: (env: Record<string, string | undefined>) => GenerateZeroConfigResult;
   /** Override for diff generation (for testing) */
@@ -86,6 +107,8 @@ export interface LocalReviewDependencies {
     repoPath: string,
     options: {
       baseRef: string;
+      headRef?: string;
+      rangeOperator?: '..' | '...';
       stagedOnly?: boolean;
       uncommitted?: boolean;
       pathFilter?: PathFilter;
@@ -95,6 +118,8 @@ export interface LocalReviewDependencies {
   executeAllPasses?: typeof executeAllPasses;
   /** Override for terminal reporting (for testing) */
   reportToTerminal?: typeof reportToTerminal;
+  /** Override for dependency checking (for testing) */
+  checkDependenciesForPasses?: (passes: Pass[]) => DependencyCheckSummary;
 }
 
 /**
@@ -119,6 +144,8 @@ export interface LocalReviewResult {
 export interface DryRunResult {
   /** Git context information */
   gitContext: GitContext;
+  /** Resolved base reference used for diff */
+  baseRef: string;
   /** Config source (file or zero-config) */
   configSource: 'file' | 'zero-config';
   /** Config file path if from file */
@@ -279,6 +306,62 @@ function buildAgentContext(
 }
 
 /**
+ * Build info about skipped passes for warning display.
+ * Determines which dependency caused each pass to be skipped.
+ */
+function buildSkippedPassInfo(
+  passes: Config['passes'],
+  depSummary: DependencyCheckSummary
+): SkippedPassInfo[] {
+  const skippedInfo: SkippedPassInfo[] = [];
+
+  // Build set of unavailable deps with their reason
+  const unavailableDeps = new Map<string, 'missing' | 'unhealthy'>();
+  for (const result of depSummary.results) {
+    if (result.status === 'missing') {
+      unavailableDeps.set(result.name, 'missing');
+    } else if (result.status === 'unhealthy') {
+      unavailableDeps.set(result.name, 'unhealthy');
+    }
+  }
+
+  for (const pass of passes) {
+    if (!pass.enabled || pass.required) continue;
+
+    // Check if this pass has unavailable deps
+    for (const agent of pass.agents) {
+      const agentDeps = getDependenciesForAgent(agent);
+      for (const dep of agentDeps) {
+        const reason = unavailableDeps.get(dep);
+        if (reason) {
+          skippedInfo.push({
+            name: pass.name,
+            missingDep: dep,
+            reason,
+          });
+          break; // Only report first unavailable dep per pass
+        }
+      }
+    }
+  }
+
+  return skippedInfo;
+}
+
+/**
+ * Filter config to only include passes whose dependencies are available.
+ */
+function filterToRunnablePasses(config: Config, runnablePassNames: string[]): Config {
+  const runnableSet = new Set(runnablePassNames);
+  return {
+    ...config,
+    passes: config.passes.filter(
+      (pass) => !pass.enabled || pass.required || runnableSet.has(pass.name)
+    ),
+  };
+}
+
+/**
  * Load config with zero-config fallback
  */
 async function loadConfigWithFallback(
@@ -300,12 +383,21 @@ async function loadConfigWithFallback(
   const configExists = existsSync(configPath);
 
   if (configExists) {
-    // Load from file
-    const loadConfigFn = deps.loadConfig ?? loadConfig;
-    const config = await loadConfigFn(
-      customConfigPath ? resolve(customConfigPath, '..') : repoRoot
-    );
-    return { config, source: 'file', path: configPath };
+    try {
+      // Load from file
+      if (customConfigPath) {
+        const loadConfigFromPathFn = deps.loadConfigFromPath ?? loadConfigFromPath;
+        const config = await loadConfigFromPathFn(configPath);
+        return { config, source: 'file', path: configPath };
+      }
+
+      const loadConfigFn = deps.loadConfig ?? loadConfig;
+      const config = await loadConfigFn(repoRoot);
+      return { config, source: 'file', path: configPath };
+    } catch (error) {
+      // Wrap non-Error throws to ensure consistent error handling
+      throw wrapNonError(error);
+    }
   }
 
   // Use zero-config defaults
@@ -334,7 +426,8 @@ async function executeDryRun(
   configPath: string | undefined,
   deps: LocalReviewDependencies
 ): Promise<DryRunResult> {
-  const baseRef = resolveBaseRef(options, gitContext);
+  const diffRange = resolveDiffRange(options, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // Load .reviewignore patterns
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
@@ -343,6 +436,8 @@ async function executeDryRun(
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: options.staged,
     uncommitted: options.uncommitted,
     pathFilter:
@@ -361,6 +456,7 @@ async function executeDryRun(
 
   return {
     gitContext,
+    baseRef,
     configSource,
     configPath,
     fileCount: diff.files.length,
@@ -387,7 +483,7 @@ function formatDryRunOutputPretty(result: DryRunResult, colored: boolean): strin
   lines.push(c.bold('Git Context:'));
   lines.push(`  Repository: ${result.gitContext.repoRoot}`);
   lines.push(`  Branch: ${result.gitContext.currentBranch}`);
-  lines.push(`  Base: ${result.gitContext.defaultBase}`);
+  lines.push(`  Base: ${result.baseRef}`);
   lines.push('');
 
   // Config
@@ -456,7 +552,7 @@ function formatDryRunOutputJson(result: DryRunResult): string {
     gitContext: {
       repository: result.gitContext.repoRoot,
       branch: result.gitContext.currentBranch,
-      base: result.gitContext.defaultBase,
+      base: result.baseRef,
     },
     files: result.files,
     agents: result.agents,
@@ -531,7 +627,8 @@ async function executeCostOnly(
   config: Config,
   deps: LocalReviewDependencies
 ): Promise<CostEstimateResult> {
-  const baseRef = resolveBaseRef(options, gitContext);
+  const diffRange = resolveDiffRange(options, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // Load .reviewignore patterns
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
@@ -540,6 +637,8 @@ async function executeCostOnly(
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: options.staged,
     uncommitted: options.uncommitted,
     pathFilter:
@@ -669,7 +768,12 @@ export async function runLocalReview(
   const gitResult = inferFn(resolve(options.path));
 
   if (!isOk(gitResult)) {
-    const error = new NotAGitRepoError(options.path);
+    const error =
+      gitResult.error.code === GitContextErrorCode.GIT_NOT_FOUND
+        ? new GitNotFoundError(gitResult.error.message)
+        : gitResult.error.code === GitContextErrorCode.INVALID_PATH
+          ? new InvalidPathError(gitResult.error.message, gitResult.error.path)
+          : new NotAGitRepoError(gitResult.error.path ?? options.path);
     stderr.write(formatCLIError(error, colored) + '\n');
     return {
       exitCode: ExitCode.INVALID_ARGS,
@@ -683,7 +787,8 @@ export async function runLocalReview(
 
   // Apply defaults from git context
   const resolvedOptions = applyOptionDefaults(options, gitContext);
-  const baseRef = resolveBaseRef(resolvedOptions, gitContext);
+  const diffRange = resolveDiffRange(resolvedOptions, gitContext);
+  const baseRef = diffRange.baseRef;
 
   // 3. Load configuration (with zero-config fallback)
   let config: Config;
@@ -740,7 +845,8 @@ export async function runLocalReview(
     stdout.write(c.gray('Tip: Create .ai-review.yml to customize settings\n\n'));
   }
 
-  // 4. Handle special modes (dry-run and cost-only)
+  // 4. Handle special modes (dry-run and cost-only) - before dependency check
+  // These modes don't execute agents, so dependencies are not required
   if (resolvedOptions.dryRun) {
     const dryRunResult = await executeDryRun(
       resolvedOptions,
@@ -762,13 +868,58 @@ export async function runLocalReview(
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
 
-  // 5. Load .reviewignore patterns (before diff to filter early)
+  // 5. Dependency preflight check (only needed when actually running agents)
+  const checkDepsFn = deps.checkDependenciesForPasses ?? checkDependenciesForPasses;
+  const depSummary = checkDepsFn(config.passes);
+  if (depSummary.hasBlockingIssues) {
+    displayDependencyErrors(depSummary, stderr);
+    return {
+      exitCode: ExitCode.FAILURE,
+      findingsCount: 0,
+      partialFindingsCount: 0,
+      error: 'Missing required dependencies',
+    };
+  }
+
+  // Build skipped pass info for warnings
+  const skippedPassInfo = buildSkippedPassInfo(config.passes, depSummary);
+
+  // Show warnings for skipped passes (graceful degradation)
+  if (skippedPassInfo.length > 0 && !resolvedOptions.quiet) {
+    displaySkippedPassWarnings(skippedPassInfo, stderr);
+  }
+
+  // Filter config to only include runnable passes
+  const runnableConfig = filterToRunnablePasses(config, depSummary.runnablePasses);
+
+  // Check if all passes were filtered out (all optional, all missing dependencies)
+  const enabledRunnablePasses = runnableConfig.passes.filter((p) => p.enabled);
+  if (enabledRunnablePasses.length === 0) {
+    const warnMsg = colored
+      ? `${c.yellow('⚠')} All review passes were skipped due to missing dependencies.\n` +
+        `  Run 'ai-review check' to see what's missing.\n` +
+        `  No review will be performed.\n`
+      : `Warning: All review passes were skipped due to missing dependencies.\n` +
+        `  Run 'ai-review check' to see what's missing.\n` +
+        `  No review will be performed.\n`;
+    stderr.write(warnMsg);
+    return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
+  }
+
+  // Show warnings for other optional missing dependencies
+  if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {
+    displayDependencyErrors(depSummary, stderr);
+  }
+
+  // 6. Load .reviewignore patterns (before diff to filter early)
   const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
 
-  // 6. Generate diff once with reviewignore filtering applied
+  // 7. Generate diff once with reviewignore filtering applied
   const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
   const diff = getDiffFn(gitContext.repoRoot, {
     baseRef,
+    headRef: diffRange.headRef,
+    rangeOperator: diffRange.rangeOperator,
     stagedOnly: resolvedOptions.staged,
     uncommitted: resolvedOptions.uncommitted,
     pathFilter:
@@ -777,22 +928,27 @@ export async function runLocalReview(
         : undefined,
   });
 
-  // 7. Check for changes (using already-generated diff)
+  // 8. Check for changes (using already-generated diff)
   if (diff.files.length === 0) {
     // No changes to review - could be no changes or all filtered by .reviewignore
+    const headLabel = resolvedOptions.staged
+      ? 'STAGED'
+      : resolvedOptions.uncommitted
+        ? 'WORKTREE'
+        : diffRange.headRef;
     const output = colored
-      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`
-      : `No changes to review\n\n  Base: ${baseRef}\n  Head: HEAD\n\n  No uncommitted or staged changes found.\n`;
+      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`
+      : `No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`;
     stdout.write(output);
     return { exitCode: ExitCode.SUCCESS, findingsCount: 0, partialFindingsCount: 0 };
   }
 
-  // 8. Build agent context
+  // 9. Build agent context (using runnableConfig with filtered passes)
   const routerEnv = buildRouterEnv(env);
-  const agentContext = buildAgentContext(gitContext.repoRoot, diff, config, routerEnv);
-  const configHash = hashConfig(config);
+  const agentContext = buildAgentContext(gitContext.repoRoot, diff, runnableConfig, routerEnv);
+  const configHash = hashConfig(config); // Use original config for consistent cache key
 
-  // 9. Check budget
+  // 10. Check budget
   const diffContent = buildCombinedDiff(diff.files, config.limits?.max_diff_lines ?? 5000);
   const estimatedTokensCount = estimateTokens(diffContent);
   const budgetContext: BudgetContext = {
@@ -811,7 +967,7 @@ export async function runLocalReview(
     }
   );
 
-  // 10. Setup signal handlers for graceful shutdown
+  // 11. Setup signal handlers for graceful shutdown
   // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
   // This is the correct behavior for CLI tools to avoid runaway costs
   setupSignalHandlers({
@@ -836,12 +992,12 @@ export async function runLocalReview(
     },
   });
 
-  // 11. Execute agent passes
+  // 12. Execute agent passes
   let executeResult: ExecuteResult;
 
   try {
-    // Set up partial results tracking
-    const totalAgents = config.passes.reduce(
+    // Set up partial results tracking (using runnableConfig which excludes skipped passes)
+    const totalAgents = runnableConfig.passes.reduce(
       (sum, p) => (p.enabled ? sum + p.agents.length : sum),
       0
     );
@@ -853,7 +1009,7 @@ export async function runLocalReview(
     });
 
     const executeFn = deps.executeAllPasses ?? executeAllPasses;
-    executeResult = await executeFn(config, agentContext, routerEnv, budgetCheck, {
+    executeResult = await executeFn(runnableConfig, agentContext, routerEnv, budgetCheck, {
       configHash,
       head: diff.headSha,
     });
@@ -872,7 +1028,7 @@ export async function runLocalReview(
 
   clearPartialResultsContext();
 
-  // 12. Calculate execution time and cost
+  // 13. Calculate execution time and cost
   const executionTimeMs = Date.now() - startTime;
   const estimatedCostUsd = executeResult.allResults.reduce((sum, r) => {
     if ('metrics' in r && r.metrics?.estimatedCostUsd) {
@@ -881,7 +1037,7 @@ export async function runLocalReview(
     return sum;
   }, 0);
 
-  // 13. Build terminal context with execution info
+  // 14. Build terminal context with execution info
   const terminalContext = buildTerminalContext(
     resolvedOptions,
     gitContext,
@@ -892,7 +1048,7 @@ export async function runLocalReview(
   terminalContext.executionTimeMs = executionTimeMs;
   terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
 
-  // 14. Report findings to terminal
+  // 15. Report findings to terminal
   const reportFn = deps.reportToTerminal ?? reportToTerminal;
   const reportResult = await reportFn(
     executeResult.completeFindings,

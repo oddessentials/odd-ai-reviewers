@@ -13,8 +13,10 @@ import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 
 // Setup DOMPurify with JSDOM for Node.js testing
-const window = new JSDOM('').window;
-const purify = DOMPurify(window);
+// Type assertion needed due to @types/trusted-types version mismatch between JSDOM and DOMPurify
+const jsdomWindow = new JSDOM('').window;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const purify = DOMPurify(jsdomWindow as any);
 
 // DOMPurify configuration matching app.js
 const PURIFY_CONFIG = {

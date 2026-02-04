@@ -32,6 +32,13 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (file-based configuration only: .trivyignore, CODEOWNERS, dependabot.yml) (001-security-cve-cleanup)
 - TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (validation), existing agent SDKs (407-local-review-mode)
 - N/A (stateless per run, uses existing file-based cache) (407-local-review-mode)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (schema validation), Node.js child_process (execFileSync) (001-local-deps-setup)
+- TypeScript 5.9.x (ES2022 target, NodeNext modules) + semantic-release (core), @semantic-release/changelog, @semantic-release/git, @semantic-release/npm, @semantic-release/github, commitlint (existing) (016-semantic-release)
+- N/A (file-based: CHANGELOG.md, package.json) (016-semantic-release)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander.js 14.x (CLI), Zod 4.x (validation), Node.js ≥22.0.0 (001-local-review-improvements)
+- N/A (stateless CLI) (001-local-review-improvements)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules), Node.js >=22.0.0 + Commander 14.x (CLI), Zod 4.x (validation), OpenAI SDK 6.x, Anthropic SDK 0.71.x, Octokit 22.x (001-pr-blocking-fixes)
+- N/A (stateless CLI, file-based cache exists but not modified for core fixes) (001-pr-blocking-fixes)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -59,9 +66,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
-- 407-local-review-mode: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander 14.x (CLI), Zod 4.x (validation), existing agent SDKs
-- 001-security-cve-cleanup: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + pnpm 10.28.2, GitHub Actions, Dependabot, Trivy 0.56.x
-- 001-fix-config-wizard-bugs: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (schema validation), Commander 14.x (CLI), Vitest 4.x (testing)
+- 001-pr-blocking-fixes: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules), Node.js >=22.0.0 + Commander 14.x (CLI), Zod 4.x (validation), OpenAI SDK 6.x, Anthropic SDK 0.71.x, Octokit 22.x
+- 001-local-review-improvements: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Commander.js 14.x (CLI), Zod 4.x (validation), Node.js ≥22.0.0
+- 016-semantic-release: Added TypeScript 5.9.x (ES2022 target, NodeNext modules) + semantic-release (core), @semantic-release/changelog, @semantic-release/git, @semantic-release/npm, @semantic-release/github, commitlint (existing)
 
 
 

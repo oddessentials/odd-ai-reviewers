@@ -106,6 +106,8 @@ export const ConfigErrorCode = {
   MISSING_FIELD: 'CONFIG_MISSING_FIELD',
   INVALID_VALUE: 'CONFIG_INVALID_VALUE',
   FILE_NOT_FOUND: 'CONFIG_FILE_NOT_FOUND',
+  FILE_UNREADABLE: 'CONFIG_FILE_UNREADABLE',
+  YAML_PARSE_ERROR: 'CONFIG_YAML_PARSE_ERROR',
   PARSE_ERROR: 'CONFIG_PARSE_ERROR',
 } as const;
 
@@ -140,6 +142,10 @@ export const ValidationErrorCode = {
   INVALID_GIT_REF: 'VALIDATION_INVALID_GIT_REF',
   INVALID_PATH: 'VALIDATION_INVALID_PATH',
   CONSTRAINT_VIOLATED: 'VALIDATION_CONSTRAINT_VIOLATED',
+  // Range validation errors (validation phase - before git calls)
+  MALFORMED_RANGE_MULTIPLE_OPERATORS: 'VALIDATION_MALFORMED_RANGE_MULTIPLE_OPERATORS',
+  MALFORMED_RANGE_EMPTY_REF: 'VALIDATION_MALFORMED_RANGE_EMPTY_REF',
+  MALFORMED_RANGE_MISSING_REFS: 'VALIDATION_MALFORMED_RANGE_MISSING_REFS',
 } as const;
 
 export type ValidationErrorCode = (typeof ValidationErrorCode)[keyof typeof ValidationErrorCode];
@@ -597,6 +603,125 @@ export function isBaseError(error: unknown): error is BaseError {
   return (
     isConfigError(error) || isAgentError(error) || isNetworkError(error) || isValidationError(error)
   );
+}
+
+/**
+ * Interface for Node.js system errors (e.g., from fs, child_process)
+ *
+ * This matches the shape of NodeJS.ErrnoException but can be used
+ * without depending on @types/node in type-only contexts.
+ *
+ * @see https://nodejs.org/api/errors.html#class-systemerror
+ */
+export interface NodeError extends Error {
+  /** System error code (e.g., 'ENOENT', 'EACCES', 'ETIMEDOUT') */
+  code?: string;
+  /** System error number (negative on POSIX, positive on Windows) */
+  errno?: number;
+  /** File path that caused the error (fs operations) */
+  path?: string;
+  /** System call that failed (e.g., 'open', 'read', 'spawn') */
+  syscall?: string;
+}
+
+/**
+ * Validates that a property value matches expected type or is absent
+ * @internal
+ */
+function isValidOptionalProperty(
+  obj: Record<string, unknown>,
+  key: string,
+  expectedType: 'string' | 'number'
+): boolean {
+  const value = obj[key];
+  return value === undefined || typeof value === expectedType;
+}
+
+/**
+ * Type guard for Node.js system errors
+ *
+ * Validates that the error is an Error instance and that all Node.js-specific
+ * properties (code, errno, path, syscall) have the correct types if present.
+ *
+ * Use this in catch blocks before accessing error properties like `code`:
+ *
+ * @example
+ * ```typescript
+ * import { isNodeError } from './types/errors.js';
+ *
+ * try {
+ *   execFileSync(cmd, args);
+ * } catch (err) {
+ *   if (isNodeError(err)) {
+ *     // Safe: TypeScript knows err.code is string | undefined
+ *     if (err.code === 'ENOENT') {
+ *       console.log('Command not found');
+ *     } else if (err.code === 'EACCES') {
+ *       console.log('Permission denied');
+ *     }
+ *   } else {
+ *     // Handle non-Error throws (rare but possible)
+ *     console.log('Unknown error:', err);
+ *   }
+ * }
+ * ```
+ *
+ * @param error - Unknown caught value (typically from a catch block)
+ * @returns True if error is an Error with valid Node.js error property types
+ *
+ * @remarks
+ * This guard validates property types but does NOT validate property values.
+ * For example, it checks that `code` is a string but doesn't verify it's a
+ * valid Node.js error code like 'ENOENT'. This is intentional - Node.js may
+ * add new error codes, and third-party code may use custom codes.
+ */
+export function isNodeError(error: unknown): error is NodeError {
+  // Must be an Error instance
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  // Cast to access potential Node.js properties
+  const obj = error as unknown as Record<string, unknown>;
+
+  // Validate all Node.js error properties have correct types if present
+  return (
+    isValidOptionalProperty(obj, 'code', 'string') &&
+    isValidOptionalProperty(obj, 'errno', 'number') &&
+    isValidOptionalProperty(obj, 'path', 'string') &&
+    isValidOptionalProperty(obj, 'syscall', 'string')
+  );
+}
+
+/**
+ * Wrap a non-Error thrown value into an Error instance.
+ *
+ * Use this in catch blocks to ensure consistent error handling when code
+ * may throw non-Error values (strings, objects, etc.).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   someFunctionThatMightThrowAnything();
+ * } catch (error) {
+ *   throw wrapNonError(error); // Always returns an Error
+ * }
+ * ```
+ *
+ * @param error - Unknown caught value (typically from a catch block)
+ * @returns The original Error if already an Error instance, otherwise a new Error
+ *          wrapping the value with an informative message
+ */
+export function wrapNonError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  // Use JSON.stringify for objects to provide informative error messages
+  // String() on objects produces unhelpful "[object Object]"
+  if (error !== null && typeof error === 'object') {
+    return new Error(JSON.stringify(error));
+  }
+  return new Error(String(error));
 }
 
 /**

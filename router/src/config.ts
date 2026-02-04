@@ -9,7 +9,7 @@ import { readFile } from 'fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { ConfigError, ConfigErrorCode } from './types/errors.js';
+import { ConfigError, ConfigErrorCode, isNodeError } from './types/errors.js';
 import { type ValidatedConfig, createValidatedConfigHelpers } from './types/branded.js';
 import { type Result, Err } from './types/result.js';
 
@@ -116,6 +116,80 @@ export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Conf
   }
 
   // Brand the validated config - guarantees it passed schema validation
+  return ValidatedConfigHelpers.brand(result.data);
+}
+
+/**
+ * Load configuration from an explicit file path.
+ *
+ * @param configPath - Absolute or relative path to a config file
+ * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
+ */
+export async function loadConfigFromPath(configPath: string): Promise<ValidatedConfig<Config>> {
+  let content: string;
+  try {
+    content = await readFile(configPath, 'utf-8');
+  } catch (err) {
+    // Use type guard for safe error property access
+    if (isNodeError(err)) {
+      if (err.code === 'ENOENT') {
+        throw new ConfigError(
+          `Config file not found: ${configPath}`,
+          ConfigErrorCode.FILE_NOT_FOUND,
+          { path: configPath }
+        );
+      }
+      if (err.code === 'EACCES') {
+        throw new ConfigError(
+          `Config file unreadable (permission denied): ${configPath}`,
+          ConfigErrorCode.FILE_UNREADABLE,
+          { path: configPath }
+        );
+      }
+    }
+    // Re-throw original error (preserves stack trace for unexpected errors)
+    throw err;
+  }
+
+  // Parse YAML with distinct error handling
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(content);
+  } catch (err) {
+    throw new ConfigError(
+      `Failed to parse YAML: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      ConfigErrorCode.YAML_PARSE_ERROR,
+      { path: configPath },
+      err instanceof Error ? { cause: err } : undefined
+    );
+  }
+  const userConfig =
+    parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+
+  // Load defaults and merge with user config
+  let defaults: Record<string, unknown> = {};
+  if (existsSync(DEFAULTS_PATH)) {
+    const defaultsContent = await readFile(DEFAULTS_PATH, 'utf-8');
+    defaults = parseYaml(defaultsContent) as Record<string, unknown>;
+  }
+
+  const merged = deepMerge(defaults, userConfig);
+
+  // Validate and return branded config
+  const result = ConfigSchema.safeParse(merged);
+  if (!result.success) {
+    const issues = result.error.issues;
+    throw new ConfigError(
+      `Invalid configuration: ${result.error.message}`,
+      ConfigErrorCode.INVALID_SCHEMA,
+      {
+        path: configPath,
+        field: issues[0]?.path?.join('.'),
+        expected: issues[0]?.message,
+      }
+    );
+  }
+
   return ValidatedConfigHelpers.brand(result.data);
 }
 

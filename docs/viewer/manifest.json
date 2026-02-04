@@ -213,6 +213,11 @@
           "path": "../reference/branding.md"
         },
         {
+          "name": "cli.md",
+          "type": "file",
+          "path": "../reference/cli.md"
+        },
+        {
           "name": "custom-badges.md",
           "type": "file",
           "path": "../reference/custom-badges.md"
@@ -250,6 +255,11 @@
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
+    },
+    {
+      "name": "local-review.md",
+      "type": "file",
+      "path": "../local-review.md"
     },
     {
       "name": "troubleshooting.md",
@@ -409,6 +419,11 @@
       "path": "../reference/branding.md"
     },
     {
+      "name": "reference/cli.md",
+      "type": "file",
+      "path": "../reference/cli.md"
+    },
+    {
       "name": "reference/custom-badges.md",
       "type": "file",
       "path": "../reference/custom-badges.md"
@@ -437,6 +452,11 @@
       "name": "index.md",
       "type": "file",
       "path": "../index.md"
+    },
+    {
+      "name": "local-review.md",
+      "type": "file",
+      "path": "../local-review.md"
     },
     {
       "name": "troubleshooting.md",
