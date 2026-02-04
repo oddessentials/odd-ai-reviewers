@@ -31,6 +31,7 @@ export const ZERO_CONFIG_LIMITS: Limits = {
   max_tokens_per_pr: 4000, // Conservative for zero-config
   max_usd_per_pr: 0.1, // $0.10 budget (from spec)
   monthly_budget_usd: 10, // Conservative monthly budget
+  max_completion_tokens: 4000,
 };
 
 /**

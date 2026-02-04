@@ -37,6 +37,13 @@ export const LimitsSchema = z.object({
   max_tokens_per_pr: z.number().default(12000),
   max_usd_per_pr: z.number().default(1.0),
   monthly_budget_usd: z.number().default(100),
+  /**
+   * Maximum tokens for AI completion responses (T035).
+   * Used by withTokenCompatibility() for OpenAI API calls.
+   * Minimum: 16 (smallest meaningful response)
+   * Default: 4000 (sufficient for most code review responses)
+   */
+  max_completion_tokens: z.number().int().min(16).optional().default(4000),
 });
 
 export const GithubReportingSchema = z.object({
@@ -107,6 +114,7 @@ export const ConfigSchema = z.object({
     max_tokens_per_pr: 12000,
     max_usd_per_pr: 1.0,
     monthly_budget_usd: 100,
+    max_completion_tokens: 4000,
   }),
   models: ModelsSchema.default({}),
   reporting: ReportingSchema.default({}),

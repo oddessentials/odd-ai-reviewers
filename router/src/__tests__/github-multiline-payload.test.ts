@@ -46,6 +46,7 @@ describe('GitHub Multi-line Payload Verification', () => {
       max_tokens_per_pr: 100000,
       max_usd_per_pr: 1.0,
       monthly_budget_usd: 100.0,
+      max_completion_tokens: 4000,
     },
     gating: {
       enabled: false,

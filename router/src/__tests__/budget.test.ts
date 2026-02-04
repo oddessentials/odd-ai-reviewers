@@ -21,6 +21,7 @@ const defaultLimits: Limits = {
   max_tokens_per_pr: 12000,
   max_usd_per_pr: 1.0,
   monthly_budget_usd: 100,
+  max_completion_tokens: 4000,
 };
 
 describe('checkBudget', () => {
