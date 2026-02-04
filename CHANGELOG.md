@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.1.0...v1.1.1) (2026-02-04)
+
+### Bug Fixes
+
+* **security:** remediate https://github.com/advisories/GHSA-7h2j-956f-4vf2 in @isaacs/brace-expansion ([#135](https://github.com/oddessentials/odd-ai-reviewers/issues/135)) ([bab70f3](https://github.com/oddessentials/odd-ai-reviewers/commit/bab70f360e9cd37920f02e3ef474ad14087f6623))
+
 ## [1.1.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.0.2...v1.1.0) (2026-02-04)
 
 ### Features
