@@ -38,6 +38,7 @@ import {
   INLINE_COMMENT_DELAY_MS,
   formatInlineComment,
   formatGroupedInlineComment,
+  groupAdjacentFindings,
 } from './base.js';
 
 import {
@@ -403,12 +404,19 @@ async function postPRComment(
       continue;
     }
 
-    const finding = findingsInGroup[0];
+    // Filter out already-posted findings so grouped comments don't re-post duplicates
+    const newFindings = findingsInGroup.filter(
+      (f) => !isDuplicateByProximity(f, existingFingerprintSet, proximityMap)
+    );
+    if (newFindings.length === 0) continue;
+
+    const finding = newFindings[0];
     if (!finding) continue;
 
-    const body = Array.isArray(findingOrGroup)
-      ? formatGroupedInlineComment(findingOrGroup)
-      : formatInlineComment(finding);
+    const body =
+      newFindings.length > 1
+        ? formatGroupedInlineComment(newFindings)
+        : formatInlineComment(finding);
 
     try {
       const commentParams: {
@@ -563,46 +571,4 @@ async function postPRComment(
   );
 
   return { commentId, skippedDuplicates };
-}
-
-/**
- * Group adjacent findings (within 3 lines in the same file)
- */
-function groupAdjacentFindings(
-  findings: (Finding & { line: number })[]
-): ((Finding & { line: number }) | (Finding & { line: number })[])[] {
-  if (findings.length === 0) return [];
-
-  const result: ((Finding & { line: number }) | (Finding & { line: number })[])[] = [];
-  const firstFinding = findings[0];
-  if (!firstFinding) return [];
-
-  let currentGroup: (Finding & { line: number })[] = [firstFinding];
-
-  for (let i = 1; i < findings.length; i++) {
-    const prev = currentGroup[currentGroup.length - 1];
-    const curr = findings[i];
-
-    if (!prev || !curr) continue;
-
-    // Group if same file and within 3 lines
-    if (prev.file === curr.file && Math.abs(curr.line - prev.line) <= 3) {
-      currentGroup.push(curr);
-    } else {
-      // Finish current group
-      const firstInGroup = currentGroup[0];
-      if (firstInGroup) {
-        result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
-      }
-      currentGroup = [curr];
-    }
-  }
-
-  // Don't forget the last group
-  const firstInGroup = currentGroup[0];
-  if (firstInGroup) {
-    result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
-  }
-
-  return result;
 }

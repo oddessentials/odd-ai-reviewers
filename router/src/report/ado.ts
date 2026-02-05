@@ -30,7 +30,13 @@ import {
 } from './resolution.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
-import { delay, INLINE_COMMENT_DELAY_MS, formatInlineComment } from './base.js';
+import {
+  delay,
+  INLINE_COMMENT_DELAY_MS,
+  formatInlineComment,
+  formatGroupedInlineComment,
+  groupAdjacentFindings,
+} from './base.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -54,8 +60,6 @@ export interface ADOContext {
   sourceRefCommit: string;
   /** Authentication token (System.AccessToken or PAT) */
   token: string;
-  /** Optional: Existing thread ID for summary updates */
-  summaryThreadId?: number;
   /** Optional: Existing status ID for status updates */
   statusId?: number;
 }
@@ -315,7 +319,7 @@ async function postPRThreads(
 
   let threadId: number;
 
-  if (summaryThread && context.summaryThreadId) {
+  if (summaryThread) {
     // Update existing summary thread
     const updatePayload = {
       comments: [
@@ -403,22 +407,43 @@ async function postPRThreads(
       return (severityOrder[a.severity] ?? 2) - (severityOrder[b.severity] ?? 2);
     });
 
+  // Group adjacent findings (within 3 lines of each other in same file)
+  const groupedFindings = groupAdjacentFindings(inlineFindings);
+
   let skippedDuplicates = 0;
   let postedCount = 0;
 
-  for (const finding of inlineFindings) {
+  for (const findingOrGroup of groupedFindings) {
     if (postedCount >= maxInlineComments) break;
 
-    // Use proximity-based deduplication: skip if finding is a duplicate
+    const findingsInGroup = Array.isArray(findingOrGroup) ? findingOrGroup : [findingOrGroup];
+
+    // Use proximity-based deduplication: skip if ALL findings in group are duplicates
     // A finding is a duplicate if:
     // 1. Exact dedupe key match (same fingerprint + file + line), OR
     // 2. Same fingerprint+file within LINE_PROXIMITY_THRESHOLD lines
-    if (isDuplicateByProximity(finding, existingFingerprintSet, proximityMap)) {
+    const allDuplicates = findingsInGroup.every((f) =>
+      isDuplicateByProximity(f, existingFingerprintSet, proximityMap)
+    );
+
+    if (allDuplicates) {
       skippedDuplicates++;
       continue;
     }
 
-    const body = formatInlineComment(finding);
+    // Filter out already-posted findings so grouped comments don't re-post duplicates
+    const newFindings = findingsInGroup.filter(
+      (f) => !isDuplicateByProximity(f, existingFingerprintSet, proximityMap)
+    );
+    if (newFindings.length === 0) continue;
+
+    const finding = newFindings[0];
+    if (!finding) continue;
+
+    const body =
+      newFindings.length > 1
+        ? formatGroupedInlineComment(newFindings)
+        : formatInlineComment(finding);
     const threadContext = toADOThreadContext(finding);
 
     if (!threadContext) {
@@ -453,11 +478,14 @@ async function postPRThreads(
       }
 
       postedCount++;
-      const key = getDedupeKey(finding);
-      existingFingerprintSet.add(key);
 
-      // FR-001: Update proximityMap using canonical pattern
-      updateProximityMap(proximityMap, finding);
+      for (const groupFinding of findingsInGroup) {
+        const key = getDedupeKey(groupFinding);
+        existingFingerprintSet.add(key);
+
+        // FR-001: Update proximityMap using canonical pattern
+        updateProximityMap(proximityMap, groupFinding);
+      }
 
       // Rate limiting delay
       await delay(INLINE_COMMENT_DELAY_MS);
