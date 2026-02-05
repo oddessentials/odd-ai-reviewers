@@ -404,12 +404,19 @@ async function postPRComment(
       continue;
     }
 
-    const finding = findingsInGroup[0];
+    // Filter out already-posted findings so grouped comments don't re-post duplicates
+    const newFindings = findingsInGroup.filter(
+      (f) => !isDuplicateByProximity(f, existingFingerprintSet, proximityMap)
+    );
+    if (newFindings.length === 0) continue;
+
+    const finding = newFindings[0];
     if (!finding) continue;
 
-    const body = Array.isArray(findingOrGroup)
-      ? formatGroupedInlineComment(findingOrGroup)
-      : formatInlineComment(finding);
+    const body =
+      newFindings.length > 1
+        ? formatGroupedInlineComment(newFindings)
+        : formatInlineComment(finding);
 
     try {
       const commentParams: {
