@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.3.0...v1.4.0) (2026-02-05)
+
+### Features
+
+* update ado commenting to match github ([#140](https://github.com/oddessentials/odd-ai-reviewers/issues/140)) ([0c3d6d2](https://github.com/oddessentials/odd-ai-reviewers/commit/0c3d6d2190718a69749da135b2326f03942778de))
+
+### Documentation
+
+* pnpm config updates ([#138](https://github.com/oddessentials/odd-ai-reviewers/issues/138)) ([c661b88](https://github.com/oddessentials/odd-ai-reviewers/commit/c661b88753c1a9a8e3b7d2960f4bc0ae97341cd4))
+
 ## [1.3.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.2.0...v1.3.0) (2026-02-05)
 
 ### Features
