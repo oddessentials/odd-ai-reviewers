@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.2.0...v1.3.0) (2026-02-05)
+
+### Features
+
+* 001 OpenAI token compat session6 ([#137](https://github.com/oddessentials/odd-ai-reviewers/issues/137)) ([986427a](https://github.com/oddessentials/odd-ai-reviewers/commit/986427a2160cf1b7207f9e351a005d4c59ec1c22))
+
 ## [1.2.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.1.1...v1.2.0) (2026-02-04)
 
 ### Features
