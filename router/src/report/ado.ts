@@ -60,8 +60,6 @@ export interface ADOContext {
   sourceRefCommit: string;
   /** Authentication token (System.AccessToken or PAT) */
   token: string;
-  /** Optional: Existing thread ID for summary updates */
-  summaryThreadId?: number;
   /** Optional: Existing status ID for status updates */
   statusId?: number;
 }
