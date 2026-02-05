@@ -383,8 +383,8 @@ export BUILD_REPOSITORY_NAME="yourrepo"
 export SYSTEM_PULLREQUEST_PULLREQUESTID="123"
 export TF_BUILD="True"
 
-npm run build
-node dist/main.js review --repo . --base main --head HEAD
+pnpm build
+node router/dist/main.js review --repo . --base main --head HEAD
 ```
 
 ## Related Documentation

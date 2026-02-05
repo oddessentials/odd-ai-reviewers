@@ -114,8 +114,9 @@ stages:
           - script: |
               git clone https://github.com/oddessentials/odd-ai-reviewers.git /tmp/odd-ai-reviewers
               cd /tmp/odd-ai-reviewers
-              npm ci
-              npm run build
+              corepack enable
+              pnpm install --frozen-lockfile
+              pnpm build
             displayName: Setup AI Reviewers
 
           - script: |

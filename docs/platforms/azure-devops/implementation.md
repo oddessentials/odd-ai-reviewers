@@ -501,12 +501,14 @@ stages:
               versionSpec: ${{ parameters.nodeVersion }}
 
           # Install dependencies
-          - script: npm ci
+          - script: |
+              corepack enable
+              pnpm install --frozen-lockfile
             displayName: 'Install Router Dependencies'
             workingDirectory: $(Pipeline.Workspace)/router
 
           # Build the router
-          - script: npm run build
+          - script: pnpm build
             displayName: 'Build Router'
             workingDirectory: $(Pipeline.Workspace)/router
 
