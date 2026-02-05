@@ -51,8 +51,7 @@ export function formatInlineComment(finding: Finding): string {
 }
 
 /**
- * Format grouped findings as a single inline comment (GitHub-specific)
- * ADO doesn't support grouping currently
+ * Format grouped findings as a single inline comment
  */
 export function formatGroupedInlineComment(findings: (Finding & { line: number })[]): string {
   const lines: string[] = [`**Multiple issues found in this area (${findings.length}):**\n`];
@@ -73,4 +72,46 @@ export function formatGroupedInlineComment(findings: (Finding & { line: number }
   }
 
   return lines.join('\n').trim();
+}
+
+/**
+ * Group adjacent findings (within 3 lines in the same file)
+ */
+export function groupAdjacentFindings(
+  findings: (Finding & { line: number })[]
+): ((Finding & { line: number }) | (Finding & { line: number })[])[] {
+  if (findings.length === 0) return [];
+
+  const result: ((Finding & { line: number }) | (Finding & { line: number })[])[] = [];
+  const firstFinding = findings[0];
+  if (!firstFinding) return [];
+
+  let currentGroup: (Finding & { line: number })[] = [firstFinding];
+
+  for (let i = 1; i < findings.length; i++) {
+    const prev = currentGroup[currentGroup.length - 1];
+    const curr = findings[i];
+
+    if (!prev || !curr) continue;
+
+    // Group if same file and within 3 lines
+    if (prev.file === curr.file && Math.abs(curr.line - prev.line) <= 3) {
+      currentGroup.push(curr);
+    } else {
+      // Finish current group
+      const firstInGroup = currentGroup[0];
+      if (firstInGroup) {
+        result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
+      }
+      currentGroup = [curr];
+    }
+  }
+
+  // Don't forget the last group
+  const firstInGroup = currentGroup[0];
+  if (firstInGroup) {
+    result.push(currentGroup.length === 1 ? firstInGroup : currentGroup);
+  }
+
+  return result;
 }
