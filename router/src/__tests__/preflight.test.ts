@@ -39,6 +39,7 @@ function createTestConfig(agents: string[]): Config {
       max_tokens_per_pr: 12000,
       max_usd_per_pr: 1.0,
       monthly_budget_usd: 100,
+      max_completion_tokens: 4000,
     },
     models: { default: 'gpt-4o-mini' },
     reporting: {
@@ -283,6 +284,7 @@ describe('validateModelProviderMatch', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {
@@ -399,6 +401,7 @@ describe('validateModelProviderMatch', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -439,6 +442,7 @@ describe('validateModelProviderMatch', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -473,6 +477,7 @@ describe('validateOllamaConfig', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {
@@ -521,6 +526,7 @@ describe('validateOllamaConfig', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {
@@ -555,6 +561,7 @@ describe('validateProviderModelCompatibility', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {
@@ -714,6 +721,7 @@ describe('validateProviderModelCompatibility', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -740,6 +748,7 @@ describe('validateProviderModelCompatibility', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -828,6 +837,7 @@ describe('validateChatModelCompatibility', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {
@@ -926,6 +936,7 @@ describe('validateChatModelCompatibility', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -953,6 +964,7 @@ describe('validateChatModelCompatibility', () => {
           max_tokens_per_pr: 12000,
           max_usd_per_pr: 1.0,
           monthly_budget_usd: 100,
+          max_completion_tokens: 4000,
         },
         models: {},
         reporting: {
@@ -1339,6 +1351,7 @@ describe('Feature 001: Ollama URL Validation (US2)', () => {
         max_tokens_per_pr: 12000,
         max_usd_per_pr: 1.0,
         monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
       },
       models: {},
       reporting: {

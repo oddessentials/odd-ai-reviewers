@@ -502,4 +502,179 @@ describe('withTokenCompatibility', () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
   });
+
+  // =============================================================================
+  // T025-T027: Deterministic retry behavior tests (US3)
+  // =============================================================================
+
+  describe('deterministic retry behavior (T025-T027)', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    // T025: Exactly one retry on compat error (not zero, not two)
+    it('performs exactly one retry on compat error', async () => {
+      const calls: number[] = [];
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const mockFn = async () => {
+        calls.push(calls.length + 1);
+        if (calls.length === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      await withTokenCompatibility(mockFn, 4000, 'test-model');
+
+      // Exactly 2 calls: initial + 1 retry
+      expect(calls).toHaveLength(2);
+      expect(calls).toEqual([1, 2]);
+    });
+
+    // T026: Surfaces second error when both attempts fail
+    it('surfaces fallback error when both attempts fail', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const fallbackError = new OpenAI.BadRequestError(
+        400,
+        { message: 'max_tokens value too large for this model' },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        throw fallbackError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'test-model')).rejects.toThrow();
+
+      // Verify only 2 attempts made
+      expect(callCount).toBe(2);
+    });
+
+    it('includes fallback context in error when both attempts fail', async () => {
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const fallbackError = new OpenAI.BadRequestError(
+        400,
+        { message: 'max_tokens value too large' },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      let callCount = 0;
+      const mockFn = async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw compatError;
+        }
+        throw fallbackError;
+      };
+
+      try {
+        await withTokenCompatibility(mockFn, 4000, 'test-model');
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errMsg = (error as Error).message;
+        // Should indicate fallback was attempted
+        expect(errMsg).toContain('fallback');
+        // Should contain the original fallback error info
+        expect(errMsg).toContain('max_tokens value too large');
+      }
+    });
+
+    // T027: Retry request identical except for token limit parameter key (FR-013)
+    it('retry request differs only in token parameter key', async () => {
+      const capturedParams: TokenLimitParam[] = [];
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      const mockFn = async (tokenParam: TokenLimitParam) => {
+        capturedParams.push(tokenParam);
+        if (capturedParams.length === 1) {
+          throw compatError;
+        }
+        return 'success';
+      };
+
+      const tokenLimit = 4000;
+      await withTokenCompatibility(mockFn, tokenLimit, 'test-model');
+
+      // Verify exactly 2 calls were made
+      expect(capturedParams).toHaveLength(2);
+
+      // First call: max_completion_tokens
+      expect(capturedParams[0]).toEqual({ max_completion_tokens: tokenLimit });
+      // Second call: max_tokens with same value
+      expect(capturedParams[1]).toEqual({ max_tokens: tokenLimit });
+
+      // Verify the token limit value is identical (FR-013)
+      const firstParam = capturedParams[0] as { max_completion_tokens: number };
+      const secondParam = capturedParams[1] as { max_tokens: number };
+      expect(firstParam.max_completion_tokens).toBe(secondParam.max_tokens);
+    });
+
+    it('does not retry more than once even if fallback also triggers compat error', async () => {
+      const calls: number[] = [];
+      const compatError = new OpenAI.BadRequestError(
+        400,
+        {
+          message: 'max_completion_tokens is not supported. Use max_tokens instead.',
+        },
+        'Bad Request',
+        createMockHeaders()
+      );
+
+      // Always throw compat error
+      const mockFn = async () => {
+        calls.push(calls.length + 1);
+        throw compatError;
+      };
+
+      await expect(withTokenCompatibility(mockFn, 4000, 'test-model')).rejects.toThrow();
+
+      // Should only be 2 calls: initial + exactly 1 retry
+      expect(calls).toHaveLength(2);
+    });
+  });
 });
