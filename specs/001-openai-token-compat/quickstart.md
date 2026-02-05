@@ -1,6 +1,7 @@
 # Quickstart: OpenAI Token Parameter Compatibility
 
 **Feature**: 001-openai-token-compat
+**Status**: ✅ Complete
 **Date**: 2026-02-04
 
 ## Overview
@@ -19,9 +20,15 @@ You can optionally override the default token limit in `.ai-review.yml`:
 
 ```yaml
 limits:
-  # Default: 4000 tokens (unchanged from previous behavior)
+  # Default: 4000, Minimum: 16
   max_completion_tokens: 8000
 ```
+
+**Validation**:
+
+- Must be an integer (no decimals)
+- Minimum: 16 tokens (smallest meaningful response)
+- Default: 4000 tokens (sufficient for most code reviews)
 
 **When to change this**:
 
@@ -36,14 +43,15 @@ limits:
 
 ### Key Files
 
-| File                                            | Purpose                                    |
-| ----------------------------------------------- | ------------------------------------------ |
-| `router/src/agents/token-compat.ts`             | Token parameter compatibility utilities    |
-| `router/src/agents/opencode.ts`                 | Primary OpenCode agent (uses token-compat) |
-| `router/src/agents/pr_agent.ts`                 | PR agent (uses token-compat)               |
-| `router/src/agents/ai_semantic_review.ts`       | Semantic review agent (uses token-compat)  |
-| `router/src/config/schemas.ts`                  | Configuration schema (new field)           |
-| `router/tests/unit/agents/token-compat.test.ts` | Unit tests                                 |
+| File                                            | Purpose                                            |
+| ----------------------------------------------- | -------------------------------------------------- |
+| `router/src/agents/token-compat.ts`             | Token parameter compatibility utilities            |
+| `router/src/agents/opencode.ts`                 | Primary OpenCode agent (uses token-compat)         |
+| `router/src/agents/pr_agent.ts`                 | PR agent (uses token-compat)                       |
+| `router/src/agents/ai_semantic_review.ts`       | Semantic review agent (uses token-compat)          |
+| `router/src/config/schemas.ts`                  | Configuration schema (max_completion_tokens field) |
+| `router/tests/unit/agents/token-compat.test.ts` | Token compatibility unit tests (37 tests)          |
+| `router/tests/unit/config/schemas.test.ts`      | Schema validation unit tests (11 tests)            |
 
 ### Using the Token Compatibility Wrapper
 
@@ -101,13 +109,25 @@ pnpm test:coverage
 
 ### Test Scenarios
 
-The test suite covers:
+The test suite covers 48 tests across two files:
+
+**Token Compatibility (37 tests)**:
 
 1. **Modern model success** - `max_completion_tokens` accepted on first attempt
 2. **Legacy model fallback** - `max_completion_tokens` rejected, `max_tokens` succeeds
-3. **Non-compat error passthrough** - Auth/network errors not retried
-4. **Double failure** - Both parameters fail, surfaces retry error
-5. **Request identity** - Retry request identical except for token param
+3. **Non-compat error passthrough** - Auth/network/rate-limit errors not retried
+4. **Double failure** - Both parameters fail, surfaces error with fallback context
+5. **Request identity** - Retry request identical except for token param (FR-013)
+6. **Exactly one retry** - Bounded retry behavior (not zero, not two)
+7. **Fallback logging** - Warning logged with model name, no sensitive data
+
+**Schema Validation (11 tests)**:
+
+1. **Optional field** - Schema accepts with/without max_completion_tokens
+2. **Default value** - Returns 4000 when not specified
+3. **Minimum validation** - Rejects values below 16
+4. **Integer validation** - Rejects non-integer values
+5. **Negative rejection** - Rejects negative values
 
 ---
 
