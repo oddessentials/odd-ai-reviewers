@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.5.0...v1.6.0) (2026-02-06)
+
+### Features
+
+* add drift_gate option to suppress inline comments at fail-level… ([#142](https://github.com/oddessentials/odd-ai-reviewers/issues/142)) ([6a33523](https://github.com/oddessentials/odd-ai-reviewers/commit/6a33523c1833ada37d1b9c9a87a6c1c84f863fd1))
+
 ## [1.5.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.4.0...v1.5.0) (2026-02-06)
 
 ### Features
