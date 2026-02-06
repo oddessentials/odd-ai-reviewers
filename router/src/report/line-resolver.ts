@@ -765,6 +765,17 @@ export function computeDriftSignal(
 }
 
 /**
+ * Determine whether inline comments should be suppressed due to drift.
+ * Returns true when drift_gate is enabled and drift has reached 'fail' level (≥50% degradation).
+ */
+export function shouldSuppressInlineComments(
+  driftSignal: DriftSignal | undefined,
+  driftGateEnabled: boolean
+): boolean {
+  return driftGateEnabled && driftSignal?.level === 'fail';
+}
+
+/**
  * Generate markdown section for drift signal to include in check summaries
  * Only generates content when drift level is warn or fail
  *

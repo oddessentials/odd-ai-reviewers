@@ -70,6 +70,8 @@ export const ReportingSchema = z.object({
 export const GatingSchema = z.object({
   enabled: z.boolean().default(false),
   fail_on_severity: z.enum(['error', 'warning', 'info']).default('error'),
+  /** Suppress inline comments when line validation drift reaches 'fail' level (≥50% degradation). */
+  drift_gate: z.boolean().default(false),
 });
 
 export const TriggersSchema = z.object({
@@ -118,7 +120,7 @@ export const ConfigSchema = z.object({
   }),
   models: ModelsSchema.default({}),
   reporting: ReportingSchema.default({}),
-  gating: GatingSchema.default({ enabled: false, fail_on_severity: 'error' }),
+  gating: GatingSchema.default({ enabled: false, fail_on_severity: 'error', drift_gate: false }),
   path_filters: PathFiltersSchema.optional(),
   /** Control flow analysis agent configuration (T058) */
   control_flow: ControlFlowConfigSchema.optional(),

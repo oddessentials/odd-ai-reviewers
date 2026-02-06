@@ -153,6 +153,7 @@ export function generateDefaultConfig(
     gating: {
       enabled: false,
       fail_on_severity: 'error',
+      drift_gate: false,
     },
   };
 }

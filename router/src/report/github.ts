@@ -46,6 +46,7 @@ import {
   normalizeFindingsForDiff,
   computeDriftSignal,
   generateDriftMarkdown,
+  shouldSuppressInlineComments,
   type ValidationStats,
   type InvalidLineDetail,
   type DriftSignal,
@@ -72,6 +73,8 @@ export interface ReportResult {
   validationStats?: ValidationStats;
   /** Details about findings with invalid lines */
   invalidLineDetails?: InvalidLineDetail[];
+  /** Whether inline comments were suppressed by drift gate */
+  inlineCommentsGated?: boolean;
 }
 
 /**
@@ -179,7 +182,9 @@ export async function reportToGitHub(
         sorted,
         partialFindings,
         reportingConfig.max_inline_comments,
-        deletedFiles
+        deletedFiles,
+        driftSignal,
+        config
       );
       commentId = result.commentId;
       skippedDuplicates = result.skippedDuplicates;
@@ -195,6 +200,7 @@ export async function reportToGitHub(
         normalizationResult.invalidDetails.length > 0
           ? normalizationResult.invalidDetails
           : undefined,
+      inlineCommentsGated: shouldSuppressInlineComments(driftSignal, config.gating.drift_gate),
     };
   } catch (error) {
     return {
@@ -252,7 +258,12 @@ async function createCheckRun(
 
   // Append drift signal to summary (only shows when warn/fail threshold exceeded)
   const driftMarkdown = generateDriftMarkdown(driftSignal);
-  const fullSummary = summary + partialSection + driftMarkdown;
+  const isDriftGated = shouldSuppressInlineComments(driftSignal, config.gating.drift_gate);
+  const gateNotice = isDriftGated
+    ? '\n> **Drift Gate Active**: Inline comments have been suppressed because line validation ' +
+      'degradation exceeds the fail threshold. Review findings in this summary only.\n'
+    : '';
+  const fullSummary = summary + partialSection + driftMarkdown + gateNotice;
 
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
@@ -300,7 +311,9 @@ async function postPRComment(
   findings: Finding[],
   partialFindings: Finding[],
   maxInlineComments: number,
-  deletedFiles: Set<string> = new Set<string>()
+  deletedFiles: Set<string> = new Set<string>(),
+  driftSignal?: DriftSignal,
+  config?: Config
 ): Promise<{ commentId: number; skippedDuplicates: number }> {
   if (!context.prNumber) {
     throw new Error('PR number required for comments');
@@ -342,6 +355,15 @@ async function postPRComment(
     });
     commentId = response.data.id;
     console.log(`[github] Created new comment ${commentId}`);
+  }
+
+  // Drift gate: suppress inline comments when line validation is too degraded
+  if (shouldSuppressInlineComments(driftSignal, config?.gating?.drift_gate ?? false)) {
+    console.log(
+      `[github] Drift gate active: suppressing inline comments ` +
+        `(degradation: ${driftSignal?.degradationPercent}%)`
+    );
+    return { commentId, skippedDuplicates: 0 };
   }
 
   // Get existing review comments for deduplication

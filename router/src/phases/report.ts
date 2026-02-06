@@ -167,6 +167,9 @@ export async function dispatchReport(
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to GitHub');
+      if (reportResult.inlineCommentsGated) {
+        console.log('[router] Inline comments were suppressed by drift gate');
+      }
     } else {
       console.error('[router] Failed to report to GitHub:', reportResult.error);
     }
@@ -203,6 +206,9 @@ export async function dispatchReport(
 
     if (reportResult.success) {
       console.log('[router] Successfully reported to Azure DevOps');
+      if (reportResult.inlineCommentsGated) {
+        console.log('[router] Inline comments were suppressed by drift gate');
+      }
     } else {
       console.error('[router] Failed to report to Azure DevOps:', reportResult.error);
     }

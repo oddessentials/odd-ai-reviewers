@@ -30,7 +30,7 @@ const minimalConfig: Config = {
   },
   models: { default: 'gpt-4o-mini' },
   reporting: {},
-  gating: { enabled: false, fail_on_severity: 'error' },
+  gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
 };
 
 describe('resolveProvider', () => {

@@ -51,6 +51,7 @@ function createTestConfig(overrides?: Partial<Config>): Config {
     gating: {
       enabled: false,
       fail_on_severity: 'error',
+      drift_gate: false,
     },
     path_filters: {
       include: ['**/*'],

@@ -52,6 +52,7 @@ function createTestConfig(agents: string[]): Config {
     gating: {
       enabled: false,
       fail_on_severity: 'error',
+      drift_gate: false,
     },
     path_filters: {
       include: ['**/*'],
@@ -290,7 +291,7 @@ describe('validateModelProviderMatch', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
     };
   }
@@ -407,7 +408,7 @@ describe('validateModelProviderMatch', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
     }
@@ -448,7 +449,7 @@ describe('validateModelProviderMatch', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
       const result = validateModelProviderMatch(config, 'codellama:7b', {});
@@ -483,7 +484,7 @@ describe('validateOllamaConfig', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
     };
   }
@@ -532,7 +533,7 @@ describe('validateOllamaConfig', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
     };
     const result = validateOllamaConfig(config, {});
@@ -567,7 +568,7 @@ describe('validateProviderModelCompatibility', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
     };
   }
@@ -727,7 +728,7 @@ describe('validateProviderModelCompatibility', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
       // Any model should pass since no cloud agents
@@ -754,7 +755,7 @@ describe('validateProviderModelCompatibility', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
       const result = validateProviderModelCompatibility(config, 'codellama:7b', {});
@@ -843,7 +844,7 @@ describe('validateChatModelCompatibility', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
     };
   }
@@ -977,7 +978,7 @@ describe('validateChatModelCompatibility', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
       const result = validateChatModelCompatibility(config, 'gpt-5.2-codex', {});
@@ -1005,7 +1006,7 @@ describe('validateChatModelCompatibility', () => {
         reporting: {
           github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
         },
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
         path_filters: { include: ['**/*'], exclude: [] },
       };
       const result = validateChatModelCompatibility(config, 'codex-davinci', {});
@@ -1392,7 +1393,7 @@ describe('Feature 001: Ollama URL Validation (US2)', () => {
       reporting: {
         github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
       },
-      gating: { enabled: false, fail_on_severity: 'error' },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       path_filters: { include: ['**/*'], exclude: [] },
       provider: 'ollama',
     };

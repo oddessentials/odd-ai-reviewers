@@ -47,7 +47,7 @@ const minimalConfig = {
       summary: true,
     },
   },
-  gating: { enabled: false, fail_on_severity: 'error' as const },
+  gating: { enabled: false, fail_on_severity: 'error' as const, drift_gate: false },
 } satisfies Config;
 
 describe('Report Module', () => {
@@ -354,7 +354,7 @@ describe('Report Module', () => {
     it('FR-008: should NOT gate on partialFindings - only completeFindings affect gating', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
 
       // Error-severity finding ONLY in partialFindings
@@ -385,7 +385,7 @@ describe('Report Module', () => {
     it('FR-008: should gate on completeFindings even when partialFindings exist', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
 
       // Error in completeFindings
@@ -422,7 +422,7 @@ describe('Report Module', () => {
     it('FR-008: should pass gating with warnings in partialFindings when fail_on_severity is warning', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'warning' as const },
+        gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
       };
 
       // Warning-severity finding ONLY in partialFindings
@@ -684,7 +684,7 @@ describe('Report Module', () => {
     it('should do nothing when gating is disabled', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: false, fail_on_severity: 'error' as const },
+        gating: { enabled: false, fail_on_severity: 'error' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
@@ -698,7 +698,7 @@ describe('Report Module', () => {
     it('should exit when fail_on_severity is error and error findings present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
@@ -711,7 +711,7 @@ describe('Report Module', () => {
     it('should not exit when fail_on_severity is error but only warnings present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'warning', file: 'test.ts', line: 1, message: 'Warning', sourceAgent: 'test' },
@@ -725,7 +725,7 @@ describe('Report Module', () => {
     it('should exit when fail_on_severity is warning and warning findings present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'warning' as const },
+        gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'warning', file: 'test.ts', line: 1, message: 'Warning', sourceAgent: 'test' },
@@ -738,7 +738,7 @@ describe('Report Module', () => {
     it('should exit when fail_on_severity is warning and error findings present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'warning' as const },
+        gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
@@ -751,7 +751,7 @@ describe('Report Module', () => {
     it('should not exit when fail_on_severity is warning but only info present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'warning' as const },
+        gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'info', file: 'test.ts', line: 1, message: 'Info', sourceAgent: 'test' },
@@ -765,7 +765,7 @@ describe('Report Module', () => {
     it('should not exit when no findings present', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
 
       checkGating(config, []);
@@ -776,7 +776,7 @@ describe('Report Module', () => {
     it('should log error message when gating fails', () => {
       const config = {
         ...minimalConfig,
-        gating: { enabled: true, fail_on_severity: 'error' as const },
+        gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
       const findings: Finding[] = [
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
