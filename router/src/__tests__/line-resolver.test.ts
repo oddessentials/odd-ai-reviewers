@@ -1061,6 +1061,8 @@ index 1234567..89abcde 100644
         deletedFiles: 0,
         ambiguousRenames: 0,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const signal = computeDriftSignal(stats, []);
@@ -1080,6 +1082,8 @@ index 1234567..89abcde 100644
         deletedFiles: 2,
         ambiguousRenames: 1,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const signal = computeDriftSignal(stats, []);
@@ -1099,6 +1103,8 @@ index 1234567..89abcde 100644
         deletedFiles: 5,
         ambiguousRenames: 2,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const invalidDetails: InvalidLineDetail[] = [
@@ -1125,6 +1131,8 @@ index 1234567..89abcde 100644
         deletedFiles: 10,
         ambiguousRenames: 5,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const invalidDetails: InvalidLineDetail[] = [
@@ -1152,6 +1160,8 @@ index 1234567..89abcde 100644
         deletedFiles: 0,
         ambiguousRenames: 0,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const signal = computeDriftSignal(stats, []);
@@ -1171,6 +1181,8 @@ index 1234567..89abcde 100644
         deletedFiles: 3,
         ambiguousRenames: 0,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       // With default thresholds (20% warn), 15% should be ok
@@ -1194,6 +1206,8 @@ index 1234567..89abcde 100644
         deletedFiles: 10,
         ambiguousRenames: 0,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const invalidDetails: InvalidLineDetail[] = Array.from({ length: 20 }, (_, i) => ({
@@ -1221,6 +1235,8 @@ index 1234567..89abcde 100644
         deletedFiles: 2,
         ambiguousRenames: 0,
         remappedPaths: 0,
+        inlineTotal: 0,
+        inlineDowngraded: 0,
       };
 
       const signal = computeDriftSignal(stats, []);

@@ -45,6 +45,7 @@ import {
   buildLineResolver,
   normalizeFindingsForDiff,
   computeDriftSignal,
+  computeInlineDriftSignal,
   generateDriftMarkdown,
   shouldSuppressInlineComments,
   type ValidationStats,
@@ -143,6 +144,13 @@ export async function reportToGitHub(
     normalizationResult.invalidDetails
   );
 
+  // Compute inline-specific drift signal for gate decisions.
+  // Uses only line-bearing findings as denominator to avoid dilution by file-level findings.
+  const inlineDriftSignal = computeInlineDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
   // Process normalized findings
   const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
@@ -162,7 +170,8 @@ export async function reportToGitHub(
         partialFindings,
         counts,
         config,
-        driftSignal
+        driftSignal,
+        inlineDriftSignal
       );
     }
 
@@ -183,7 +192,7 @@ export async function reportToGitHub(
         partialFindings,
         reportingConfig.max_inline_comments,
         deletedFiles,
-        driftSignal,
+        inlineDriftSignal,
         config
       );
       commentId = result.commentId;
@@ -200,7 +209,10 @@ export async function reportToGitHub(
         normalizationResult.invalidDetails.length > 0
           ? normalizationResult.invalidDetails
           : undefined,
-      inlineCommentsGated: shouldSuppressInlineComments(driftSignal, config.gating.drift_gate),
+      inlineCommentsGated: shouldSuppressInlineComments(
+        inlineDriftSignal,
+        config.gating.drift_gate
+      ),
     };
   } catch (error) {
     return {
@@ -224,7 +236,8 @@ async function createCheckRun(
   partialFindings: Finding[],
   counts: Record<Severity, number>,
   config: Config,
-  driftSignal: DriftSignal
+  driftSignal: DriftSignal,
+  inlineDriftSignal: DriftSignal
 ): Promise<number> {
   // Determine conclusion based on gating config
   let conclusion: 'success' | 'failure' | 'neutral' = 'success';
@@ -258,7 +271,7 @@ async function createCheckRun(
 
   // Append drift signal to summary (only shows when warn/fail threshold exceeded)
   const driftMarkdown = generateDriftMarkdown(driftSignal);
-  const isDriftGated = shouldSuppressInlineComments(driftSignal, config.gating.drift_gate);
+  const isDriftGated = shouldSuppressInlineComments(inlineDriftSignal, config.gating.drift_gate);
   const gateNotice = isDriftGated
     ? '\n> **Drift Gate Active**: Inline comments have been suppressed because line validation ' +
       'degradation exceeds the fail threshold. Review findings in this summary only.\n'

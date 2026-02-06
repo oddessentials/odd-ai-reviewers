@@ -335,6 +335,54 @@ describe('GitHub Line Validation Integration', () => {
     expect(result.inlineCommentsGated).toBe(false);
   });
 
+  it('should gate inline comments when few invalid inlines are diluted by many file-level findings', async () => {
+    // Dilution scenario: 2 invalid inline + 8 file-level findings
+    // Overall degradation: 2/10 = 20% (below 50% fail threshold)
+    // Inline degradation: 2/2 = 100% (above 50% fail threshold)
+    // Gate must use inline-specific degradation, not overall
+    const findings: Finding[] = [
+      // 2 inline findings with invalid lines
+      {
+        severity: 'error',
+        file: 'src/test.ts',
+        line: 99,
+        message: 'Invalid inline 1',
+        sourceAgent: 'test',
+      },
+      {
+        severity: 'error',
+        file: 'src/test.ts',
+        line: 100,
+        message: 'Invalid inline 2',
+        sourceAgent: 'test',
+      },
+      // 8 file-level findings (no line number) that dilute the denominator
+      ...Array.from({ length: 8 }, (_, i) => ({
+        severity: 'info' as const,
+        file: 'src/test.ts',
+        message: `File-level issue ${i + 1}`,
+        sourceAgent: 'test',
+      })),
+    ];
+
+    const config: Config = {
+      ...baseConfig,
+      gating: {
+        enabled: false,
+        fail_on_severity: 'error' as const,
+        drift_gate: true,
+      },
+    };
+
+    const result = await reportToGitHub(findings, [], baseContext, config, diffFiles);
+
+    expect(result.success).toBe(true);
+    // Gate MUST trip despite low overall degradation
+    expect(result.inlineCommentsGated).toBe(true);
+    // Summary comment should still be posted
+    expect(result.commentId).toBeDefined();
+  });
+
   it('should handle checks_only mode', async () => {
     const config: Config = {
       ...baseConfig,

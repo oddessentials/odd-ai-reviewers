@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSuppressInlineComments, type DriftSignal } from '../report/line-resolver.js';
+import {
+  shouldSuppressInlineComments,
+  computeInlineDriftSignal,
+  computeDriftSignal,
+  type DriftSignal,
+  type ValidationStats,
+} from '../report/line-resolver.js';
 import { GatingSchema } from '../config/schemas.js';
 
 describe('shouldSuppressInlineComments', () => {
@@ -37,6 +43,101 @@ describe('shouldSuppressInlineComments', () => {
 
   it('returns false when both signal is undefined and gate is disabled', () => {
     expect(shouldSuppressInlineComments(undefined, false)).toBe(false);
+  });
+});
+
+describe('computeInlineDriftSignal', () => {
+  const baseStats: ValidationStats = {
+    total: 0,
+    valid: 0,
+    normalized: 0,
+    downgraded: 0,
+    dropped: 0,
+    deletedFiles: 0,
+    ambiguousRenames: 0,
+    remappedPaths: 0,
+    inlineTotal: 0,
+    inlineDowngraded: 0,
+  };
+
+  it('returns ok when no inline findings exist', () => {
+    const stats: ValidationStats = {
+      ...baseStats,
+      total: 10,
+      valid: 10,
+      inlineTotal: 0,
+      inlineDowngraded: 0,
+    };
+    const signal = computeInlineDriftSignal(stats, []);
+    expect(signal.level).toBe('ok');
+    expect(signal.degradationPercent).toBe(0);
+  });
+
+  it('detects fail-level inline degradation diluted by file-level findings', () => {
+    // The exact scenario from the bug report:
+    // 2 invalid inline findings + 10 file-level findings
+    // Overall: 2/12 = 16.7% (below fail threshold)
+    // Inline: 2/2 = 100% (above fail threshold)
+    const stats: ValidationStats = {
+      ...baseStats,
+      total: 12,
+      valid: 10, // 10 file-level findings valid
+      downgraded: 2, // 2 inline findings downgraded
+      inlineTotal: 2, // only 2 findings had lines
+      inlineDowngraded: 2, // both were invalid
+    };
+
+    const overallSignal = computeDriftSignal(stats, []);
+    const inlineSignal = computeInlineDriftSignal(stats, []);
+
+    // Overall is diluted below fail threshold
+    expect(overallSignal.level).toBe('ok');
+    expect(overallSignal.degradationPercent).toBeLessThan(50);
+
+    // Inline correctly detects 100% degradation
+    expect(inlineSignal.level).toBe('fail');
+    expect(inlineSignal.degradationPercent).toBe(100);
+  });
+
+  it('returns ok when all inline findings are valid', () => {
+    const stats: ValidationStats = {
+      ...baseStats,
+      total: 15,
+      valid: 15,
+      inlineTotal: 5,
+      inlineDowngraded: 0,
+    };
+    const signal = computeInlineDriftSignal(stats, []);
+    expect(signal.level).toBe('ok');
+    expect(signal.degradationPercent).toBe(0);
+  });
+
+  it('returns warn at 25% inline degradation', () => {
+    const stats: ValidationStats = {
+      ...baseStats,
+      total: 20,
+      valid: 15,
+      downgraded: 5,
+      inlineTotal: 4,
+      inlineDowngraded: 1, // 25% of inline findings degraded
+    };
+    const signal = computeInlineDriftSignal(stats, []);
+    expect(signal.level).toBe('warn');
+    expect(signal.degradationPercent).toBe(25);
+  });
+
+  it('returns fail at 50% inline degradation', () => {
+    const stats: ValidationStats = {
+      ...baseStats,
+      total: 20,
+      valid: 14,
+      downgraded: 6,
+      inlineTotal: 6,
+      inlineDowngraded: 3, // 50% of inline findings degraded
+    };
+    const signal = computeInlineDriftSignal(stats, []);
+    expect(signal.level).toBe('fail');
+    expect(signal.degradationPercent).toBe(50);
   });
 });
 

@@ -41,6 +41,7 @@ import {
   buildLineResolver,
   normalizeFindingsForDiff,
   computeDriftSignal,
+  computeInlineDriftSignal,
   generateDriftMarkdown,
   shouldSuppressInlineComments,
   type ValidationStats,
@@ -160,6 +161,13 @@ export async function reportToADO(
     normalizationResult.invalidDetails
   );
 
+  // Compute inline-specific drift signal for gate decisions.
+  // Uses only line-bearing findings as denominator to avoid dilution by file-level findings.
+  const inlineDriftSignal = computeInlineDriftSignal(
+    normalizationResult.stats,
+    normalizationResult.invalidDetails
+  );
+
   // Process normalized findings
   const deduplicated = deduplicateFindings(normalizationResult.findings);
   const sorted = sortFindings(deduplicated);
@@ -190,6 +198,7 @@ export async function reportToADO(
         reportingConfig.thread_status === 'pending' ? 6 : 1,
         deletedFiles,
         driftSignal,
+        inlineDriftSignal,
         config
       );
       threadId = result.threadId;
@@ -206,7 +215,10 @@ export async function reportToADO(
         normalizationResult.invalidDetails.length > 0
           ? normalizationResult.invalidDetails
           : undefined,
-      inlineCommentsGated: shouldSuppressInlineComments(driftSignal, config.gating.drift_gate),
+      inlineCommentsGated: shouldSuppressInlineComments(
+        inlineDriftSignal,
+        config.gating.drift_gate
+      ),
     };
   } catch (error) {
     return {
@@ -288,6 +300,7 @@ async function postPRThreads(
   threadStatus: number,
   deletedFiles: Set<string> = new Set<string>(),
   driftSignal?: DriftSignal,
+  inlineDriftSignal?: DriftSignal,
   config?: Config
 ): Promise<{ threadId: number; skippedDuplicates: number }> {
   const baseUrl = `https://dev.azure.com/${context.organization}/${context.project}/_apis/git/repositories/${context.repositoryId}/pullRequests/${context.pullRequestId}`;
@@ -298,7 +311,7 @@ async function postPRThreads(
   const partialSection = renderPartialFindingsSection(partialFindings);
   const driftMarkdown = driftSignal ? generateDriftMarkdown(driftSignal) : '';
   const isDriftGated = shouldSuppressInlineComments(
-    driftSignal,
+    inlineDriftSignal ?? driftSignal,
     config?.gating?.drift_gate ?? false
   );
   const gateNotice = isDriftGated
@@ -393,10 +406,12 @@ async function postPRThreads(
   }
 
   // Drift gate: suppress inline comments when line validation is too degraded
-  if (shouldSuppressInlineComments(driftSignal, config?.gating?.drift_gate ?? false)) {
+  // Use inline-specific drift signal to avoid dilution by file-level findings
+  const gateSignal = inlineDriftSignal ?? driftSignal;
+  if (shouldSuppressInlineComments(gateSignal, config?.gating?.drift_gate ?? false)) {
     console.log(
       `[ado] Drift gate active: suppressing inline comments ` +
-        `(degradation: ${driftSignal?.degradationPercent}%)`
+        `(degradation: ${gateSignal?.degradationPercent}%)`
     );
     return { threadId, skippedDuplicates: 0 };
   }
