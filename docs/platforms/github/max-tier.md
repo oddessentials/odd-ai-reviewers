@@ -115,8 +115,9 @@ passes:
 models:
   default: gpt-4o-mini # Cost-effective default
   # Alternatives:
-  # default: gpt-4o              # More capable, higher cost
-  # default: claude-sonnet-4-20250514  # Anthropic (requires ANTHROPIC_API_KEY)
+  # default: gpt-4o                      # More capable, higher cost
+  # default: claude-sonnet-4-20250514    # Anthropic (requires ANTHROPIC_API_KEY)
+  # default: claude-opus-4-6             # Anthropic's flagship model
   # default: claude-3-5-haiku-20241022   # Fast, cheaper Anthropic option
 
 limits:
@@ -186,6 +187,7 @@ Required secret: `OPENAI_API_KEY`
 ```yaml
 models:
   default: claude-sonnet-4-20250514 # Best for code
+  # default: claude-opus-4-6            # Flagship model
   # default: claude-3-5-haiku-20241022  # Faster, cheaper
 ```
 
@@ -222,6 +224,7 @@ You can set multiple API keys. The router selects providers with this priority:
 | gpt-4o           | $0.15-0.50      | More thorough       |
 | claude-3-5-haiku | $0.05-0.15      | Fast Anthropic      |
 | claude-sonnet-4  | $0.10-0.40      | Best quality        |
+| claude-opus-4-6  | $0.15-0.60      | Flagship model      |
 | local_llm        | $0.00           | Self-hosted compute |
 
 ### Budget Controls

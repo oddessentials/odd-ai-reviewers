@@ -50,7 +50,7 @@ passes:
     agents: [opencode, pr_agent]
 
 models:
-  default: claude-sonnet-4-20250514
+  default: claude-sonnet-4-20250514 # Or claude-opus-4-6
   # Optional: Different model for specific agents
   # pr_agent: gpt-4o-mini
 
@@ -131,7 +131,7 @@ With default settings:
 
 ```yaml
 models:
-  default: claude-sonnet-4-20250514
+  default: claude-sonnet-4-20250514 # Or claude-opus-4-6
   pr_agent: gpt-4o-mini # Cheaper for PR-Agent
 ```
 

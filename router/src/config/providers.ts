@@ -35,6 +35,21 @@ export function isCompletionsOnlyModel(model: string): boolean {
 }
 
 /**
+ * Check if model is a Codex-family model (subset of completions-only).
+ * Used for differentiated error messaging: Codex models use a specialized API
+ * (not the legacy /v1/completions endpoint), so the error should explain this
+ * rather than labeling them as "legacy."
+ *
+ * INVARIANT: isCodexFamilyModel(m) === true implies isCompletionsOnlyModel(m) === true.
+ *
+ * @param model - Model name to check
+ * @returns true if model is a Codex-family model
+ */
+export function isCodexFamilyModel(model: string): boolean {
+  return /codex/i.test(model);
+}
+
+/**
  * Provider type for LLM agents.
  * Router resolves provider once; agents use this without guessing.
  */

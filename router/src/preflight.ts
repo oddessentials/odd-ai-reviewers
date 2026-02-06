@@ -19,6 +19,7 @@
 import type { Config, AgentId } from './config.js';
 import {
   inferProviderFromModel,
+  isCodexFamilyModel,
   isCompletionsOnlyModel,
   resolveProvider,
   type LlmProvider,
@@ -422,8 +423,8 @@ export function validateModelProviderMatch(
     errors.push(
       `MODEL '${model}' is an Ollama model but cloud AI agents are enabled.\n` +
         `Fix: Either set a cloud model or disable cloud agents:\n` +
-        `  MODEL=claude-sonnet-4-20250514  # Anthropic\n` +
-        `  MODEL=gpt-4o-mini               # OpenAI\n` +
+        `  MODEL=claude-opus-4-6  # Anthropic\n` +
+        `  MODEL=gpt-4o-mini     # OpenAI\n` +
         `Or in .ai-review.yml, disable cloud agents and keep only local_llm.`
     );
     return { valid: false, errors };
@@ -506,7 +507,7 @@ export function validateProviderModelCompatibility(
           `  - Model: '${model}' (looks like OpenAI: gpt-*/o1-*)\n` +
           `  - This will cause a 404 error - Anthropic API doesn't recognize '${model}'\n\n` +
           `Fix options:\n` +
-          `  1. Use a Claude model: MODEL=claude-sonnet-4-20250514\n` +
+          `  1. Use a Claude model: MODEL=claude-opus-4-6\n` +
           `  2. Remove ANTHROPIC_API_KEY to use OpenAI instead\n` +
           `  3. Set both keys but ensure MODEL matches ANTHROPIC_API_KEY (Anthropic wins)`
       );
@@ -760,14 +761,28 @@ export function validateChatModelCompatibility(
     return { valid: true, errors: [] };
   }
 
-  if (isCompletionsOnlyModel(model)) {
+  if (isCodexFamilyModel(model)) {
+    // Codex models use a specialized API, not the chat completions endpoint
     errors.push(
-      `MODEL '${model}' is a completions-only model (Codex/legacy) but cloud AI agents are enabled.\n` +
-        `Cloud agents require chat models that support the /v1/chat/completions endpoint.\n\n` +
+      `MODEL '${model}' is a Codex-family model. Codex models use a specialized API ` +
+        `that is not compatible with the chat completions endpoint used by cloud AI agents.\n\n` +
         `Fix: Use a chat-compatible model:\n` +
-        `  MODEL=gpt-4o-mini              # OpenAI - fast, cost-effective\n` +
-        `  MODEL=gpt-4o                   # OpenAI - flagship\n` +
-        `  MODEL=claude-sonnet-4-20250514 # Anthropic\n\n` +
+        `  MODEL=gpt-4o-mini    # OpenAI - fast, cost-effective\n` +
+        `  MODEL=gpt-4o         # OpenAI - flagship\n` +
+        `  MODEL=claude-opus-4-6 # Anthropic\n\n` +
+        `Or in .ai-review.yml:\n` +
+        `  models:\n` +
+        `    default: gpt-4o-mini`
+    );
+  } else if (isCompletionsOnlyModel(model)) {
+    // Legacy completions-only models (davinci, curie, babbage, ada)
+    errors.push(
+      `MODEL '${model}' is a legacy completions-only model that does not support ` +
+        `the chat completions endpoint used by cloud AI agents.\n\n` +
+        `Fix: Use a chat-compatible model:\n` +
+        `  MODEL=gpt-4o-mini    # OpenAI - fast, cost-effective\n` +
+        `  MODEL=gpt-4o         # OpenAI - flagship\n` +
+        `  MODEL=claude-opus-4-6 # Anthropic\n\n` +
         `Or in .ai-review.yml:\n` +
         `  models:\n` +
         `    default: gpt-4o-mini`

@@ -213,7 +213,8 @@ export function generateConfigYaml(options: WizardOptions): string {
     yaml += '#\n';
   } else if (options.provider === 'anthropic') {
     yaml += '# Required environment variable: ANTHROPIC_API_KEY\n';
-    yaml += '# Default model: claude-sonnet-4-20250514 (auto-applied if MODEL not set)\n';
+    yaml +=
+      '# Default model: claude-sonnet-4-20250514 (auto-applied if MODEL not set). Also available: claude-opus-4-6\n';
     yaml += '#\n';
   } else if (options.provider === 'ollama') {
     yaml += '# Optional: OLLAMA_BASE_URL (defaults to http://ollama-sidecar:11434)\n';
@@ -253,7 +254,7 @@ export const AVAILABLE_PROVIDERS: { id: Provider; name: string; description: str
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Sonnet, Claude Opus (default: claude-sonnet-4)',
+    description: 'Claude Opus 4.6, Claude Sonnet 4 (default: claude-sonnet-4)',
   },
   {
     id: 'azure-openai',

@@ -55,7 +55,7 @@ MODEL=<deployment-name>
 
 **Fix options:**
 
-1. Use a matching model: `MODEL=claude-sonnet-4-20250514`
+1. Use a matching model: `MODEL=claude-sonnet-4-20250514` or `claude-opus-4-6`
 2. Remove the unwanted key to use the other provider
 3. Set explicit `provider: openai` in config (and ensure `OPENAI_API_KEY` is set)
 
@@ -68,7 +68,7 @@ MODEL=<deployment-name>
 **Fix:** Set at least one API key. For single-key setups, the default model is auto-applied:
 
 - `OPENAI_API_KEY` → auto-applies `gpt-4o`
-- `ANTHROPIC_API_KEY` → auto-applies `claude-sonnet-4-20250514`
+- `ANTHROPIC_API_KEY` → auto-applies `claude-sonnet-4-20250514` (or `claude-opus-4-6`)
 - `OLLAMA_BASE_URL` → auto-applies `codellama:7b`
 
 ### Azure Requires Explicit MODEL
