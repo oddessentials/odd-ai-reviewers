@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.4.0...v1.5.0) (2026-02-06)
+
+### Features
+
+* add Claude Opus 4.6 support and improve Codex error messaging ([#141](https://github.com/oddessentials/odd-ai-reviewers/issues/141)) ([426a1cc](https://github.com/oddessentials/odd-ai-reviewers/commit/426a1ccaae764a996d647047059b57fc9d67d603))
+
 ## [1.4.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.3.0...v1.4.0) (2026-02-05)
 
 ### Features
