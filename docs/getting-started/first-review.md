@@ -13,11 +13,11 @@ Ensure you've completed the [Quick Start](./quick-start.md) setup:
 
 For the fastest setup, just add one API key:
 
-| Provider  | Secret              | What Happens                            |
-| --------- | ------------------- | --------------------------------------- |
-| Anthropic | `ANTHROPIC_API_KEY` | Auto-applies `claude-sonnet-4-20250514` |
-| OpenAI    | `OPENAI_API_KEY`    | Auto-applies `gpt-4o`                   |
-| Ollama    | `OLLAMA_BASE_URL`   | Auto-applies `codellama:7b`             |
+| Provider  | Secret              | What Happens                                                   |
+| --------- | ------------------- | -------------------------------------------------------------- |
+| Anthropic | `ANTHROPIC_API_KEY` | Auto-applies `claude-sonnet-4-20250514` (or `claude-opus-4-6`) |
+| OpenAI    | `OPENAI_API_KEY`    | Auto-applies `gpt-4o`                                          |
+| Ollama    | `OLLAMA_BASE_URL`   | Auto-applies `codellama:7b`                                    |
 
 No `.ai-review.yml` is required for single-key setups - sensible defaults are applied automatically.
 

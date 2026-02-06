@@ -6,12 +6,12 @@ This guide explains how LLM providers are selected and how to configure them for
 
 For the simplest setup, just set one API key. The model is auto-applied:
 
-| Provider     | API Key               | Default Model            |
-| ------------ | --------------------- | ------------------------ |
-| Anthropic    | `ANTHROPIC_API_KEY`   | claude-sonnet-4-20250514 |
-| OpenAI       | `OPENAI_API_KEY`      | gpt-4o                   |
-| Ollama       | `OLLAMA_BASE_URL`     | codellama:7b             |
-| Azure OpenAI | (requires all 3 keys) | None (must be explicit)  |
+| Provider     | API Key               | Default Model                                 |
+| ------------ | --------------------- | --------------------------------------------- |
+| Anthropic    | `ANTHROPIC_API_KEY`   | claude-sonnet-4-20250514 (or claude-opus-4-6) |
+| OpenAI       | `OPENAI_API_KEY`      | gpt-4o                                        |
+| Ollama       | `OLLAMA_BASE_URL`     | codellama:7b                                  |
+| Azure OpenAI | (requires all 3 keys) | None (must be explicit)                       |
 
 No configuration file is required for single-key setups.
 

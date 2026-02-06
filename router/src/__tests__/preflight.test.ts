@@ -383,7 +383,7 @@ describe('validateModelProviderMatch', () => {
     it('error message includes copy-pastable fixes', () => {
       const result = validateModelProviderMatch(createCloudAiConfig(), 'codellama:7b', {});
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
+      expect(result.errors[0]).toContain('MODEL=claude-opus-4-6');
       expect(result.errors[0]).toContain('MODEL=gpt-4o-mini');
     });
   });
@@ -610,7 +610,7 @@ describe('validateProviderModelCompatibility', () => {
       const result = validateProviderModelCompatibility(config, 'gpt-4o-mini', env);
 
       expect(result.errors[0]).toContain('Fix options');
-      expect(result.errors[0]).toContain('MODEL=claude-sonnet');
+      expect(result.errors[0]).toContain('MODEL=claude-opus-4-6');
       expect(result.errors[0]).toContain('Remove ANTHROPIC_API_KEY');
     });
   });
@@ -848,35 +848,42 @@ describe('validateChatModelCompatibility', () => {
     };
   }
 
-  describe('Codex models (completions-only, NOT chat-compatible)', () => {
-    it('FAILS for gpt-5.2-codex (the reported bug)', () => {
+  describe('Codex models (specialized API, NOT chat-compatible)', () => {
+    it('FAILS for gpt-5.2-codex with Codex-specific error', () => {
       const config = createCloudAiConfig(['opencode']);
       const result = validateChatModelCompatibility(config, 'gpt-5.2-codex', {});
 
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBe(1);
-      expect(result.errors[0]).toContain('completions-only');
+      expect(result.errors[0]).toContain('Codex-family');
+      expect(result.errors[0]).toContain('specialized API');
       expect(result.errors[0]).toContain('gpt-5.2-codex');
+      expect(result.errors[0]).not.toContain('legacy');
     });
 
-    it('FAILS for codex-davinci (legacy Codex model)', () => {
+    it('FAILS for gpt-5.3-codex with Codex-specific error', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'gpt-5.3-codex', {});
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain('Codex-family');
+      expect(result.errors[0]).toContain('specialized API');
+      expect(result.errors[0]).not.toContain('legacy');
+    });
+
+    it('FAILS for codex-davinci with Codex-specific error', () => {
       const config = createCloudAiConfig(['opencode']);
       const result = validateChatModelCompatibility(config, 'codex-davinci', {});
 
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('completions-only');
+      expect(result.errors[0]).toContain('Codex-family');
+      expect(result.errors[0]).not.toContain('legacy');
     });
 
     it('FAILS for gpt-4-codex (hypothetical future Codex variant)', () => {
       const config = createCloudAiConfig(['pr_agent']);
       const result = validateChatModelCompatibility(config, 'gpt-4-codex', {});
-
-      expect(result.valid).toBe(false);
-    });
-
-    it('FAILS for text-davinci-003 (legacy completion model)', () => {
-      const config = createCloudAiConfig(['opencode']);
-      const result = validateChatModelCompatibility(config, 'text-davinci-003', {});
 
       expect(result.valid).toBe(false);
     });
@@ -887,8 +894,36 @@ describe('validateChatModelCompatibility', () => {
 
       expect(result.errors[0]).toContain('MODEL=gpt-4o-mini');
       expect(result.errors[0]).toContain('MODEL=gpt-4o');
-      expect(result.errors[0]).toContain('claude-sonnet-4');
+      expect(result.errors[0]).toContain('claude-opus-4-6');
       expect(result.errors[0]).toContain('.ai-review.yml');
+    });
+  });
+
+  describe('Legacy completions-only models', () => {
+    it('FAILS for text-davinci-003 with legacy-specific error', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'text-davinci-003', {});
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('legacy completions-only');
+      expect(result.errors[0]).not.toContain('Codex-family');
+    });
+
+    it('FAILS for curie with legacy-specific error', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'curie', {});
+
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('legacy completions-only');
+      expect(result.errors[0]).not.toContain('Codex-family');
+    });
+
+    it('legacy error message includes copy-pastable fix suggestions', () => {
+      const config = createCloudAiConfig(['opencode']);
+      const result = validateChatModelCompatibility(config, 'text-davinci-003', {});
+
+      expect(result.errors[0]).toContain('MODEL=gpt-4o-mini');
+      expect(result.errors[0]).toContain('claude-opus-4-6');
     });
   });
 

@@ -29,6 +29,7 @@ export {
   RESOLVED_CONFIG_SCHEMA_VERSION,
   RESOLVED_CONFIG_RESOLUTION_VERSION,
   inferProviderFromModel,
+  isCodexFamilyModel,
   isCompletionsOnlyModel,
   resolveEffectiveModel,
   resolveProvider,

@@ -23,7 +23,7 @@ passes:
 #   enabled: true
 #   required: false # Skip if Ollama unavailable
 
-# Cloud chat models: gpt-4o, gpt-4o-mini, claude-sonnet-4-20250514
+# Cloud chat models: gpt-4o, gpt-4o-mini, claude-sonnet-4-20250514, claude-opus-4-6
 # Local models: deepseek-coder:6.7b, llama3.2:3b, codellama:7b
 models:
   default: gpt-4o-mini

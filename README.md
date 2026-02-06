@@ -91,7 +91,7 @@ passes:
     agents: [opencode]
 
 models:
-  default: claude-sonnet-4-20250514
+  default: claude-sonnet-4-20250514 # Or use claude-opus-4-6 for Anthropic's flagship model
 
 limits:
   max_usd_per_pr: 1.00
@@ -127,17 +127,17 @@ When multiple API keys are configured:
 
 ### Common Mistakes
 
-| Configuration                                                | Result                                                           | Fix                                                                |
-| ------------------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + `MODEL=gpt-4o-mini` | ❌ **404 Error** — Anthropic wins but doesn't know `gpt-4o-mini` | Use `MODEL=claude-sonnet-4-20250514` or remove `ANTHROPIC_API_KEY` |
-| `OPENAI_API_KEY` + `MODEL=claude-3-opus`                     | ❌ **404 Error** — OpenAI doesn't know `claude-3-opus`           | Add `ANTHROPIC_API_KEY` or use `MODEL=gpt-4o-mini`                 |
+| Configuration                                                | Result                                                           | Fix                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + `MODEL=gpt-4o-mini` | ❌ **404 Error** — Anthropic wins but doesn't know `gpt-4o-mini` | Use `MODEL=claude-sonnet-4-20250514` or `claude-opus-4-6` or remove `ANTHROPIC_API_KEY` |
+| `OPENAI_API_KEY` + `MODEL=claude-3-opus`                     | ❌ **404 Error** — OpenAI doesn't know `claude-3-opus`           | Add `ANTHROPIC_API_KEY` or use `MODEL=gpt-4o-mini`                                      |
 
 ### Valid Configurations
 
 ```bash
 # ✅ Anthropic only
 ANTHROPIC_API_KEY=sk-ant-xxx
-MODEL=claude-sonnet-4-20250514
+MODEL=claude-sonnet-4-20250514  # Or claude-opus-4-6
 
 # ✅ OpenAI only
 OPENAI_API_KEY=sk-xxx
@@ -146,7 +146,7 @@ MODEL=gpt-4o-mini
 # ✅ Both keys, Claude model (Anthropic wins, model matches)
 ANTHROPIC_API_KEY=sk-ant-xxx
 OPENAI_API_KEY=sk-xxx
-MODEL=claude-sonnet-4-20250514
+MODEL=claude-sonnet-4-20250514  # Or claude-opus-4-6
 
 # ❌ Both keys, GPT model (Anthropic wins, model MISMATCHES → 404)
 ANTHROPIC_API_KEY=sk-ant-xxx

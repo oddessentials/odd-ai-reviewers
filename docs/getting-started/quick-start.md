@@ -36,10 +36,10 @@ Go to your repository Settings → Secrets and variables → Actions, and add yo
 
 **Single-key setup (recommended):** Just set one API key and the model will be auto-applied:
 
-| Provider  | Secret              | Auto-applied Model       |
-| --------- | ------------------- | ------------------------ |
-| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
-| OpenAI    | `OPENAI_API_KEY`    | gpt-4o                   |
+| Provider  | Secret              | Auto-applied Model                            |
+| --------- | ------------------- | --------------------------------------------- |
+| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 (or claude-opus-4-6) |
+| OpenAI    | `OPENAI_API_KEY`    | gpt-4o                                        |
 
 ## Step 3: Add Configuration (Optional)
 

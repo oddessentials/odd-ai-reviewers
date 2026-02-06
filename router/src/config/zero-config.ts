@@ -216,6 +216,7 @@ function getDefaultAgentForProvider(provider: LlmProvider): 'opencode' | 'pr_age
 function getDefaultModelForProvider(provider: LlmProvider): string {
   switch (provider) {
     case 'anthropic':
+      // Also available: claude-opus-4-6 (set MODEL explicitly to use)
       return 'claude-sonnet-4-20250514';
     case 'openai':
       return 'gpt-4o';
