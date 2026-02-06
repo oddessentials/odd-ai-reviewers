@@ -43,6 +43,7 @@ describe('ConfigSchema', () => {
       gating: {
         enabled: true,
         fail_on_severity: 'warning',
+        drift_gate: false,
       },
     };
 
@@ -129,6 +130,7 @@ describe('ConfigSchema', () => {
       gating: {
         enabled: true,
         fail_on_severity: 'critical', // Invalid, should be error/warning/info
+        drift_gate: false,
       },
     };
 
@@ -172,7 +174,7 @@ describe('getEnabledAgents', () => {
     },
     models: { default: 'gpt-4o-mini' },
     reporting: {},
-    gating: { enabled: false, fail_on_severity: 'error' },
+    gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
   };
 
   it('should return agents for enabled pass', () => {

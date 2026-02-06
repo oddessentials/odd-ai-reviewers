@@ -47,7 +47,7 @@ describe('ADO Reporter', () => {
         thread_status: 'active',
       },
     },
-    gating: { enabled: false, fail_on_severity: 'error' },
+    gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
   };
 
   beforeEach(() => {
@@ -255,7 +255,7 @@ describe('ADO Reporter', () => {
     it('should set status to failed when gating enabled and errors present', async () => {
       const gatingConfig: Config = {
         ...baseConfig,
-        gating: { enabled: true, fail_on_severity: 'error' },
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
       };
 
       const findings: Finding[] = [
@@ -286,7 +286,7 @@ describe('ADO Reporter', () => {
     it('should set status to succeeded when no blocking findings', async () => {
       const gatingConfig: Config = {
         ...baseConfig,
-        gating: { enabled: true, fail_on_severity: 'error' },
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
       };
 
       const findings: Finding[] = [

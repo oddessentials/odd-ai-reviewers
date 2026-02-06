@@ -63,7 +63,7 @@ describe('Check Run Lifecycle', () => {
         summary: true,
       },
     },
-    gating: { enabled: false, fail_on_severity: 'error' },
+    gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
   };
 
   beforeEach(() => {

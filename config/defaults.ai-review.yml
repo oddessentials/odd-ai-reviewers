@@ -48,6 +48,7 @@ reporting:
 gating:
   enabled: false
   fail_on_severity: error
+  # drift_gate: false  # Suppress inline comments at fail-level drift (>= 50% degradation)
 # path_filters:
 #   include:
 #     - "src/**"

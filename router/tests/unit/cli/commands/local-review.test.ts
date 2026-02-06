@@ -62,7 +62,7 @@ function createMockConfig(overrides: Partial<Config> = {}): Config {
     },
     models: {},
     reporting: {},
-    gating: { enabled: false, fail_on_severity: 'error' },
+    gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
   };
 
   // Deep merge gating if provided
@@ -220,7 +220,7 @@ describe('runLocalReview', () => {
         },
       ]);
       const mockConfig = createMockConfig({
-        gating: { enabled: true, fail_on_severity: 'error' },
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
       });
       const findings: Finding[] = [
         {
@@ -921,7 +921,7 @@ describe('runLocalReview', () => {
         { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
       ]);
       const mockConfig = createMockConfig({
-        gating: { enabled: false, fail_on_severity: 'error' },
+        gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
       });
 
       const deps = createMockDeps({
@@ -961,7 +961,7 @@ describe('runLocalReview', () => {
         { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
       ]);
       const mockConfig = createMockConfig({
-        gating: { enabled: true, fail_on_severity: 'error' },
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
       });
 
       const deps = createMockDeps({
@@ -1000,7 +1000,7 @@ describe('runLocalReview', () => {
         { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
       ]);
       const mockConfig = createMockConfig({
-        gating: { enabled: true, fail_on_severity: 'error' },
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
       });
 
       const deps = createMockDeps({
@@ -1041,7 +1041,11 @@ describe('runLocalReview', () => {
       ]);
       // Note: 'info' is treated as default case (same as 'error' - only errors fail)
       const mockConfig = createMockConfig({
-        gating: { enabled: true, fail_on_severity: 'info' as 'error' | 'warning' | 'info' },
+        gating: {
+          enabled: true,
+          fail_on_severity: 'info' as 'error' | 'warning' | 'info',
+          drift_gate: false,
+        },
       });
 
       const deps = createMockDeps({
@@ -1081,7 +1085,7 @@ describe('runLocalReview', () => {
         { path: 'src/test.ts', status: 'modified', additions: 10, deletions: 5, patch: '+line' },
       ]);
       const mockConfig = createMockConfig({
-        gating: { enabled: true, fail_on_severity: 'warning' },
+        gating: { enabled: true, fail_on_severity: 'warning', drift_gate: false },
       });
 
       const deps = createMockDeps({

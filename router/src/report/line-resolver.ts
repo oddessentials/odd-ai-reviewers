@@ -79,6 +79,10 @@ export interface ValidationStats {
   ambiguousRenames: number;
   /** Findings remapped from old path to new path (successful rename handling) */
   remappedPaths: number;
+  /** Findings that originally had a line number (inline-eligible) */
+  inlineTotal: number;
+  /** Findings that had a line but were downgraded to file-level (invalid placement) */
+  inlineDowngraded: number;
 }
 
 /**
@@ -522,6 +526,8 @@ export function normalizeFindingsForDiff(
   let deletedFilesCount = 0;
   let ambiguousRenamesCount = 0;
   let remappedPathsCount = 0;
+  let inlineTotalCount = 0;
+  let inlineDowngradedCount = 0;
 
   for (const finding of findings) {
     // Normalize finding file path at normalization boundary
@@ -545,6 +551,10 @@ export function normalizeFindingsForDiff(
         });
         downgradedCount++;
         ambiguousRenamesCount++;
+        if (finding.line) {
+          inlineTotalCount++;
+          inlineDowngradedCount++;
+        }
 
         invalidDetails.push({
           file: normalizedFilePath,
@@ -570,6 +580,10 @@ export function normalizeFindingsForDiff(
       });
       downgradedCount++;
       deletedFilesCount++;
+      if (finding.line) {
+        inlineTotalCount++;
+        inlineDowngradedCount++;
+      }
 
       invalidDetails.push({
         file: normalizedFilePath,
@@ -603,6 +617,7 @@ export function normalizeFindingsForDiff(
         file: normalizedFilePath,
       });
       validCount++;
+      inlineTotalCount++;
     } else if (options.autoFix && validation.nearestValidLine !== undefined) {
       // Auto-fix: use nearest valid line
       normalized.push({
@@ -612,6 +627,7 @@ export function normalizeFindingsForDiff(
         endLine: finding.endLine ? validation.nearestValidLine : undefined,
       });
       normalizedCount++;
+      inlineTotalCount++;
 
       invalidDetails.push({
         file: normalizedFilePath,
@@ -629,6 +645,8 @@ export function normalizeFindingsForDiff(
         endLine: undefined,
       });
       downgradedCount++;
+      inlineTotalCount++;
+      inlineDowngradedCount++;
 
       invalidDetails.push({
         file: normalizedFilePath,
@@ -651,6 +669,8 @@ export function normalizeFindingsForDiff(
       deletedFiles: deletedFilesCount,
       ambiguousRenames: ambiguousRenamesCount,
       remappedPaths: remappedPathsCount,
+      inlineTotal: inlineTotalCount,
+      inlineDowngraded: inlineDowngradedCount,
     },
     invalidDetails,
   };
@@ -762,6 +782,41 @@ export function computeDriftSignal(
     message,
     samples,
   };
+}
+
+/**
+ * Compute drift signal scoped to inline-eligible findings only.
+ *
+ * The overall drift signal (computeDriftSignal) uses total findings as the denominator,
+ * which dilutes degradation when many file-level findings are present. This function
+ * uses only findings that originally had line numbers, giving an accurate picture of
+ * inline comment placement reliability.
+ *
+ * Example: 2 invalid inline + 10 file-level → overall is 16.7%, inline is 100%.
+ */
+export function computeInlineDriftSignal(
+  stats: ValidationStats,
+  invalidDetails: InvalidLineDetail[],
+  config: Partial<DriftConfig> = {}
+): DriftSignal {
+  const inlineStats: ValidationStats = {
+    ...stats,
+    total: stats.inlineTotal,
+    downgraded: stats.inlineDowngraded,
+    dropped: 0,
+  };
+  return computeDriftSignal(inlineStats, invalidDetails, config);
+}
+
+/**
+ * Determine whether inline comments should be suppressed due to drift.
+ * Returns true when drift_gate is enabled and drift has reached 'fail' level (≥50% degradation).
+ */
+export function shouldSuppressInlineComments(
+  driftSignal: DriftSignal | undefined,
+  driftGateEnabled: boolean
+): boolean {
+  return driftGateEnabled && driftSignal?.level === 'fail';
 }
 
 /**

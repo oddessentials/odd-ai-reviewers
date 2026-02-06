@@ -51,6 +51,7 @@ describe('GitHub Multi-line Payload Verification', () => {
     gating: {
       enabled: false,
       fail_on_severity: 'error' as const,
+      drift_gate: false,
     },
     reporting: {
       github: {
