@@ -25,11 +25,18 @@ pnpm exec tsc --noEmit
 echo ">> Dependency analysis..."
 pnpm exec depcruise router/src --config .dependency-cruiser.cjs
 
-# 5. Build verification
+# 5. Documentation link checks (matches CI quality gate)
+echo ">> Docs linkcheck..."
+pnpm run docs:linkcheck
+
+echo ">> Spec linkcheck..."
+pnpm run spec:linkcheck
+
+# 6. Build verification
 echo ">> Build..."
 pnpm run build
 
-# 6. Run tests
+# 7. Run tests
 echo ">> Tests..."
 pnpm --filter ./router test
 
