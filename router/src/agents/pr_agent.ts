@@ -202,7 +202,7 @@ export const prAgentAgent: ReviewAgent = {
     }
 
     // Load prompt template (shared by all providers)
-    let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response.
+    let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response. Do NOT include any text before or after the JSON.
 
 ## Core Rules (ALWAYS follow these)
 

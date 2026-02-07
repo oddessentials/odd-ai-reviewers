@@ -234,7 +234,7 @@ Line numbering requirements:
 - Use new-file line numbers from unified diff hunk headers (@@ -a,b +c,d @@)
 - Only use right-side diff lines (added or context). If unsure, omit the line.
 
-Return a JSON object with findings.`;
+Return a JSON object with findings. Do NOT include any text before or after the JSON.`;
 
     if (existsSync(PROMPT_PATH)) {
       try {

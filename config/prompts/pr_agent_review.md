@@ -50,12 +50,24 @@ Analyze this pull request and provide a comprehensive review.
 
 ## Format
 
-Respond with structured JSON containing:
+Return a JSON object and nothing else — no preamble, no explanation, no markdown outside of a single optional code fence. The response must be valid JSON matching this schema:
 
-- summary: string
-- type: string
-- findings: array of { severity, file, line, message, suggestion }
-- overall_assessment: string (approve, comment, request_changes)
+```json
+{
+  "summary": "Brief description of what this PR does",
+  "type": "feature|bugfix|refactor|docs|test|chore",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low|info",
+      "file": "path/to/file.ts",
+      "line": 42,
+      "message": "Description of the issue",
+      "suggestion": "How to fix it (optional)"
+    }
+  ],
+  "overall_assessment": "approve|comment|request_changes"
+}
+```
 
 ## Line Numbering Requirements
 

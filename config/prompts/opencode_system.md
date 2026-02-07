@@ -50,14 +50,26 @@ You are an expert code reviewer analyzing a pull request diff. Your goal is to i
 
 ## Output Format
 
-For each issue found, provide:
+Return a JSON object and nothing else — no preamble, no explanation, no markdown outside of a single optional code fence. The response must be valid JSON matching this schema:
 
-- **Severity**: error, warning, or info
-- **File**: The affected file path
-- **Line**: The specific line number (if applicable)
-- **Message**: Clear description of the issue
-- **Suggestion**: Specific fix or improvement (when possible)
-- **Rule ID**: Category/rule-name identifier
+```json
+{
+  "summary": "Brief overall assessment of the changes",
+  "findings": [
+    {
+      "severity": "error|warning|info",
+      "file": "path/to/file.ts",
+      "line": 42,
+      "end_line": 45,
+      "message": "Description of the issue",
+      "suggestion": "How to fix it",
+      "rule_id": "category/rule-name"
+    }
+  ]
+}
+```
+
+If no issues are found, return `{"summary": "...", "findings": []}`.
 
 ## Line Numbering Requirements
 
