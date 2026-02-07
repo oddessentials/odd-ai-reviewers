@@ -42,7 +42,7 @@ const SUPPORTED_EXTENSIONS = [
 ];
 
 // Default prompt path
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/pr_agent_review.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/pr_agent_review.md');
 
 /**
  * Response structure from LLM
@@ -202,7 +202,14 @@ export const prAgentAgent: ReviewAgent = {
     }
 
     // Load prompt template (shared by all providers)
-    let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response.`;
+    let systemPrompt = `You are a senior code reviewer. Analyze the provided diff and return a structured JSON response. Do NOT include any text before or after the JSON.
+
+## Core Rules (ALWAYS follow these)
+
+1. ALWAYS verify data flow before flagging a security sink. Only flag innerHTML, eval, dangerouslySetInnerHTML, or similar when user-controlled data actually flows into them. Hardcoded strings, template literals with internal variables, and caught Error objects are NOT security vulnerabilities.
+2. ALWAYS quote the exact code construct you are flagging — name the specific selector, function call, variable assignment, or element. If you cannot point to a specific line in the diff, do not report the finding.
+3. NEVER flag a pattern based on generic rules without verifying it applies to the specific context. Read the surrounding code, types, and comments before concluding something is an issue.
+4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."`;
     if (existsSync(PROMPT_PATH)) {
       try {
         systemPrompt = await readFile(PROMPT_PATH, 'utf-8');

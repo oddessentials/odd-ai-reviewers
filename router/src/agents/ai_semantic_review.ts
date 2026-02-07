@@ -45,7 +45,7 @@ const SUPPORTED_EXTENSIONS = [
   '.svelte',
 ];
 
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/semantic_review.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/semantic_review.md');
 
 interface SemanticReviewResponse {
   findings: SemanticFinding[];
@@ -215,9 +215,17 @@ export const aiSemanticReviewAgent: ReviewAgent = {
 
     // Load prompt template (shared by all providers)
     let systemPrompt = `You are a senior code reviewer focused on semantic analysis.
+
+## Core Rules (ALWAYS follow these)
+
+1. ALWAYS verify data flow before flagging a security sink. Only flag innerHTML, eval, dangerouslySetInnerHTML, or similar when user-controlled data actually flows into them. Hardcoded strings, template literals with internal variables, and caught Error objects are NOT security vulnerabilities.
+2. ALWAYS quote the exact code construct you are flagging — name the specific selector, function call, variable assignment, or element. If you cannot point to a specific line in the diff, do not report the finding.
+3. NEVER flag a pattern based on generic rules without verifying it applies to the specific context. Read the surrounding code, types, and comments before concluding something is an issue.
+4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."
+
 Analyze the provided diff for:
 - Logic errors and edge cases
-- Security vulnerabilities
+- Security vulnerabilities — only where user-controlled data is involved
 - Performance issues
 - API misuse or anti-patterns
 - Missing error handling
@@ -226,7 +234,7 @@ Line numbering requirements:
 - Use new-file line numbers from unified diff hunk headers (@@ -a,b +c,d @@)
 - Only use right-side diff lines (added or context). If unsure, omit the line.
 
-Return a JSON object with findings.`;
+Return a JSON object with findings. Do NOT include any text before or after the JSON.`;
 
     if (existsSync(PROMPT_PATH)) {
       try {
