@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.6.0...v1.7.0) (2026-02-07)
+
+### Features
+
+* reduce AI review false positives with prompt improvements ([#143](https://github.com/oddessentials/odd-ai-reviewers/issues/143)) ([ef183c2](https://github.com/oddessentials/odd-ai-reviewers/commit/ef183c2ccb70f14a090d982f324c61c3cfbb3c85))
+
 ## [1.6.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.5.0...v1.6.0) (2026-02-06)
 
 ### Features
