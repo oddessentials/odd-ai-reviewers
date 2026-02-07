@@ -45,7 +45,7 @@ const SUPPORTED_EXTENSIONS = [
   '.svelte',
 ];
 
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/semantic_review.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/semantic_review.md');
 
 interface SemanticReviewResponse {
   findings: SemanticFinding[];

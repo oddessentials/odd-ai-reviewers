@@ -31,7 +31,7 @@ import { withTokenCompatibility } from './token-compat.js';
 import { getCurrentDateUTC } from './date-utils.js';
 import { AgentError, AgentErrorCode } from '../types/errors.js';
 
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/opencode_system.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/opencode_system.md');
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',

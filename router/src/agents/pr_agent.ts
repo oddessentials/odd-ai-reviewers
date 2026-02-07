@@ -42,7 +42,7 @@ const SUPPORTED_EXTENSIONS = [
 ];
 
 // Default prompt path
-const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/pr_agent_review.md');
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/pr_agent_review.md');
 
 /**
  * Response structure from LLM
