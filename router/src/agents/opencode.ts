@@ -17,6 +17,9 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import { parseJsonResponse } from './json-utils.js';
@@ -27,6 +30,8 @@ import { withRetry } from './retry.js';
 import { withTokenCompatibility } from './token-compat.js';
 import { getCurrentDateUTC } from './date-utils.js';
 import { AgentError, AgentErrorCode } from '../types/errors.js';
+
+const PROMPT_PATH = join(import.meta.dirname, '../../config/prompts/opencode_system.md');
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -70,7 +75,7 @@ interface OpencodeRawFinding {
 /**
  * Build the review prompt for the LLM
  */
-function buildReviewPrompt(context: AgentContext): { system: string; user: string } {
+async function buildReviewPrompt(context: AgentContext): Promise<{ system: string; user: string }> {
   const currentDate = getCurrentDateUTC();
 
   const files = context.files
@@ -78,25 +83,34 @@ function buildReviewPrompt(context: AgentContext): { system: string; user: strin
     .map((f) => `- ${f.path} (+${f.additions}/-${f.deletions})`)
     .join('\n');
 
-  const systemPrompt = `You are a senior code reviewer specializing in security, performance, and code quality analysis.
+  // Load prompt from file with hardcoded fallback (same pattern as ai_semantic_review)
+  let systemPrompt = `You are a senior code reviewer specializing in security, performance, and code quality analysis.
 
-Current date (UTC): ${currentDate}
+## Core Rules (ALWAYS follow these)
 
-Your task is to review code diffs and identify issues. For each issue found, provide:
-- Severity (error, warning, or info)
-- File path
-- Line number(s) if applicable
-- Clear description of the issue
-- Suggestion for how to fix it
+1. ALWAYS verify data flow before flagging a security sink. Only flag innerHTML, eval, dangerouslySetInnerHTML, or similar when user-controlled data actually flows into them. Hardcoded strings, template literals with internal variables, and caught Error objects are NOT security vulnerabilities.
+2. ALWAYS quote the exact code construct you are flagging — name the specific selector, function call, variable assignment, or element. If you cannot point to a specific line in the diff, do not report the finding.
+3. NEVER flag a pattern based on generic rules without verifying it applies to the specific context. Read the surrounding code, types, and comments before concluding something is an issue.
+4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."
 
 Focus on:
-- Security vulnerabilities (OWASP Top 10, CWE)
+- Security vulnerabilities (OWASP Top 10, CWE) — only where user-controlled data is involved
 - Logic errors and bugs
 - Performance issues
 - Code quality problems
-- Best practice violations
 
 Return your findings as a JSON object. Do NOT include any text before or after the JSON.`;
+
+  if (existsSync(PROMPT_PATH)) {
+    try {
+      systemPrompt = await readFile(PROMPT_PATH, 'utf-8');
+    } catch {
+      console.log('[opencode] Using default prompt (failed to load template)');
+    }
+  }
+
+  // Prepend date once at the top
+  systemPrompt = `Current date (UTC): ${currentDate}\n\n${systemPrompt}`;
 
   const userPrompt = `## Files Changed
 ${files}
@@ -165,7 +179,7 @@ async function runWithOpenAI(
   }
 
   const openai = new OpenAI({ apiKey });
-  const { system, user } = buildReviewPrompt(context);
+  const { system, user } = await buildReviewPrompt(context);
   const estimatedInputTokens = estimateTokens(system + user);
 
   try {
@@ -297,7 +311,7 @@ async function runWithAnthropic(
     });
   }
 
-  const { system, user } = buildReviewPrompt(context);
+  const { system, user } = await buildReviewPrompt(context);
   const estimatedInputTokens = estimateTokens(system + user);
 
   console.log(`[opencode] Calling Anthropic API with model: ${model}`);
