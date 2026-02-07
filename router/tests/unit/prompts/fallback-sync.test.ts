@@ -94,6 +94,28 @@ describe('Fallback prompt sync (FR-012)', () => {
           ).toBe(normalize(promptRule as string));
         }
       });
+
+      it('file-based prompt contains JSON-only output instruction', () => {
+        const promptContent = readFileSync(promptPath, 'utf-8');
+        const hasJsonInstruction =
+          /nothing else/.test(promptContent) ||
+          /Do NOT include any text before or after the JSON/.test(promptContent);
+        expect(
+          hasJsonInstruction,
+          `${name} file-based prompt is missing a JSON-only output instruction`
+        ).toBe(true);
+      });
+
+      it('hardcoded fallback contains JSON-only output instruction', () => {
+        const agentSource = readFileSync(agentPath, 'utf-8');
+        const hasJsonInstruction =
+          /nothing else/.test(agentSource) ||
+          /Do NOT include any text before or after the JSON/.test(agentSource);
+        expect(
+          hasJsonInstruction,
+          `${name} hardcoded fallback is missing a JSON-only output instruction`
+        ).toBe(true);
+      });
     });
   }
 

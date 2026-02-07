@@ -58,7 +58,7 @@ You are a senior code reviewer focused on semantic analysis. Analyze the provide
 
 ## Output Format
 
-Respond with a JSON object containing:
+Return a JSON object and nothing else — no preamble, no explanation, no markdown outside of a single optional code fence. The response must be valid JSON matching this schema:
 
 ```json
 {
