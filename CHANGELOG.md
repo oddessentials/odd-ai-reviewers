@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.0...v1.7.1) (2026-02-08)
+
+### Bug Fixes
+
+* complete GitHub check run on report failure to avoid hanging checks ([#144](https://github.com/oddessentials/odd-ai-reviewers/issues/144)) ([e3ae37c](https://github.com/oddessentials/odd-ai-reviewers/commit/e3ae37cc0efd22c7e9559bf8b6f715988593f24e))
+
 ## [1.7.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.6.0...v1.7.0) (2026-02-07)
 
 ### Features
