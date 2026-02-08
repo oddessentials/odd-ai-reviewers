@@ -215,9 +215,33 @@ export async function reportToGitHub(
       ),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (context.checkRunId) {
+      try {
+        await octokit.checks.update({
+          owner: context.owner,
+          repo: context.repo,
+          check_run_id: context.checkRunId,
+          status: 'completed',
+          conclusion: 'neutral',
+          completed_at: new Date().toISOString(),
+          output: {
+            title: 'AI Review reporting failed',
+            summary:
+              'The AI review completed, but reporting results to GitHub failed.\n' +
+              `Error: ${errorMessage}`,
+          },
+        });
+        console.log(`[github] Marked check run ${context.checkRunId} as completed after error`);
+      } catch (updateError) {
+        console.warn(
+          `[github] Failed to update check run ${context.checkRunId} after error: ${updateError}`
+        );
+      }
+    }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     };
   }
 }
