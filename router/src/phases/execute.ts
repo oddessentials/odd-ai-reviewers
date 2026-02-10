@@ -23,6 +23,16 @@ export interface SkippedAgent {
   reason: string;
 }
 
+export class FatalExecutionError extends Error {
+  readonly code: 'BUDGET_EXCEEDED' | 'POLICY_VIOLATION' | 'AGENT_FAILURE' | 'AGENT_CRASH';
+
+  constructor(code: FatalExecutionError['code'], message: string, options?: { cause?: Error }) {
+    super(message, options);
+    this.name = 'FatalExecutionError';
+    this.code = code;
+  }
+}
+
 /**
  * Annotate findings with provenance metadata (FR-002)
  *
@@ -99,8 +109,9 @@ export async function executeAllPasses(
     const usesPaidLlm = agents.some((a) => a.usesLlm && a.id !== 'local_llm');
     if (usesPaidLlm && !budgetCheck.allowed) {
       if (pass.required) {
-        console.error(`[router] ❌ Required pass ${pass.name} blocked by budget limit`);
-        process.exit(1);
+        const message = `Required pass ${pass.name} blocked by budget limit`;
+        console.error(`[router] ❌ ${message}`);
+        throw new FatalExecutionError('BUDGET_EXCEEDED', message);
       }
       console.log(`[router] Skipping optional paid LLM pass due to budget: ${pass.name}`);
       for (const agent of agents) {
@@ -120,10 +131,9 @@ export async function executeAllPasses(
         // Check if LLM agent is forbidden on main branch pushes
         // Note: PRs targeting main are allowed (isMainBranchPush returns false for PRs)
         if (isMainBranchPush(routerEnv) && isAgentForbiddenOnMain(agent.id)) {
-          console.error(
-            `[router] Policy violation: in-process LLM agent "${agent.id}" is forbidden on direct main push`
-          );
-          process.exit(1);
+          const message = `Policy violation: in-process LLM agent "${agent.id}" is forbidden on direct main push`;
+          console.error(`[router] ${message}`);
+          throw new FatalExecutionError('POLICY_VIOLATION', message);
         }
 
         const scopedContext: AgentContext = {
@@ -188,8 +198,9 @@ export async function executeAllPasses(
           }
           // Agent failed - check if pass is required
           if (pass.required) {
-            console.error(`[router] ❌ Required agent ${agent.name} failed: ${result.error}`);
-            process.exit(1);
+            const message = `Required agent ${agent.name} failed: ${result.error}`;
+            console.error(`[router] ❌ ${message}`);
+            throw new FatalExecutionError('AGENT_FAILURE', message);
           }
           // Optional agent failed - log skip reason and continue
           console.log(`[router] ⏭️  Optional agent ${agent.name} skipped: ${result.error}`);
@@ -211,10 +222,18 @@ export async function executeAllPasses(
           assertNever(result);
         }
       } catch (error) {
+        if (error instanceof FatalExecutionError) {
+          throw error;
+        }
         const errorMsg = error instanceof Error ? error.message : String(error);
         if (pass.required) {
-          console.error(`[router] ❌ Required agent ${agent.name} crashed: ${errorMsg}`);
-          process.exit(1);
+          const message = `Required agent ${agent.name} crashed: ${errorMsg}`;
+          console.error(`[router] ❌ ${message}`);
+          throw new FatalExecutionError(
+            'AGENT_CRASH',
+            message,
+            error instanceof Error ? { cause: error } : undefined
+          );
         }
         console.error(`[router] ⏭️  Optional agent ${agent.name} crashed: ${errorMsg}`);
         skippedAgents.push({ id: agent.id, name: agent.name, reason: errorMsg });

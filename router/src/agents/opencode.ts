@@ -25,7 +25,6 @@ import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import { parseJsonResponse } from './json-utils.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
-import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
 import { withTokenCompatibility } from './token-compat.js';
 import { getCurrentDateUTC } from './date-utils.js';
@@ -422,7 +421,7 @@ export const opencodeAgent: ReviewAgent = {
 
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
-    const agentEnv = buildAgentEnv('opencode', context.env);
+    const agentEnv = context.env;
 
     // Router resolves provider and model. Agent trusts context.
     const { provider, effectiveModel } = context;

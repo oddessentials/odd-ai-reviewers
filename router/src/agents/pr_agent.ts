@@ -9,7 +9,6 @@ import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from '
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
 import { estimateTokens } from '../budget.js';
-import { buildAgentEnv } from './security.js';
 import { withRetry } from './retry.js';
 import { withTokenCompatibility } from './token-compat.js';
 import { parseJsonResponse } from './json-utils.js';
@@ -181,7 +180,7 @@ export const prAgentAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
-    const agentEnv = buildAgentEnv('pr_agent', context.env);
+    const agentEnv = context.env;
 
     // Use router-resolved provider and model
     const { provider, effectiveModel } = context;

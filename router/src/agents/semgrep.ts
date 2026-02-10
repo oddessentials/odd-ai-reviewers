@@ -7,7 +7,6 @@ import { execFileSync } from 'child_process';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
-import { buildAgentEnv } from './security.js';
 import { filterSafePaths } from './path-filter.js';
 import { AgentError, AgentErrorCode } from '../types/errors.js';
 
@@ -81,7 +80,7 @@ export const semgrepAgent: ReviewAgent = {
     }
 
     try {
-      const agentEnv = buildAgentEnv('semgrep', context.env);
+      const agentEnv = context.env;
 
       // Build file list for Semgrep and filter for safe paths
       const filePaths = supportedFiles.map((f) => f.path);

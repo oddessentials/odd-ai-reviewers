@@ -47,6 +47,7 @@ export default defineConfig({
     // Test configuration
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
+    setupFiles: ['tests/setup.ts'],
 
     // Coverage configuration
     coverage: {

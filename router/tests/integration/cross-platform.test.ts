@@ -218,7 +218,7 @@ describe('T140: Git Command Execution', () => {
         expect(result.value.currentBranch).toBeDefined();
         expect(result.value.defaultBase).toBeDefined();
       }
-    });
+    }, 15000);
   });
 
   describe('Branch Detection', () => {

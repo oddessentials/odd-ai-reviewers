@@ -186,7 +186,32 @@ export interface CostEstimateResult {
 export function createDefaultDependencies(): LocalReviewDependencies {
   return {
     env: process.env as Record<string, string | undefined>,
-    exitHandler: (code: number) => process.exit(code),
+    exitHandler: (code: number) => {
+      process.exitCode = code;
+      const exit = () => process.exit(code);
+
+      const drainingStreams = [process.stdout, process.stderr].filter(
+        (stream) => stream.writableNeedDrain
+      );
+
+      if (drainingStreams.length === 0) {
+        exit();
+        return;
+      }
+
+      let remaining = drainingStreams.length;
+      for (const stream of drainingStreams) {
+        stream.once('drain', () => {
+          remaining -= 1;
+          if (remaining === 0) {
+            exit();
+          }
+        });
+      }
+
+      // Safety: avoid hanging if drain never fires
+      setTimeout(exit, 100);
+    },
     stdout: process.stdout,
     stderr: process.stderr,
   };

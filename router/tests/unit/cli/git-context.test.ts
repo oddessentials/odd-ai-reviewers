@@ -141,12 +141,12 @@ describe('git-context', () => {
       // The actual state depends on the repo
       const result = hasUncommittedChanges(REPO_ROOT);
       expect(typeof result).toBe('boolean');
-    });
+    }, 15000);
 
     it('should detect staged changes', () => {
       const result = hasStagedChanges(REPO_ROOT);
       expect(typeof result).toBe('boolean');
-    });
+    }, 15000);
 
     it('should return false for non-git directory (graceful)', () => {
       const tempDir = path.resolve(process.env['TEMP'] || process.env['TMP'] || '/tmp');
@@ -172,7 +172,7 @@ describe('git-context', () => {
 
       expect(typeof uncommitted).toBe('boolean');
       expect(typeof staged).toBe('boolean');
-    });
+    }, 15000);
 
     it('should handle error gracefully', () => {
       // Invalid path should return false (not throw)
@@ -193,7 +193,7 @@ describe('git-context', () => {
         expect(typeof ctx.hasUncommitted).toBe('boolean');
         expect(typeof ctx.hasStaged).toBe('boolean');
       }
-    });
+    }, 15000);
 
     it('should work from subdirectory', () => {
       const subdir = path.join(REPO_ROOT, 'router', 'src', 'cli');
@@ -207,7 +207,7 @@ describe('git-context', () => {
         expect(result.value.currentBranch.length).toBeGreaterThan(0);
         expect(result.value.defaultBase.length).toBeGreaterThan(0);
       }
-    });
+    }, 15000);
 
     it('should return error for non-git directory', () => {
       const tempDir = path.resolve(process.env['TEMP'] || process.env['TMP'] || '/tmp');

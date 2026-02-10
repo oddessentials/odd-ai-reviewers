@@ -68,6 +68,8 @@ export interface ReportResult {
   checkRunId?: number;
   commentId?: number;
   error?: string;
+  /** Whether a check run was completed during reporting */
+  checkRunCompleted?: boolean;
   /** Number of findings skipped due to deduplication */
   skippedDuplicates?: number;
   /** Statistics from line validation */
@@ -100,6 +102,45 @@ export async function startCheckRun(context: GitHubContext): Promise<number> {
 
   console.log(`[github] Started check run ${response.data.id} (in_progress)`);
   return response.data.id;
+}
+
+/**
+ * Complete an existing check run with a final conclusion and summary.
+ * Safe no-op when checkRunId is missing.
+ */
+export async function completeCheckRun(
+  context: GitHubContext,
+  params: {
+    conclusion: 'success' | 'failure' | 'neutral';
+    title: string;
+    summary: string;
+  }
+): Promise<void> {
+  if (!context.checkRunId) return;
+
+  const octokit = new Octokit({ auth: context.token });
+
+  try {
+    await octokit.checks.update({
+      owner: context.owner,
+      repo: context.repo,
+      check_run_id: context.checkRunId,
+      status: 'completed',
+      conclusion: params.conclusion,
+      completed_at: new Date().toISOString(),
+      output: {
+        title: params.title,
+        summary: params.summary,
+      },
+    });
+    console.log(
+      `[github] Marked check run ${context.checkRunId} as completed (${params.conclusion})`
+    );
+  } catch (error) {
+    console.warn(
+      `[github] Failed to complete check run ${context.checkRunId}: ${error instanceof Error ? error.message : error}`
+    );
+  }
 }
 
 /**
@@ -160,6 +201,7 @@ export async function reportToGitHub(
     let checkRunId: number | undefined;
     let commentId: number | undefined;
     let skippedDuplicates = 0;
+    let checkRunCompleted = false;
 
     // Create check run if enabled
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
@@ -173,6 +215,7 @@ export async function reportToGitHub(
         driftSignal,
         inlineDriftSignal
       );
+      checkRunCompleted = true;
     }
 
     // Post PR comment if enabled and we have a PR number
@@ -204,6 +247,7 @@ export async function reportToGitHub(
       checkRunId,
       commentId,
       skippedDuplicates,
+      checkRunCompleted,
       validationStats: normalizationResult.stats,
       invalidLineDetails:
         normalizationResult.invalidDetails.length > 0
@@ -216,6 +260,7 @@ export async function reportToGitHub(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    let checkRunCompleted = false;
     if (context.checkRunId) {
       try {
         await octokit.checks.update({
@@ -233,6 +278,7 @@ export async function reportToGitHub(
           },
         });
         console.log(`[github] Marked check run ${context.checkRunId} as completed after error`);
+        checkRunCompleted = true;
       } catch (updateError) {
         console.warn(
           `[github] Failed to update check run ${context.checkRunId} after error: ${updateError}`
@@ -242,6 +288,7 @@ export async function reportToGitHub(
     return {
       success: false,
       error: errorMessage,
+      checkRunCompleted,
     };
   }
 }

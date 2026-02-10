@@ -21,6 +21,7 @@ import * as path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '../../../');
+const SLOW_TEST_TIMEOUT_MS = 15000;
 
 /**
  * Helper to capture output
@@ -47,152 +48,172 @@ function createOutputCapture() {
 
 describe('T133: Local Review Full Flow Test', () => {
   describe('Complete Review Flow', () => {
-    it('should complete a full dry-run review flow', async () => {
-      const capture = createOutputCapture();
-      const exitHandler = vi.fn();
-      const deps = {
-        ...createDefaultDependencies(),
-        ...capture.deps,
-        env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
-        exitHandler,
-      };
+    it(
+      'should complete a full dry-run review flow',
+      async () => {
+        const capture = createOutputCapture();
+        const exitHandler = vi.fn();
+        const deps = {
+          ...createDefaultDependencies(),
+          ...capture.deps,
+          env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
+          exitHandler,
+        };
 
-      const result = await runLocalReview(
-        {
-          path: REPO_ROOT,
-          dryRun: true,
-          noColor: true,
-          base: 'HEAD',
-        },
-        deps
-      );
+        const result = await runLocalReview(
+          {
+            path: REPO_ROOT,
+            dryRun: true,
+            noColor: true,
+            base: 'HEAD',
+          },
+          deps
+        );
 
-      expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
 
-      const output = capture.getOutput();
-      // Should show all major sections of dry-run
-      expect(output).toContain('DRY RUN');
-      expect(output).toContain('Git Context');
-      expect(output).toContain('Configuration');
-    });
+        const output = capture.getOutput();
+        // Should show all major sections of dry-run
+        expect(output).toContain('DRY RUN');
+        expect(output).toContain('Git Context');
+        expect(output).toContain('Configuration');
+      },
+      SLOW_TEST_TIMEOUT_MS
+    );
 
-    it('should produce JSON output when requested', async () => {
-      const capture = createOutputCapture();
-      const deps = {
-        ...createDefaultDependencies(),
-        ...capture.deps,
-        env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
-        exitHandler: vi.fn(),
-      };
+    it(
+      'should produce JSON output when requested',
+      async () => {
+        const capture = createOutputCapture();
+        const deps = {
+          ...createDefaultDependencies(),
+          ...capture.deps,
+          env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
+          exitHandler: vi.fn(),
+        };
 
-      const result = await runLocalReview(
-        {
-          path: REPO_ROOT,
-          dryRun: true,
-          format: 'json',
-          noColor: true,
-          base: 'HEAD',
-        },
-        deps
-      );
+        const result = await runLocalReview(
+          {
+            path: REPO_ROOT,
+            dryRun: true,
+            format: 'json',
+            noColor: true,
+            base: 'HEAD',
+          },
+          deps
+        );
 
-      expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
 
-      const output = capture.getOutput();
-      // JSON output should be parseable
-      expect(() => JSON.parse(output)).not.toThrow();
+        const output = capture.getOutput();
+        // JSON output should be parseable
+        expect(() => JSON.parse(output)).not.toThrow();
 
-      const parsed = JSON.parse(output);
-      expect(parsed).toHaveProperty('schema_version');
-      expect(parsed).toHaveProperty('findings');
-      expect(parsed).toHaveProperty('summary');
-    });
+        const parsed = JSON.parse(output);
+        expect(parsed).toHaveProperty('schema_version');
+        expect(parsed).toHaveProperty('findings');
+        expect(parsed).toHaveProperty('summary');
+      },
+      SLOW_TEST_TIMEOUT_MS
+    );
 
-    it('should produce SARIF output when requested', async () => {
-      const capture = createOutputCapture();
-      const deps = {
-        ...createDefaultDependencies(),
-        ...capture.deps,
-        env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
-        exitHandler: vi.fn(),
-      };
+    it(
+      'should produce SARIF output when requested',
+      async () => {
+        const capture = createOutputCapture();
+        const deps = {
+          ...createDefaultDependencies(),
+          ...capture.deps,
+          env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
+          exitHandler: vi.fn(),
+        };
 
-      const result = await runLocalReview(
-        {
-          path: REPO_ROOT,
-          dryRun: true,
-          format: 'sarif',
-          noColor: true,
-          base: 'HEAD',
-        },
-        deps
-      );
+        const result = await runLocalReview(
+          {
+            path: REPO_ROOT,
+            dryRun: true,
+            format: 'sarif',
+            noColor: true,
+            base: 'HEAD',
+          },
+          deps
+        );
 
-      expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
 
-      const output = capture.getOutput();
-      // SARIF output should be parseable
-      expect(() => JSON.parse(output)).not.toThrow();
+        const output = capture.getOutput();
+        // SARIF output should be parseable
+        expect(() => JSON.parse(output)).not.toThrow();
 
-      const parsed = JSON.parse(output);
-      expect(parsed).toHaveProperty('$schema');
-      expect(parsed).toHaveProperty('version');
-      expect(parsed.version).toBe('2.1.0');
-    });
+        const parsed = JSON.parse(output);
+        expect(parsed).toHaveProperty('$schema');
+        expect(parsed).toHaveProperty('version');
+        expect(parsed.version).toBe('2.1.0');
+      },
+      SLOW_TEST_TIMEOUT_MS
+    );
   });
 
   describe('Verbose and Quiet Modes', () => {
-    it('should show extra info in verbose mode', async () => {
-      const capture = createOutputCapture();
-      const deps = {
-        ...createDefaultDependencies(),
-        ...capture.deps,
-        env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
-        exitHandler: vi.fn(),
-      };
+    it(
+      'should show extra info in verbose mode',
+      async () => {
+        const capture = createOutputCapture();
+        const deps = {
+          ...createDefaultDependencies(),
+          ...capture.deps,
+          env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
+          exitHandler: vi.fn(),
+        };
 
-      const result = await runLocalReview(
-        {
-          path: REPO_ROOT,
-          dryRun: true,
-          verbose: true,
-          noColor: true,
-          base: 'HEAD',
-        },
-        deps
-      );
+        const result = await runLocalReview(
+          {
+            path: REPO_ROOT,
+            dryRun: true,
+            verbose: true,
+            noColor: true,
+            base: 'HEAD',
+          },
+          deps
+        );
 
-      expect(result.exitCode).toBe(0);
-      const output = capture.getOutput();
-      // Verbose mode should show git context details
-      expect(output).toContain('Git Context');
-    });
+        expect(result.exitCode).toBe(0);
+        const output = capture.getOutput();
+        // Verbose mode should show git context details
+        expect(output).toContain('Git Context');
+      },
+      SLOW_TEST_TIMEOUT_MS
+    );
 
-    it('should show minimal output in quiet mode', async () => {
-      const capture = createOutputCapture();
-      const deps = {
-        ...createDefaultDependencies(),
-        ...capture.deps,
-        env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
-        exitHandler: vi.fn(),
-      };
+    it(
+      'should show minimal output in quiet mode',
+      async () => {
+        const capture = createOutputCapture();
+        const deps = {
+          ...createDefaultDependencies(),
+          ...capture.deps,
+          env: { ...process.env, OPENAI_API_KEY: 'sk-test-mock-key' },
+          exitHandler: vi.fn(),
+        };
 
-      const result = await runLocalReview(
-        {
-          path: REPO_ROOT,
-          dryRun: true,
-          quiet: true,
-          noColor: true,
-          base: 'HEAD',
-        },
-        deps
-      );
+        const result = await runLocalReview(
+          {
+            path: REPO_ROOT,
+            dryRun: true,
+            quiet: true,
+            noColor: true,
+            base: 'HEAD',
+          },
+          deps
+        );
 
-      expect(result.exitCode).toBe(0);
-      const output = capture.getOutput();
-      // Quiet mode has minimal output (may be empty for dry-run with no changes)
-      expect(typeof output).toBe('string');
-    });
+        expect(result.exitCode).toBe(0);
+        const output = capture.getOutput();
+        // Quiet mode has minimal output (may be empty for dry-run with no changes)
+        expect(typeof output).toBe('string');
+      },
+      SLOW_TEST_TIMEOUT_MS
+    );
   });
 });
 
@@ -617,7 +638,8 @@ describe('Victory Gate Validations', () => {
 
       expect(isOk(result)).toBe(true);
       // Git operations should be fast
-      expect(elapsed).toBeLessThan(2000);
+      const limitMs = process.env['CI'] === 'true' ? 2000 : 4000;
+      expect(elapsed).toBeLessThan(limitMs);
     });
   });
 

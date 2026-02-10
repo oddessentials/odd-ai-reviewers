@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { join } from 'path';
 
 // Project root (two levels up from __tests__)
@@ -26,6 +26,20 @@ const projectRoot = join(__dirname, '..', '..', '..');
 const ALLOWED_TEST_FILE_PATTERN = '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$';
 const ALLOWED_TEST_INFRA_PATTERN = '^router/src/__tests__/';
 const DEPCRUISE_TIMEOUT_MS = 30000;
+
+function supportsDepcruise(): boolean {
+  const result = spawnSync('pnpm', ['depcruise', '--version'], {
+    cwd: projectRoot,
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+  if (result.error) return false;
+  if (result.status !== 0) return false;
+  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
+  return stdout.trim().length > 0;
+}
+
+const depcruiseIt = supportsDepcruise() ? it : it.skip;
 
 /**
  * Normalize path to POSIX format (forward slashes).
@@ -87,7 +101,7 @@ function runDepcruise(argsString: string): { exitCode: number; output: string } 
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true, // Required on Windows for pnpm.cmd
+      shell: process.platform === 'win32', // Required on Windows for pnpm.cmd
     });
     return { exitCode: 0, output };
   } catch (error) {
@@ -270,7 +284,7 @@ describe('Dependency Cruiser Rule Validation', () => {
   });
 
   describe('not-to-dev-dep rule behavior', () => {
-    it(
+    depcruiseIt(
       'should allow __tests__/ to import vitest (test infrastructure)',
       () => {
         const result = runDepcruise(
@@ -282,7 +296,7 @@ describe('Dependency Cruiser Rule Validation', () => {
       DEPCRUISE_TIMEOUT_MS
     );
 
-    it(
+    depcruiseIt(
       'should allow *.test.ts files to import vitest',
       () => {
         const result = runDepcruise(
@@ -294,7 +308,7 @@ describe('Dependency Cruiser Rule Validation', () => {
       DEPCRUISE_TIMEOUT_MS
     );
 
-    it(
+    depcruiseIt(
       'should block production code from importing vitest',
       () => {
         const result = runDepcruise(
@@ -309,7 +323,7 @@ describe('Dependency Cruiser Rule Validation', () => {
   });
 
   describe('not-to-spec rule behavior', () => {
-    it(
+    depcruiseIt(
       'should prevent importing .test.ts files from non-test code',
       () => {
         const result = runDepcruise(
@@ -323,7 +337,7 @@ describe('Dependency Cruiser Rule Validation', () => {
   });
 
   describe('full scan verification', () => {
-    it(
+    depcruiseIt(
       'should have no violations in the full router/src scan',
       () => {
         const result = runDepcruise(

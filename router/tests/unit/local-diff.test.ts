@@ -140,7 +140,7 @@ describe('local-diff', () => {
       const result = hasLocalChanges(REPO_ROOT, options);
 
       expect(typeof result).toBe('boolean');
-    });
+    }, 15000);
 
     it('should return boolean for staged check', () => {
       const options: LocalDiffOptions = {

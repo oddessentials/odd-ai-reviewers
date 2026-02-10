@@ -28,6 +28,11 @@ import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
 
+export interface DispatchReportResult {
+  /** Whether the check run was completed during reporting (always false for ADO) */
+  checkRunCompleted: boolean;
+}
+
 export interface ReportOptions {
   dryRun?: boolean;
   owner?: string;
@@ -140,7 +145,7 @@ export async function dispatchReport(
   routerEnv: Record<string, string | undefined>,
   prNumber: number,
   options: ReportOptions
-): Promise<void> {
+): Promise<DispatchReportResult | undefined> {
   if (options.dryRun) {
     console.log('[router] Dry run - skipping reporting');
     return;
@@ -173,6 +178,7 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to GitHub:', reportResult.error);
     }
+    return { checkRunCompleted: reportResult.checkRunCompleted ?? false };
   } else if (platform === 'ado') {
     // Extract ADO context from environment
     const collectionUri = routerEnv['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'] ?? '';
@@ -212,6 +218,7 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to Azure DevOps:', reportResult.error);
     }
+    return { checkRunCompleted: false };
   }
 }
 
