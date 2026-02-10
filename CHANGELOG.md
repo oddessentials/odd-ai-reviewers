@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.1...v1.7.2) (2026-02-10)
+
+### Bug Fixes
+
+* harden check run finalization, credential validation, and error classification ([#149](https://github.com/oddessentials/odd-ai-reviewers/issues/149)) ([6992617](https://github.com/oddessentials/odd-ai-reviewers/commit/69926176eb30e810fa1d85c2e2d4d1b738a67ad2))
+
 ## [1.7.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.0...v1.7.1) (2026-02-08)
 
 ### Bug Fixes
