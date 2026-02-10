@@ -470,10 +470,50 @@ describe('Config Wizard', () => {
       expect(result.errors.length).toBe(0);
     });
 
-    it('T027: validation with errors should indicate exit 1 (FR-019)', async () => {
+    it('T027: validation with errors should indicate exit 1 when pass is required (FR-019)', async () => {
       const { runPreflightChecks } = await import('../phases/preflight.js');
 
       // Create config with azure-openai which requires specific env vars
+      // Override the AI pass to required:true so missing keys are hard errors
+      const config = generateDefaultConfig('azure-openai', 'github', ['semgrep', 'opencode']);
+      for (const pass of config.passes) {
+        if (pass.name === 'ai') {
+          pass.required = true;
+        }
+      }
+
+      const minimalContext = {
+        repoPath: process.cwd(),
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          baseSha: '',
+          headSha: '',
+          contextLines: 3,
+          source: 'local-git' as const,
+        },
+        files: [],
+        config,
+        diffContent: '',
+        prNumber: undefined,
+        env: {},
+        effectiveModel: '',
+        provider: null,
+      };
+
+      // Azure without required env vars should produce errors when pass is required
+      const result = runPreflightChecks(config, minimalContext, {}, process.cwd());
+
+      // result.valid = false means exit 1
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('T027b: validation with missing keys produces warnings when pass is optional', async () => {
+      const { runPreflightChecks } = await import('../phases/preflight.js');
+
+      // Wizard-generated config: azure-openai provider, AI pass required:false (default)
       const config = generateDefaultConfig('azure-openai', 'github', ['semgrep', 'opencode']);
 
       const minimalContext = {
@@ -496,12 +536,11 @@ describe('Config Wizard', () => {
         provider: null,
       };
 
-      // Azure without required env vars should produce errors
+      // Azure without keys but optional pass → valid with warnings
       const result = runPreflightChecks(config, minimalContext, {}, process.cwd());
 
-      // result.valid = false means exit 1
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.valid).toBe(true);
+      expect(result.warnings.length).toBeGreaterThan(0);
     });
 
     it('T028: wizard cancellation returns cancelled status (FR-023)', async () => {

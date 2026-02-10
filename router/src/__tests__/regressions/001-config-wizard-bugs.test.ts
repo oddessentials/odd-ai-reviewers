@@ -791,7 +791,7 @@ describe('Regression: Config init validates with defaults merge', () => {
     }
   });
 
-  it('REGRESSION: Anthropic provider with OpenAI default model fails validation', async () => {
+  it('REGRESSION: Anthropic provider with OpenAI default model produces warning for optional pass', async () => {
     // This is the specific scenario that was failing:
     // - provider: anthropic
     // - ANTHROPIC_API_KEY set
@@ -799,7 +799,11 @@ describe('Regression: Config init validates with defaults merge', () => {
     // - No explicit MODEL set
     //
     // Without defaults merge: auto-applies Claude default → passes
-    // With defaults merge: gpt-4o-mini → provider/model mismatch → fails
+    // With defaults merge: gpt-4o-mini → provider/model mismatch
+    //
+    // The config wizard generates AI agent passes with required:false (optional),
+    // so model/provider mismatch is demoted to a warning (pass will be skipped
+    // at runtime). Preflight still passes — the mismatch surfaces as a warning.
 
     const yaml = generateConfigYaml({
       provider: 'anthropic',
@@ -823,10 +827,9 @@ describe('Regression: Config init validates with defaults merge', () => {
 
       const result = runPreflightChecks(config, minimalContext, env, '/tmp/test');
 
-      // With merged defaults, this should fail due to model/provider mismatch
-      // The defaults have gpt-4o-mini but provider is anthropic
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('mismatch') || e.includes('gpt-'))).toBe(true);
+      // Cloud agents are in optional passes (required:false), so mismatch is a warning
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.includes('mismatch') || w.includes('gpt-'))).toBe(true);
     }
   });
 });

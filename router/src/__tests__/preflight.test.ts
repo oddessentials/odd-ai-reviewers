@@ -16,8 +16,11 @@ import {
   validateAzureDeployment,
   countProvidersWithKeys,
   validateExplicitProviderKeys,
+  hasRequiredCloudAiAgent,
   DEFAULT_MODELS,
 } from '../preflight.js';
+import { runPreflightChecks } from '../phases/preflight.js';
+import type { AgentContext } from '../agents/types.js';
 import type { Config, LlmProvider } from '../config.js';
 
 function createTestConfig(agents: string[]): Config {
@@ -1512,5 +1515,365 @@ describe('Feature 001: Ollama URL Validation (US2)', () => {
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('ANTHROPIC_API_KEY');
     });
+  });
+});
+
+/**
+ * pass.required flag tests
+ *
+ * Validates that preflight respects the `required` field on passes:
+ * - required:false (default) → missing keys produce warnings, preflight valid:true
+ * - required:true → missing keys produce errors, preflight valid:false
+ * - Mixed passes (same agent in both) → required wins
+ */
+describe('pass.required flag — optional agents produce warnings', () => {
+  function createOptionalPassConfig(agents: string[]): Config {
+    return {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'optional-cloud',
+          agents: agents as Config['passes'][0]['agents'],
+          enabled: true,
+          required: false,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
+      },
+      models: { default: 'gpt-4o-mini' },
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+  }
+
+  it('required:false pass with missing key produces warning, not error', () => {
+    const config = createOptionalPassConfig(['opencode']);
+    const env = {}; // No keys at all
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings[0]).toContain('opencode');
+    expect(result.warnings[0]).toContain('pass will be skipped');
+  });
+
+  it('required:true pass with missing key produces error (no regression)', () => {
+    const config = createTestConfig(['opencode']); // createTestConfig uses required:true
+    const env = {};
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain('opencode');
+  });
+
+  it('agent in both required and optional passes → treated as required', () => {
+    const config: Config = {
+      version: 1,
+      trusted_only: false,
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'optional-cloud',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: false,
+        },
+        {
+          name: 'required-cloud',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
+      },
+      models: { default: 'gpt-4o-mini' },
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+    const env = {}; // No keys
+    const result = validateAgentSecrets(config, env);
+
+    // required wins — should produce error, not warning
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('multiple optional agents all produce warnings', () => {
+    const config = createOptionalPassConfig(['opencode', 'pr_agent']);
+    const env = {}; // No keys at all
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings.length).toBe(2);
+    expect(result.warnings[0]).toContain('opencode');
+    expect(result.warnings[1]).toContain('pr_agent');
+  });
+
+  it('legacy keys still hard-fail regardless of pass.required', () => {
+    const config = createOptionalPassConfig(['semgrep']);
+    const env = { PR_AGENT_API_KEY: 'sk-old' };
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('Legacy');
+  });
+
+  it('Azure bundle validation still hard-fails regardless of pass.required', () => {
+    const config = createOptionalPassConfig(['semgrep']);
+    const env = { AZURE_OPENAI_API_KEY: 'azure-xxx' }; // Partial Azure
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('Azure OpenAI');
+  });
+
+  it('static agents (semgrep) in optional pass still pass with no keys', () => {
+    const config = createOptionalPassConfig(['semgrep']);
+    const env = {};
+    const result = validateAgentSecrets(config, env);
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(0);
+  });
+});
+
+describe('hasRequiredCloudAiAgent', () => {
+  it('returns true when cloud agent is in required:true enabled pass', () => {
+    const config = createTestConfig(['opencode']); // required:true
+    expect(hasRequiredCloudAiAgent(config)).toBe(true);
+  });
+
+  it('returns false when cloud agent is only in required:false enabled pass', () => {
+    const config: Config = {
+      ...createTestConfig(['opencode']),
+      passes: [
+        {
+          name: 'optional',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: false,
+        },
+      ],
+    };
+    expect(hasRequiredCloudAiAgent(config)).toBe(false);
+  });
+
+  it('returns false when only static agents are in required:true pass', () => {
+    const config: Config = {
+      ...createTestConfig(['semgrep', 'reviewdog']),
+      passes: [
+        {
+          name: 'static',
+          agents: ['semgrep', 'reviewdog'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+    };
+    expect(hasRequiredCloudAiAgent(config)).toBe(false);
+  });
+
+  it('returns false when cloud agent pass is disabled', () => {
+    const config: Config = {
+      ...createTestConfig(['opencode']),
+      passes: [
+        {
+          name: 'cloud',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: false,
+          required: true,
+        },
+      ],
+    };
+    expect(hasRequiredCloudAiAgent(config)).toBe(false);
+  });
+
+  it('returns true when at least one required pass has a cloud agent', () => {
+    const config: Config = {
+      ...createTestConfig(['semgrep']),
+      passes: [
+        {
+          name: 'static',
+          agents: ['semgrep'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+        {
+          name: 'cloud',
+          agents: ['pr_agent'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+    };
+    expect(hasRequiredCloudAiAgent(config)).toBe(true);
+  });
+});
+
+/**
+ * Integration: explicit provider + optional cloud pass → preflight demotes to warning
+ *
+ * Reproduces the wizard-generated config scenario:
+ *   provider: openai, AI pass required:false, no OPENAI_API_KEY
+ * Before fix: validateExplicitProviderKeys hard-fails → exit 1
+ * After fix: demoted to warning → exit 0, pass skipped at runtime
+ */
+describe('Explicit provider with optional cloud pass (integration)', () => {
+  function minimalContext(config: Config): AgentContext {
+    return {
+      repoPath: '/tmp/test',
+      diff: {
+        files: [],
+        totalAdditions: 0,
+        totalDeletions: 0,
+        baseSha: '',
+        headSha: '',
+        contextLines: 3,
+        source: 'local-git',
+      },
+      files: [],
+      config,
+      diffContent: '',
+      prNumber: undefined,
+      env: {},
+      effectiveModel: '',
+      provider: null,
+    };
+  }
+
+  it('provider: openai + required:false + no key → valid with warning', () => {
+    const config: Config = {
+      version: 1,
+      trusted_only: false,
+      provider: 'openai',
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        { name: 'static', agents: ['semgrep'], enabled: true, required: true },
+        {
+          name: 'ai',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: false,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
+      },
+      models: { default: 'gpt-4o' },
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+    const env = {}; // No OPENAI_API_KEY
+
+    const result = runPreflightChecks(config, minimalContext(config), env);
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes('OPENAI_API_KEY'))).toBe(true);
+  });
+
+  it('provider: openai + required:true + no key → still hard error', () => {
+    const config: Config = {
+      version: 1,
+      trusted_only: false,
+      provider: 'openai',
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'ai',
+          agents: ['opencode'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: true,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
+      },
+      models: { default: 'gpt-4o' },
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+    const env = {}; // No OPENAI_API_KEY
+
+    const result = runPreflightChecks(config, minimalContext(config), env);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('OPENAI_API_KEY'))).toBe(true);
+  });
+
+  it('provider: ollama + invalid URL → always hard error regardless of required flag', () => {
+    const config: Config = {
+      version: 1,
+      trusted_only: false,
+      provider: 'ollama',
+      triggers: { on: ['pull_request'], branches: ['main'] },
+      passes: [
+        {
+          name: 'local',
+          agents: ['local_llm'] as Config['passes'][0]['agents'],
+          enabled: true,
+          required: false,
+        },
+      ],
+      limits: {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 12000,
+        max_usd_per_pr: 1.0,
+        monthly_budget_usd: 100,
+        max_completion_tokens: 4000,
+      },
+      models: {},
+      reporting: {
+        github: { mode: 'checks_and_comments', max_inline_comments: 20, summary: true },
+      },
+      gating: { enabled: false, fail_on_severity: 'error', drift_gate: false },
+      path_filters: { include: ['**/*'], exclude: [] },
+    };
+    const env = { OLLAMA_BASE_URL: 'not-a-url' };
+
+    const result = runPreflightChecks(config, minimalContext(config), env);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('OLLAMA_BASE_URL'))).toBe(true);
   });
 });

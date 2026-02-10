@@ -35,6 +35,15 @@ on:
       ANTHROPIC_API_KEY:
         description: 'Anthropic API key (for opencode with Claude models)'
         required: false
+      AZURE_OPENAI_API_KEY:
+        description: 'Azure OpenAI API key (requires ENDPOINT and DEPLOYMENT too)'
+        required: false
+      AZURE_OPENAI_ENDPOINT:
+        description: 'Azure OpenAI endpoint URL'
+        required: false
+      AZURE_OPENAI_DEPLOYMENT:
+        description: 'Azure OpenAI deployment name'
+        required: false
       OLLAMA_BASE_URL:
         description: 'Ollama server URL for local LLM'
         required: false
@@ -129,6 +138,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
           INPUT_TARGET_REPO: ${{ inputs.target_repo }}
           INPUT_TARGET_REF: ${{ inputs.target_ref }}
