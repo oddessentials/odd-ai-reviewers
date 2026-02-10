@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.3](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.2...v1.7.3) (2026-02-10)
+
+### Bug Fixes
+
+* preflight validation respects pass.required flag for optional agents ([#150](https://github.com/oddessentials/odd-ai-reviewers/issues/150)) ([43d4f8e](https://github.com/oddessentials/odd-ai-reviewers/commit/43d4f8e8e4eeaebf1ecac72609878de39fd0a1ca))
+
 ## [1.7.2](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.1...v1.7.2) (2026-02-10)
 
 ### Bug Fixes
