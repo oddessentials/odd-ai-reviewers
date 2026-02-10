@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.4](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.3...v1.7.4) (2026-02-10)
+
+### Bug Fixes
+
+* remove workflow credential gate that bypassed router preflight ([#151](https://github.com/oddessentials/odd-ai-reviewers/issues/151)) ([8c80520](https://github.com/oddessentials/odd-ai-reviewers/commit/8c805205ef758a1bccbd162eabe72c3d59a49a1d)), closes [#149](https://github.com/oddessentials/odd-ai-reviewers/issues/149) [#150](https://github.com/oddessentials/odd-ai-reviewers/issues/150)
+
 ## [1.7.3](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.2...v1.7.3) (2026-02-10)
 
 ### Bug Fixes
