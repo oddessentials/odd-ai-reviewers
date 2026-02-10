@@ -860,6 +860,14 @@ export async function runReview(
     return; // For type safety when exitHandler doesn't terminate
   }
 
+  // Log preflight warnings (non-fatal diagnostics, e.g. optional agents missing keys)
+  if (preflightResult.warnings.length > 0) {
+    console.error('[router] Preflight warnings:');
+    for (const warning of preflightResult.warnings) {
+      console.error(`[router]   - ${warning}`);
+    }
+  }
+
   // T015 (FR-002, FR-004): Update agentContext with resolved model from preflight
   // This is the single source of truth - no re-resolution after preflight
   if (preflightResult.resolved) {

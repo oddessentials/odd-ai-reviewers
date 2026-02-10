@@ -98,8 +98,20 @@ export function countProvidersWithKeys(env: Record<string, string | undefined>):
 export interface PreflightResult {
   valid: boolean;
   errors: string[];
+  /** Non-fatal diagnostics (e.g. optional agents missing keys) */
+  warnings: string[];
   /** Resolved config tuple when valid, undefined when invalid */
   resolved?: ResolvedConfigTuple;
+}
+
+/** Construct a passing PreflightResult. */
+export function okResult(): PreflightResult {
+  return { valid: true, errors: [], warnings: [] };
+}
+
+/** Construct a failing PreflightResult. */
+export function failResult(errors: string[], warnings: string[] = []): PreflightResult {
+  return { valid: false, errors, warnings };
 }
 
 /**
@@ -286,27 +298,45 @@ export function validateAgentSecrets(
     );
   }
 
-  // Collect all enabled agents across all enabled passes
-  const enabledAgents = new Set<AgentId>();
+  // Classify agents: an agent in ANY required:true enabled pass is "required";
+  // an agent ONLY in required:false enabled passes is "optional".
+  const requiredAgents = new Set<AgentId>();
+  const optionalAgents = new Set<AgentId>();
   for (const pass of config.passes) {
     if (!pass.enabled) continue;
     for (const agentId of pass.agents) {
-      enabledAgents.add(agentId);
+      if (pass.required) {
+        requiredAgents.add(agentId);
+      } else {
+        optionalAgents.add(agentId);
+      }
     }
   }
+  // If agent appears in both, it's required (deterministic: required wins)
+  for (const agentId of requiredAgents) {
+    optionalAgents.delete(agentId);
+  }
+
+  const warnings: string[] = [];
 
   // Check each enabled agent's requirements
-  for (const agentId of enabledAgents) {
+  const allAgents = new Set([...requiredAgents, ...optionalAgents]);
+  for (const agentId of allAgents) {
     const requirements = AGENT_SECRET_REQUIREMENTS[agentId];
     if (!requirements) continue;
+
+    const isOptional = optionalAgents.has(agentId);
+    const target = isOptional ? warnings : errors;
+    const suffix = isOptional ? ' (pass will be skipped)' : '';
 
     // Check "oneOf" requirements (at least one must be present)
     if (requirements.oneOf) {
       const hasAny = requirements.oneOf.some((key) => env[key] !== undefined && env[key] !== '');
       if (!hasAny) {
-        errors.push(
+        target.push(
           `Agent '${agentId}' is enabled but missing required API key. ` +
-            `Set one of: ${requirements.oneOf.join(', ')}`
+            `Set one of: ${requirements.oneOf.join(', ')}` +
+            suffix
         );
       }
     }
@@ -317,17 +347,20 @@ export function validateAgentSecrets(
         (key) => env[key] === undefined || env[key] === ''
       );
       if (missing.length > 0) {
-        errors.push(
-          `Agent '${agentId}' is enabled but missing required secret(s): ${missing.join(', ')}`
+        target.push(
+          `Agent '${agentId}' is enabled but missing required secret(s): ${missing.join(', ')}` +
+            suffix
         );
       }
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  if (errors.length > 0) {
+    return failResult(errors, warnings);
+  }
+  const result = okResult();
+  result.warnings = warnings;
+  return result;
 }
 
 /**
@@ -379,17 +412,35 @@ export function validateModelConfig(
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
  * Agents that use MODEL for cloud LLM providers (OpenAI/Anthropic).
  * local_llm uses OLLAMA_MODEL instead, so it's excluded from model-provider validation.
  */
+/** @internal — consumed only by validators in this module and hasRequiredCloudAiAgent(). */
 const CLOUD_AI_AGENTS: AgentId[] = ['opencode', 'pr_agent', 'ai_semantic_review'];
+
+/**
+ * Returns true if any cloud AI agent appears in a required:true enabled pass.
+ * When false, all cloud-agent-only preflight checks can be demoted to warnings.
+ */
+export function hasRequiredCloudAiAgent(config: Config): boolean {
+  return config.passes.some(
+    (pass) => pass.enabled && pass.required && pass.agents.some((a) => CLOUD_AI_AGENTS.includes(a))
+  );
+}
+
+/**
+ * Returns true if any cloud AI agent appears in any enabled pass (required or optional).
+ * Used to gate validators that are meaningless when no cloud agents exist at all.
+ */
+export function hasAnyCloudAiAgent(config: Config): boolean {
+  return config.passes.some(
+    (pass) => pass.enabled && pass.agents.some((a) => CLOUD_AI_AGENTS.includes(a))
+  );
+}
 
 /**
  * Validate model-provider match based on model name heuristic.
@@ -414,7 +465,7 @@ export function validateModelProviderMatch(
 
   if (!hasCloudAiAgent) {
     // No cloud AI agents enabled, skip model-provider validation
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   // INVARIANT: Ollama-style models (containing ':') are ONLY for local_llm
@@ -427,7 +478,7 @@ export function validateModelProviderMatch(
         `  MODEL=gpt-4o-mini     # OpenAI\n` +
         `Or in .ai-review.yml, disable cloud agents and keep only local_llm.`
     );
-    return { valid: false, errors };
+    return failResult(errors);
   }
 
   // Heuristic: infer provider from model prefix
@@ -445,10 +496,7 @@ export function validateModelProviderMatch(
   }
   // Unknown model prefix - no validation, allow it to proceed
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
@@ -486,7 +534,7 @@ export function validateProviderModelCompatibility(
 
   if (cloudAgents.size === 0) {
     // No cloud AI agents enabled, skip validation
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   // Infer intended provider from model name
@@ -529,10 +577,7 @@ export function validateProviderModelCompatibility(
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
@@ -557,7 +602,7 @@ export function validateAzureDeployment(env: Record<string, string | undefined>)
 
   if (!hasAzure) {
     // Not using Azure, skip validation
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   const deployment = env['AZURE_OPENAI_DEPLOYMENT'];
@@ -569,10 +614,7 @@ export function validateAzureDeployment(env: Record<string, string | undefined>)
     errors.push('Set: AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>');
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
@@ -597,7 +639,7 @@ export function validateMultiKeyAmbiguity(
   const hasModel = env['MODEL'] && env['MODEL'].trim() !== '';
   if (!hasModel) {
     // No MODEL set - auto-apply will handle this or fail elsewhere
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   // Count providers with keys
@@ -625,10 +667,7 @@ export function validateMultiKeyAmbiguity(
     );
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
@@ -649,7 +688,7 @@ export function validateExplicitProviderKeys(
 
   if (!config.provider) {
     // No explicit provider - other validation handles this
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   const provider = config.provider;
@@ -680,10 +719,7 @@ export function validateExplicitProviderKeys(
     }
     // FR-008: Connectivity is checked at runtime, not preflight
 
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
+    return errors.length === 0 ? okResult() : failResult(errors);
   }
 
   // Non-Ollama providers: check required keys
@@ -708,10 +744,7 @@ export function validateExplicitProviderKeys(
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }
 
 /**
@@ -732,7 +765,7 @@ export function validateOllamaConfig(
   // - OLLAMA_BASE_URL defaults to http://ollama-sidecar:11434
   // - OLLAMA_MODEL defaults to codellama:7b
   // - Connectivity is validated at runtime (fail-closed behavior)
-  return { valid: true, errors: [] };
+  return okResult();
 }
 
 /**
@@ -758,7 +791,7 @@ export function validateChatModelCompatibility(
   );
 
   if (!hasCloudAiAgent) {
-    return { valid: true, errors: [] };
+    return okResult();
   }
 
   if (isCodexFamilyModel(model)) {
@@ -789,5 +822,5 @@ export function validateChatModelCompatibility(
     );
   }
 
-  return { valid: errors.length === 0, errors };
+  return errors.length === 0 ? okResult() : failResult(errors);
 }

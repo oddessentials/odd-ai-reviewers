@@ -25,6 +25,8 @@ import {
   validateMultiKeyAmbiguity,
   validateExplicitProviderKeys,
   resolveEffectiveModelWithDefaults,
+  hasRequiredCloudAiAgent,
+  hasAnyCloudAiAgent,
 } from '../preflight.js';
 
 export interface PreflightResult {
@@ -65,11 +67,12 @@ export function runPreflightChecks(
   const allErrors: string[] = [];
   const allWarnings: string[] = [];
 
-  // 1. Agent secrets validation
+  // 1. Agent secrets validation (respects pass.required — optional agents produce warnings)
   const secretsCheck = validateAgentSecrets(config, env);
   if (!secretsCheck.valid) {
     allErrors.push(...secretsCheck.errors);
   }
+  allWarnings.push(...secretsCheck.warnings);
 
   // Resolve effective model with auto-apply for single-key setups (FR-001)
   const { model: resolvedModel, autoApplied } = resolveEffectiveModelWithDefaults(config, env);
@@ -82,31 +85,42 @@ export function runPreflightChecks(
     console.error(`[preflight] Auto-applied default model: ${resolvedModel}`);
   }
 
-  // 2. Model config validation
-  const modelCheck = validateModelConfig(effectiveModel, env);
-  if (!modelCheck.valid) {
-    allErrors.push(...modelCheck.errors);
+  // Cloud-agent-only checks: demote to warnings when ALL cloud agents are optional.
+  // These checks are irrelevant when cloud agents will just be skipped at runtime.
+  // NOTE: validateModelProviderMatch, validateProviderModelCompatibility, and
+  // validateChatModelCompatibility already short-circuit internally when no cloud
+  // agents are enabled. validateModelConfig does NOT have that guard, so we gate
+  // it here: skip entirely when no cloud agents exist, demote when they're all optional.
+  const cloudAgentsRequired = hasRequiredCloudAiAgent(config);
+  const cloudTarget = cloudAgentsRequired ? allErrors : allWarnings;
+
+  // 2. Model config validation (only relevant when cloud agents are enabled)
+  if (hasAnyCloudAiAgent(config)) {
+    const modelCheck = validateModelConfig(effectiveModel, env);
+    if (!modelCheck.valid) {
+      cloudTarget.push(...modelCheck.errors);
+    }
   }
 
   // 3. Model-provider match validation
   const matchCheck = validateModelProviderMatch(config, effectiveModel, env);
   if (!matchCheck.valid) {
-    allErrors.push(...matchCheck.errors);
+    cloudTarget.push(...matchCheck.errors);
   }
 
   // 4. Provider-model compatibility
   const compatCheck = validateProviderModelCompatibility(config, effectiveModel, env);
   if (!compatCheck.valid) {
-    allErrors.push(...compatCheck.errors);
+    cloudTarget.push(...compatCheck.errors);
   }
 
-  // 5. Azure deployment validation
+  // 5. Azure deployment validation (infra — always hard error)
   const azureCheck = validateAzureDeployment(env);
   if (!azureCheck.valid) {
     allErrors.push(...azureCheck.errors);
   }
 
-  // 6. Ollama config validation
+  // 6. Ollama config validation (infra — always hard error)
   const ollamaCheck = validateOllamaConfig(config, env);
   if (!ollamaCheck.valid) {
     allErrors.push(...ollamaCheck.errors);
@@ -115,19 +129,23 @@ export function runPreflightChecks(
   // 7. Chat model compatibility (reject codex/completions-only models)
   const chatCheck = validateChatModelCompatibility(config, effectiveModel, env);
   if (!chatCheck.valid) {
-    allErrors.push(...chatCheck.errors);
+    cloudTarget.push(...chatCheck.errors);
   }
 
-  // 8. Multi-key ambiguity check (T024/T028 - FR-004)
+  // 8. Multi-key ambiguity check (T024/T028 - FR-004) — always hard error (ambiguous config)
   const multiKeyCheck = validateMultiKeyAmbiguity(config, env);
   if (!multiKeyCheck.valid) {
     allErrors.push(...multiKeyCheck.errors);
   }
 
   // 9. Explicit provider key check (T026/T028)
+  // Ollama URL format errors are structural → always hard error.
+  // Non-Ollama missing-key errors are "missing prerequisite" → demote when
+  // all cloud agents are optional (same logic as agent secret checks).
   const explicitProviderCheck = validateExplicitProviderKeys(config, env);
   if (!explicitProviderCheck.valid) {
-    allErrors.push(...explicitProviderCheck.errors);
+    const providerTarget = config.provider === 'ollama' ? allErrors : cloudTarget;
+    providerTarget.push(...explicitProviderCheck.errors);
   }
 
   // 10. Platform environment detection for "both" platform (T040-T042, FR-013, FR-014, FR-017)
