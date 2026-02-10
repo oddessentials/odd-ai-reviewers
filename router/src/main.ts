@@ -43,6 +43,7 @@ import {
   processFindings,
   dispatchReport,
   checkGating,
+  GatingError,
   type Platform,
 } from './phases/index.js';
 import type { AgentId } from './config/schemas.js';
@@ -911,6 +912,10 @@ export async function runReview(
     console.log('[router] Review complete');
     exitSuccess(exitHandler);
   } catch (error) {
+    if (error instanceof GatingError) {
+      exitHandler(1);
+      return;
+    }
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[router] ❌ Review failed: ${errorMsg}`);
     const summary = 'The AI review failed before reporting results.\n' + `Error: ${errorMsg}`;

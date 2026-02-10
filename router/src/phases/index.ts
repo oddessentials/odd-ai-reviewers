@@ -15,6 +15,7 @@ export {
   processFindings,
   dispatchReport,
   checkGating,
+  GatingError,
   type Platform,
   type ReportOptions,
   type ProcessedFindings,

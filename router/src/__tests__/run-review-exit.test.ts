@@ -17,13 +17,17 @@ vi.mock('../report/github.js', () => ({
   startCheckRun: vi.fn(),
   completeCheckRun: vi.fn(),
 }));
-vi.mock('../phases/index.js', () => ({
-  runPreflightChecks: vi.fn(),
-  executeAllPasses: vi.fn(),
-  processFindings: vi.fn(),
-  dispatchReport: vi.fn(),
-  checkGating: vi.fn(),
-}));
+vi.mock('../phases/index.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    runPreflightChecks: vi.fn(),
+    executeAllPasses: vi.fn(),
+    processFindings: vi.fn(),
+    dispatchReport: vi.fn(),
+    checkGating: vi.fn(),
+  };
+});
 vi.mock('../trust.js', () => ({ checkTrust: vi.fn(), buildADOPRContext: vi.fn() }));
 vi.mock('../cli/signals.js', () => ({ setupSignalHandlers: vi.fn() }));
 
