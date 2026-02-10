@@ -12,7 +12,6 @@
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
-import { buildAgentEnv } from './security.js';
 import { estimateTokens } from '../budget.js';
 import { getCurrentDateUTC } from './date-utils.js';
 
@@ -539,7 +538,7 @@ export const localLlmAgent: ReviewAgent = {
   async run(context: AgentContext): Promise<AgentResult> {
     const startTime = Date.now();
 
-    const agentEnv = buildAgentEnv('local_llm', context.env);
+    const agentEnv = context.env;
     const ollamaUrl = agentEnv['OLLAMA_BASE_URL'] || 'http://ollama-sidecar:11434';
     const model = agentEnv['OLLAMA_MODEL'] || DEFAULT_MODEL;
     const numCtx = parseInt(agentEnv['LOCAL_LLM_NUM_CTX'] || String(DEFAULT_NUM_CTX), 10);

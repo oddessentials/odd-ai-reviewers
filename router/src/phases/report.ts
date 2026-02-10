@@ -28,6 +28,11 @@ import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
 
+export interface DispatchReportResult {
+  /** Whether the check run was completed during reporting (always false for ADO) */
+  checkRunCompleted: boolean;
+}
+
 export interface ReportOptions {
   dryRun?: boolean;
   owner?: string;
@@ -140,7 +145,7 @@ export async function dispatchReport(
   routerEnv: Record<string, string | undefined>,
   prNumber: number,
   options: ReportOptions
-): Promise<void> {
+): Promise<DispatchReportResult | undefined> {
   if (options.dryRun) {
     console.log('[router] Dry run - skipping reporting');
     return;
@@ -173,6 +178,7 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to GitHub:', reportResult.error);
     }
+    return { checkRunCompleted: reportResult.checkRunCompleted ?? false };
   } else if (platform === 'ado') {
     // Extract ADO context from environment
     const collectionUri = routerEnv['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'] ?? '';
@@ -212,15 +218,30 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to Azure DevOps:', reportResult.error);
     }
+    return { checkRunCompleted: false };
   }
 }
 
 /**
- * Check gating and exit if blocking findings present.
+ * Error thrown when gating detects blocking findings.
+ * Distinct from FatalExecutionError to allow callers to handle gating
+ * exits through the injected exitHandler rather than process.exit.
+ */
+export class GatingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GatingError';
+  }
+}
+
+/**
+ * Check gating and throw if blocking findings present.
  *
  * FR-008: Gating uses ONLY completeFindings (from successful agents).
  * Partial findings from failed agents are rendered in reports but do NOT block merges.
  * This ensures that agent failures don't cause unexpected CI failures.
+ *
+ * @throws {GatingError} when blocking findings are present
  */
 export function checkGating(config: Config, completeFindings: Finding[]): void {
   if (!config.gating.enabled) {
@@ -236,6 +257,6 @@ export function checkGating(config: Config, completeFindings: Finding[]): void {
 
   if (hasBlockingFindings) {
     console.error('[router] Gating failed - blocking severity findings present');
-    process.exit(1);
+    throw new GatingError('Blocking severity findings present');
   }
 }

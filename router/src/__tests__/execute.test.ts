@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { executeAllPasses, annotateProvenance } from '../phases/execute.js';
+import { executeAllPasses, annotateProvenance, FatalExecutionError } from '../phases/execute.js';
 import type { Config } from '../config/schemas.js';
 import type { AgentContext, AgentResult, ReviewAgent } from '../agents/types.js';
 import { AgentSuccess, AgentFailure } from '../agents/types.js';
@@ -109,8 +109,6 @@ function createAgentContext(): AgentContext {
 describe('executeAllPasses', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let processExitSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset isKnownAgentId to return true by default
@@ -125,15 +123,11 @@ describe('executeAllPasses', () => {
 
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit called');
-    });
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
-    processExitSpy.mockRestore();
     // Reset all mock implementations to prevent leakage between tests
     // Note: resetAllMocks() resets implementations, restoreAllMocks() undoes vi.mock() entirely
     vi.resetAllMocks();
@@ -236,7 +230,7 @@ describe('executeAllPasses', () => {
       });
     });
 
-    it('should exit when required paid LLM pass is over budget', async () => {
+    it('should throw when required paid LLM pass is over budget', async () => {
       const mockAgent = createMockAgent(
         'opencode',
         'OpenCode',
@@ -262,9 +256,7 @@ describe('executeAllPasses', () => {
           { allowed: false, reason: 'over budget' },
           { configHash: 'hash123' }
         )
-      ).rejects.toThrow('process.exit called');
-
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      ).rejects.toThrow(FatalExecutionError);
     });
 
     it('should allow local_llm even when over budget (free)', async () => {
@@ -883,7 +875,7 @@ describe('executeAllPasses', () => {
       });
     });
 
-    it('should exit when required agent fails', async () => {
+    it('should throw when required agent fails', async () => {
       // Ensure mock is reset for this test
       vi.mocked(isKnownAgentId).mockReturnValue(true);
 
@@ -913,7 +905,7 @@ describe('executeAllPasses', () => {
           { allowed: true, reason: 'under budget' },
           { configHash: 'hash123' }
         )
-      ).rejects.toThrow('process.exit called');
+      ).rejects.toThrow(FatalExecutionError);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Required agent Semgrep failed')
@@ -950,8 +942,8 @@ describe('executeAllPasses', () => {
       expect(result.skippedAgents[0]?.reason).toBe('Unexpected crash');
     });
 
-    // This test verifies that required agents crash with process.exit
-    it('should exit when required agent crashes', async () => {
+    // This test verifies that required agents surface a fatal execution error
+    it('should throw when required agent crashes', async () => {
       // Explicit resets to ensure clean state
       vi.mocked(getCached).mockResolvedValue(null);
       vi.mocked(isKnownAgentId).mockReturnValue(true);
@@ -978,7 +970,7 @@ describe('executeAllPasses', () => {
           { allowed: true, reason: 'under budget' },
           { configHash: 'hash123' }
         )
-      ).rejects.toThrow('process.exit called');
+      ).rejects.toThrow(FatalExecutionError);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Required agent Semgrep crashed')

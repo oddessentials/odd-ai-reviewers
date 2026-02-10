@@ -33,8 +33,9 @@ import {
 } from './diff.js';
 import { loadReviewIgnore, shouldIgnoreFile } from './reviewignore.js';
 import type { AgentContext } from './agents/types.js';
-import { startCheckRun } from './report/github.js';
+import { startCheckRun, completeCheckRun, type GitHubContext } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
+import { setupSignalHandlers } from './cli/signals.js';
 import { hashConfig } from './cache/key.js';
 import {
   runPreflightChecks,
@@ -42,6 +43,7 @@ import {
   processFindings,
   dispatchReport,
   checkGating,
+  GatingError,
   type Platform,
 } from './phases/index.js';
 import type { AgentId } from './config/schemas.js';
@@ -70,6 +72,18 @@ function exitSuccess(exitHandler: ExitHandler): void {
 // =============================================================================
 // CLI Program
 // =============================================================================
+
+function enableBlockingWrites(stream: NodeJS.WriteStream): void {
+  if (stream.isTTY) return;
+  const handle = (stream as unknown as { _handle?: { setBlocking?: (v: boolean) => void } })
+    ._handle;
+  if (handle?.setBlocking) {
+    handle.setBlocking(true);
+  }
+}
+
+enableBlockingWrites(process.stdout);
+enableBlockingWrites(process.stderr);
 
 const program = new Command();
 
@@ -652,6 +666,38 @@ export async function runReview(
   const platform = detectPlatform(routerEnv);
   console.log(`[router] Detected platform: ${platform}`);
 
+  let checkRunId: number | undefined;
+  let checkRunContext: GitHubContext | undefined;
+  let checkRunFinalized = false;
+
+  const finalizeCheckRun = async (
+    conclusion: 'success' | 'failure' | 'neutral',
+    title: string,
+    summary: string
+  ): Promise<void> => {
+    if (!checkRunId || !checkRunContext || checkRunFinalized) return;
+    await completeCheckRun({ ...checkRunContext, checkRunId }, { conclusion, title, summary });
+    checkRunFinalized = true;
+  };
+
+  const shouldHandleSignals = platform === 'github' && deps.exitHandler === undefined;
+  if (shouldHandleSignals) {
+    setupSignalHandlers({
+      cleanup: async () => {
+        await finalizeCheckRun(
+          'neutral',
+          'AI Review interrupted',
+          'The AI review was interrupted before completion.'
+        );
+      },
+      showPartialResultsMessage: false,
+      logger: {
+        log: (message) => console.log(`[router] ${message}`),
+        warn: (message) => console.warn(`[router] ${message}`),
+      },
+    });
+  }
+
   // Build PR context based on platform
   let prContext: PullRequestContext;
   if (platform === 'ado') {
@@ -741,12 +787,12 @@ export async function runReview(
   }
 
   // Start GitHub check run (in_progress state)
-  let checkRunId: number | undefined;
   const reportingMode = config.reporting.github?.mode ?? 'checks_and_comments';
   const shouldUseChecks =
     reportingMode === 'checks_only' || reportingMode === 'checks_and_comments';
 
   if (
+    platform === 'github' &&
     shouldUseChecks &&
     !options.dryRun &&
     options.owner &&
@@ -754,6 +800,12 @@ export async function runReview(
     routerEnv['GITHUB_TOKEN']
   ) {
     try {
+      checkRunContext = {
+        owner: options.owner,
+        repo: options.repoName,
+        headSha: githubHeadSha,
+        token: routerEnv['GITHUB_TOKEN'],
+      };
       checkRunId = await startCheckRun({
         owner: options.owner,
         repo: options.repoName,
@@ -800,6 +852,10 @@ export async function runReview(
     for (const error of preflightResult.errors) {
       console.error(`[router]   - ${error}`);
     }
+    const summary =
+      'Preflight checks failed. Review did not run.\n' +
+      preflightResult.errors.map((error) => `- ${error}`).join('\n');
+    await finalizeCheckRun('failure', 'AI Review preflight failed', summary);
     exitHandler(1);
     return; // For type safety when exitHandler doesn't terminate
   }
@@ -810,47 +866,62 @@ export async function runReview(
     agentContext.effectiveModel = preflightResult.resolved.model;
   }
 
-  // === PHASE 5: Execute Agent Passes ===
-  const executeResult = await executeAllPasses(config, agentContext, routerEnv, budgetCheck, {
-    pr: options.pr,
-    head: reviewRefs.headSha,
-    configHash,
-  });
-
-  // === PHASE 6: Process & Report Findings ===
-  // (012-fix-agent-result-regressions) - Now passing completeFindings and partialFindings separately
-  const { sorted, partialSorted } = processFindings(
-    executeResult.completeFindings,
-    executeResult.partialFindings,
-    executeResult.allResults,
-    executeResult.skippedAgents
-  );
-
-  await dispatchReport(
-    platform,
-    sorted,
-    partialSorted,
-    config,
-    diff.files,
-    routerEnv,
-    prContext.number,
-    {
-      dryRun: options.dryRun,
-      owner: options.owner,
-      repoName: options.repoName,
+  try {
+    // === PHASE 5: Execute Agent Passes ===
+    const executeResult = await executeAllPasses(config, agentContext, routerEnv, budgetCheck, {
       pr: options.pr,
       head: reviewRefs.headSha,
-      githubHeadSha,
-      checkRunId,
+      configHash,
+    });
+
+    // === PHASE 6: Process & Report Findings ===
+    // (012-fix-agent-result-regressions) - Now passing completeFindings and partialFindings separately
+    const { sorted, partialSorted } = processFindings(
+      executeResult.completeFindings,
+      executeResult.partialFindings,
+      executeResult.allResults,
+      executeResult.skippedAgents
+    );
+
+    const reportResult = await dispatchReport(
+      platform,
+      sorted,
+      partialSorted,
+      config,
+      diff.files,
+      routerEnv,
+      prContext.number,
+      {
+        dryRun: options.dryRun,
+        owner: options.owner,
+        repoName: options.repoName,
+        pr: options.pr,
+        head: reviewRefs.headSha,
+        githubHeadSha,
+        checkRunId,
+      }
+    );
+    if (platform === 'github' && reportResult?.checkRunCompleted) {
+      checkRunFinalized = true;
     }
-  );
 
-  // === PHASE 7: Gating ===
-  // FR-008: checkGating receives only completeFindings (sorted) - partial findings don't affect gating
-  checkGating(config, sorted);
+    // === PHASE 7: Gating ===
+    // FR-008: checkGating receives only completeFindings (sorted) - partial findings don't affect gating
+    checkGating(config, sorted);
 
-  console.log('[router] Review complete');
-  exitSuccess(exitHandler);
+    console.log('[router] Review complete');
+    exitSuccess(exitHandler);
+  } catch (error) {
+    if (error instanceof GatingError) {
+      exitHandler(1);
+      return;
+    }
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[router] ❌ Review failed: ${errorMsg}`);
+    const summary = 'The AI review failed before reporting results.\n' + `Error: ${errorMsg}`;
+    await finalizeCheckRun('failure', 'AI Review failed', summary);
+    exitHandler(1);
+  }
 }
 
 // Only parse arguments when run directly (not when imported for testing)

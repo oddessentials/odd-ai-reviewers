@@ -10,7 +10,7 @@
  * - No Network Listeners in Agent Execution (Invariant 10)
  */
 
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 export type AgentId =
   | 'semgrep'
@@ -252,9 +252,8 @@ export async function validateNoListeningSockets(processName?: string): Promise<
 }> {
   try {
     try {
-      // Use 'which' instead of 'command -v' because command is a shell builtin
-      // and execSync doesn't use a shell by default
-      execSync('which lsof', { encoding: 'utf-8', stdio: 'ignore', timeout: 2000 });
+      // Use 'which' instead of 'command -v' because command is a shell builtin.
+      execFileSync('which', ['lsof'], { encoding: 'utf-8', stdio: 'ignore', timeout: 2000 });
     } catch {
       return { safe: false, error: 'Listener detection unavailable: lsof not installed' };
     }

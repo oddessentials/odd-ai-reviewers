@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processFindings, dispatchReport, checkGating } from '../phases/report.js';
+import { processFindings, dispatchReport, checkGating, GatingError } from '../phases/report.js';
 import type { Config } from '../config/schemas.js';
 import type { Finding, AgentResult } from '../agents/types.js';
 import { AgentSuccess } from '../agents/types.js';
@@ -339,18 +339,6 @@ describe('Report Module', () => {
    * FR-008: Verify gating uses completeFindings only, not partialFindings
    */
   describe('gating with partialFindings (FR-008)', () => {
-    let processExitSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-        throw new Error('process.exit called');
-      });
-    });
-
-    afterEach(() => {
-      processExitSpy.mockRestore();
-    });
-
     it('FR-008: should NOT gate on partialFindings - only completeFindings affect gating', () => {
       const config = {
         ...minimalConfig,
@@ -375,11 +363,8 @@ describe('Report Module', () => {
       // Process to generate sorted output (which goes to gating)
       const processed = processFindings(completeFindings, partialWithError, [], []);
 
-      // Gating should NOT exit because sorted only contains completeFindings
-      checkGating(config, processed.sorted);
-
-      // If we get here, gating passed (didn't call process.exit)
-      expect(processExitSpy).not.toHaveBeenCalled();
+      // Gating should NOT throw because sorted only contains completeFindings
+      expect(() => checkGating(config, processed.sorted)).not.toThrow();
     });
 
     it('FR-008: should gate on completeFindings even when partialFindings exist', () => {
@@ -414,9 +399,8 @@ describe('Report Module', () => {
 
       const processed = processFindings(completeWithError, partialWithWarning, [], []);
 
-      // Gating SHOULD exit because completeFindings has an error
-      expect(() => checkGating(config, processed.sorted)).toThrow('process.exit called');
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      // Gating SHOULD throw because completeFindings has an error
+      expect(() => checkGating(config, processed.sorted)).toThrow(GatingError);
     });
 
     it('FR-008: should pass gating with warnings in partialFindings when fail_on_severity is warning', () => {
@@ -451,10 +435,8 @@ describe('Report Module', () => {
 
       const processed = processFindings(completeWithInfo, partialWithWarning, [], []);
 
-      // Gating should NOT exit - partialFindings warnings don't count
-      checkGating(config, processed.sorted);
-
-      expect(processExitSpy).not.toHaveBeenCalled();
+      // Gating should NOT throw - partialFindings warnings don't count
+      expect(() => checkGating(config, processed.sorted)).not.toThrow();
     });
   });
 
@@ -669,18 +651,6 @@ describe('Report Module', () => {
   });
 
   describe('checkGating', () => {
-    let processExitSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-        throw new Error('process.exit called');
-      });
-    });
-
-    afterEach(() => {
-      processExitSpy.mockRestore();
-    });
-
     it('should do nothing when gating is disabled', () => {
       const config = {
         ...minimalConfig,
@@ -690,12 +660,10 @@ describe('Report Module', () => {
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
       ];
 
-      checkGating(config, findings);
-
-      expect(processExitSpy).not.toHaveBeenCalled();
+      expect(() => checkGating(config, findings)).not.toThrow();
     });
 
-    it('should exit when fail_on_severity is error and error findings present', () => {
+    it('should throw GatingError when fail_on_severity is error and error findings present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
@@ -704,11 +672,10 @@ describe('Report Module', () => {
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
       ];
 
-      expect(() => checkGating(config, findings)).toThrow('process.exit called');
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(() => checkGating(config, findings)).toThrow(GatingError);
     });
 
-    it('should not exit when fail_on_severity is error but only warnings present', () => {
+    it('should not throw when fail_on_severity is error but only warnings present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
@@ -717,12 +684,10 @@ describe('Report Module', () => {
         { severity: 'warning', file: 'test.ts', line: 1, message: 'Warning', sourceAgent: 'test' },
       ];
 
-      checkGating(config, findings);
-
-      expect(processExitSpy).not.toHaveBeenCalled();
+      expect(() => checkGating(config, findings)).not.toThrow();
     });
 
-    it('should exit when fail_on_severity is warning and warning findings present', () => {
+    it('should throw GatingError when fail_on_severity is warning and warning findings present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
@@ -731,11 +696,10 @@ describe('Report Module', () => {
         { severity: 'warning', file: 'test.ts', line: 1, message: 'Warning', sourceAgent: 'test' },
       ];
 
-      expect(() => checkGating(config, findings)).toThrow('process.exit called');
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(() => checkGating(config, findings)).toThrow(GatingError);
     });
 
-    it('should exit when fail_on_severity is warning and error findings present', () => {
+    it('should throw GatingError when fail_on_severity is warning and error findings present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
@@ -744,11 +708,10 @@ describe('Report Module', () => {
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
       ];
 
-      expect(() => checkGating(config, findings)).toThrow('process.exit called');
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(() => checkGating(config, findings)).toThrow(GatingError);
     });
 
-    it('should not exit when fail_on_severity is warning but only info present', () => {
+    it('should not throw when fail_on_severity is warning but only info present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'warning' as const, drift_gate: false },
@@ -757,20 +720,16 @@ describe('Report Module', () => {
         { severity: 'info', file: 'test.ts', line: 1, message: 'Info', sourceAgent: 'test' },
       ];
 
-      checkGating(config, findings);
-
-      expect(processExitSpy).not.toHaveBeenCalled();
+      expect(() => checkGating(config, findings)).not.toThrow();
     });
 
-    it('should not exit when no findings present', () => {
+    it('should not throw when no findings present', () => {
       const config = {
         ...minimalConfig,
         gating: { enabled: true, fail_on_severity: 'error' as const, drift_gate: false },
       };
 
-      checkGating(config, []);
-
-      expect(processExitSpy).not.toHaveBeenCalled();
+      expect(() => checkGating(config, [])).not.toThrow();
     });
 
     it('should log error message when gating fails', () => {
@@ -782,7 +741,7 @@ describe('Report Module', () => {
         { severity: 'error', file: 'test.ts', line: 1, message: 'Error', sourceAgent: 'test' },
       ];
 
-      expect(() => checkGating(config, findings)).toThrow();
+      expect(() => checkGating(config, findings)).toThrow(GatingError);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '[router] Gating failed - blocking severity findings present'

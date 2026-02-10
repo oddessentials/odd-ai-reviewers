@@ -24,14 +24,8 @@ vi.mock('../agents/path-filter.js', () => ({
   })),
 }));
 
-// Mock security - pass through input env with agent ID marker
-vi.mock('../agents/security.js', () => ({
-  buildAgentEnv: vi.fn((agentId, env) => ({ ...env, AGENT_ID: agentId })),
-}));
-
 import { execFileSync } from 'child_process';
 import { filterSafePaths } from '../agents/path-filter.js';
-import { buildAgentEnv } from '../agents/security.js';
 
 // Shared test helpers - lifted to file scope for reuse
 const createFile = (
@@ -260,21 +254,21 @@ describe('semgrepAgent.run()', () => {
     );
   });
 
-  it('should pass buildAgentEnv result to execFileSync (PEP 540 wiring)', async () => {
-    // Regression test: verifies that the env from buildAgentEnv is passed to spawn.
+  it('should pass context env to execFileSync (PEP 540 wiring)', async () => {
+    // Regression test: verifies that the env from context is passed to spawn.
     // The actual PYTHONUTF8=1 value is tested in security.test.ts; this test
     // ensures the wiring is correct so that centralized env reaches the subprocess.
     vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ results: [], errors: [] }));
 
     const context = createContext([createFile('src/app.ts')]);
+    context.env = { TEST_ENV: '1' };
     await semgrepAgent.run(context);
 
-    expect(vi.mocked(buildAgentEnv)).toHaveBeenCalledWith('semgrep', context.env);
     expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
       'semgrep',
       expect.any(Array),
       expect.objectContaining({
-        env: expect.objectContaining({ AGENT_ID: 'semgrep' }),
+        env: expect.objectContaining({ TEST_ENV: '1' }),
       })
     );
   });

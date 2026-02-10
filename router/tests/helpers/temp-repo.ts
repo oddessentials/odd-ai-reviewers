@@ -10,7 +10,7 @@
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { afterEach, afterAll } from 'vitest';
 
 // =============================================================================
@@ -89,9 +89,9 @@ export function makeTempRepo(options: TempRepoOptions = {}): TempRepo {
 
   // Initialize git
   if (initGit) {
-    execSync('git init', { cwd: tempDir, stdio: 'pipe' });
-    execSync('git config user.email "test@test.com"', { cwd: tempDir, stdio: 'pipe' });
-    execSync('git config user.name "Test"', { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['init'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tempDir, stdio: 'pipe' });
   }
 
   // Initial commit
@@ -100,8 +100,8 @@ export function makeTempRepo(options: TempRepoOptions = {}): TempRepo {
     if (Object.keys(files).length === 0) {
       writeFileSync(join(tempDir, '.gitkeep'), '');
     }
-    execSync('git add .', { cwd: tempDir, stdio: 'pipe' });
-    execSync('git commit -m "Initial commit"', { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['add', '.'], { cwd: tempDir, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-m', 'Initial commit'], { cwd: tempDir, stdio: 'pipe' });
   }
 
   const cleanup = () => {

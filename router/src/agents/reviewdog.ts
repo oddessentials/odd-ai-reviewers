@@ -16,7 +16,6 @@ import { filterSafePaths } from './path-filter.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
-import { buildAgentEnv } from './security.js';
 import { generateFingerprint } from '../report/formats.js';
 
 /**
@@ -88,7 +87,7 @@ export function mapSeverity(semgrepSeverity: string): Severity {
 async function runSemgrepStructured(
   repoPath: string,
   filePaths: string[],
-  _env: Record<string, string>
+  _env: Record<string, string | undefined>
 ): Promise<{ success: boolean; findings: Finding[]; error?: string }> {
   // Filter paths for safe execution (defense-in-depth)
   const { safePaths } = filterSafePaths(filePaths, 'reviewdog');
@@ -163,7 +162,7 @@ async function runSemgrepStructured(
 async function runReviewdogLocal(
   repoPath: string,
   semgrepJsonPath: string,
-  cleanEnv: Record<string, string>
+  cleanEnv: Record<string, string | undefined>
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     // CRITICAL: -reporter=local means no GitHub posting
@@ -247,7 +246,7 @@ export const reviewdogAgent: ReviewAgent = {
 
     // ROUTER MONOPOLY RULE: Strip ALL tokens from environment
     // Agents must NOT have access to posting credentials
-    const cleanEnv = buildAgentEnv('reviewdog', context.env);
+    const cleanEnv = context.env;
 
     // Primary path: Run semgrep directly and parse structured output
     const result = await runSemgrepStructured(context.repoPath, filePaths, cleanEnv);

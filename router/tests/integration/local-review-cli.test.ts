@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 // =============================================================================
@@ -23,6 +23,16 @@ interface CliResult {
   stdout: string;
   stderr: string;
 }
+
+function supportsNodeSpawn(): boolean {
+  const result = spawnSync(process.execPath, ['-e', 'process.exit(0)'], {
+    stdio: 'pipe',
+  });
+  if (result.error) return false;
+  return result.status === 0;
+}
+
+const cliIt = supportsNodeSpawn() ? it : it.skip;
 
 async function runCli(args: string[], cwd?: string): Promise<CliResult> {
   return new Promise((resolve) => {
@@ -41,6 +51,13 @@ async function runCli(args: string[], cwd?: string): Promise<CliResult> {
 
     let stdout = '';
     let stderr = '';
+    let resolved = false;
+    const finish = (result: CliResult, timeoutId: NodeJS.Timeout): void => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutId);
+      resolve(result);
+    };
 
     child.stdout?.on('data', (data) => {
       stdout += data.toString();
@@ -51,24 +68,43 @@ async function runCli(args: string[], cwd?: string): Promise<CliResult> {
     });
 
     child.on('close', (code) => {
-      resolve({
-        exitCode: code ?? 0,
-        stdout,
-        stderr,
-      });
+      finish(
+        {
+          exitCode: code ?? 0,
+          stdout,
+          stderr,
+        },
+        timeoutId
+      );
+    });
+
+    child.on('error', (error) => {
+      finish(
+        {
+          exitCode: -1,
+          stdout,
+          stderr: `${stderr}\n${error.message}`.trim(),
+        },
+        timeoutId
+      );
     });
 
     // Timeout after 30 seconds
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       child.kill();
-      resolve({
-        exitCode: -1,
-        stdout,
-        stderr: stderr + '\n[Test timeout]',
-      });
+      finish(
+        {
+          exitCode: -1,
+          stdout,
+          stderr: stderr + '\n[Test timeout]',
+        },
+        timeoutId
+      );
     }, 30000);
   });
 }
+
+const CLI_TEST_TIMEOUT_MS = 15000;
 
 // =============================================================================
 // Tests: User Story 1 - CLI Command Discoverability
@@ -76,25 +112,33 @@ async function runCli(args: string[], cwd?: string): Promise<CliResult> {
 
 describe('User Story 1: CLI Command Discoverability', () => {
   describe('T012: local-review --help matches local --help', () => {
-    it('should show identical help output for both commands', async () => {
-      const localHelp = await runCli(['local', '--help']);
-      const localReviewHelp = await runCli(['local-review', '--help']);
+    cliIt(
+      'should show identical help output for both commands',
+      async () => {
+        const localHelp = await runCli(['local', '--help']);
+        const localReviewHelp = await runCli(['local-review', '--help']);
 
-      expect(localHelp.exitCode).toBe(0);
-      expect(localReviewHelp.exitCode).toBe(0);
-      // Help output should be identical (both refer to same command)
-      expect(localHelp.stdout).toBe(localReviewHelp.stdout);
-    });
+        expect(localHelp.exitCode).toBe(0);
+        expect(localReviewHelp.exitCode).toBe(0);
+        // Help output should be identical (both refer to same command)
+        expect(localHelp.stdout).toBe(localReviewHelp.stdout);
+      },
+      CLI_TEST_TIMEOUT_MS
+    );
   });
 
   describe('T014: local-review appears in main help', () => {
-    it('should include local-review alias in main program help', async () => {
-      const mainHelp = await runCli(['--help']);
+    cliIt(
+      'should include local-review alias in main program help',
+      async () => {
+        const mainHelp = await runCli(['--help']);
 
-      expect(mainHelp.exitCode).toBe(0);
-      // The alias should appear in help (Commander shows it as local|local-review)
-      expect(mainHelp.stdout).toMatch(/local-review/i);
-    });
+        expect(mainHelp.exitCode).toBe(0);
+        // The alias should appear in help (Commander shows it as local|local-review)
+        expect(mainHelp.stdout).toMatch(/local-review/i);
+      },
+      CLI_TEST_TIMEOUT_MS
+    );
   });
 });
 
@@ -106,23 +150,31 @@ describe('Integration Test Matrix: Success Paths', () => {
   // Tests use --dry-run to validate CLI execution without actual review operations
 
   describe('T055-T058: Basic command execution', () => {
-    it('ai-review local . executes with exit code 0', async () => {
-      const result = await runCli(['local', '.', '--dry-run']);
+    cliIt(
+      'ai-review local . executes with exit code 0',
+      async () => {
+        const result = await runCli(['local', '.', '--dry-run']);
 
-      // Exit code 0 indicates successful dry-run execution
-      expect(result.exitCode).toBe(0);
-      // Dry-run should produce output indicating what would happen
-      expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
-    });
+        // Exit code 0 indicates successful dry-run execution
+        expect(result.exitCode).toBe(0);
+        // Dry-run should produce output indicating what would happen
+        expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
+      },
+      CLI_TEST_TIMEOUT_MS
+    );
 
-    it('ai-review local-review . executes with exit code 0', async () => {
-      const result = await runCli(['local-review', '.', '--dry-run']);
+    cliIt(
+      'ai-review local-review . executes with exit code 0',
+      async () => {
+        const result = await runCli(['local-review', '.', '--dry-run']);
 
-      // Exit code 0 indicates successful dry-run execution
-      expect(result.exitCode).toBe(0);
-      // Dry-run should produce output indicating what would happen
-      expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
-    });
+        // Exit code 0 indicates successful dry-run execution
+        expect(result.exitCode).toBe(0);
+        // Dry-run should produce output indicating what would happen
+        expect(result.stdout + result.stderr).toMatch(/dry.?run|would|skip/i);
+      },
+      CLI_TEST_TIMEOUT_MS
+    );
   });
 });
 
@@ -160,11 +212,15 @@ describe('Integration Test Matrix: Malformed Ranges (T059)', () => {
   ];
 
   for (const { range, description, expectedError } of malformedRanges) {
-    it(`rejects "${range}" (${description}) with exit code 2`, async () => {
-      const result = await runCli(['local', '--range', range, '.']);
+    cliIt(
+      `rejects "${range}" (${description}) with exit code 2`,
+      async () => {
+        const result = await runCli(['local', '--range', range, '.']);
 
-      expect(result.exitCode).toBe(2); // ExitCode.INVALID_ARGS
-      expect(result.stderr).toMatch(expectedError);
-    });
+        expect(result.exitCode).toBe(2); // ExitCode.INVALID_ARGS
+        expect(result.stderr).toMatch(expectedError);
+      },
+      CLI_TEST_TIMEOUT_MS
+    );
   }
 });

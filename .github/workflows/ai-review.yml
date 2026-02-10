@@ -42,6 +42,7 @@ on:
 jobs:
   ai-review:
     name: AI Code Review
+    timeout-minutes: 30
     runs-on: ${{ fromJSON(inputs.runs_on) }}
 
     permissions:
@@ -100,11 +101,26 @@ jobs:
       - name: Determine base SHA
         id: base
         working-directory: target
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
         run: |
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            echo "sha=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          if [ -n "$PR_BASE_SHA" ]; then
+            echo "sha=$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
           else
-            echo "sha=$(git rev-parse origin/${{ inputs.base_ref }})" >> $GITHUB_OUTPUT
+            echo "sha=$(git rev-parse "origin/$INPUT_BASE_REF")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate AI credentials
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OLLAMA_BASE_URL" ] && [ -z "$AZURE_OPENAI_API_KEY" ]; then
+            echo "::error::No AI credentials provided. Pass secrets with 'secrets: inherit' or map OPENAI_API_KEY, ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY, or OLLAMA_BASE_URL in the calling workflow."
+            exit 1
           fi
 
       - name: Run AI Review
@@ -114,17 +130,26 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          INPUT_TARGET_REPO: ${{ inputs.target_repo }}
+          INPUT_TARGET_REF: ${{ inputs.target_ref }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          OWNER=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f1)
-          REPO=$(echo "${{ inputs.target_repo }}" | cut -d'/' -f2)
+          OWNER=$(echo "$INPUT_TARGET_REPO" | cut -d'/' -f1)
+          REPO=$(echo "$INPUT_TARGET_REPO" | cut -d'/' -f2)
+
+          PR_FLAG=""
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            PR_FLAG="--pr $INPUT_PR_NUMBER"
+          fi
 
           node router/dist/main.js review \
             --repo ../target \
-            --base ${{ steps.base.outputs.sha }} \
-            --head ${{ inputs.target_ref }} \
+            --base "$BASE_SHA" \
+            --head "$INPUT_TARGET_REF" \
             --owner "$OWNER" \
             --repo-name "$REPO" \
-            ${{ inputs.pr_number && format('--pr {0}', inputs.pr_number) || '' }}
+            $PR_FLAG
 
       - name: Upload review artifacts
         uses: actions/upload-artifact@v4
