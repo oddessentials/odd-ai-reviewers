@@ -70,7 +70,7 @@ jobs:
         env:
           BASE_REF: ${{ inputs.base_ref }}
         run: |
-          echo "sha=$(git rev-parse "origin/$BASE_REF")" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse "origin/$BASE_REF")" >> "$GITHUB_OUTPUT"
 
       - name: Run AI Review
         env:
@@ -85,18 +85,17 @@ jobs:
           OWNER=$(echo "$TARGET_REPO" | cut -d'/' -f1)
           REPO=$(echo "$TARGET_REPO" | cut -d'/' -f2)
 
-          PR_ARG=""
-          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "0" ]; then
-            PR_ARG="--pr $PR_NUMBER"
-          fi
-
-          node router/dist/main.js review \
-            --repo target \
+          set -- --repo target \
             --base "$BASE_SHA" \
             --head "$TARGET_REF" \
             --owner "$OWNER" \
-            --repo-name "$REPO" \
-            $PR_ARG
+            --repo-name "$REPO"
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "0" ]; then
+            set -- "$@" --pr "$PR_NUMBER"
+          fi
+
+          node router/dist/main.js review "$@"
 
       - name: Upload results
         uses: actions/upload-artifact@v4
