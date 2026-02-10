@@ -120,18 +120,6 @@ jobs:
             echo "sha=$(git rev-parse "origin/$INPUT_BASE_REF")" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate AI credentials
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-        run: |
-          if [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OLLAMA_BASE_URL" ] && [ -z "$AZURE_OPENAI_API_KEY" ]; then
-            echo "::error::No AI credentials provided. Pass secrets with 'secrets: inherit' or map OPENAI_API_KEY, ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY, or OLLAMA_BASE_URL in the calling workflow."
-            exit 1
-          fi
-
       - name: Run AI Review
         working-directory: router
         env:
@@ -150,18 +138,17 @@ jobs:
           OWNER=$(echo "$INPUT_TARGET_REPO" | cut -d'/' -f1)
           REPO=$(echo "$INPUT_TARGET_REPO" | cut -d'/' -f2)
 
-          PR_FLAG=""
-          if [ -n "$INPUT_PR_NUMBER" ]; then
-            PR_FLAG="--pr $INPUT_PR_NUMBER"
-          fi
-
-          node router/dist/main.js review \
-            --repo ../target \
+          set -- --repo ../target \
             --base "$BASE_SHA" \
             --head "$INPUT_TARGET_REF" \
             --owner "$OWNER" \
-            --repo-name "$REPO" \
-            $PR_FLAG
+            --repo-name "$REPO"
+
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            set -- "$@" --pr "$INPUT_PR_NUMBER"
+          fi
+
+          node router/dist/main.js review "$@"
 
       - name: Upload review artifacts
         uses: actions/upload-artifact@v4

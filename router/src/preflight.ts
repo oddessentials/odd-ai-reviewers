@@ -482,15 +482,21 @@ export function validateModelProviderMatch(
   }
 
   // Heuristic: infer provider from model prefix
+  // Use explicit empty-string checks (consistent with validateAgentSecrets and
+  // validateExplicitProviderKeys) — GitHub Actions sets missing secrets to ''
+  const keyPresent = (key: string): boolean => {
+    const v = env[key];
+    return v !== undefined && v.trim() !== '';
+  };
+
   if (model.startsWith('claude-')) {
-    if (!env['ANTHROPIC_API_KEY']) {
+    if (!keyPresent('ANTHROPIC_API_KEY')) {
       errors.push(
         `MODEL '${model}' looks like Anthropic (claude-*) but ANTHROPIC_API_KEY is missing`
       );
     }
   } else if (model.startsWith('gpt-') || model.startsWith('o1-')) {
-    const hasOpenAI = env['OPENAI_API_KEY'] || env['AZURE_OPENAI_API_KEY'];
-    if (!hasOpenAI) {
+    if (!keyPresent('OPENAI_API_KEY') && !keyPresent('AZURE_OPENAI_API_KEY')) {
       errors.push(`MODEL '${model}' looks like OpenAI (gpt-*/o1-*) but OPENAI_API_KEY is missing`);
     }
   }
