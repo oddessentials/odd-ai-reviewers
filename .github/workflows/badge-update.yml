@@ -111,7 +111,7 @@ jobs:
       # Using actions/github-script with inline Octokit to minimize supply chain risk
       # SHA-pinned for supply chain hardening (v7.0.1)
       - name: Update test badge Gist
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7
         with:
           github-token: ${{ secrets.GIST_TOKEN }}
           script: |
@@ -142,7 +142,7 @@ jobs:
             }
 
       - name: Update coverage badge Gist
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7
         with:
           github-token: ${{ secrets.GIST_TOKEN }}
           script: |
