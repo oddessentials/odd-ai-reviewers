@@ -3,8 +3,8 @@
 # This file documents known CVEs that are accepted risks with justification.
 # All CVEs here are from third-party binaries we do not control.
 #
-# Last reviewed: 2026-01-31 by AI Review Router team
-# Next review due: 2026-04-30
+# Last reviewed: 2026-02-10 by AI Review Router team
+# Next review due: 2026-05-10
 
 # ============================================================================
 # OpenCode CLI Binary (Go runtime CVEs)
@@ -118,9 +118,10 @@ CVE-2023-45288
 # Reviewdog Binary (Go runtime CVEs)
 #
 # Reviewdog v0.21.0 is compiled with Go 1.25.0 which contains these
-# vulnerabilities. Fixed in Go 1.25.6.
+# vulnerabilities. Fixed in Go 1.25.6+.
 #
-# Risk assessment: LOW - Reviewdog only parses diff/lint data.
+# Risk assessment: LOW - Reviewdog only parses diff/lint data. It does not
+# negotiate TLS with untrusted peers or process user-controlled archives.
 # ============================================================================
 
 # Go net/url - Excessive query parsing causing resource exhaustion
@@ -138,3 +139,21 @@ CVE-2025-61726
 # Risk: LOW - Reviewdog doesn't process user-controlled zip files
 # Fixed in: Go 1.24.12, 1.25.6 | Reviewdog compiled with Go 1.25.0
 CVE-2025-61728
+
+# Go crypto/tls - TLS 1.3 handshake panic on multiple messages in records
+# Created: 2026-02-10
+# Expires: 2026-08-10
+# Package: stdlib (crypto/tls)
+# Risk: LOW - Reviewdog parses diff/lint output, does not negotiate TLS
+#   with untrusted peers. All TLS connections are outbound to GitHub API.
+# Fixed in: Go 1.24.12, 1.25.6 | Reviewdog compiled with Go 1.25.0
+CVE-2025-61730
+
+# Go crypto/tls - Session resumption config mutation race condition
+# Created: 2026-02-10
+# Expires: 2026-08-10
+# Package: stdlib (crypto/tls)
+# Risk: LOW - Reviewdog is a single-threaded CLI, does not share TLS
+#   configs across goroutines or perform session resumption.
+# Fixed in: Go 1.24.13, 1.25.7 | Reviewdog compiled with Go 1.25.0
+CVE-2025-68121
