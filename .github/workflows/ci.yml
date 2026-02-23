@@ -258,7 +258,7 @@ jobs:
           echo "Reviewdog smoke test passed"
 
       - name: Trivy scan (HIGH,CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.34.1
         with:
           image-ref: odd-ai-reviewers-router:ci
           format: table
