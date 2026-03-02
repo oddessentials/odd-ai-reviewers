@@ -108,7 +108,7 @@ jobs:
       # FR-031: Upload test artifacts for badge-update workflow
       - name: Upload test artifacts
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |
