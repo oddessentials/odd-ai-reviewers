@@ -3,15 +3,22 @@
 **Module**: `router/src/agents/control_flow/safe-source-detector.ts`
 **Depends on**: `safe-source-patterns.ts`, `vulnerability-detector.ts`, TypeScript compiler API
 
+## Version
+
+**Contract version**: 1.0 | **Pattern count**: 9
+
+The pattern registry version and count MUST be exported as constants from `safe-source-patterns.ts` (`SAFE_SOURCE_REGISTRY_VERSION` and `EXPECTED_PATTERN_COUNT`). Unit tests MUST verify these match the contract to prevent silent addition or removal of suppression rules.
+
 ## Design Principles
 
 1. **Conservative by default**: When in doubt, treat as tainted. False negatives (missed safe source) are acceptable; false negatives on real vulnerabilities are not.
+1. **AST precedence over prompts**: Safe-source suppression takes precedence over LLM-generated findings for the same sink, because AST-verified safety is more precise than prompt-guided heuristics.
 2. **Narrowly scoped predicates**: Each pattern matches a specific, provable AST shape. No heuristics, no "looks safe."
 3. **Traceable decisions**: Every suppression is logged with the pattern ID that triggered it, enabling audit.
 
 ## Integration with VulnerabilityDetector
 
-The safe-source check runs as a **filter step between findSources() and trackTaint()** in the `analyze()` method of `vulnerability-detector.ts`:
+The safe-source check runs as a **filter step between findSources() and trackTaint()** in the `detectInFile()` method of `vulnerability-detector.ts`:
 
 ```text
 1. findSinks()           → DetectedSink[]

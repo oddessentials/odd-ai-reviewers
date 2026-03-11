@@ -114,6 +114,7 @@
 | expectedFindings | ExpectedFinding[] | yes | Expected findings (empty for false-positive tests) |
 | truePositive | boolean | yes | Whether this scenario tests true-positive preservation |
 | subcategory | string | no | For pattern 'F' only: specific root cause explanation |
+| source | string | no | Origin of fixture: 'internal' (default, from #158-161) or external benchmark name |
 
 ### 9. ExpectedFinding
 

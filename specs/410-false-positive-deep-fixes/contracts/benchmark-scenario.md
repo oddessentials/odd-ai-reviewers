@@ -59,6 +59,10 @@ Each of the 13 fixtures not fitting patterns A-E MUST be individually categorize
 - `pattern`: "F" (for mixed/other) with a `subcategory` field explaining the specific root cause
 - `description`: Clear explanation of why this is a false positive and why it doesn't fit A-E
 
+### Fixture Refresh (Post-Release)
+
+The 43+10 internal fixtures are locked for this release. To guard against overfitting, the CLI command accepts any fixture file conforming to the BenchmarkScenario schema. Periodically import 5-10 new scenarios from external code review benchmarks and run them as a separate validation pass. External fixtures do NOT affect the release gate thresholds (SC-001 through SC-005) but are reported in the BenchmarkReport under a separate `source` label.
+
 ## Scoring Contract (Locked)
 
 ### Metric Definitions
@@ -157,3 +161,5 @@ The benchmark test suite MUST run in CI on every PR targeting main. The test use
 - TP precision < 70% → test warning (non-blocking for initial release)
 
 This enforces SC-005: regression suite passes as a release gate before merge.
+
+**Note**: Scenarios using mock LLM responses in CI validate the filtering pipeline only, not prompt effectiveness. Periodic runs with live LLM calls are recommended to validate prompt-dependent fixtures (Patterns B/C/D).
