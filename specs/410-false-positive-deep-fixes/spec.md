@@ -87,7 +87,7 @@ The project maintainer can run a benchmark command that evaluates the review sys
 **Acceptance Scenarios**:
 
 1. **Given** the 43 false-positive regression fixtures, **When** the regression suite runs, **Then** at most 15% of fixtures produce a false positive (improvement from 100% baseline).
-2. **Given** the 2 documented true-positive cases, **When** the regression suite runs, **Then** both true positives are still detected.
+2. **Given** the 10+ true-positive preservation cases (covering injection, xss, path_traversal, ssrf, auth_bypass with at least 2 per family), **When** the regression suite runs, **Then** all true positives are still detected (zero recall regression).
 3. **Given** any benchmark scenario set, **When** the harness adapter runs, **Then** a JSON report is produced containing precision, recall, F1, and false-positive rate metrics.
 
 ---
@@ -106,26 +106,33 @@ The project maintainer can run a benchmark command that evaluates the review sys
 
 ### Functional Requirements
 
-- **FR-001**: The review system MUST recognize module-scope constant declarations with literal initializers (strings, numbers, arrays of literals) as safe data sources that cannot carry user-controlled taint.
-- **FR-002**: The review system MUST recognize built-in directory references (`__dirname`, `__filename`, `import.meta.dirname`, `import.meta.url`) as safe data sources.
-- **FR-003**: The review system MUST recognize local directory listing return values as safe when the directory argument is a constant string or a built-in-directory-relative path.
-- **FR-004**: The review system MUST NOT flag regular expression construction when the pattern argument can be traced to a constant array of literal strings.
-- **FR-005**: The review system MUST downgrade severity of findings in test files (files matching common test file naming patterns) by one level.
-- **FR-006**: The review system MUST accept a PR description (title and body) as input context and make it available to review agents.
-- **FR-007**: The review system MUST accept project-level rules (from a project configuration file such as CLAUDE.md) as input context and make it available to review agents.
+- **FR-001**: The control-flow vulnerability detector MUST recognize module-scope `const` declarations initialized with literal values (string literals, numeric literals, arrays where every element is a literal) as non-tainted. Only direct literal initializers qualify; references to other variables, function return values, or imported bindings do NOT qualify. The detector MUST NOT suppress a finding if the constant is ever reassigned via alias, property mutation, or element assignment within the analyzed file.
+- **FR-002**: The control-flow vulnerability detector MUST recognize built-in directory references (`__dirname`, `__filename`, `import.meta.dirname`, `import.meta.url`) as non-tainted for path-traversal sink analysis.
+- **FR-003**: The control-flow vulnerability detector MUST recognize `fs.readdirSync(arg)` and `fs.promises.readdir(arg)` return values as non-tainted ONLY when `arg` is (a) a string literal, (b) a built-in directory reference, or (c) a `path.join`/`path.resolve` call whose every argument is a string literal or built-in reference. Expressions containing variables, binary operators (`||`, `??`), or ternary operators MUST NOT qualify.
+- **FR-004**: The control-flow vulnerability detector MUST NOT flag regular expression construction when the pattern argument is an element access on a module-scope `const` array of string literals (per FR-001 criteria).
+- **FR-005**: ~~REMOVED~~ *(Test-file severity downgrade removed per review: filename-based severity reduction is a policy footgun that normalizes real security findings in tests, fixtures, and sample applications. Severity should reflect the finding's inherent risk, not file location.)*
+- **FR-006**: The review system MUST accept a PR description (title and body) as input context, sanitize it (strip null bytes, limit to 2000 characters, escape control characters), and make it available to review agents via AgentContext.
+- **FR-007**: The review system MUST accept project-level rules (from a project configuration file such as CLAUDE.md) as input context, sanitize it (same as FR-006), and make it available to review agents via AgentContext.
 - **FR-008**: The review system MUST accept file exclusion patterns (from a review-ignore configuration) as input context.
-- **FR-009**: When PR description and project rules are available, review agents MUST consider them before generating findings to avoid contradicting documented project decisions or the stated PR purpose.
-- **FR-010**: When combined context (project rules + diff) exceeds 90% of processing capacity, project rules MUST be truncated first, preserving the diff content with a truncation indicator appended.
-- **FR-011**: A post-processing validation step MUST verify that each finding's cited line number falls within the diff's valid line range for the referenced file.
-- **FR-012**: The post-processing step MUST filter findings whose message contains self-dismissing language such as "no action required", "acceptable as-is", "not blocking", or "no change needed".
+- **FR-009**: The router MUST inject PR description and project rules into the user prompt template of each LLM agent, placed before the diff content. The router MUST verify that injected context appears in the assembled prompt (observable output). Agents are NOT relied upon to "consider" context — the router ensures context is structurally present so the LLM has it available during generation.
+- **FR-010**: When combined context (project rules + PR description + diff) exceeds 90% of the configured `max_tokens_per_pr` limit (estimated at 1 token per 4 characters), project rules MUST be truncated first, then PR description, preserving diff content intact. A truncation indicator (`[truncated]`) MUST be appended to any truncated field.
+- **FR-011**: A post-processing validation step MUST verify that each **inline** finding's cited line number falls within the diff's valid line range for the referenced file. Findings that are file-level (no line number) or that reference files not in the diff (cross-file concerns) MUST bypass line validation and proceed to other validation checks. The validator MUST classify findings as `inline` (has file + line) or `file-level` (has file, no line) or `global` (no file) and apply validation rules appropriate to each class.
+- **FR-012**: The post-processing step MUST filter findings that are structurally self-contradicting, defined as findings where ALL of the following conditions are met: (1) severity is `info`, (2) the message contains one or more dismissive qualifiers (regex patterns: `/\bno action required\b/i`, `/\bacceptable as[- ]is\b/i`, `/\bnot blocking\b/i`, `/\bno change needed\b/i`, `/\bcan be ignored\b/i`), AND (3) the finding has no actionable suggestion (suggestion field is empty, null, or repeats the dismissive language). A finding at `info` severity with dismissive language BUT a concrete, non-dismissive suggestion MUST NOT be filtered. Findings at `warning` or `error` severity MUST NOT be filtered by language patterns regardless of other signals.
 - **FR-013**: The post-processing step MUST log all filtered findings at a diagnostic level with the specific filter reason, for debugging purposes.
 - **FR-014**: The post-processing validation MUST run after all agents complete and before findings are posted to the code hosting platform.
 - **FR-015**: Review agent prompts MUST include explicit rules about common framework conventions: Express 4-parameter error middleware, query library key-based deduplication, promise-settling order preservation, TypeScript underscore-prefix convention for unused parameters, and exhaustive switch enforcement patterns.
-- **FR-016**: Review agent prompts MUST instruct agents NOT to suggest externalizing constants that are tightly coupled to adjacent code unless a concrete maintenance benefit is cited.
+- **FR-016**: Review agent prompts MUST instruct agents NOT to suggest externalizing constants that are tightly coupled to adjacent code unless a concrete maintenance benefit is cited. Prompts MUST include concrete examples: DO NOT flag `const SEVERITY_MAP = { error: 'red', warning: 'yellow' }` adjacent to its switch statement; DO flag `const TIMEOUT = 5000` duplicated across 3+ files.
 - **FR-017**: A benchmark adapter MUST translate the review system's finding output into a format suitable for comparison against ground truth labels.
-- **FR-018**: A scoring module MUST compute precision, recall, F1, and false-positive rate from findings compared against ground truth.
-- **FR-019**: A regression test suite MUST encode all 43 documented false positives as "expected no finding" test cases.
-- **FR-020**: The regression suite MUST be executable via a single command and produce a machine-readable results report.
+- **FR-018**: A scoring module MUST compute precision, recall, F1, and false-positive rate from findings compared against ground truth. Metrics MUST be computed separately for (a) FP-regression scenarios (measuring suppression rate) and (b) TP-preservation scenarios (measuring recall). Combined metrics MUST NOT conflate FP and TP test pools.
+- **FR-019**: A regression test suite MUST encode all 43 documented false positives as "expected no finding" test cases AND at least 10 true-positive preservation cases covering each vulnerability family (injection, xss, path_traversal, ssrf, auth_bypass) with at least 2 cases each.
+- **FR-020**: The regression suite MUST be executable via a single command, produce a machine-readable results report, and MUST pass as a release gate before merge to main (not deferred across releases).
+
+**Intentional Non-Goals for Safe-Source Detection**:
+- Environment variables are NOT treated as safe (not provably constant at runtime)
+- Type assertions (`as SafeType`) are NOT treated as safe (no runtime semantics)
+- Imported constants from other modules are NOT treated as safe (requires cross-module analysis)
+- Code comments or annotations are NOT treated as safe (not machine-verifiable)
+- Values produced by string concatenation, template literals with interpolation, or function calls (other than FR-003 exceptions) are NOT treated as safe
 
 ### Key Entities
 
@@ -140,11 +147,11 @@ The project maintainer can run a benchmark command that evaluates the review sys
 
 ### Measurable Outcomes
 
-- **SC-001**: False-positive rate on the 43 documented regression cases drops from 100% (43 of 43 are false positives) to at most 15% (at most 6 of 43 produce a false positive).
-- **SC-002**: The 2 documented true-positive findings continue to be detected (zero regression in true-positive detection).
-- **SC-003**: Review precision (true positives / total findings) reaches at least 70% on security-category findings in benchmark evaluation.
+- **SC-001**: False-positive suppression rate on the 43 documented FP regression cases reaches at least 85% (at most 6 of 43 produce a false positive), measured separately from TP metrics.
+- **SC-002**: All true-positive preservation cases (minimum 10, covering injection, xss, path_traversal, ssrf, auth_bypass with at least 2 per family) continue to be detected with zero recall regression.
+- **SC-003**: Review precision on security-category findings reaches at least 70%, measured on TP-preservation scenarios only (not conflated with FP-regression scenarios).
 - **SC-004**: Overall false-positive rate (false positives / total findings) drops to at most 25% across combined finding categories in benchmark evaluation.
-- **SC-005**: All 43 regression test fixtures pass within 3 releases of this feature being shipped.
+- **SC-005**: The regression suite (FP + TP fixtures) MUST pass as a CI release gate before merge to main. Failures block the release — no deferred compliance across future releases.
 - **SC-006**: Context enrichment (injecting PR description and project rules) adds less than 5% overhead to median review completion time.
-- **SC-007**: Post-processing filters at least 80% of self-contradicting findings (findings containing self-dismissing language) in the regression suite.
+- **SC-007**: Post-processing filters at least 80% of structurally self-contradicting findings (info-severity findings with dismissive language and no actionable suggestion) in the regression suite.
 - **SC-008**: No existing automated tests are broken by the changes (zero test regressions).
