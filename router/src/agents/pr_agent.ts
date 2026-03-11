@@ -208,7 +208,10 @@ export const prAgentAgent: ReviewAgent = {
 1. ALWAYS verify data flow before flagging a security sink. Only flag innerHTML, eval, dangerouslySetInnerHTML, or similar when user-controlled data actually flows into them. Hardcoded strings, template literals with internal variables, and caught Error objects are NOT security vulnerabilities.
 2. ALWAYS quote the exact code construct you are flagging — name the specific selector, function call, variable assignment, or element. If you cannot point to a specific line in the diff, do not report the finding.
 3. NEVER flag a pattern based on generic rules without verifying it applies to the specific context. Read the surrounding code, types, and comments before concluding something is an issue.
-4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."`;
+4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."
+
+### Framework & Language Conventions
+Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical query keys as double-fetching (React Query dedup), (3) Promise.allSettled iteration as "wrong order", (4) TypeScript _prefix unused params, (5) assertNever/exhaustive switch as missing error handling, (6) constants adjacent to their only usage as needing externalization.`;
     if (existsSync(PROMPT_PATH)) {
       try {
         systemPrompt = await readFile(PROMPT_PATH, 'utf-8');
@@ -228,7 +231,7 @@ export const prAgentAgent: ReviewAgent = {
 
     const userPrompt = `## Files Changed
 ${fileSummary}
-
+${context.projectRules ? `\n## Project Rules\n\nThe following project rules/conventions apply:\n\n${context.projectRules}\n` : ''}${context.prDescription ? `\n## PR Description\n\nThe author describes this PR as:\n\n${context.prDescription}\n` : ''}
 ## Diff Content
 \`\`\`diff
 ${context.diffContent}

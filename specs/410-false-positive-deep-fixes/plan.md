@@ -21,18 +21,18 @@ Systematically reduce false positives in AI code review findings by implementing
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| I. Router Owns All Posting | PASS | Post-processing validation runs in router before posting; agents remain read-only |
-| II. Structured Findings Contract | PASS | No changes to Finding schema; new fields added to AgentContext only |
-| III. Provider-Neutral Core | PASS | Context enrichment is provider-agnostic; PR description fetching isolated in provider modules |
-| IV. Security-First Design | PASS | New context fields (prDescription, projectRules) treated as untrusted input; sanitized before use |
-| V. Deterministic Outputs | PASS | Safe-source recognition is deterministic (AST-based); post-processing filters are deterministic (regex + line validation) |
-| VI. Bounded Resources | PASS | FR-010 enforces truncation when context exceeds 90% capacity; projectRules truncated first |
-| VII. Environment Discipline | PASS | No new runtime dependencies; no curl/bash installers; benchmark runs in existing Vitest framework |
-| VIII. Explicit Non-Goals | PASS | No new servers, daemons, or CI orchestration; benchmark is a CLI command + test suite |
+| Principle                        | Status | Notes                                                                                                                     |
+| -------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| I. Router Owns All Posting       | PASS   | Post-processing validation runs in router before posting; agents remain read-only                                         |
+| II. Structured Findings Contract | PASS   | No changes to Finding schema; new fields added to AgentContext only                                                       |
+| III. Provider-Neutral Core       | PASS   | Context enrichment is provider-agnostic; PR description fetching isolated in provider modules                             |
+| IV. Security-First Design        | PASS   | New context fields (prDescription, projectRules) treated as untrusted input; sanitized before use                         |
+| V. Deterministic Outputs         | PASS   | Safe-source recognition is deterministic (AST-based); post-processing filters are deterministic (regex + line validation) |
+| VI. Bounded Resources            | PASS   | FR-010 enforces truncation when context exceeds 90% capacity; projectRules truncated first                                |
+| VII. Environment Discipline      | PASS   | No new runtime dependencies; no curl/bash installers; benchmark runs in existing Vitest framework                         |
+| VIII. Explicit Non-Goals         | PASS   | No new servers, daemons, or CI orchestration; benchmark is a CLI command + test suite                                     |
 
 **Gate result: PASS** — All 8 principles satisfied. No violations to justify.
 

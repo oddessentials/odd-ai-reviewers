@@ -23,11 +23,13 @@ pnpm typecheck      # tsc --noEmit
 ### Layer 1: Safe-Source Recognition (User Story 1)
 
 Files to modify:
+
 - `router/src/agents/control_flow/safe-source-patterns.ts` (NEW)
 - `router/src/agents/control_flow/safe-source-detector.ts` (NEW)
 - `router/src/agents/control_flow/vulnerability-detector.ts` (integrate safe-source filter between findSources and trackTaint)
 
 Test:
+
 ```bash
 cd router && pnpm vitest run tests/unit/agents/control_flow/safe-source-detector.test.ts
 ```
@@ -35,6 +37,7 @@ cd router && pnpm vitest run tests/unit/agents/control_flow/safe-source-detector
 ### Layer 2: Context Enrichment (User Story 2)
 
 Files to modify:
+
 - `router/src/agents/types.ts` (extend AgentContext)
 - `router/src/context-loader.ts` (NEW)
 - `router/src/main.ts` (context assembly)
@@ -44,6 +47,7 @@ Files to modify:
 - `router/src/agents/pr_agent.ts` (inject context into user prompt)
 
 Test:
+
 ```bash
 cd router && pnpm vitest run tests/unit/context-loader.test.ts
 ```
@@ -51,10 +55,12 @@ cd router && pnpm vitest run tests/unit/context-loader.test.ts
 ### Layer 3: Post-Processing Validation (User Story 3)
 
 Files to modify:
+
 - `router/src/report/finding-validator.ts` (NEW)
 - `router/src/phases/report.ts` (integrate validation step)
 
 Test:
+
 ```bash
 cd router && pnpm vitest run tests/unit/report/finding-validator.test.ts
 ```
@@ -62,6 +68,7 @@ cd router && pnpm vitest run tests/unit/report/finding-validator.test.ts
 ### Layer 4: Framework Convention Prompts (User Story 4)
 
 Files to modify:
+
 - `config/prompts/semantic_review.md`
 - `config/prompts/opencode_system.md`
 - `config/prompts/pr_agent_review.md`
@@ -70,6 +77,7 @@ Files to modify:
 - `router/src/agents/pr_agent.ts` (update hardcoded fallback)
 
 Test:
+
 ```bash
 cd router && pnpm vitest run tests/unit/agents/prompt-sync.test.ts
 ```
@@ -77,12 +85,14 @@ cd router && pnpm vitest run tests/unit/agents/prompt-sync.test.ts
 ### Layer 5: Benchmark Harness (User Story 5)
 
 Files to create:
+
 - `router/tests/integration/false-positive-benchmark.test.ts`
 - `router/tests/fixtures/benchmark/regression-suite.json` (consolidated: 43 FP + 10+ TP scenarios)
 - `router/tests/fixtures/benchmark/scoring.ts` (dual-pool scoring)
 - `router/tests/fixtures/benchmark/adapter.ts`
 
 Test:
+
 ```bash
 cd router && pnpm vitest run tests/integration/false-positive-benchmark.test.ts
 ```

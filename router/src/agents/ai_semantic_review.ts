@@ -233,6 +233,9 @@ Line numbering requirements:
 - Use new-file line numbers from unified diff hunk headers (@@ -a,b +c,d @@)
 - Only use right-side diff lines (added or context). If unsure, omit the line.
 
+### Framework & Language Conventions
+Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical query keys as double-fetching (React Query dedup), (3) Promise.allSettled iteration as "wrong order", (4) TypeScript _prefix unused params, (5) assertNever/exhaustive switch as missing error handling, (6) constants adjacent to their only usage as needing externalization.
+
 Return a JSON object with findings. Do NOT include any text before or after the JSON.`;
 
     if (existsSync(PROMPT_PATH)) {
@@ -249,7 +252,7 @@ Return a JSON object with findings. Do NOT include any text before or after the 
 
     const userPrompt = `## Files Changed
 ${fileSummary}
-
+${context.projectRules ? `\n## Project Rules\n\nThe following project rules/conventions apply:\n\n${context.projectRules}\n` : ''}${context.prDescription ? `\n## PR Description\n\nThe author describes this PR as:\n\n${context.prDescription}\n` : ''}
 ## Diff Content
 \`\`\`diff
 ${context.diffContent}

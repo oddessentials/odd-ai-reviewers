@@ -5,7 +5,7 @@
 **Status**: Draft
 **Input**: User description: "Reduce false positives in AI code review via safe-source taint analysis, context enrichment, post-processing validation, framework convention prompts, and benchmark harness integration. Addresses 43 documented false positives from issues #158-161. Builds on completed 409 prompt hardening."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Safe Source Recognition Eliminates Pattern-Matching False Positives (Priority: P1)
 
@@ -102,7 +102,7 @@ The project maintainer can run a benchmark command that evaluates the review sys
 - What happens when a benchmark scenario times out? For TP-preservation scenarios, the timeout is scored as a false negative (expected finding missed). For FP-regression scenarios, the timeout is scored as a true negative (conservative: no findings produced means no false positive).
 - What happens when a finding is on a borderline between safe and unsafe (e.g., `innerHTML = sanitize(userInput)`)? The finding is still reported but at reduced severity with a note about the sanitization.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -110,7 +110,7 @@ The project maintainer can run a benchmark command that evaluates the review sys
 - **FR-002**: The control-flow vulnerability detector MUST recognize built-in directory references (`__dirname`, `__filename`, `import.meta.dirname`, `import.meta.url`) as non-tainted for path-traversal sink analysis.
 - **FR-003**: The control-flow vulnerability detector MUST recognize `fs.readdirSync(arg)` and `fs.promises.readdir(arg)` return values as non-tainted ONLY when `arg` is (a) a string literal, (b) a built-in directory reference, or (c) a `path.join`/`path.resolve` call whose every argument is a string literal or built-in reference. Expressions containing variables, binary operators (`||`, `??`), or ternary operators MUST NOT qualify.
 - **FR-004**: The control-flow vulnerability detector MUST NOT flag regular expression construction when the pattern argument is an element access on a module-scope `const` array of string literals (per FR-001 criteria).
-- **FR-005**: ~~REMOVED~~ *(Test-file severity downgrade removed per review: filename-based severity reduction is a policy footgun that normalizes real security findings in tests, fixtures, and sample applications. Severity should reflect the finding's inherent risk, not file location.)*
+- **FR-005**: ~~REMOVED~~ _(Test-file severity downgrade removed per review: filename-based severity reduction is a policy footgun that normalizes real security findings in tests, fixtures, and sample applications. Severity should reflect the finding's inherent risk, not file location.)_
 - **FR-006**: The review system MUST accept a PR description (title and body) as input context, sanitize it (strip null bytes, limit to 2000 characters, escape control characters), and make it available to review agents via AgentContext.
 - **FR-007**: The review system MUST accept project-level rules (from a project configuration file such as CLAUDE.md) as input context, sanitize it (same as FR-006), and make it available to review agents via AgentContext.
 - **FR-008**: The review system MUST accept file exclusion patterns (from a review-ignore configuration) as input context.
@@ -128,6 +128,7 @@ The project maintainer can run a benchmark command that evaluates the review sys
 - **FR-020**: The regression suite MUST be executable via a single command, produce a machine-readable results report, and MUST pass as a release gate before merge to main (not deferred across releases).
 
 **Intentional Non-Goals for Safe-Source Detection**:
+
 - Environment variables are NOT treated as safe (not provably constant at runtime)
 - Type assertions (`as SafeType`) are NOT treated as safe (no runtime semantics)
 - Imported constants from other modules are NOT treated as safe (requires cross-module analysis)
@@ -143,7 +144,7 @@ The project maintainer can run a benchmark command that evaluates the review sys
 - **Benchmark Scenario**: A test case consisting of input diff content, expected true-positive findings, and expected non-findings (documented false positives), used to measure review accuracy.
 - **Benchmark Report**: The aggregate output of a benchmark run — precision, recall, F1, false-positive rate, and per-scenario pass/fail results.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

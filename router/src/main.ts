@@ -10,6 +10,7 @@
  */
 
 import { Command } from 'commander';
+import type { BenchmarkScenario } from './benchmark/scoring.js';
 import { fileURLToPath } from 'url';
 import { realpathSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
@@ -33,6 +34,13 @@ import {
 } from './diff.js';
 import { loadReviewIgnore, shouldIgnoreFile } from './reviewignore.js';
 import type { AgentContext } from './agents/types.js';
+import {
+  loadProjectRules,
+  loadPRDescription,
+  truncateContext,
+  loadGitHubEventPR,
+  fetchGitHubPRDetails,
+} from './context-loader.js';
 import { startCheckRun, completeCheckRun, type GitHubContext } from './report/github.js';
 import { buildRouterEnv } from './agents/security.js';
 import { setupSignalHandlers } from './cli/signals.js';
@@ -42,6 +50,7 @@ import {
   executeAllPasses,
   processFindings,
   dispatchReport,
+  getPostNormalizationFindings,
   checkGating,
   GatingError,
   type Platform,
@@ -472,6 +481,119 @@ configCommand
   });
 
 // =============================================================================
+// Benchmark Command (Phase 410 - T027)
+// =============================================================================
+
+program
+  .command('benchmark')
+  .description('Run false-positive regression benchmark')
+  .requiredOption('--fixtures <path>', 'Path to benchmark fixture JSON')
+  .option('--output <path>', 'Write report JSON to file')
+  .option('--verbose', 'Print per-scenario details')
+  .action(async (options) => {
+    try {
+      const { readFileSync: readFile, writeFileSync: writeFile } = await import('fs');
+
+      const scoring = await import('./benchmark/scoring.js');
+      const adapter = await import('./benchmark/adapter.js');
+
+      // Load fixtures
+      const data = JSON.parse(readFile(options.fixtures as string, 'utf-8')) as {
+        scenarios: BenchmarkScenario[];
+      };
+      const benchmarkScenarios = data.scenarios;
+
+      if (benchmarkScenarios.length === 0) {
+        throw new Error('Fixture file contains no scenarios');
+      }
+
+      console.log(`[benchmark] Running ${benchmarkScenarios.length} scenarios...`);
+
+      // Run each scenario, skipping unsupported patterns
+      const results = [];
+      let skippedCount = 0;
+      for (const scenario of benchmarkScenarios) {
+        const unsupportedReason = adapter.getUnsupportedScenarioReason(scenario);
+        if (unsupportedReason) {
+          skippedCount++;
+          if (options.verbose) {
+            console.log(`  [SKIP] ${scenario.id}: ${unsupportedReason}`);
+          }
+          continue;
+        }
+        const findings = await adapter.runScenario(scenario);
+        const result = scoring.scoreScenario(scenario, findings);
+        results.push(result);
+        if (options.verbose) {
+          console.log(
+            `  [${result.passed ? 'PASS' : 'FAIL'}] ${scenario.id}: ${scenario.description}`
+          );
+        }
+      }
+
+      if (results.length === 0 && skippedCount > 0) {
+        throw new Error(
+          'All benchmark scenarios were skipped as unsupported by the deterministic benchmark adapter'
+        );
+      }
+
+      // Compute report
+      const report = scoring.computeReport(results);
+
+      // Output
+      const reportJson = JSON.stringify(report, null, 2);
+      if (options.output) {
+        writeFile(options.output as string, reportJson);
+        console.log(`[benchmark] Report written to ${options.output}`);
+      } else {
+        console.log(reportJson);
+      }
+
+      // Summary
+      const suppression = (report.pool1.suppressionRate * 100).toFixed(1);
+      const recall = (report.pool2.recall * 100).toFixed(1);
+      const precision = (report.pool2.precision * 100).toFixed(1);
+      if (skippedCount > 0) {
+        console.log(
+          `\n[benchmark] ${results.length} scored, ${skippedCount} skipped (unsupported patterns)`
+        );
+      }
+      console.log(`\n[benchmark] Pool 1 (FP): suppression=${suppression}%`);
+      console.log(`[benchmark] Pool 2 (TP): recall=${recall}%, precision=${precision}%`);
+      // SC-007: Pattern E self-contradiction filter rate
+      const patternEScenarios = report.scenarios.filter((s) => s.pattern === 'E');
+      const patternEPassed = patternEScenarios.filter((s) => s.passed).length;
+      const patternERate =
+        patternEScenarios.length > 0 ? patternEPassed / patternEScenarios.length : 1;
+      console.log(
+        `[benchmark] SC-007: Pattern E self-contradiction=${(patternERate * 100).toFixed(1)}%`
+      );
+
+      // Exit code — all release gate metrics must pass (SC-001 through SC-004, SC-007)
+      const suppressionGate = report.pool1.suppressionRate >= 0.85; // SC-001
+      const recallGate = report.pool2.recall === 1.0; // SC-002
+      const precisionGate = report.pool2.precision >= 0.7; // SC-003
+      const fprGate = report.pool1.fpRate <= 0.25; // SC-004
+      const selfContradictionGate = patternERate >= 0.8; // SC-007
+      if (!suppressionGate) console.log('[benchmark] FAIL: SC-001 suppression rate < 85%');
+      if (!recallGate) console.log('[benchmark] FAIL: SC-002 TP recall < 100%');
+      if (!precisionGate) console.log('[benchmark] FAIL: SC-003 TP precision < 70%');
+      if (!fprGate) console.log('[benchmark] FAIL: SC-004 FP rate > 25%');
+      if (!selfContradictionGate)
+        console.log(
+          `[benchmark] FAIL: SC-007 Pattern E self-contradiction filter ${(patternERate * 100).toFixed(1)}% < 80%`
+        );
+      const gatesPassed =
+        suppressionGate && recallGate && precisionGate && fprGate && selfContradictionGate;
+      defaultExitHandler(gatesPassed ? 0 : 1);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[benchmark] Fatal error: ${msg}`);
+      defaultExitHandler(2);
+    }
+  });
+
+// =============================================================================
 // Local Review Command (Phase 407 - T097-T113)
 // =============================================================================
 
@@ -725,6 +847,34 @@ export async function runReview(
     };
   }
 
+  // FR-006: Enrich PR context with title/body from GitHub event payload
+  if (platform === 'github') {
+    const eventPR = await loadGitHubEventPR(routerEnv['GITHUB_EVENT_PATH']);
+    if (eventPR.title) prContext.title = eventPR.title;
+    if (eventPR.body) prContext.body = eventPR.body;
+
+    // Fallback: fetch from GitHub API when event payload didn't yield title/body
+    // (e.g., workflow_dispatch or external CI without a pull_request event payload)
+    if (
+      !prContext.title &&
+      !prContext.body &&
+      options.pr &&
+      options.owner &&
+      options.repoName &&
+      routerEnv['GITHUB_TOKEN']
+    ) {
+      console.log('[router] No PR description in event payload, fetching from GitHub API...');
+      const apiPR = await fetchGitHubPRDetails(
+        options.owner,
+        options.repoName,
+        options.pr,
+        routerEnv['GITHUB_TOKEN']
+      );
+      if (apiPR.title) prContext.title = apiPR.title;
+      if (apiPR.body) prContext.body = apiPR.body;
+    }
+  }
+
   // === PHASE 2: Trust & Diff ===
   const trustResult = checkTrust(prContext, config);
   if (!trustResult.trusted) {
@@ -832,6 +982,16 @@ export async function runReview(
     console.warn(`[router] Budget exceeded: ${budgetCheck.reason}`);
   }
 
+  // FR-006/FR-007: Load context enrichment fields
+  const projectRules = await loadProjectRules(options.repo);
+  const prDescription = await loadPRDescription(prContext?.title, prContext?.body);
+  const truncatedCtx = truncateContext(
+    projectRules,
+    prDescription,
+    diffContent,
+    config.limits.max_tokens_per_pr
+  );
+
   const agentContext: AgentContext = {
     repoPath: options.repo,
     diff,
@@ -843,6 +1003,9 @@ export async function runReview(
     // T016 (FR-003): Use placeholder - preflight will resolve the actual model
     effectiveModel: '',
     provider: null, // Resolved per-agent in execute phase
+    prDescription: truncatedCtx.prDescription,
+    projectRules: truncatedCtx.projectRules,
+    reviewIgnorePatterns: reviewIgnorePatterns.map((p) => p.pattern),
   };
 
   // === PHASE 4: Preflight Validation ===
@@ -888,7 +1051,8 @@ export async function runReview(
       executeResult.completeFindings,
       executeResult.partialFindings,
       executeResult.allResults,
-      executeResult.skippedAgents
+      executeResult.skippedAgents,
+      diff.files
     );
 
     const reportResult = await dispatchReport(
@@ -914,8 +1078,12 @@ export async function runReview(
     }
 
     // === PHASE 7: Gating ===
-    // FR-008: checkGating receives only completeFindings (sorted) - partial findings don't affect gating
-    checkGating(config, sorted);
+    // FR-008: checkGating receives only completeFindings - partial findings don't affect gating
+    // Use post-normalization findings from reporter when available (after Stage 2 validation),
+    // otherwise run the same Stage 2 locally for dry runs or unknown platforms.
+    const gatingFindings =
+      reportResult?.postNormalizationFindings ?? getPostNormalizationFindings(sorted, diff.files);
+    checkGating(config, gatingFindings);
 
     console.log('[router] Review complete');
     exitSuccess(exitHandler);

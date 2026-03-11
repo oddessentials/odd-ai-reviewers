@@ -1,0 +1,593 @@
+{
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "id": "fp-a-001",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "RegExp from hardcoded constant array (HEDGE_PHRASES)",
+      "sourceIssue": "#158.1",
+      "diff": "diff --git a/src/validators.ts b/src/validators.ts\n--- a/src/validators.ts\n+++ b/src/validators.ts\n@@ -1,3 +1,12 @@\n+const HEDGE_PHRASES = ['maybe', 'perhaps', 'possibly', 'might'];\n+\n+function checkHedge(text: string): boolean {\n+  const pattern = HEDGE_PHRASES[0];\n+  const result = new RegExp(pattern).test(text);\n+  return result;\n+}\n+\n export function validate() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-002",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "path.join with __dirname and literal subdirectory",
+      "sourceIssue": "#158.2",
+      "diff": "diff --git a/src/loader.ts b/src/loader.ts\n--- a/src/loader.ts\n+++ b/src/loader.ts\n@@ -1,3 +1,8 @@\n+import path from 'path';\n+import fs from 'fs';\n+\n+const configDir = path.join(__dirname, 'config');\n+const files = fs.readdirSync(configDir);\n+\n export function load() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-003",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "innerHTML from function returning hardcoded HTML",
+      "sourceIssue": "#158.3",
+      "diff": "diff --git a/src/render.ts b/src/render.ts\n--- a/src/render.ts\n+++ b/src/render.ts\n@@ -1,3 +1,10 @@\n+const SAFE_HTML = '<div class=\"container\"><p>Welcome</p></div>';\n+\n+function renderWelcome(el: HTMLElement): void {\n+  const html = SAFE_HTML;\n+  el.innerHTML = html;\n+}\n+\n export function render() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-004",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "fs.readdirSync with __dirname argument",
+      "sourceIssue": "#158.4",
+      "diff": "diff --git a/src/scanner.ts b/src/scanner.ts\n--- a/src/scanner.ts\n+++ b/src/scanner.ts\n@@ -1,3 +1,7 @@\n+import fs from 'fs';\n+\n+const entries = fs.readdirSync(__dirname);\n+const tsFiles = entries.filter((e: string) => e.endsWith('.ts'));\n+\n export function scan() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-005",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "Numeric constant used in array index calculation",
+      "sourceIssue": "#158.5",
+      "diff": "diff --git a/src/pager.ts b/src/pager.ts\n--- a/src/pager.ts\n+++ b/src/pager.ts\n@@ -1,3 +1,8 @@\n+const PAGE_SIZE = 20;\n+\n+function getPage(items: string[], page: number): string[] {\n+  const offset = PAGE_SIZE * page;\n+  return items.slice(offset, offset + PAGE_SIZE);\n+}\n+\n export function paginate() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-006",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "Boolean constant in conditional check",
+      "sourceIssue": "#158.6",
+      "diff": "diff --git a/src/feature.ts b/src/feature.ts\n--- a/src/feature.ts\n+++ b/src/feature.ts\n@@ -1,3 +1,8 @@\n+const FEATURE_ENABLED = true;\n+\n+function checkFeature(): string {\n+  if (FEATURE_ENABLED) {\n+    return 'enabled';\n+  }\n+  return 'disabled';\n+}\n+\n export function check() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-007",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "path.resolve with __dirname and string literals only",
+      "sourceIssue": "#158.7",
+      "diff": "diff --git a/src/paths.ts b/src/paths.ts\n--- a/src/paths.ts\n+++ b/src/paths.ts\n@@ -1,3 +1,7 @@\n+import path from 'path';\n+import fs from 'fs';\n+\n+const templateDir = path.resolve(__dirname, '..', 'templates');\n+const listing = fs.readdirSync(templateDir);\n+\n export function resolve() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-008",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "import.meta.dirname in path construction",
+      "sourceIssue": "#158.8",
+      "diff": "diff --git a/src/esm-loader.ts b/src/esm-loader.ts\n--- a/src/esm-loader.ts\n+++ b/src/esm-loader.ts\n@@ -1,3 +1,7 @@\n+import path from 'path';\n+import fs from 'fs';\n+\n+const dataDir = path.join(import.meta.dirname, 'data');\n+const contents = fs.readdirSync(dataDir);\n+\n export function loadEsm() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-009",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "Constant array element access in string concatenation",
+      "sourceIssue": "#158.9",
+      "diff": "diff --git a/src/labels.ts b/src/labels.ts\n--- a/src/labels.ts\n+++ b/src/labels.ts\n@@ -1,3 +1,8 @@\n+const LABELS = ['success', 'warning', 'error', 'info'];\n+\n+function getLabel(index: number): string {\n+  const label = LABELS[index];\n+  return `Status: ${label}`;\n+}\n+\n export function format() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-010",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "fs.readdirSync with path.join(__dirname, 'fixtures')",
+      "sourceIssue": "#158.10",
+      "diff": "diff --git a/src/test-helper.ts b/src/test-helper.ts\n--- a/src/test-helper.ts\n+++ b/src/test-helper.ts\n@@ -1,3 +1,7 @@\n+import path from 'path';\n+import fs from 'fs';\n+\n+const fixtureDir = path.join(__dirname, 'fixtures');\n+const fixtures = fs.readdirSync(fixtureDir);\n+\n export function helpers() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-011",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "__filename used in error reporting context",
+      "sourceIssue": "#158.11",
+      "diff": "diff --git a/src/error-reporter.ts b/src/error-reporter.ts\n--- a/src/error-reporter.ts\n+++ b/src/error-reporter.ts\n@@ -1,3 +1,7 @@\n+import path from 'path';\n+\n+const currentFile = path.basename(__filename);\n+const reportPrefix = `[${currentFile}]`;\n+\n export function report() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-a-012",
+      "category": "safe-source",
+      "pattern": "A",
+      "description": "Hardcoded string constant used in template literal without interpolation",
+      "sourceIssue": "#158.12",
+      "diff": "diff --git a/src/banner.ts b/src/banner.ts\n--- a/src/banner.ts\n+++ b/src/banner.ts\n@@ -1,3 +1,7 @@\n+const APP_NAME = 'MyApp';\n+const VERSION = '1.0.0';\n+\n+const banner = `${APP_NAME} v${VERSION}`;\n+\n export function showBanner() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-001",
+      "category": "framework-conventions",
+      "pattern": "B",
+      "description": "Express error handler (err, req, res, _next) -- unused _next parameter",
+      "sourceIssue": "#159.1",
+      "diff": "diff --git a/src/middleware.ts b/src/middleware.ts\n--- a/src/middleware.ts\n+++ b/src/middleware.ts\n@@ -1,3 +1,9 @@\n+import { Request, Response, NextFunction } from 'express';\n+\n+function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {\n+  console.error(err.message);\n+  res.status(500).json({ error: 'Internal Server Error' });\n+}\n+\n export function setup() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-002",
+      "category": "framework-conventions",
+      "pattern": "B",
+      "description": "Two useQuery calls with same query key -- not double-fetching",
+      "sourceIssue": "#159.2",
+      "diff": "diff --git a/src/UserProfile.tsx b/src/UserProfile.tsx\n--- a/src/UserProfile.tsx\n+++ b/src/UserProfile.tsx\n@@ -1,3 +1,14 @@\n+import { useQuery } from '@tanstack/react-query';\n+\n+function UserProfile({ userId }: { userId: string }) {\n+  const { data: user } = useQuery({\n+    queryKey: ['user', userId],\n+    queryFn: () => fetchUser(userId),\n+  });\n+  const { data: settings } = useQuery({\n+    queryKey: ['user', userId, 'settings'],\n+    queryFn: () => fetchUserSettings(userId),\n+  });\n+  return <div>{user?.name}</div>;\n+}\n+\n export function App() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-003",
+      "category": "framework-conventions",
+      "pattern": "B",
+      "description": "Promise.allSettled results iterated in order -- order preserved",
+      "sourceIssue": "#159.3",
+      "diff": "diff --git a/src/batch.ts b/src/batch.ts\n--- a/src/batch.ts\n+++ b/src/batch.ts\n@@ -1,3 +1,10 @@\n+async function processBatch(urls: string[]) {\n+  const results = await Promise.allSettled(urls.map(u => fetch(u)));\n+  for (const result of results) {\n+    if (result.status === 'fulfilled') {\n+      console.log(result.value.status);\n+    }\n+  }\n+}\n+\n export function batch() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-004",
+      "category": "framework-conventions",
+      "pattern": "B",
+      "description": "TypeScript _prefix parameter unused -- naming convention",
+      "sourceIssue": "#159.4",
+      "diff": "diff --git a/src/hooks.ts b/src/hooks.ts\n--- a/src/hooks.ts\n+++ b/src/hooks.ts\n@@ -1,3 +1,7 @@\n+function onEvent(_event: Event, data: unknown): void {\n+  console.log('Processing data:', data);\n+}\n+\n export function hooks() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-005",
+      "category": "framework-conventions",
+      "pattern": "B",
+      "description": "assertNever in switch default -- exhaustive check pattern",
+      "sourceIssue": "#159.5",
+      "diff": "diff --git a/src/status.ts b/src/status.ts\n--- a/src/status.ts\n+++ b/src/status.ts\n@@ -1,3 +1,14 @@\n+type Status = 'pending' | 'active' | 'done';\n+\n+function assertNever(x: never): never {\n+  throw new Error(`Unexpected value: ${x}`);\n+}\n+\n+function handleStatus(status: Status): string {\n+  switch (status) {\n+    case 'pending': return 'Waiting';\n+    case 'active': return 'In progress';\n+    case 'done': return 'Complete';\n+    default: assertNever(status);\n+  }\n+}\n+\n export function check() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-c-001",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Large CSS file in project with 'single CSS file' rule",
+      "sourceIssue": "#160.1",
+      "diff": "diff --git a/src/styles.css b/src/styles.css\n--- a/src/styles.css\n+++ b/src/styles.css\n@@ -1,3 +1,20 @@\n+body { margin: 0; padding: 0; font-family: sans-serif; }\n+.container { max-width: 1200px; margin: 0 auto; }\n+.header { background: #333; color: white; padding: 1rem; }\n+.nav { display: flex; gap: 1rem; }\n+.main { padding: 2rem; }\n+.sidebar { width: 250px; background: #f5f5f5; }\n+.card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }\n+.button { padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }\n+.button-primary { background: #007bff; color: white; }\n+.button-secondary { background: #6c757d; color: white; }\n+.form-group { margin-bottom: 1rem; }\n+.input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; }\n+.footer { background: #333; color: white; padding: 1rem; text-align: center; }\n+.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }\n+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }\n+.table { width: 100%; border-collapse: collapse; }\n+.table th, .table td { padding: 0.5rem; border: 1px solid #ddd; }\n+\n .existing { color: red; }",
+      "expectedFindings": [],
+      "truePositive": false,
+      "projectRules": "This project uses a single global CSS file (styles.css). Do not flag large CSS files."
+    },
+    {
+      "id": "fp-c-002",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Magic number that is documented in CLAUDE.md as canonical seed",
+      "sourceIssue": "#160.2",
+      "diff": "diff --git a/src/random.ts b/src/random.ts\n--- a/src/random.ts\n+++ b/src/random.ts\n@@ -1,3 +1,7 @@\n+function seedRandom(): number {\n+  return 42;\n+}\n+\n export function random() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "projectRules": "The number 42 is the canonical seed value used across all random generators. Do not flag it."
+    },
+    {
+      "id": "fp-c-003",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Configuration constant matching project constitution pattern",
+      "sourceIssue": "#160.3",
+      "diff": "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -1,3 +1,7 @@\n+const MAX_RETRIES = 3;\n+const TIMEOUT_MS = 30000;\n+const BASE_URL = 'https://api.example.com';\n+\n export function config() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "projectRules": "All API configuration constants should be defined at module scope as const declarations."
+    },
+    {
+      "id": "fp-c-004",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Inline styles following project 'no CSS-in-JS' rule",
+      "sourceIssue": "#160.4",
+      "diff": "diff --git a/src/Card.tsx b/src/Card.tsx\n--- a/src/Card.tsx\n+++ b/src/Card.tsx\n@@ -1,3 +1,8 @@\n+function Card({ title }: { title: string }) {\n+  return <div style={{ padding: '1rem', border: '1px solid #ccc' }}>\n+    <h2>{title}</h2>\n+  </div>;\n+}\n+\n export function App() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "projectRules": "This project uses inline styles, not CSS-in-JS libraries. Do not flag style={{ ... }} patterns."
+    },
+    {
+      "id": "fp-d-001",
+      "category": "pr-description",
+      "pattern": "D",
+      "description": "Enter key handler change matching PR description purpose",
+      "sourceIssue": "#161.1",
+      "diff": "diff --git a/src/input.ts b/src/input.ts\n--- a/src/input.ts\n+++ b/src/input.ts\n@@ -1,3 +1,8 @@\n+function handleKeyDown(event: KeyboardEvent): void {\n+  if (event.key === 'Enter') {\n+    event.preventDefault();\n+    submitForm();\n+  }\n+}\n+\n export function setup() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "fix: Change Enter key to submit form instead of adding newline"
+    },
+    {
+      "id": "fp-d-002",
+      "category": "pr-description",
+      "pattern": "D",
+      "description": "API endpoint rename described in PR title",
+      "sourceIssue": "#161.2",
+      "diff": "diff --git a/src/routes.ts b/src/routes.ts\n--- a/src/routes.ts\n+++ b/src/routes.ts\n@@ -1,5 +1,5 @@\n-app.get('/api/users', getUsers);\n+app.get('/api/v2/users', getUsers);\n \n export function routes() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "refactor: Rename API endpoints from /api/* to /api/v2/*"
+    },
+    {
+      "id": "fp-d-003",
+      "category": "pr-description",
+      "pattern": "D",
+      "description": "Deprecation removal documented in PR body",
+      "sourceIssue": "#161.3",
+      "diff": "diff --git a/src/legacy.ts b/src/legacy.ts\n--- a/src/legacy.ts\n+++ b/src/legacy.ts\n@@ -1,10 +1,3 @@\n-/** @deprecated Use newMethod instead */\n-function oldMethod(): void {\n-  // legacy implementation\n-}\n-\n-/** @deprecated Use newHelper instead */\n-function oldHelper(): void {\n-  // legacy implementation\n-}\n+// Deprecated functions removed per migration plan\n \n export function current() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "chore: Remove deprecated oldMethod and oldHelper per Q1 migration plan"
+    },
+    {
+      "id": "fp-d-004",
+      "category": "pr-description",
+      "pattern": "D",
+      "description": "Feature flag addition matching PR description",
+      "sourceIssue": "#161.4",
+      "diff": "diff --git a/src/features.ts b/src/features.ts\n--- a/src/features.ts\n+++ b/src/features.ts\n@@ -1,3 +1,8 @@\n+const ENABLE_NEW_DASHBOARD = process.env.FEATURE_DASHBOARD === 'true';\n+\n+function getDashboard(): string {\n+  return ENABLE_NEW_DASHBOARD ? '/dashboard/v2' : '/dashboard';\n+}\n+\n export function features() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "feat: Add feature flag for new dashboard behind FEATURE_DASHBOARD env var"
+    },
+    {
+      "id": "fp-d-005",
+      "category": "pr-description",
+      "pattern": "D",
+      "description": "Test refactoring described in PR body",
+      "sourceIssue": "#161.5",
+      "diff": "diff --git a/tests/user.test.ts b/tests/user.test.ts\n--- a/tests/user.test.ts\n+++ b/tests/user.test.ts\n@@ -1,8 +1,6 @@\n-test('should create user', () => {\n-  const user = createUser({ name: 'Alice' });\n-  expect(user.name).toBe('Alice');\n-});\n-test('should create admin', () => {\n-  const admin = createUser({ name: 'Bob', role: 'admin' });\n-  expect(admin.role).toBe('admin');\n-});\n+describe('User creation', () => {\n+  it.each([\n+    { input: { name: 'Alice' }, expected: { name: 'Alice' } },\n+    { input: { name: 'Bob', role: 'admin' }, expected: { role: 'admin' } },\n+  ])('creates user with $input.name', ({ input, expected }) => {\n+    const user = createUser(input);\n+    expect(user).toMatchObject(expected);\n+  });\n+});",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "refactor: Convert individual user tests to parameterized it.each tests"
+    },
+    {
+      "id": "fp-e-001",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Finding citing non-existent line number in diff",
+      "sourceIssue": "#162.1",
+      "diff": "diff --git a/src/utils.ts b/src/utils.ts\n--- a/src/utils.ts\n+++ b/src/utils.ts\n@@ -1,3 +1,5 @@\n+function helper(x: number): number {\n+  return x + 1;\n+}\n+\n export function utils() {}",
+      "syntheticFindings": [
+        {
+          "severity": "warning",
+          "file": "src/utils.ts",
+          "line": 999,
+          "message": "Potential issue at non-existent line",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-002",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Finding with 'No action required; acceptable as-is' at info severity",
+      "sourceIssue": "#162.2",
+      "diff": "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -1,3 +1,5 @@\n+const TIMEOUT = 5000;\n+\n export function config() {}",
+      "syntheticFindings": [
+        {
+          "severity": "info",
+          "file": "src/config.ts",
+          "line": 1,
+          "message": "No action required; acceptable as-is",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-003",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Finding with 'Not blocking' and 'can be ignored' at info severity",
+      "sourceIssue": "#162.3",
+      "diff": "diff --git a/src/logger.ts b/src/logger.ts\n--- a/src/logger.ts\n+++ b/src/logger.ts\n@@ -1,3 +1,5 @@\n+const LOG_LEVEL = 'info';\n+\n export function logger() {}",
+      "syntheticFindings": [
+        {
+          "severity": "info",
+          "file": "src/logger.ts",
+          "line": 1,
+          "message": "Not blocking — can be ignored safely",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-004",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Finding citing line 500 in a 100-line diff",
+      "sourceIssue": "#162.4",
+      "diff": "diff --git a/src/small.ts b/src/small.ts\n--- a/src/small.ts\n+++ b/src/small.ts\n@@ -1,3 +1,5 @@\n+function tiny(): void {\n+  console.log('hello');\n+}\n+\n export function small() {}",
+      "syntheticFindings": [
+        {
+          "severity": "warning",
+          "file": "src/small.ts",
+          "line": 500,
+          "message": "Issue at far-off line",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-001",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "dead-code-in-diff-context",
+      "description": "Flagging unchanged context lines as dead code",
+      "sourceIssue": "#163.1",
+      "diff": "diff --git a/src/service.ts b/src/service.ts\n--- a/src/service.ts\n+++ b/src/service.ts\n@@ -1,6 +1,7 @@\n function oldHelper() {\n   return 42;\n }\n+\n+function newHelper() {\n+  return 99;\n+}\n \n export function service() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-002",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "test-fixture-safety",
+      "description": "Flagging intentionally unsafe test fixture code",
+      "sourceIssue": "#163.2",
+      "diff": "diff --git a/tests/fixtures/xss-payloads.ts b/tests/fixtures/xss-payloads.ts\n--- a/tests/fixtures/xss-payloads.ts\n+++ b/tests/fixtures/xss-payloads.ts\n@@ -1,3 +1,7 @@\n+const XSS_PAYLOADS = [\n+  '<script>alert(1)</script>',\n+  '<img onerror=\"alert(1)\" src=\"x\">',\n+];\n+\n export const payloads = [];",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-003",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "comment-documented-tradeoff",
+      "description": "Re-reporting a documented known limitation",
+      "sourceIssue": "#163.3",
+      "diff": "diff --git a/src/parser.ts b/src/parser.ts\n--- a/src/parser.ts\n+++ b/src/parser.ts\n@@ -1,3 +1,8 @@\n+// KNOWN LIMITATION: This regex does not handle nested brackets.\n+// Accepted tradeoff per design doc (see ADR-007).\n+const BRACKET_REGEX = /\\[([^\\]]+)\\]/g;\n+\n export function parse() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-004",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "type-narrowing-sufficient",
+      "description": "Suggesting validation when type narrowing is already sufficient",
+      "sourceIssue": "#163.4",
+      "diff": "diff --git a/src/handler.ts b/src/handler.ts\n--- a/src/handler.ts\n+++ b/src/handler.ts\n@@ -1,3 +1,9 @@\n+function processInput(input: string | null): string {\n+  if (input === null) {\n+    return 'default';\n+  }\n+  return input.toUpperCase();\n+}\n+\n export function handle() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-005",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "error-object-not-user-input",
+      "description": "Flagging caught error.message as XSS risk",
+      "sourceIssue": "#163.5",
+      "diff": "diff --git a/src/error-page.ts b/src/error-page.ts\n--- a/src/error-page.ts\n+++ b/src/error-page.ts\n@@ -1,3 +1,9 @@\n+function renderError(error: Error): string {\n+  return `<div class=\"error\">\n+    <h2>Something went wrong</h2>\n+    <p>${error.message}</p>\n+  </div>`;\n+}\n+\n export function errorPage() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-006",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "dev-only-code-path",
+      "description": "Flagging console.log in development-only branch",
+      "sourceIssue": "#163.6",
+      "diff": "diff --git a/src/debug.ts b/src/debug.ts\n--- a/src/debug.ts\n+++ b/src/debug.ts\n@@ -1,3 +1,8 @@\n+function debugLog(msg: string): void {\n+  if (process.env.NODE_ENV === 'development') {\n+    console.log(`[DEBUG] ${msg}`);\n+  }\n+}\n+\n export function debug() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-007",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "local-file-operation",
+      "description": "Flagging local file reads as SSRF",
+      "sourceIssue": "#163.7",
+      "diff": "diff --git a/src/template.ts b/src/template.ts\n--- a/src/template.ts\n+++ b/src/template.ts\n@@ -1,3 +1,7 @@\n+import fs from 'fs';\n+import path from 'path';\n+\n+const tmpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf-8');\n+\n export function template() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-008",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "import-reexport-not-circular",
+      "description": "Flagging barrel file reexport as circular dependency",
+      "sourceIssue": "#163.8",
+      "diff": "diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1,3 +1,5 @@\n+export { UserService } from './services/user.js';\n+export { OrderService } from './services/order.js';\n+export type { User, Order } from './types.js';\n+\n export function main() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-009",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "test-mock-not-production",
+      "description": "Flagging mock/stub patterns as insecure",
+      "sourceIssue": "#163.9",
+      "diff": "diff --git a/tests/auth.test.ts b/tests/auth.test.ts\n--- a/tests/auth.test.ts\n+++ b/tests/auth.test.ts\n@@ -1,3 +1,10 @@\n+import { vi } from 'vitest';\n+\n+const mockAuth = vi.fn().mockResolvedValue({ token: 'test-token-123' });\n+const mockVerify = vi.fn().mockReturnValue(true);\n+\n+vi.mock('./auth', () => ({\n+  authenticate: mockAuth,\n+  verify: mockVerify,\n+}));\n+\n export function tests() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-010",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "string-enum-exhaustive",
+      "description": "Flagging non-existent missing cases in string enum switch",
+      "sourceIssue": "#163.10",
+      "diff": "diff --git a/src/theme.ts b/src/theme.ts\n--- a/src/theme.ts\n+++ b/src/theme.ts\n@@ -1,3 +1,10 @@\n+type Theme = 'light' | 'dark';\n+\n+function getBackground(theme: Theme): string {\n+  switch (theme) {\n+    case 'light': return '#ffffff';\n+    case 'dark': return '#1a1a1a';\n+  }\n+}\n+\n export function theme() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-011",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "return-type-guarantees-safety",
+      "description": "Suggesting null check when return type excludes null",
+      "sourceIssue": "#163.11",
+      "diff": "diff --git a/src/lookup.ts b/src/lookup.ts\n--- a/src/lookup.ts\n+++ b/src/lookup.ts\n@@ -1,3 +1,7 @@\n+function getUser(id: string): { name: string } {\n+  return { name: `User ${id}` };\n+}\n+\n+const user = getUser('123');\n+console.log(user.name);\n+\n export function lookup() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-012",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "style-not-security",
+      "description": "Flagging code style preferences as security issues",
+      "sourceIssue": "#163.12",
+      "diff": "diff --git a/src/format.ts b/src/format.ts\n--- a/src/format.ts\n+++ b/src/format.ts\n@@ -1,3 +1,5 @@\n+const greeting = 'Hello, ' + 'world!';\n+const message = `The value is ${42}`;\n+\n export function format() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-013",
+      "category": "mixed",
+      "pattern": "F",
+      "subcategory": "logging-not-sensitive",
+      "description": "Flagging non-sensitive log output as information disclosure",
+      "sourceIssue": "#163.13",
+      "diff": "diff --git a/src/startup.ts b/src/startup.ts\n--- a/src/startup.ts\n+++ b/src/startup.ts\n@@ -1,3 +1,6 @@\n+function logStartup(): void {\n+  console.log(`Server started on port ${process.env.PORT ?? 3000}`);\n+  console.log(`Environment: ${process.env.NODE_ENV ?? 'development'}`);\n+}\n+\n export function startup() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "tp-inj-001",
+      "category": "injection",
+      "pattern": "A",
+      "description": "SQL injection via db.query(req.body.sql)",
+      "sourceIssue": "#164.1",
+      "diff": "diff --git a/src/api.ts b/src/api.ts\n--- a/src/api.ts\n+++ b/src/api.ts\n@@ -1,3 +1,8 @@\n+function handleQuery(req: any, res: any) {\n+  const userQuery = req.body.sql;\n+  const result = db.query(userQuery);\n+  res.json(result);\n+}\n+\n export function api() {}",
+      "expectedFindings": [{ "file": "src/api.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-inj-002",
+      "category": "injection",
+      "pattern": "A",
+      "description": "Command injection via child_process.exec(req.query.cmd)",
+      "sourceIssue": "#164.2",
+      "diff": "diff --git a/src/run.ts b/src/run.ts\n--- a/src/run.ts\n+++ b/src/run.ts\n@@ -1,3 +1,9 @@\n+import child_process from 'child_process';\n+\n+function runCommand(req: any, res: any) {\n+  const cmd = req.query.cmd;\n+  child_process.exec(cmd, (err, stdout) => {\n+    res.send(stdout);\n+  });\n+}\n+\n export function run() {}",
+      "expectedFindings": [{ "file": "src/run.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-xss-001",
+      "category": "xss",
+      "pattern": "A",
+      "description": "innerHTML assigned from req.query.content",
+      "sourceIssue": "#164.3",
+      "diff": "diff --git a/src/render.ts b/src/render.ts\n--- a/src/render.ts\n+++ b/src/render.ts\n@@ -1,3 +1,8 @@\n+function renderContent(req: any) {\n+  const content = req.query.content;\n+  const el = document.getElementById('output');\n+  el.innerHTML = content;\n+}\n+\n export function render() {}",
+      "expectedFindings": [{ "file": "src/render.ts", "messageContains": "unsanitized" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-xss-002",
+      "category": "xss",
+      "pattern": "A",
+      "description": "document.write with user input",
+      "sourceIssue": "#164.4",
+      "diff": "diff --git a/src/page.ts b/src/page.ts\n--- a/src/page.ts\n+++ b/src/page.ts\n@@ -1,3 +1,8 @@\n+function renderPage(req: any) {\n+  const userInput = req.query.content;\n+  document.write(userInput);\n+}\n+\n export function page() {}",
+      "expectedFindings": [{ "file": "src/page.ts", "messageContains": "unsanitized" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-path-001",
+      "category": "path_traversal",
+      "pattern": "A",
+      "description": "fs.readFile with user-controlled path from req.params",
+      "sourceIssue": "#164.5",
+      "diff": "diff --git a/src/files.ts b/src/files.ts\n--- a/src/files.ts\n+++ b/src/files.ts\n@@ -1,3 +1,9 @@\n+import fs from 'fs';\n+\n+function serveFile(req: any, res: any) {\n+  const filePath = req.params.file;\n+  fs.readFile(filePath, 'utf-8', (err, data) => {\n+    res.send(data);\n+  });\n+}\n+\n export function files() {}",
+      "expectedFindings": [{ "file": "src/files.ts", "messageContains": "path" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-path-002",
+      "category": "path_traversal",
+      "pattern": "A",
+      "description": "fs.createReadStream with URL param",
+      "sourceIssue": "#164.6",
+      "diff": "diff --git a/src/stream.ts b/src/stream.ts\n--- a/src/stream.ts\n+++ b/src/stream.ts\n@@ -1,3 +1,9 @@\n+import fs from 'fs';\n+\n+function streamFile(req: any, res: any) {\n+  const target = req.query.path;\n+  const stream = fs.createReadStream(target);\n+  stream.pipe(res);\n+}\n+\n export function stream() {}",
+      "expectedFindings": [{ "file": "src/stream.ts", "messageContains": "path" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-ssrf-001",
+      "category": "ssrf",
+      "pattern": "A",
+      "description": "http.get with user-controlled URL from req.query",
+      "sourceIssue": "#164.7",
+      "diff": "diff --git a/src/proxy.ts b/src/proxy.ts\n--- a/src/proxy.ts\n+++ b/src/proxy.ts\n@@ -1,3 +1,9 @@\n+import http from 'http';\n+\n+function proxyRequest(req: any, res: any) {\n+  const url = req.query.url;\n+  http.get(url, (response) => {\n+    response.pipe(res);\n+  });\n+}\n+\n export function proxy() {}",
+      "expectedFindings": [{ "file": "src/proxy.ts", "messageContains": "unsanitized URL" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-ssrf-002",
+      "category": "ssrf",
+      "pattern": "A",
+      "description": "axios.get with user-provided URL",
+      "sourceIssue": "#164.8",
+      "diff": "diff --git a/src/fetch.ts b/src/fetch.ts\n--- a/src/fetch.ts\n+++ b/src/fetch.ts\n@@ -1,3 +1,9 @@\n+import axios from 'axios';\n+\n+async function fetchExternal(req: any, res: any) {\n+  const userUrl = req.query.url;\n+  const response = await axios.get(userUrl);\n+  res.json(response.data);\n+}\n+\n export function fetchData() {}",
+      "expectedFindings": [{ "file": "src/fetch.ts", "messageContains": "unsanitized URL" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-auth-001",
+      "category": "auth_bypass",
+      "pattern": "A",
+      "description": "Delete operation without auth check",
+      "sourceIssue": "#164.9",
+      "diff": "diff --git a/src/admin.ts b/src/admin.ts\n--- a/src/admin.ts\n+++ b/src/admin.ts\n@@ -1,3 +1,8 @@\n+function deleteUser(req: any, res: any) {\n+  const userId = req.params.id;\n+  db.delete('users', userId);\n+  res.json({ deleted: true });\n+}\n+\n export function admin() {}",
+      "expectedFindings": [{ "file": "src/admin.ts", "messageContains": "auth" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-auth-002",
+      "category": "auth_bypass",
+      "pattern": "A",
+      "description": "Admin action without role verification",
+      "sourceIssue": "#164.10",
+      "diff": "diff --git a/src/users.ts b/src/users.ts\n--- a/src/users.ts\n+++ b/src/users.ts\n@@ -1,3 +1,8 @@\n+function updateRole(req: any, res: any) {\n+  const role = req.body.role;\n+  db.update('users', req.params.id, { role });\n+  res.json({ updated: true });\n+}\n+\n export function users() {}",
+      "expectedFindings": [{ "file": "src/users.ts", "messageContains": "auth" }],
+      "truePositive": true
+    }
+  ]
+}

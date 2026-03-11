@@ -354,6 +354,12 @@ export interface AgentContext {
    * Agents switch on this, never guess provider themselves.
    */
   provider: 'anthropic' | 'openai' | 'azure-openai' | 'ollama' | null;
+  /** PR title + body for context enrichment (FR-006) */
+  prDescription?: string;
+  /** CLAUDE.md / project rules content (FR-007) */
+  projectRules?: string;
+  /** Exposed .reviewignore patterns (FR-008) */
+  reviewIgnorePatterns?: string[];
 }
 
 /**

@@ -14,6 +14,7 @@ export {
 export {
   processFindings,
   dispatchReport,
+  getPostNormalizationFindings,
   checkGating,
   GatingError,
   type Platform,

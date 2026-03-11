@@ -18,6 +18,10 @@ export interface PullRequestContext {
   isFork: boolean;
   /** Whether the PR is marked as draft */
   isDraft: boolean;
+  /** PR title */
+  title?: string;
+  /** PR body/description */
+  body?: string;
 }
 
 export interface TrustResult {
@@ -62,6 +66,8 @@ export function buildPRContext(payload: GitHubPullRequestPayload): PullRequestCo
     author: pr.user.login,
     isFork: pr.head.repo?.full_name !== pr.base.repo.full_name,
     isDraft: pr.draft ?? false,
+    title: pr.title,
+    body: pr.body,
   };
 }
 
@@ -69,6 +75,8 @@ export function buildPRContext(payload: GitHubPullRequestPayload): PullRequestCo
 export interface GitHubPullRequestPayload {
   pull_request: {
     number: number;
+    title?: string;
+    body?: string;
     draft?: boolean;
     user: { login: string };
     head: {
