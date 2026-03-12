@@ -41,17 +41,18 @@ jobs:
         continue-on-error: true
 
       # Fallback: run tests if artifacts not available (e.g., workflow_dispatch)
-      - name: Setup pnpm
-        if: steps.download-artifacts.outcome == 'failure'
-        uses: pnpm/action-setup@v4
-        # Version is read from packageManager field in package.json
-
       - name: Setup Node.js
         if: steps.download-artifacts.outcome == 'failure'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
+
+      - name: Setup pnpm
+        if: steps.download-artifacts.outcome == 'failure'
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       - name: Install dependencies
         if: steps.download-artifacts.outcome == 'failure'
