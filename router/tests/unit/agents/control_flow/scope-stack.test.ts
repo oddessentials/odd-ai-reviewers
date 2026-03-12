@@ -949,4 +949,39 @@ describe('extractBindingsFromAssignmentTarget', () => {
     expect(bindings[0]?.name).toBe('x');
     expect(bindings[0]?.propertyKey).toBe('foo-bar');
   });
+
+  it('should set outerKeys for nested object destructuring (P1-obj)', () => {
+    // ({ a: { b } } = obj) → binding b has outerKeys: ['a']
+    const sf = parse('({ a: { b } } = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('b');
+    expect(bindings[0]?.outerKeys).toEqual(['a']);
+    expect(bindings[0]?.depth).toBe(1);
+  });
+
+  it('should set outerKeys for deeply nested object destructuring (P1-obj)', () => {
+    // ({ a: { b: { c } } } = obj) → binding c has outerKeys: ['a', 'b']
+    const sf = parse('({ a: { b: { c } } } = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('c');
+    expect(bindings[0]?.outerKeys).toEqual(['a', 'b']);
+    expect(bindings[0]?.depth).toBe(2);
+  });
+
+  it('should not set outerKeys for flat object destructuring', () => {
+    // ({ a, b } = obj) → no outerKeys
+    const sf = parse('({ a, b } = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(2);
+    expect(bindings[0]?.outerKeys).toBeUndefined();
+    expect(bindings[1]?.outerKeys).toBeUndefined();
+  });
 });

@@ -132,9 +132,6 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       const fileSection = extractFileDiffSection(finding, diffContent);
       if (!fileSection) return false;
 
-      // Must have .use( in same file section (Express middleware registration)
-      const hasUseCall = /\.use\s*\(/.test(fileSection);
-
       // Must have a 4-parameter function near the finding line
       // Express error middleware signature: (err, req, res, next) or variants
       const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 5);
@@ -144,9 +141,19 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       const fourParamPattern =
         /\(\s*\w+\s*(?::\s*[^,)]+)?\s*,\s*\w+\s*(?::\s*[^,)]+)?\s*,\s*\w+\s*(?::\s*[^,)]+)?\s*,\s*\w+\s*(?::\s*[^,)]+)?\s*\)/;
       const hasFourParams = fourParamPattern.test(nearbyText);
+      if (!hasFourParams) return false;
 
-      // BOTH conditions required
-      return hasUseCall && hasFourParams;
+      // At least one Express indicator required (in the file section):
+      // - .use() middleware registration call
+      // - import from 'express' package
+      // - Express type annotations (Request, Response, NextFunction, ErrorRequestHandler)
+      const hasUseCall = /\.use\s*\(/.test(fileSection);
+      const hasExpressImport = /from\s+['"]express['"]/.test(fileSection);
+      const hasExpressTypes = /:\s*(?:Request|Response|NextFunction|ErrorRequestHandler)\b/.test(
+        nearbyText
+      );
+
+      return hasUseCall || hasExpressImport || hasExpressTypes;
     },
     suppressionReason: 'Express 4-param error middleware — unused params required by framework',
   },

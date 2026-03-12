@@ -54,12 +54,25 @@ const EXPRESS_DIFF_WITHOUT_USE = `diff --git a/src/app.ts b/src/app.ts
 --- a/src/app.ts
 +++ b/src/app.ts
 @@ -1,3 +1,8 @@
-+function handler(err: Error, req: Request, res: Response, next: NextFunction) {
++function handler(err, req, res, next) {
 +  console.error(err);
 +  res.status(500).send('error');
 +}
 +
  export default app;`;
+
+const EXPRESS_DIFF_WITH_IMPORT_NO_USE = `diff --git a/src/middleware.ts b/src/middleware.ts
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -1,3 +1,9 @@
++import { Request, Response, NextFunction } from 'express';
++
++function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
++  console.error(err.message);
++  res.status(500).json({ error: 'Internal Server Error' });
++}
++
+ export function setup() {}`;
 
 const EXPRESS_DIFF_WITH_USE_BUT_3_PARAMS = `diff --git a/src/app.ts b/src/app.ts
 --- a/src/app.ts
@@ -220,9 +233,8 @@ describe('Framework Pattern Filter (FR-013)', () => {
       expect(result.results[0]?.matcherId).toBe('express-error-mw');
     });
 
-    it('should NOT suppress when .use() is missing (no middleware registration)', () => {
-      // Use "unused param" which matches Express messagePattern but NOT TS-prefix
-      // (no _identifier in the message)
+    it('should NOT suppress when no Express indicator is present (no .use(), import, or types)', () => {
+      // Plain 4-param function with no .use(), no Express import, no Express type annotations
       const findings = [
         makeFinding({
           message: 'unused param next in function handler',
@@ -233,8 +245,24 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       const result = filterFrameworkConventionFindings(findings, EXPRESS_DIFF_WITHOUT_USE);
 
-      // .use() is missing — evidence validation fails; "next" without _ doesn't match TS-prefix
+      // No Express indicator — evidence validation fails; "next" without _ doesn't match TS-prefix
       expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress when Express import present but no .use() (fp-b-001 pattern)', () => {
+      // Error handler declared/exported in one file, registered elsewhere
+      const findings = [
+        makeFinding({
+          message: 'unused param _next in error handler',
+          file: 'src/middleware.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, EXPRESS_DIFF_WITH_IMPORT_NO_USE);
+
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('express-error-mw');
     });
 
     it('should NOT suppress when function has only 3 params', () => {

@@ -52,6 +52,13 @@ export interface DestructuringBinding {
   parentIndex?: number;
   /** Original property key (for renamed destructuring, e.g. `{ orig: renamed }`) */
   propertyKey?: string;
+  /**
+   * For nested bindings inside an object property (e.g. `{ a: { b } }`),
+   * the chain of property keys from the root to this binding's immediate container.
+   * Used by the vulnerability detector to traverse into nested RHS objects.
+   * Example: `{ a: { b: { c } } }` → binding `c` has outerKeys: ['a', 'b']
+   */
+  outerKeys?: string[];
   /** Whether this is a rest element (`...rest`) */
   isRest: boolean;
   /** Nesting depth (0 = top-level, max 10) */
@@ -154,6 +161,11 @@ function extractAssignmentBindings(
           // If the value is a simple identifier and the key differs, record the rename
           if (propKey && ts.isIdentifier(prop.initializer) && propKey !== binding.name) {
             binding.propertyKey = propKey;
+          }
+          // For nested container bindings (e.g. { a: { b } }), propagate the outer
+          // property key so the vulnerability detector can traverse into nested RHS objects
+          if (propKey && isContainerNode(prop.initializer)) {
+            binding.outerKeys = [propKey, ...(binding.outerKeys ?? [])];
           }
         }
         result.push(...inner);
