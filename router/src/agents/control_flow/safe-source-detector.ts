@@ -19,6 +19,7 @@ import {
   isScopeNode,
   nodeIdentityKey,
   registerNodeDeclarations,
+  extractBindingsFromAssignmentTarget,
 } from './scope-stack.js';
 
 // =============================================================================
@@ -441,6 +442,16 @@ function collectMutatedBindings(sourceFile: ts.SourceFile): Set<string> {
         const decl = scope.resolveDeclaration(node.left.expression.text);
         if (decl) {
           mutated.add(nodeIdentityKey(decl, sourceFile));
+        }
+      }
+      // Destructuring assignment: [a, b] = ... or ({ a, b } = ...)
+      if (ts.isArrayLiteralExpression(node.left) || ts.isObjectLiteralExpression(node.left)) {
+        const bindings = extractBindingsFromAssignmentTarget(node.left);
+        for (const binding of bindings) {
+          const decl = scope.resolveDeclaration(binding.name);
+          if (decl) {
+            mutated.add(nodeIdentityKey(decl, sourceFile));
+          }
         }
       }
     }

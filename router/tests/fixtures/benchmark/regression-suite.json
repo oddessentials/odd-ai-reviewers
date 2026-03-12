@@ -588,6 +588,102 @@
       "diff": "diff --git a/src/users.ts b/src/users.ts\n--- a/src/users.ts\n+++ b/src/users.ts\n@@ -1,3 +1,8 @@\n+function updateRole(req: any, res: any) {\n+  const role = req.body.role;\n+  db.update('users', req.params.id, { role });\n+  res.json({ updated: true });\n+}\n+\n export function users() {}",
       "expectedFindings": [{ "file": "src/users.ts", "messageContains": "auth" }],
       "truePositive": true
+    },
+    {
+      "id": "tp-ssrf-003",
+      "category": "ssrf",
+      "pattern": "A",
+      "description": "got.get() with user-controlled URL from req.query",
+      "sourceIssue": "#411.ssrf1",
+      "diff": "diff --git a/src/redirect.ts b/src/redirect.ts\n--- a/src/redirect.ts\n+++ b/src/redirect.ts\n@@ -1,3 +1,9 @@\n+import got from 'got';\n+\n+async function redirectFetch(req: any, res: any) {\n+  const target = req.query.url;\n+  const response = await got.get(target);\n+  res.json(response.body);\n+}\n+\n export function redirect() {}",
+      "expectedFindings": [{ "file": "src/redirect.ts", "messageContains": "unsanitized URL" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-ssrf-004",
+      "category": "ssrf",
+      "pattern": "A",
+      "description": "axios.get with user-controlled endpoint from req.body",
+      "sourceIssue": "#411.ssrf2",
+      "diff": "diff --git a/src/forward.ts b/src/forward.ts\n--- a/src/forward.ts\n+++ b/src/forward.ts\n@@ -1,3 +1,9 @@\n+import axios from 'axios';\n+\n+async function forwardRequest(req: any, res: any) {\n+  const endpoint = req.body.endpoint;\n+  const response = await axios.get(endpoint);\n+  res.json(response.data);\n+}\n+\n export function forward() {}",
+      "expectedFindings": [{ "file": "src/forward.ts", "messageContains": "unsanitized URL" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-path-003",
+      "category": "path_traversal",
+      "pattern": "A",
+      "description": "fs.readFile with user-controlled filepath from req.params",
+      "sourceIssue": "#411.path1",
+      "diff": "diff --git a/src/serve.ts b/src/serve.ts\n--- a/src/serve.ts\n+++ b/src/serve.ts\n@@ -1,3 +1,9 @@\n+import fs from 'fs';\n+\n+function serveDocument(req: any, res: any) {\n+  const filepath = req.params.filepath;\n+  fs.readFile(filepath, 'utf-8', (err, content) => {\n+    res.send(content);\n+  });\n+}\n+\n export function serve() {}",
+      "expectedFindings": [{ "file": "src/serve.ts", "messageContains": "path" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-001",
+      "category": "injection",
+      "pattern": "A",
+      "description": "Object destructuring taint: const {userId} = req.body; db.query(userId)",
+      "sourceIssue": "#411.1",
+      "destructuringPattern": "object",
+      "diff": "diff --git a/src/handler.ts b/src/handler.ts\n--- a/src/handler.ts\n+++ b/src/handler.ts\n@@ -1,3 +1,8 @@\n+function handleRequest(req: any, res: any) {\n+  const { userId } = req.body;\n+  const result = db.query(userId);\n+  res.json(result);\n+}\n+\n export function handler() {}",
+      "expectedFindings": [{ "file": "src/handler.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-002",
+      "category": "injection",
+      "pattern": "A",
+      "description": "Array destructuring per-element taint: [a,b] = [req.body.x, 'safe']; db.query(a) → finding for a only",
+      "sourceIssue": "#411.2",
+      "destructuringPattern": "array",
+      "diff": "diff --git a/src/process.ts b/src/process.ts\n--- a/src/process.ts\n+++ b/src/process.ts\n@@ -1,3 +1,10 @@\n+function processInput(req: any, res: any) {\n+  let a: string, b: string;\n+  [a, b] = [req.body.x, 'safe'];\n+  const result = db.query(a);\n+  res.json(result);\n+}\n+\n export function process() {}",
+      "expectedFindings": [{ "file": "src/process.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-003",
+      "category": "xss",
+      "pattern": "A",
+      "description": "Renamed destructuring taint: const {data: renamed} = req.body; innerHTML = renamed",
+      "sourceIssue": "#411.3",
+      "destructuringPattern": "renamed",
+      "diff": "diff --git a/src/display.ts b/src/display.ts\n--- a/src/display.ts\n+++ b/src/display.ts\n@@ -1,3 +1,8 @@\n+function displayContent(req: any) {\n+  const { data: renamed } = req.body;\n+  const el = document.getElementById('output');\n+  el.innerHTML = renamed;\n+}\n+\n export function display() {}",
+      "expectedFindings": [{ "file": "src/display.ts", "messageContains": "unsanitized" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-004",
+      "category": "injection",
+      "pattern": "A",
+      "description": "Rest element taint: const [first, ...rest] = req.body.items; exec(first)",
+      "sourceIssue": "#411.4",
+      "destructuringPattern": "rest",
+      "diff": "diff --git a/src/batch.ts b/src/batch.ts\n--- a/src/batch.ts\n+++ b/src/batch.ts\n@@ -1,3 +1,9 @@\n+import child_process from 'child_process';\n+\n+function batchProcess(req: any, res: any) {\n+  const [first, ...rest] = req.body.items;\n+  child_process.exec(first);\n+  res.json({ processed: rest.length });\n+}\n+\n export function batch() {}",
+      "expectedFindings": [{ "file": "src/batch.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-005",
+      "category": "path_traversal",
+      "pattern": "A",
+      "description": "Nested destructuring taint: const {a: {b}} = req.body; fs.readFile(b)",
+      "sourceIssue": "#411.5",
+      "destructuringPattern": "nested",
+      "diff": "diff --git a/src/nested.ts b/src/nested.ts\n--- a/src/nested.ts\n+++ b/src/nested.ts\n@@ -1,3 +1,9 @@\n+import fs from 'fs';\n+\n+function loadNested(req: any, res: any) {\n+  const { config: { path: filePath } } = req.body;\n+  fs.readFile(filePath, 'utf-8', (err, data) => {\n+    res.send(data);\n+  });\n+}\n+\n export function nested() {}",
+      "expectedFindings": [{ "file": "src/nested.ts", "messageContains": "path" }],
+      "truePositive": true
+    },
+    {
+      "id": "tp-destr-006",
+      "category": "injection",
+      "pattern": "A",
+      "description": "Scope isolation: inner tainted destructuring vs outer safe → only inner produces finding",
+      "sourceIssue": "#411.6",
+      "destructuringPattern": "scope",
+      "diff": "diff --git a/src/scoped.ts b/src/scoped.ts\n--- a/src/scoped.ts\n+++ b/src/scoped.ts\n@@ -1,3 +1,12 @@\n+function handleSafe() {\n+  const { data } = { data: 'hardcoded' };\n+  db.query(data);\n+}\n+\n+function handleTainted(req: any, res: any) {\n+  const { data } = req.body;\n+  const result = db.query(data);\n+  res.json(result);\n+}\n+\n export function scoped() {}",
+      "expectedFindings": [{ "file": "src/scoped.ts", "messageContains": "unsanitized input" }],
+      "truePositive": true
     }
   ]
 }

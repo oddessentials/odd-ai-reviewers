@@ -1,9 +1,9 @@
 /**
- * Prompt Sync Test (FR-012)
+ * Prompt Sync Test (FR-012, FR-011)
  *
  * Ensures hardcoded fallback prompts in agent source files contain the same
- * Core Rules AND Framework Convention keywords as the file-based prompts.
- * Prevents drift between normal and degraded modes.
+ * Core Rules, Framework Convention keywords, AND Active Context Directives
+ * as the file-based prompts. Prevents drift between normal and degraded modes.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -56,6 +56,22 @@ function extractFrameworkConventions(content: string): string[] {
 
   // Rule 6: Constant externalization
   if (/externali/i.test(content)) found.push('externalization');
+
+  return found;
+}
+
+/**
+ * Check for Active Context Directive keywords in a prompt string.
+ * Returns an array of directive labels that were found.
+ */
+function extractActiveContextDirectives(content: string): string[] {
+  const found: string[] = [];
+
+  // Directive 1: CHECK Project Rules
+  if (/Project Rules/i.test(content)) found.push('Project Rules');
+
+  // Directive 2: CHECK PR Description
+  if (/PR Description/i.test(content)) found.push('PR Description');
 
   return found;
 }
@@ -171,6 +187,40 @@ describe('Fallback prompt sync (FR-012)', () => {
           conventions,
           `${name} hardcoded fallback missing conventions: expected 6, found [${conventions.join(', ')}]`
         ).toHaveLength(6);
+      });
+
+      it('file-based prompt contains Active Context Directives section', () => {
+        const promptContent = readFileSync(promptPath, 'utf-8');
+        expect(
+          promptContent.includes('### Active Context Directives'),
+          `${name} file-based prompt missing Active Context Directives header`
+        ).toBe(true);
+      });
+
+      it('file-based prompt contains both Active Context Directive keywords', () => {
+        const promptContent = readFileSync(promptPath, 'utf-8');
+        const directives = extractActiveContextDirectives(promptContent);
+        expect(
+          directives,
+          `${name} file-based prompt missing directives: expected 2, found [${directives.join(', ')}]`
+        ).toHaveLength(2);
+      });
+
+      it('hardcoded fallback contains Active Context Directives section', () => {
+        const agentSource = readFileSync(agentPath, 'utf-8');
+        expect(
+          agentSource.includes('Active Context Directives'),
+          `${name} hardcoded fallback missing Active Context Directives`
+        ).toBe(true);
+      });
+
+      it('hardcoded fallback contains both Active Context Directive keywords', () => {
+        const agentSource = readFileSync(agentPath, 'utf-8');
+        const directives = extractActiveContextDirectives(agentSource);
+        expect(
+          directives,
+          `${name} hardcoded fallback missing directives: expected 2, found [${directives.join(', ')}]`
+        ).toHaveLength(2);
       });
     });
   }

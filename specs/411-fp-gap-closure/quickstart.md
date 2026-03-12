@@ -89,6 +89,6 @@ pnpm --filter ./router vitest run tests/integration/false-positive-benchmark.tes
 # Type checking
 pnpm --filter ./router typecheck
 
-# Linting
-pnpm --filter ./router lint
+# Linting (run from repo root)
+pnpm lint
 ```

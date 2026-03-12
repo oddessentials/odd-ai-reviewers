@@ -27,6 +27,148 @@ export function nodeIdentityKey(node: ts.Node, sourceFile: ts.SourceFile): strin
 }
 
 // =============================================================================
+// DestructuringBinding — Assignment target binding metadata
+// =============================================================================
+
+/**
+ * A variable name extracted from a destructuring assignment target
+ * (BinaryExpression LHS). This is the Expression-based counterpart to the
+ * simple `{ name, node }` returned by `extractBindingNames()` for
+ * BindingPattern nodes in VariableDeclarations.
+ */
+export interface DestructuringBinding {
+  /** Local binding name (after rename resolution) */
+  name: string;
+  /** AST node representing the binding */
+  node: ts.Node;
+  /** Position in array destructuring (for per-element taint) */
+  index?: number;
+  /** Original property key (for renamed destructuring, e.g. `{ orig: renamed }`) */
+  propertyKey?: string;
+  /** Whether this is a rest element (`...rest`) */
+  isRest: boolean;
+  /** Nesting depth (0 = top-level, max 10) */
+  depth: number;
+}
+
+/**
+ * Extract binding names from a destructuring assignment target.
+ *
+ * Handles `ArrayLiteralExpression` and `ObjectLiteralExpression` patterns
+ * used on the LHS of a `BinaryExpression` (assignment targets).
+ *
+ * This is the Expression-based counterpart to `extractBindingNames()` which
+ * handles `BindingPattern` nodes in `VariableDeclarations`.
+ *
+ * For simple identifiers: `x = 1` → [{ name: 'x', ... }]
+ * For array destructuring: `[a, b] = arr` → [{ name: 'a', index: 0 }, { name: 'b', index: 1 }]
+ * For object destructuring: `({ a, b: c } = obj)` → [{ name: 'a' }, { name: 'c', propertyKey: 'b' }]
+ * For rest elements: `[a, ...rest] = arr` → [{ name: 'a', index: 0 }, { name: 'rest', isRest: true }]
+ * For nested: `[{ a }] = arr` → [{ name: 'a', depth: 1 }]
+ *
+ * @param target - The LHS of a destructuring assignment
+ * @param maxDepth - Maximum recursion depth (default 10)
+ * @returns Array of extracted bindings with metadata
+ */
+export function extractBindingsFromAssignmentTarget(
+  target: ts.Expression,
+  maxDepth = 10
+): DestructuringBinding[] {
+  return extractAssignmentBindings(target, 0, maxDepth);
+}
+
+function extractAssignmentBindings(
+  node: ts.Node,
+  depth: number,
+  maxDepth: number
+): DestructuringBinding[] {
+  if (depth > maxDepth) return [];
+
+  const result: DestructuringBinding[] = [];
+
+  if (ts.isIdentifier(node)) {
+    result.push({
+      name: node.text,
+      node,
+      isRest: false,
+      depth,
+    });
+  } else if (ts.isArrayLiteralExpression(node)) {
+    for (let i = 0; i < node.elements.length; i++) {
+      const element = node.elements[i];
+      if (!element) continue;
+      // Holes: OmittedExpression
+      if (element.kind === ts.SyntaxKind.OmittedExpression) continue;
+      // Rest element: ...rest
+      if (ts.isSpreadElement(element)) {
+        // Identifiers directly in this array stay at current depth;
+        // nested containers increment depth.
+        const childDepth = isContainerNode(element.expression) ? depth + 1 : depth;
+        const inner = extractAssignmentBindings(element.expression, childDepth, maxDepth);
+        for (const binding of inner) {
+          binding.isRest = true;
+          if (binding.depth === childDepth) binding.index = i;
+        }
+        result.push(...inner);
+      } else {
+        const childDepth = isContainerNode(element) ? depth + 1 : depth;
+        const inner = extractAssignmentBindings(element, childDepth, maxDepth);
+        for (const binding of inner) {
+          // Set index on direct children of this array
+          if (binding.depth === depth && binding.index === undefined) {
+            binding.index = i;
+          }
+        }
+        result.push(...inner);
+      }
+    }
+  } else if (ts.isObjectLiteralExpression(node)) {
+    for (const prop of node.properties) {
+      if (ts.isPropertyAssignment(prop)) {
+        // { key: value } — value is the binding target
+        const propKey = ts.isIdentifier(prop.name)
+          ? prop.name.text
+          : ts.isStringLiteral(prop.name)
+            ? prop.name.text
+            : undefined;
+        const childDepth = isContainerNode(prop.initializer) ? depth + 1 : depth;
+        const inner = extractAssignmentBindings(prop.initializer, childDepth, maxDepth);
+        for (const binding of inner) {
+          // If the value is a simple identifier and the key differs, record the rename
+          if (propKey && ts.isIdentifier(prop.initializer) && propKey !== binding.name) {
+            binding.propertyKey = propKey;
+          }
+        }
+        result.push(...inner);
+      } else if (ts.isShorthandPropertyAssignment(prop)) {
+        // { a } — shorthand: name is both key and binding
+        result.push({
+          name: prop.name.text,
+          node: prop.name,
+          isRest: false,
+          depth,
+        });
+      } else if (ts.isSpreadAssignment(prop)) {
+        // { ...rest }
+        const childDepth = isContainerNode(prop.expression) ? depth + 1 : depth;
+        const inner = extractAssignmentBindings(prop.expression, childDepth, maxDepth);
+        for (const binding of inner) {
+          binding.isRest = true;
+        }
+        result.push(...inner);
+      }
+    }
+  }
+
+  return result;
+}
+
+/** Returns true for array/object literal expressions that represent nested destructuring. */
+function isContainerNode(node: ts.Node): boolean {
+  return ts.isArrayLiteralExpression(node) || ts.isObjectLiteralExpression(node);
+}
+
+// =============================================================================
 // Scope Entry
 // =============================================================================
 

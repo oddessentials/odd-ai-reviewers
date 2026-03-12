@@ -9,6 +9,7 @@ import {
   validateFindings,
   validateFindingsSemantics,
   validateNormalizedFindings,
+  normalizeUnicode,
 } from '../../../src/report/finding-validator.js';
 import type { Finding } from '../../../src/agents/types.js';
 
@@ -494,5 +495,255 @@ describe('validateNormalizedFindings (Stage 2)', () => {
     const result = validateNormalizedFindings(findings, resolver, diffFiles);
     expect(result.validFindings).toHaveLength(0);
     expect(result.stats.filteredBySelfContradiction).toBe(1);
+  });
+});
+
+/**
+ * normalizeUnicode() unit tests (FR-015)
+ *
+ * Validates that invisible Unicode characters are stripped while
+ * visible non-Latin characters are preserved.
+ */
+describe('normalizeUnicode', () => {
+  it('should strip U+200B zero-width spaces', () => {
+    expect(normalizeUnicode('No\u200Baction\u200Brequired')).toBe('Noactionrequired');
+  });
+
+  it('should strip U+200C zero-width non-joiner', () => {
+    expect(normalizeUnicode('no\u200Caction')).toBe('noaction');
+  });
+
+  it('should strip U+200D zero-width joiner', () => {
+    expect(normalizeUnicode('no\u200Daction')).toBe('noaction');
+  });
+
+  it('should strip U+200E left-to-right mark', () => {
+    expect(normalizeUnicode('no\u200Eaction')).toBe('noaction');
+  });
+
+  it('should strip U+200F right-to-left mark', () => {
+    expect(normalizeUnicode('no\u200Faction')).toBe('noaction');
+  });
+
+  it('should strip U+2028 line separator', () => {
+    expect(normalizeUnicode('no\u2028action')).toBe('noaction');
+  });
+
+  it('should strip U+2029 paragraph separator', () => {
+    expect(normalizeUnicode('no\u2029action')).toBe('noaction');
+  });
+
+  it('should strip U+FEFF byte order mark', () => {
+    expect(normalizeUnicode('\uFEFFno action required')).toBe('no action required');
+  });
+
+  it('should strip multiple different invisible characters', () => {
+    expect(normalizeUnicode('\u200Bno\u200C \u200Daction\uFEFF required\u2028')).toBe(
+      'no action required'
+    );
+  });
+
+  it('should preserve visible non-Latin characters (Chinese)', () => {
+    expect(normalizeUnicode('需要操作')).toBe('需要操作');
+  });
+
+  it('should preserve visible non-Latin characters (Arabic)', () => {
+    expect(normalizeUnicode('لا يلزم اتخاذ إجراء')).toBe('لا يلزم اتخاذ إجراء');
+  });
+
+  it('should return empty string unchanged', () => {
+    expect(normalizeUnicode('')).toBe('');
+  });
+
+  it('should return plain ASCII unchanged', () => {
+    expect(normalizeUnicode('no action required')).toBe('no action required');
+  });
+});
+
+/**
+ * Unicode bypass hardening tests (US4 acceptance scenarios, SC-005)
+ *
+ * Tests that invisible Unicode characters in finding messages do not bypass
+ * the self-contradiction filter in both Stage 1 and Stage 2.
+ */
+describe('Unicode bypass hardening (US4)', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  describe('Stage 1 (validateFindingsSemantics)', () => {
+    it('US4-AS1: should filter info finding with U+200B zero-width spaces in message', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'No\u200B action\u200B required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered).toHaveLength(1);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('US4-AS2: should filter info finding with U+2028 line separator between words', () => {
+      // U+2028 inserted alongside existing space — stripping it preserves "no action required"
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'no action \u2028required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('US4-AS3: should filter info finding with U+FEFF BOM in message', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: '\uFEFFno action required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('US4-AS3 regression: should still filter standard "no action required"', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'no action required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('US4-AS4: should NOT filter warning severity with Unicode-obfuscated text', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          line: 10,
+          message: 'No\u200B action\u200B required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredBySelfContradiction).toBe(0);
+    });
+
+    it('should filter info finding with multiple invisible chars across all patterns', () => {
+      const patterns = [
+        'no \u200Baction \u200Brequired',
+        'acceptable\u200C as-is',
+        'not\u200D blocking',
+        'no \u2028change \u2028needed',
+        'can\uFEFF be ignored',
+      ];
+      for (const msg of patterns) {
+        const findings = [
+          makeFinding({
+            severity: 'info',
+            line: 10,
+            message: msg,
+            suggestion: undefined,
+          }),
+        ];
+        const result = validateFindingsSemantics(findings);
+        expect(result.validFindings).toHaveLength(0);
+        expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+      }
+    });
+
+    it('should filter when suggestion contains Unicode-obfuscated dismissive text', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'can be ignored',
+          suggestion: 'No\u200B action\u200B required.',
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('should preserve findings with visible non-Latin characters', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: '需要操作 - this code needs attention',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(1);
+    });
+  });
+
+  describe('Stage 2 (validateNormalizedFindings)', () => {
+    const resolver = createMockLineResolver(new Map([['src/app.ts', new Set([10])]]));
+    const diffFiles = ['src/app.ts'];
+
+    it('US4-AS1: should filter info finding with U+200B in Stage 2', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'No\u200B action\u200B required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateNormalizedFindings(findings, resolver, diffFiles);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
+
+    it('US4-AS4: should NOT filter warning with Unicode bypass in Stage 2', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          line: 10,
+          message: 'No\u200B action\u200B required',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateNormalizedFindings(findings, resolver, diffFiles);
+      expect(result.validFindings).toHaveLength(1);
+    });
+
+    it('should filter info finding with U+200C/U+200D/U+200E/U+200F in Stage 2', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'no\u200C action\u200D required\u200E',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateNormalizedFindings(findings, resolver, diffFiles);
+      expect(result.validFindings).toHaveLength(0);
+      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+    });
   });
 });

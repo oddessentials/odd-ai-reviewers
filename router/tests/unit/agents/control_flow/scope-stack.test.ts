@@ -14,6 +14,7 @@ import {
   walkWithScope,
   buildDeclarationMap,
   extractBindingNames,
+  extractBindingsFromAssignmentTarget,
 } from '../../../../src/agents/control_flow/scope-stack.js';
 
 // =============================================================================
@@ -722,5 +723,194 @@ fs.readFileSync('test');
     });
 
     expect(resolved).toBe(true);
+  });
+});
+
+// =============================================================================
+// extractBindingsFromAssignmentTarget — Assignment Destructuring
+// =============================================================================
+
+/**
+ * Helper: find the first BinaryExpression (assignment) in a parsed source file.
+ * Useful for getting the LHS of `[a, b] = ...` or `({a, b} = ...)`.
+ */
+function findFirstAssignmentLHS(sf: ts.SourceFile): ts.Expression | null {
+  let result: ts.Expression | null = null;
+  const visit = (node: ts.Node): void => {
+    if (result) return;
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      result = node.left;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return result;
+}
+
+describe('extractBindingsFromAssignmentTarget', () => {
+  it('should extract simple identifier from assignment', () => {
+    const sf = parse('x = 1;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('x');
+    expect(bindings[0]?.isRest).toBe(false);
+    expect(bindings[0]?.depth).toBe(0);
+  });
+
+  it('should extract bindings from array destructuring assignment', () => {
+    const sf = parse('[a, b] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'b']);
+    expect(bindings[0]?.index).toBe(0);
+    expect(bindings[1]?.index).toBe(1);
+    expect(bindings[0]?.depth).toBe(0);
+    expect(bindings[1]?.depth).toBe(0);
+  });
+
+  it('should skip holes in array destructuring assignment', () => {
+    const sf = parse('[, , c] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('c');
+    expect(bindings[0]?.index).toBe(2);
+  });
+
+  it('should extract bindings from object destructuring assignment', () => {
+    const sf = parse('({a, b} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'b']);
+    expect(bindings[0]?.isRest).toBe(false);
+    expect(bindings[0]?.depth).toBe(0);
+  });
+
+  it('should handle renamed object destructuring assignment', () => {
+    const sf = parse('({a: x, b: y} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['x', 'y']);
+    expect(bindings[0]?.propertyKey).toBe('a');
+    expect(bindings[1]?.propertyKey).toBe('b');
+  });
+
+  it('should handle rest element in array destructuring assignment', () => {
+    const sf = parse('[a, ...rest] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'rest']);
+    expect(bindings[0]?.isRest).toBe(false);
+    expect(bindings[0]?.index).toBe(0);
+    expect(bindings[1]?.isRest).toBe(true);
+    expect(bindings[1]?.index).toBe(1);
+  });
+
+  it('should handle rest element in object destructuring assignment', () => {
+    const sf = parse('({a, ...rest} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'rest']);
+    expect(bindings[1]?.isRest).toBe(true);
+  });
+
+  it('should handle nested array in object destructuring', () => {
+    const sf = parse('({a: [b, c]} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['b', 'c']);
+    expect(bindings[0]?.depth).toBe(1);
+    expect(bindings[1]?.depth).toBe(1);
+  });
+
+  it('should handle nested object in array destructuring', () => {
+    const sf = parse('[{a, b}] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'b']);
+    expect(bindings[0]?.depth).toBe(1);
+  });
+
+  it('should handle deeply nested destructuring', () => {
+    // [{a: [b]}] — outer array (depth 0) → object (depth 1) → array (depth 2) → b (depth 2)
+    const sf = parse('[{a: [b]}] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('b');
+    // b is direct Identifier child of inner array at depth 2
+    expect(bindings[0]?.depth).toBe(2);
+  });
+
+  it('should respect maxDepth limit', () => {
+    // 4 nested arrays with maxDepth=2: [[[a]]] reaches depth 2 for the inner [a],
+    // then a is an Identifier at depth 2 (within limit). But [[[[a]]]] needs depth 3.
+    const sf = parse('[[[[a]]]] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs, 2);
+    // Inner [a] is at depth 3, which exceeds maxDepth=2 → empty
+    expect(bindings).toHaveLength(0);
+  });
+
+  it('should extract bindings within maxDepth', () => {
+    // [[[a]]] — inner arrays bump depth: 0 → 1 → 2; a is Identifier at depth 2
+    const sf = parse('[[[a]]] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs, 10);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('a');
+    expect(bindings[0]?.depth).toBe(2);
+  });
+
+  it('should handle empty array destructuring', () => {
+    const sf = parse('[] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(0);
+  });
+
+  it('should handle empty object destructuring', () => {
+    const sf = parse('({} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(0);
+  });
+
+  it('should handle mixed array with rest and holes', () => {
+    const sf = parse('[, a, , ...rest] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'rest']);
+    expect(bindings[0]?.index).toBe(1);
+    expect(bindings[0]?.isRest).toBe(false);
+    expect(bindings[1]?.isRest).toBe(true);
+    expect(bindings[1]?.index).toBe(3);
+  });
+
+  it('should handle string literal property keys in object destructuring', () => {
+    const sf = parse('({"foo-bar": x} = obj);');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('x');
+    expect(bindings[0]?.propertyKey).toBe('foo-bar');
   });
 });

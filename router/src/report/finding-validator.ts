@@ -59,6 +59,17 @@ interface FindingLineResolver {
  * When combined with info severity and no actionable suggestion,
  * the finding is likely a false positive.
  */
+/**
+ * Strip zero-width and invisible Unicode characters that can bypass word-boundary regex matching.
+ * Only strips invisible characters — visible non-Latin characters are preserved.
+ *
+ * Characters stripped: U+200B (ZWSP), U+200C (ZWNJ), U+200D (ZWJ), U+200E (LRM),
+ * U+200F (RLM), U+2028 (Line Sep), U+2029 (Para Sep), U+FEFF (BOM/ZWNBS)
+ */
+export function normalizeUnicode(text: string): string {
+  return text.replace(/[\u200B-\u200F\u2028\u2029\uFEFF]/g, '');
+}
+
 const DISMISSIVE_PATTERNS: RegExp[] = [
   /\bno action required\b/i,
   /\bacceptable as[- ]is\b/i,
@@ -94,20 +105,79 @@ function hasActionableSuggestion(suggestion: string | undefined): boolean {
 }
 
 /**
+ * Regex to extract action signals from PR title/description.
+ * Captures a verb (add, fix, remove, rename, update, refactor) followed by a subject.
+ */
+const PR_INTENT_PATTERN = /\b(add|fix|remove|rename|update|refactor)\s+(.+)/i;
+
+/**
+ * FR-014: Diagnostic PR intent contradiction logging.
+ *
+ * Extracts action signals from PR title/description and logs warnings when
+ * finding messages appear to contradict the stated PR intent.
+ * DIAGNOSTIC ONLY — no suppression, no filtering, no modification of findings.
+ *
+ * @param findings - Array of findings to check against PR intent
+ * @param prDescription - Combined PR title and description text
+ */
+export function logPRIntentContradictions(findings: Finding[], prDescription: string): void {
+  const match = PR_INTENT_PATTERN.exec(prDescription);
+  if (!match) return;
+
+  const verb = (match[1] ?? '').toLowerCase();
+  const subject = (match[2] ?? '').toLowerCase().trim();
+
+  for (const finding of findings) {
+    const messageLower = finding.message.toLowerCase();
+
+    // Check if the finding message references the same subject as the PR intent
+    // and appears to contradict the action (e.g., PR says "add X" but finding says "remove X")
+    if (!messageLower.includes(subject.slice(0, Math.min(subject.length, 30)))) continue;
+
+    const contradictionVerbs: Record<string, string[]> = {
+      add: ['remove', 'delete', 'drop', 'unnecessary'],
+      fix: ['break', 'revert', 'undo'],
+      remove: ['add', 'keep', 'preserve', 'missing'],
+      rename: ['revert', 'undo', 'original name'],
+      update: ['revert', 'downgrade', 'old version'],
+      refactor: ['revert', 'undo', 'original'],
+    };
+
+    const opposites = contradictionVerbs[verb] ?? [];
+    const hasContradiction = opposites.some((opp) => messageLower.includes(opp));
+
+    if (hasContradiction) {
+      console.log('[router] [finding-validator] [pr-intent]', {
+        warning: 'Finding may contradict PR intent',
+        prIntent: `${verb} ${subject}`,
+        findingFile: finding.file,
+        findingLine: finding.line,
+        findingMessage: finding.message.slice(0, 120),
+      });
+    }
+  }
+}
+
+/**
  * Stage 1: Semantic-only validation (no lineResolver needed).
  *
  * Performs ONLY normalization-independent checks:
  * - Classification (inline / file-level / global / cross-file)
  * - Self-contradiction detection (info severity + dismissive language + no suggestion)
+ * - PR intent contradiction logging (FR-014, diagnostic only)
  * - NO line validation, NO path validation against diff
  *
  * Used in processFindings() BEFORE platform reporters run normalizeFindingsForDiff().
  * This ensures renamed-file and stale-line findings survive to be salvaged by normalization.
  *
  * @param findings - Array of findings to validate
+ * @param prDescription - Optional PR title/description for intent contradiction logging
  * @returns Validation summary with valid findings, filtered findings, and stats
  */
-export function validateFindingsSemantics(findings: Finding[]): FindingValidationSummary {
+export function validateFindingsSemantics(
+  findings: Finding[],
+  prDescription?: string
+): FindingValidationSummary {
   const results: FindingValidationResult[] = [];
   const stats = {
     total: findings.length,
@@ -152,10 +222,15 @@ export function validateFindingsSemantics(findings: Finding[]): FindingValidatio
     // Only filter info severity - NEVER filter warning/error
     if (result.finding.severity !== 'info') continue;
 
-    const matchedPattern = DISMISSIVE_PATTERNS.find((p) => p.test(result.finding.message));
+    // FR-015: Normalize Unicode before matching to prevent zero-width character bypass
+    const normalizedMessage = normalizeUnicode(result.finding.message);
+    const matchedPattern = DISMISSIVE_PATTERNS.find((p) => p.test(normalizedMessage));
     if (!matchedPattern) continue;
 
-    if (hasActionableSuggestion(result.finding.suggestion)) continue;
+    const normalizedSuggestion = result.finding.suggestion
+      ? normalizeUnicode(result.finding.suggestion)
+      : undefined;
+    if (hasActionableSuggestion(normalizedSuggestion)) continue;
 
     // All 3 conditions met: info + dismissive + no actionable suggestion
     result.valid = false;
@@ -180,6 +255,11 @@ export function validateFindingsSemantics(findings: Finding[]): FindingValidatio
     } else {
       filtered.push(result);
     }
+  }
+
+  // FR-014: Diagnostic PR intent logging (no suppression, no filtering)
+  if (prDescription) {
+    logPRIntentContradictions(validFindings, prDescription);
   }
 
   return { validFindings, filtered, stats };
@@ -264,10 +344,15 @@ export function validateNormalizedFindings(
 
     if (result.finding.severity !== 'info') continue;
 
-    const matchedPattern = DISMISSIVE_PATTERNS.find((p) => p.test(result.finding.message));
+    // FR-015: Normalize Unicode before matching to prevent zero-width character bypass
+    const normalizedMessage = normalizeUnicode(result.finding.message);
+    const matchedPattern = DISMISSIVE_PATTERNS.find((p) => p.test(normalizedMessage));
     if (!matchedPattern) continue;
 
-    if (hasActionableSuggestion(result.finding.suggestion)) continue;
+    const normalizedSuggestion = result.finding.suggestion
+      ? normalizeUnicode(result.finding.suggestion)
+      : undefined;
+    if (hasActionableSuggestion(normalizedSuggestion)) continue;
 
     result.valid = false;
     result.filterReason = `Self-contradicting: info severity with dismissive language (${matchedPattern.source})`;
