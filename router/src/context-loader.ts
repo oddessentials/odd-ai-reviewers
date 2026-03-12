@@ -19,7 +19,7 @@ import { Octokit } from '@octokit/rest';
  * @param maxLength - Maximum allowed length (default 2000)
  * @returns Sanitized string
  */
-export function sanitizeContextField(input: string, maxLength = 2000): string {
+export function sanitizeContextField(input: string, maxLength?: number): string {
   // Strip null bytes
   let sanitized = input.replace(/\0/g, '');
 
@@ -28,7 +28,7 @@ export function sanitizeContextField(input: string, maxLength = 2000): string {
   sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 
   // Truncate to maxLength
-  if (sanitized.length > maxLength) {
+  if (typeof maxLength === 'number' && sanitized.length > maxLength) {
     sanitized = sanitized.slice(0, maxLength);
   }
 
@@ -71,7 +71,7 @@ export async function loadPRDescription(
   if (body) parts.push(body);
   const combined = parts.join('\n\n');
 
-  return sanitizeContextField(combined);
+  return sanitizeContextField(combined, 2000);
 }
 
 /**

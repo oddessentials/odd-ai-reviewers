@@ -74,6 +74,17 @@ const ITEMS = ["apple", "banana", "cherry"];
 const picked = ITEMS[i];
 `;
 
+export const constArrayElementAccessSink = `
+const HEDGE_PHRASES = ["maybe", "possibly", "likely"];
+const pattern = HEDGE_PHRASES[i];
+db.query(pattern);
+`;
+
+export const builtinPathJoinSink = `
+const templateDir = path.join(__dirname, "templates");
+fs.readFileSync(templateDir);
+`;
+
 // =============================================================================
 // Intentional Exclusions — Negative Cases (MUST remain tainted)
 // =============================================================================

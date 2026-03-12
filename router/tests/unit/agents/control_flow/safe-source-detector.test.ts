@@ -31,6 +31,8 @@ import {
   readdirSyncStringArg,
   readdirSyncPathJoinSafeArgs,
   constArrayElementAccess,
+  constArrayElementAccessSink,
+  builtinPathJoinSink,
   envVariable,
   typeAssertion,
   importedConstant,
@@ -357,6 +359,33 @@ const picked = alias[0];
       results.find((r) => r.variableName === 'picked' && r.patternId === 'constant-element-access')
     ).toBeUndefined();
   });
+
+  it('should record declaration identity for safe builtin-derived assignments', () => {
+    const results = detect(builtinPathJoinSink);
+    const entry = findByVar(results, 'templateDir');
+    expect(entry).toBeDefined();
+    expect(entry?.declarationKey).toBeTruthy();
+  });
+
+  it('should filter matching sources by declaration identity even when source line differs', () => {
+    const results = detect(constArrayElementAccessSink);
+    const safePattern = findByVar(results, 'pattern');
+    expect(safePattern).toBeDefined();
+
+    const filtered = filterSafeSources(
+      [
+        {
+          location: { file: 'test.ts', line: 2 },
+          expression: 'HEDGE_PHRASES[i]',
+          variableName: 'pattern',
+          declarationKey: safePattern?.declarationKey ?? null,
+        },
+      ],
+      results
+    );
+
+    expect(filtered).toHaveLength(0);
+  });
 });
 
 // =============================================================================
@@ -373,7 +402,12 @@ describe('Scope Isolation', () => {
     // But filtering should NOT remove the outer `dir` from sources
     // because it's at a different declaration site (different line)
     const sources = [
-      { location: { file: 'test.ts', line: 2 }, expression: 'req.query.dir', variableName: 'dir' },
+      {
+        location: { file: 'test.ts', line: 2 },
+        expression: 'req.query.dir',
+        variableName: 'dir',
+        declarationKey: null,
+      },
     ];
     const filtered = filterSafeSources(sources, results);
     expect(filtered).toHaveLength(1);
@@ -387,7 +421,12 @@ describe('Scope Isolation', () => {
 
     // Tainted `dir` in handler() should NOT be filtered
     const sources = [
-      { location: { file: 'test.ts', line: 3 }, expression: 'req.query.dir', variableName: 'dir' },
+      {
+        location: { file: 'test.ts', line: 3 },
+        expression: 'req.query.dir',
+        variableName: 'dir',
+        declarationKey: null,
+      },
     ];
     const filtered = filterSafeSources(sources, results);
     expect(filtered).toHaveLength(1);
@@ -405,6 +444,7 @@ describe('Scope Isolation', () => {
         location: { file: 'test.ts', line: safeDir?.location.line ?? 0 },
         expression: '__dirname',
         variableName: 'dir',
+        declarationKey: null,
       },
     ];
     const filtered = filterSafeSources(sources, results);
@@ -434,6 +474,7 @@ describe('Scope Isolation', () => {
       location: { file: 'test.ts', line: 2 },
       expression: 'req.query.dir',
       variableName: 'dir',
+      declarationKey: null,
     };
     const filtered = filterSafeSources([taintSource], results);
     expect(filtered).toHaveLength(1);
@@ -444,6 +485,7 @@ describe('Scope Isolation', () => {
       location: { file: 'test.ts', line: 4 },
       expression: '__dirname',
       variableName: 'dir',
+      declarationKey: null,
     };
     const filteredSame = filterSafeSources([sameLineSource], results);
     expect(filteredSame).toHaveLength(0);
@@ -503,14 +545,25 @@ describe('Intentional Exclusions (must remain tainted)', () => {
 describe('filterSafeSources', () => {
   it('should remove sources that are safe', () => {
     const sources = [
-      { location: { file: 'test.ts', line: 1 }, expression: 'GREETING', variableName: 'GREETING' },
-      { location: { file: 'test.ts', line: 2 }, expression: 'req.body', variableName: 'userInput' },
+      {
+        location: { file: 'test.ts', line: 1 },
+        expression: 'GREETING',
+        variableName: 'GREETING',
+        declarationKey: 'test.ts:1:0',
+      },
+      {
+        location: { file: 'test.ts', line: 2 },
+        expression: 'req.body',
+        variableName: 'userInput',
+        declarationKey: null,
+      },
     ];
     const safeSources = [
       {
         patternId: 'constant-literal-string',
         variableName: 'GREETING',
         location: { file: 'test.ts', line: 1 },
+        declarationKey: 'test.ts:1:0',
         confidence: 'high' as const,
         preventsTaintFor: [
           'injection' as const,
@@ -531,7 +584,12 @@ describe('filterSafeSources', () => {
 
   it('should return all sources when no safe sources exist', () => {
     const sources = [
-      { location: { file: 'test.ts', line: 1 }, expression: 'req.body', variableName: 'input' },
+      {
+        location: { file: 'test.ts', line: 1 },
+        expression: 'req.body',
+        variableName: 'input',
+        declarationKey: null,
+      },
     ];
     const filtered = filterSafeSources(sources, []);
     expect(filtered).toHaveLength(1);

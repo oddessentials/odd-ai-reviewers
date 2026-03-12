@@ -77,6 +77,16 @@ describe('loadProjectRules', () => {
     const result = await loadProjectRules(tempDir);
     expect(result).toBe('ruleswithnulls');
   });
+
+  it('should not truncate long CLAUDE.md content before budgeting', async () => {
+    const longRules = `# Rules\n${'a'.repeat(3000)}`;
+    await writeFile(join(tempDir, 'CLAUDE.md'), longRules);
+
+    const result = await loadProjectRules(tempDir);
+
+    expect(result).toBe(longRules);
+    expect(result?.length).toBe(longRules.length);
+  });
 });
 
 describe('loadPRDescription', () => {

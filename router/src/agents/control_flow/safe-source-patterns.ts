@@ -57,6 +57,7 @@ export interface SafeSourceInstance {
   patternId: string;
   variableName: string;
   location: { file: string; line: number };
+  declarationKey?: string | null;
   confidence: Confidence;
   preventsTaintFor: VulnerabilityType[];
 }

@@ -32,6 +32,13 @@ interface DetectedSource {
   location: { file: string; line: number; column?: number };
   expression: string;
   variableName: string;
+  declarationKey: string | null;
+}
+
+interface AssignedBinding {
+  variableName: string;
+  declarationKey: string | null;
+  declarationLine: number;
 }
 
 // =============================================================================
@@ -97,7 +104,9 @@ export function filterSafeSources(
   // Line numbers come from declaration sites, so same-name variables
   // in different scopes have different keys.
   const safeMap = new Map<string, VulnerabilityType[]>();
+  const safeDeclarationKeys = new Set<string>();
   for (const ss of safeSources) {
+    if (ss.declarationKey) safeDeclarationKeys.add(ss.declarationKey);
     const key = safeSourceKey(ss.location.file, ss.location.line, ss.variableName);
     const existing = safeMap.get(key);
     if (existing) {
@@ -111,6 +120,9 @@ export function filterSafeSources(
   }
 
   return sources.filter((source) => {
+    if (source.declarationKey && safeDeclarationKeys.has(source.declarationKey)) {
+      return false;
+    }
     const key = safeSourceKey(source.location.file, source.location.line, source.variableName);
     return !safeMap.has(key);
   });
@@ -151,6 +163,7 @@ function detectConstantLiterals(
           patternId: 'constant-literal-string',
           variableName: varName,
           location: { file: filePath, line: line + 1 },
+          declarationKey: declKey,
           confidence: 'high',
           preventsTaintFor: ALL_VULN_TYPES,
         });
@@ -159,6 +172,7 @@ function detectConstantLiterals(
           patternId: 'constant-literal-number',
           variableName: varName,
           location: { file: filePath, line: line + 1 },
+          declarationKey: declKey,
           confidence: 'high',
           preventsTaintFor: ALL_VULN_TYPES,
         });
@@ -170,6 +184,7 @@ function detectConstantLiterals(
           patternId: 'constant-literal-string', // booleans share constant pattern
           variableName: varName,
           location: { file: filePath, line: line + 1 },
+          declarationKey: declKey,
           confidence: 'high',
           preventsTaintFor: ALL_VULN_TYPES,
         });
@@ -179,6 +194,7 @@ function detectConstantLiterals(
           patternId: 'constant-literal-array',
           variableName: varName,
           location: { file: filePath, line: line + 1 },
+          declarationKey: declKey,
           confidence: 'high',
           preventsTaintFor: ALL_VULN_TYPES,
         });
@@ -212,7 +228,14 @@ function detectBuiltinReferences(
   filePath: string,
   safeSources: SafeSourceInstance[]
 ): void {
+  const scope = new ScopeStack();
+
   const visit = (node: ts.Node): void => {
+    const isScope = isScopeNode(node);
+    if (isScope) scope.enterScope(node);
+
+    registerNodeDeclarations(node, scope);
+
     // __dirname and __filename as standalone identifiers
     if (ts.isIdentifier(node)) {
       const name = node.text;
@@ -220,13 +243,13 @@ function detectBuiltinReferences(
         // Skip if this builtin ref is inside a path.join/resolve with unsafe args
         if (!isInsideUnsafePathCall(node)) {
           const patternId = name === '__dirname' ? 'builtin-dirname' : 'builtin-filename';
-          const varName = findAssignedVariableName(node, true);
-          if (varName) {
-            const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const binding = findAssignedBinding(node, sourceFile, scope, true);
+          if (binding) {
             safeSources.push({
               patternId,
-              variableName: varName,
-              location: { file: filePath, line: line + 1 },
+              variableName: binding.variableName,
+              location: { file: filePath, line: binding.declarationLine },
+              declarationKey: binding.declarationKey,
               confidence: 'high',
               preventsTaintFor: ['path_traversal'],
             });
@@ -241,14 +264,14 @@ function detectBuiltinReferences(
       if (propName === 'dirname' || propName === 'url') {
         // Skip if this builtin ref is inside a path.join/resolve with unsafe args
         if (!isInsideUnsafePathCall(node)) {
-          const varName = findAssignedVariableName(node, true);
-          if (varName) {
-            const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const binding = findAssignedBinding(node, sourceFile, scope, true);
+          if (binding) {
             safeSources.push({
               patternId:
                 propName === 'dirname' ? 'builtin-import-meta-dirname' : 'builtin-import-meta-url',
-              variableName: varName,
-              location: { file: filePath, line: line + 1 },
+              variableName: binding.variableName,
+              location: { file: filePath, line: binding.declarationLine },
+              declarationKey: binding.declarationKey,
               confidence: 'high',
               preventsTaintFor: ['path_traversal'],
             });
@@ -258,6 +281,8 @@ function detectBuiltinReferences(
     }
 
     ts.forEachChild(node, visit);
+
+    if (isScope) scope.leaveScope();
   };
 
   visit(sourceFile);
@@ -280,17 +305,24 @@ function detectSafeReaddirCalls(
   filePath: string,
   safeSources: SafeSourceInstance[]
 ): void {
+  const scope = new ScopeStack();
+
   const visit = (node: ts.Node): void => {
+    const isScope = isScopeNode(node);
+    if (isScope) scope.enterScope(node);
+
+    registerNodeDeclarations(node, scope);
+
     if (ts.isCallExpression(node) && isReaddirCall(node)) {
       const arg = node.arguments[0];
       if (arg && isSafePathArg(arg)) {
-        const varName = findAssignedVariableName(node);
-        if (varName) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+        const binding = findAssignedBinding(node, sourceFile, scope);
+        if (binding) {
           safeSources.push({
             patternId: 'safe-readdir',
-            variableName: varName,
-            location: { file: filePath, line: line + 1 },
+            variableName: binding.variableName,
+            location: { file: filePath, line: binding.declarationLine },
+            declarationKey: binding.declarationKey,
             confidence: 'medium',
             preventsTaintFor: ['path_traversal'],
           });
@@ -299,6 +331,8 @@ function detectSafeReaddirCalls(
     }
 
     ts.forEachChild(node, visit);
+
+    if (isScope) scope.leaveScope();
   };
 
   visit(sourceFile);
@@ -422,13 +456,13 @@ function detectConstantElementAccess(
       const decl = scope.resolveDeclaration(node.expression.text);
       const declKey = decl ? nodeIdentityKey(decl, sourceFile) : null;
       if (declKey && safeConstArrayDecls.has(declKey)) {
-        const varName = findAssignedVariableName(node);
-        if (varName) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+        const binding = findAssignedBinding(node, sourceFile, scope);
+        if (binding) {
           safeSources.push({
             patternId: 'constant-element-access',
-            variableName: varName,
-            location: { file: filePath, line: line + 1 },
+            variableName: binding.variableName,
+            location: { file: filePath, line: binding.declarationLine },
+            declarationKey: binding.declarationKey,
             confidence: 'high',
             preventsTaintFor: ['injection', 'xss'],
           });
@@ -507,19 +541,38 @@ function collectMutatedBindings(sourceFile: ts.SourceFile): Set<string> {
  * utility calls (path.join, path.resolve) but stops at arbitrary calls.
  * Used for built-in refs that may be arguments to path.join() etc.
  */
-function findAssignedVariableName(node: ts.Node, traversePathCalls = false): string | null {
+function findAssignedBinding(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+  scope: ScopeStack,
+  traversePathCalls = false
+): AssignedBinding | null {
   let current: ts.Node | undefined = node.parent;
 
   while (current) {
     if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) {
-      return current.name.text;
+      const declLine =
+        sourceFile.getLineAndCharacterOfPosition(current.getStart(sourceFile)).line + 1;
+      return {
+        variableName: current.name.text,
+        declarationKey: nodeIdentityKey(current, sourceFile),
+        declarationLine: declLine,
+      };
     }
     if (
       ts.isBinaryExpression(current) &&
       current.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       ts.isIdentifier(current.left)
     ) {
-      return current.left.text;
+      const decl = scope.resolveDeclaration(current.left.text);
+      const target = decl ?? current.left;
+      const declLine =
+        sourceFile.getLineAndCharacterOfPosition(target.getStart(sourceFile)).line + 1;
+      return {
+        variableName: current.left.text,
+        declarationKey: decl ? nodeIdentityKey(decl, sourceFile) : null,
+        declarationLine: declLine,
+      };
     }
     // Bail at expression types that combine values — the safe builtin
     // may be mixed with unsafe data (template literals, string concat, constructors)
