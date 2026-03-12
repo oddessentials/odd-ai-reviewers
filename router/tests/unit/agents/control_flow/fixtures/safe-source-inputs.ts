@@ -141,6 +141,54 @@ const files = fs.readdirSync(dir || __dirname);
 `;
 
 // =============================================================================
+// Pattern 2 — Unsafe path.join Cases (MUST NOT be marked safe)
+// =============================================================================
+
+/** path.join with __dirname and user input — result is tainted */
+export const dirnamePathJoinUnsafe = `
+const p = path.join(__dirname, req.body.file);
+`;
+
+/** path.resolve with __filename and user input — result is tainted */
+export const filenamePathResolveUnsafe = `
+const p = path.resolve(__filename, userInput);
+`;
+
+/** import.meta.dirname mixed with user input in path.join — result is tainted */
+export const importMetaDirnamePathJoinUnsafe = `
+const p = path.join(import.meta.dirname, req.params.path);
+`;
+
+/** path.join with ONLY safe args — result should still be safe */
+export const dirnamePathJoinAllSafe = `
+const p = path.join(__dirname, "templates", "index.html");
+`;
+
+/** Nested path.join: inner has unsafe arg — outer result is tainted */
+export const nestedPathJoinUnsafe = `
+const p = path.join(__dirname, path.join("sub", userInput));
+`;
+
+// =============================================================================
+// Pattern 2 — Expression-mixing bypasses (MUST NOT be marked safe)
+// =============================================================================
+
+/** Template literal mixing __dirname with user input — result is tainted */
+export const dirnameTemplateLiteralUnsafe = `
+const p = \`\${__dirname}/\${req.body.file}\`;
+`;
+
+/** String concatenation mixing __dirname with user input — result is tainted */
+export const dirnameStringConcatUnsafe = `
+const p = __dirname + '/' + req.body.file;
+`;
+
+/** new URL() mixing import.meta.url with user input — result is tainted */
+export const importMetaUrlNewUrlUnsafe = `
+const target = new URL(req.body.path, import.meta.url);
+`;
+
+// =============================================================================
 // Scope Isolation — Regression Cases
 // =============================================================================
 

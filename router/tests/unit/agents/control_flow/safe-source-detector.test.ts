@@ -54,6 +54,14 @@ import {
   callbackShadowNoPoison,
   varHoistingShadow,
   forOfLoopShadow,
+  dirnamePathJoinUnsafe,
+  filenamePathResolveUnsafe,
+  importMetaDirnamePathJoinUnsafe,
+  dirnamePathJoinAllSafe,
+  nestedPathJoinUnsafe,
+  dirnameTemplateLiteralUnsafe,
+  dirnameStringConcatUnsafe,
+  importMetaUrlNewUrlUnsafe,
 } from './fixtures/safe-source-inputs.js';
 
 // =============================================================================
@@ -239,6 +247,49 @@ describe('Pattern 2: Built-in Directory References', () => {
     expect(entry?.preventsTaintFor).toEqual(['path_traversal']);
     expect(entry?.preventsTaintFor).not.toContain('injection');
     expect(entry?.preventsTaintFor).not.toContain('xss');
+  });
+
+  it('should NOT mark path.join(__dirname, userInput) as safe', () => {
+    const results = detect(dirnamePathJoinUnsafe);
+    // The result variable `p` must NOT be a safe source because user input is mixed in
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should NOT mark path.resolve(__filename, userInput) as safe', () => {
+    const results = detect(filenamePathResolveUnsafe);
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should NOT mark path.join(import.meta.dirname, userInput) as safe', () => {
+    const results = detect(importMetaDirnamePathJoinUnsafe);
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should still mark path.join(__dirname, "safe", "safe") as safe', () => {
+    const results = detect(dirnamePathJoinAllSafe);
+    const entry = findByVar(results, 'p');
+    expect(entry).toBeDefined();
+    expect(entry?.patternId).toBe('builtin-dirname');
+  });
+
+  it('should NOT mark nested path.join with unsafe inner args as safe', () => {
+    const results = detect(nestedPathJoinUnsafe);
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should NOT mark template literal mixing __dirname with user input as safe', () => {
+    const results = detect(dirnameTemplateLiteralUnsafe);
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should NOT mark string concatenation of __dirname with user input as safe', () => {
+    const results = detect(dirnameStringConcatUnsafe);
+    expect(findByVar(results, 'p')).toBeUndefined();
+  });
+
+  it('should NOT mark new URL(userInput, import.meta.url) as safe', () => {
+    const results = detect(importMetaUrlNewUrlUnsafe);
+    expect(findByVar(results, 'target')).toBeUndefined();
   });
 });
 

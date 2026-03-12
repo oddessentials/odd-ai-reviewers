@@ -217,17 +217,20 @@ function detectBuiltinReferences(
     if (ts.isIdentifier(node)) {
       const name = node.text;
       if (name === '__dirname' || name === '__filename') {
-        const patternId = name === '__dirname' ? 'builtin-dirname' : 'builtin-filename';
-        const varName = findAssignedVariableName(node, true);
-        if (varName) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-          safeSources.push({
-            patternId,
-            variableName: varName,
-            location: { file: filePath, line: line + 1 },
-            confidence: 'high',
-            preventsTaintFor: ['path_traversal'],
-          });
+        // Skip if this builtin ref is inside a path.join/resolve with unsafe args
+        if (!isInsideUnsafePathCall(node)) {
+          const patternId = name === '__dirname' ? 'builtin-dirname' : 'builtin-filename';
+          const varName = findAssignedVariableName(node, true);
+          if (varName) {
+            const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            safeSources.push({
+              patternId,
+              variableName: varName,
+              location: { file: filePath, line: line + 1 },
+              confidence: 'high',
+              preventsTaintFor: ['path_traversal'],
+            });
+          }
         }
       }
     }
@@ -236,17 +239,20 @@ function detectBuiltinReferences(
     if (ts.isPropertyAccessExpression(node) && isImportMetaProperty(node)) {
       const propName = node.name.text;
       if (propName === 'dirname' || propName === 'url') {
-        const varName = findAssignedVariableName(node, true);
-        if (varName) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-          safeSources.push({
-            patternId:
-              propName === 'dirname' ? 'builtin-import-meta-dirname' : 'builtin-import-meta-url',
-            variableName: varName,
-            location: { file: filePath, line: line + 1 },
-            confidence: 'high',
-            preventsTaintFor: ['path_traversal'],
-          });
+        // Skip if this builtin ref is inside a path.join/resolve with unsafe args
+        if (!isInsideUnsafePathCall(node)) {
+          const varName = findAssignedVariableName(node, true);
+          if (varName) {
+            const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            safeSources.push({
+              patternId:
+                propName === 'dirname' ? 'builtin-import-meta-dirname' : 'builtin-import-meta-url',
+              variableName: varName,
+              location: { file: filePath, line: line + 1 },
+              confidence: 'high',
+              preventsTaintFor: ['path_traversal'],
+            });
+          }
         }
       }
     }
@@ -277,7 +283,7 @@ function detectSafeReaddirCalls(
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && isReaddirCall(node)) {
       const arg = node.arguments[0];
-      if (arg && isSafeReaddirArg(arg)) {
+      if (arg && isSafePathArg(arg)) {
         const varName = findAssignedVariableName(node);
         if (varName) {
           const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
@@ -326,10 +332,13 @@ function isReaddirCall(node: ts.CallExpression): boolean {
 }
 
 /**
- * Check if a readdir argument is provably safe.
- * Must be ONE of: string literal, built-in ref, or path.join/resolve with all safe args.
+ * Check if an AST node is a provably safe path argument.
+ * Must be ONE of: string literal, built-in ref (__dirname/__filename/import.meta.dirname/url),
+ * or a nested path.join/resolve call where ALL arguments are themselves safe.
+ *
+ * Used by both Pattern 2 (built-in references) and Pattern 3 (safe readdir args).
  */
-function isSafeReaddirArg(node: ts.Node): boolean {
+function isSafePathArg(node: ts.Node): boolean {
   // String literal
   if (ts.isStringLiteral(node)) return true;
 
@@ -346,9 +355,32 @@ function isSafeReaddirArg(node: ts.Node): boolean {
 
   // path.join(...) or path.resolve(...) where ALL args are safe
   if (ts.isCallExpression(node) && isPathJoinOrResolve(node)) {
-    return node.arguments.every((arg) => isSafeReaddirArg(arg));
+    return node.arguments.every((arg) => isSafePathArg(arg));
   }
 
+  return false;
+}
+
+/**
+ * Check if a node is inside a path.join/resolve call that has any unsafe arguments.
+ * Returns true when the builtin ref is mixed with non-safe args (e.g., user input),
+ * meaning the result variable should NOT be marked as a safe source.
+ */
+function isInsideUnsafePathCall(node: ts.Node): boolean {
+  // Walk up to find the nearest CallExpression ancestor
+  let current: ts.Node | undefined = node.parent;
+  while (current) {
+    if (ts.isCallExpression(current) && isPathJoinOrResolve(current)) {
+      // Found a path.join/resolve call containing this node.
+      // Check if ALL arguments are safe — if not, the result is unsafe.
+      return !current.arguments.every((arg) => isSafePathArg(arg));
+    }
+    // Stop walking up if we hit a statement or declaration boundary
+    if (ts.isVariableDeclaration(current) || ts.isBinaryExpression(current)) {
+      break;
+    }
+    current = current.parent;
+  }
   return false;
 }
 
@@ -489,6 +521,11 @@ function findAssignedVariableName(node: ts.Node, traversePathCalls = false): str
     ) {
       return current.left.text;
     }
+    // Bail at expression types that combine values — the safe builtin
+    // may be mixed with unsafe data (template literals, string concat, constructors)
+    if (ts.isBinaryExpression(current)) return null; // non-= binary (+ etc.) — = already handled above
+    if (ts.isTemplateExpression(current)) return null;
+    if (ts.isNewExpression(current)) return null;
     if (ts.isCallExpression(current)) {
       if (traversePathCalls && isPathJoinOrResolve(current)) {
         current = current.parent;
