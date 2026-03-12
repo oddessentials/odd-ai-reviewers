@@ -78,8 +78,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: router/pnpm-lock.yaml
 
       - name: Setup pnpm
         run: |
