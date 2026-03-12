@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.4...v1.8.0) (2026-03-12)
+
+### Features
+
+* two-stage validation, safe-source detection, and benchmark harness ([#163](https://github.com/oddessentials/odd-ai-reviewers/issues/163)) ([6bafb19](https://github.com/oddessentials/odd-ai-reviewers/commit/6bafb19f8d7a0e61a1a2db439b4f660eb054484a))
+
 ## [1.7.4](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.7.3...v1.7.4) (2026-02-10)
 
 ### Bug Fixes
