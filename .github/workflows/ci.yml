@@ -17,15 +17,15 @@ jobs:
         with:
           fetch-depth: 0 # Full history needed for tests using HEAD~1
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # Version is read from packageManager field in package.json
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -128,14 +128,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       - name: Fresh install (triggers husky prepare)
         run: pnpm install --frozen-lockfile
@@ -196,14 +197,15 @@ jobs:
         with:
           fetch-depth: 0 # Full history needed for cross-platform git tests
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -229,14 +231,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -258,7 +261,8 @@ jobs:
           echo "Reviewdog smoke test passed"
 
       - name: Trivy scan (HIGH,CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        # SHA-pinned: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           image-ref: odd-ai-reviewers-router:ci
           format: table

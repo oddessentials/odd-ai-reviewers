@@ -25,6 +25,7 @@ vi.mock('../phases/index.js', async (importOriginal) => {
     executeAllPasses: vi.fn(),
     processFindings: vi.fn(),
     dispatchReport: vi.fn(),
+    getPostNormalizationFindings: vi.fn(),
     checkGating: vi.fn(),
   };
 });
@@ -37,8 +38,14 @@ const { loadReviewIgnore, shouldIgnoreFile } = await import('../reviewignore.js'
 const { getDiff, filterFiles, buildCombinedDiff, resolveReviewRefs, getGitHubCheckHeadSha } =
   await import('../diff.js');
 const { checkBudget, estimateTokens } = await import('../budget.js');
-const { runPreflightChecks, executeAllPasses, processFindings, dispatchReport, checkGating } =
-  await import('../phases/index.js');
+const {
+  runPreflightChecks,
+  executeAllPasses,
+  processFindings,
+  dispatchReport,
+  getPostNormalizationFindings,
+  checkGating,
+} = await import('../phases/index.js');
 const { startCheckRun, completeCheckRun } = await import('../report/github.js');
 const { checkTrust, buildADOPRContext } = await import('../trust.js');
 const { setupSignalHandlers } = await import('../cli/signals.js');
@@ -102,6 +109,7 @@ beforeEach(() => {
     summary: '',
   });
   vi.mocked(dispatchReport).mockResolvedValue(undefined);
+  vi.mocked(getPostNormalizationFindings).mockReturnValue([]);
   vi.mocked(checkGating).mockReturnValue();
   vi.mocked(buildADOPRContext).mockReturnValue(null);
   vi.mocked(checkTrust).mockReturnValue({ trusted: true });

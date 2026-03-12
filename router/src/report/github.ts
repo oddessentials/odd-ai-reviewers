@@ -32,7 +32,6 @@ import {
   emitMalformedMarkerWarning,
 } from './resolution.js';
 import type { DiffFile } from '../diff.js';
-import { canonicalizeDiffFiles } from '../diff.js';
 import {
   delay,
   INLINE_COMMENT_DELAY_MS,
@@ -42,16 +41,13 @@ import {
 } from './base.js';
 
 import {
-  buildLineResolver,
-  normalizeFindingsForDiff,
-  computeDriftSignal,
-  computeInlineDriftSignal,
   generateDriftMarkdown,
   shouldSuppressInlineComments,
   type ValidationStats,
   type InvalidLineDetail,
   type DriftSignal,
 } from './line-resolver.js';
+import { normalizeAndValidateFindings } from './finding-validator.js';
 
 export interface GitHubContext {
   owner: string;
@@ -78,6 +74,8 @@ export interface ReportResult {
   invalidLineDetails?: InvalidLineDetail[];
   /** Whether inline comments were suppressed by drift gate */
   inlineCommentsGated?: boolean;
+  /** Post-normalization validated findings for gating (after Stage 2) */
+  postNormalizationFindings?: Finding[];
 }
 
 /**
@@ -164,36 +162,18 @@ export async function reportToGitHub(
     summary: true,
   };
 
-  // CANONICAL ENTRYPOINT: Ensure all diff paths are normalized FIRST
-  // This must happen before buildLineResolver, deleted set, or rename maps
-  const canonicalFiles = canonicalizeDiffFiles(diffFiles);
+  // Normalize findings against diff and run Stage 2 validation
+  const {
+    validatedFindings,
+    canonicalFiles,
+    driftSignal,
+    inlineDriftSignal,
+    normalizationStats,
+    invalidDetails,
+  } = normalizeAndValidateFindings(findings, diffFiles, 'github');
 
-  // Build line resolver and normalize findings from canonical files
-  const lineResolver = buildLineResolver(canonicalFiles);
-  const normalizationResult = normalizeFindingsForDiff(findings, lineResolver);
-
-  if (normalizationResult.stats.dropped > 0 || normalizationResult.stats.normalized > 0) {
-    console.log(
-      `[github] Line validation: ${normalizationResult.stats.valid} valid, ` +
-        `${normalizationResult.stats.normalized} normalized, ${normalizationResult.stats.dropped} dropped`
-    );
-  }
-
-  // Compute drift signal for visibility in check summary
-  const driftSignal = computeDriftSignal(
-    normalizationResult.stats,
-    normalizationResult.invalidDetails
-  );
-
-  // Compute inline-specific drift signal for gate decisions.
-  // Uses only line-bearing findings as denominator to avoid dilution by file-level findings.
-  const inlineDriftSignal = computeInlineDriftSignal(
-    normalizationResult.stats,
-    normalizationResult.invalidDetails
-  );
-
-  // Process normalized findings
-  const deduplicated = deduplicateFindings(normalizationResult.findings);
+  // Process validated findings
+  const deduplicated = deduplicateFindings(validatedFindings);
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
@@ -248,15 +228,13 @@ export async function reportToGitHub(
       commentId,
       skippedDuplicates,
       checkRunCompleted,
-      validationStats: normalizationResult.stats,
-      invalidLineDetails:
-        normalizationResult.invalidDetails.length > 0
-          ? normalizationResult.invalidDetails
-          : undefined,
+      validationStats: normalizationStats,
+      invalidLineDetails: invalidDetails.length > 0 ? invalidDetails : undefined,
       inlineCommentsGated: shouldSuppressInlineComments(
         inlineDriftSignal,
         config.gating.drift_gate
       ),
+      postNormalizationFindings: sorted,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

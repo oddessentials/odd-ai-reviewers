@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processFindings, dispatchReport, checkGating, GatingError } from '../phases/report.js';
+import {
+  processFindings,
+  dispatchReport,
+  getPostNormalizationFindings,
+  checkGating,
+  GatingError,
+} from '../phases/report.js';
 import type { Config } from '../config/schemas.js';
 import type { Finding, AgentResult } from '../agents/types.js';
 import { AgentSuccess } from '../agents/types.js';
@@ -197,6 +203,155 @@ describe('Report Module', () => {
       expect(processed.summary).not.toContain('Partial Findings (from failed agents)');
       // But the main summary should still exist
       expect(processed.summary).toContain('AI Code Review Summary');
+    });
+  });
+
+  /**
+   * Finding Lifecycle Boundary Regression Tests (410-false-positive-deep-fixes)
+   *
+   * Verifies that processFindings no longer drops findings with stale lines or
+   * renamed paths. These findings should survive to be salvaged by normalization
+   * in platform reporters (Stage 2).
+   */
+  describe('finding lifecycle boundary (410-false-positive-deep-fixes)', () => {
+    it('finding with stale line number survives processFindings', () => {
+      // Previously filtered by validateFindings line validation in processFindings.
+      // Now processFindings uses semantic-only validation, so stale lines survive.
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/app.ts',
+          line: 999, // stale line - not in any diff hunk
+          message: 'Potential issue at this line',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      // Provide diff files that DON'T include line 999
+      const diffFiles = [
+        {
+          path: 'src/app.ts',
+          status: 'modified' as const,
+          additions: 1,
+          deletions: 0,
+          patch: '@@ -1,3 +1,3 @@\n context\n+added\n context\n',
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+
+      // The finding should survive processFindings (not filtered by line validation)
+      expect(processed.sorted).toHaveLength(1);
+      expect(processed.sorted[0]?.line).toBe(999);
+    });
+
+    it('finding with old renamed path survives processFindings', () => {
+      // Previously filtered because the old path wasn't in the diff file set.
+      // Now processFindings uses semantic-only validation, so it survives.
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/old-name.ts', // old path before rename
+          line: 10,
+          message: 'Security issue found',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      // Diff only shows the new name
+      const diffFiles = [
+        {
+          path: 'src/new-name.ts',
+          oldPath: 'src/old-name.ts',
+          status: 'renamed' as const,
+          additions: 1,
+          deletions: 0,
+          patch: '@@ -1,3 +1,3 @@\n context\n+added\n context\n',
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+
+      // The finding should survive processFindings
+      expect(processed.sorted).toHaveLength(1);
+      expect(processed.sorted[0]?.file).toBe('src/old-name.ts');
+    });
+
+    it('self-contradicting finding is still filtered in processFindings', () => {
+      // Self-contradiction detection is semantic, so it still works in Stage 1.
+      const findings: Finding[] = [
+        {
+          severity: 'info',
+          file: 'src/app.ts',
+          line: 10,
+          message: 'This is fine, no action required.',
+          suggestion: undefined,
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], []);
+
+      // Self-contradicting finding should still be filtered
+      expect(processed.sorted).toHaveLength(0);
+    });
+
+    it('edge case 3: empty diffFiles does not crash processFindings', () => {
+      // When diffFiles is empty, processFindings should still work normally
+      // (semantic-only validation does not depend on diff context at all).
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/app.ts',
+          line: 10,
+          message: 'Real issue',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], []);
+
+      expect(processed.sorted).toHaveLength(1);
+      expect(processed.sorted[0]?.file).toBe('src/app.ts');
+    });
+
+    it('edge case 5: summary counts are pre-normalization (higher than posted)', () => {
+      // processFindings generates summary from pre-Stage-2 findings.
+      // Stale-line findings survive Stage 1 and inflate the summary count.
+      // Reporters generate their own summaries from post-Stage-2 data.
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/app.ts',
+          line: 10,
+          message: 'Valid finding',
+          sourceAgent: 'test-agent',
+        },
+        {
+          severity: 'warning',
+          file: 'src/app.ts',
+          line: 999, // stale line - will be filtered in Stage 2 by reporter
+          message: 'Stale-line finding survives Stage 1',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'src/app.ts',
+          status: 'modified' as const,
+          additions: 1,
+          deletions: 0,
+          patch: '@@ -1,3 +1,3 @@\n context\n+added\n context\n',
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+
+      // Both findings survive processFindings (pre-normalization)
+      expect(processed.sorted).toHaveLength(2);
+      // Console log should indicate pre-normalization
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('pre-normalization'));
     });
   });
 
@@ -647,6 +802,63 @@ describe('Report Module', () => {
 
       expect(mockGitHubReport).not.toHaveBeenCalled();
       expect(mockADOReport).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getPostNormalizationFindings', () => {
+    it('should remap renamed paths before returning Stage 2 findings', () => {
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/old-name.ts',
+          line: 10,
+          message: 'Renamed file finding',
+          sourceAgent: 'test',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'src/new-name.ts',
+          oldPath: 'src/old-name.ts',
+          status: 'renamed' as const,
+          additions: 1,
+          deletions: 0,
+          patch: '@@ -9,0 +10,1 @@\n+const renamed = true;',
+        },
+      ];
+
+      expect(getPostNormalizationFindings(findings, diffFiles)).toEqual([
+        expect.objectContaining({
+          file: 'src/new-name.ts',
+          line: 10,
+        }),
+      ]);
+    });
+
+    it('should preserve actionable info findings that include dismissive wording', () => {
+      const findings: Finding[] = [
+        {
+          severity: 'info',
+          file: 'src/app.ts',
+          line: 10,
+          message: 'This is not blocking for now.',
+          suggestion: 'Not blocking, but sanitize this before writing to innerHTML.',
+          sourceAgent: 'test',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'src/app.ts',
+          status: 'modified' as const,
+          additions: 1,
+          deletions: 0,
+          patch: '@@ -9,0 +10,1 @@\n+element.innerHTML = value;',
+        },
+      ];
+
+      expect(getPostNormalizationFindings(findings, diffFiles)).toHaveLength(1);
     });
   });
 

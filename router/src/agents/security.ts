@@ -76,6 +76,7 @@ const ROUTER_ENV_ALLOWLIST = [
   'GITHUB_BASE_REF',
   'GITHUB_WORKSPACE',
   'GITHUB_ACTIONS',
+  'GITHUB_EVENT_PATH', // Event payload JSON (contains PR title/body)
   // Azure DevOps CI context (router-only, NOT passed to agents)
   'SYSTEM_ACCESSTOKEN', // ADO pipeline token
   'AZURE_DEVOPS_PAT', // PAT fallback for local testing/cross-org

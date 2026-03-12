@@ -24,6 +24,10 @@ import {
   generateFullSummaryMarkdown,
 } from '../report/formats.js';
 import { sanitizeFindings } from '../report/sanitize.js';
+import {
+  validateFindingsSemantics,
+  normalizeAndValidateFindings,
+} from '../report/finding-validator.js';
 import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
@@ -31,6 +35,8 @@ export type Platform = 'github' | 'ado' | 'unknown';
 export interface DispatchReportResult {
   /** Whether the check run was completed during reporting (always false for ADO) */
   checkRunCompleted: boolean;
+  /** Post-normalization validated findings for gating (after Stage 2 validation in reporters) */
+  postNormalizationFindings?: Finding[];
 }
 
 export interface ReportOptions {
@@ -61,13 +67,21 @@ export function processFindings(
   completeFindings: Finding[],
   partialFindings: Finding[],
   allResults: AgentResult[],
-  skippedAgents: SkippedAgent[]
+  skippedAgents: SkippedAgent[],
+  _diffFiles: DiffFile[] = []
 ): ProcessedFindings {
   // Process complete findings (from successful agents)
   const deduplicated = deduplicateFindings(completeFindings);
   // Sanitize findings before sorting/posting (defense-in-depth)
   const sanitized = sanitizeFindings(deduplicated);
-  const sorted = sortFindings(sanitized);
+
+  // Stage 1 (semantic-only): Filter self-contradictions, classify findings.
+  // NO line/path validation here — deferred to Stage 2 in platform reporters
+  // after normalizeFindingsForDiff() has remapped renamed paths and snapped stale lines.
+  const validationResult = validateFindingsSemantics(sanitized);
+  const validated = validationResult.validFindings;
+
+  const sorted = sortFindings(validated);
 
   // Process partial findings (from failed agents) separately
   // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
@@ -107,8 +121,11 @@ export function processFindings(
     skippedAgents
   );
 
+  // NOTE: These counts are pre-normalization (Stage 1 only). Platform reporters apply
+  // Stage 2 (diff-bound validation) which may further filter findings. The reporter-generated
+  // summaries in check runs / PR comments use post-Stage-2 counts and are the source of truth.
   console.log(
-    `[router] Complete findings: ${sorted.length} (deduplicated from ${completeFindings.length})`
+    `[router] Complete findings (pre-normalization): ${sorted.length} (deduplicated from ${completeFindings.length})`
   );
   if (partialFindings.length > 0) {
     console.log(
@@ -178,7 +195,10 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to GitHub:', reportResult.error);
     }
-    return { checkRunCompleted: reportResult.checkRunCompleted ?? false };
+    return {
+      checkRunCompleted: reportResult.checkRunCompleted ?? false,
+      postNormalizationFindings: reportResult.postNormalizationFindings,
+    };
   } else if (platform === 'ado') {
     // Extract ADO context from environment
     const collectionUri = routerEnv['SYSTEM_TEAMFOUNDATIONCOLLECTIONURI'] ?? '';
@@ -218,8 +238,22 @@ export async function dispatchReport(
     } else {
       console.error('[router] Failed to report to Azure DevOps:', reportResult.error);
     }
-    return { checkRunCompleted: false };
+    return {
+      checkRunCompleted: false,
+      postNormalizationFindings: reportResult.postNormalizationFindings,
+    };
   }
+}
+
+/**
+ * Apply Stage 2 normalization and diff-bound validation outside hosted reporters.
+ * This keeps dry-run and unknown-platform gating aligned with GitHub/ADO behavior.
+ */
+export function getPostNormalizationFindings(
+  findings: Finding[],
+  diffFiles: DiffFile[]
+): Finding[] {
+  return normalizeAndValidateFindings(findings, diffFiles, 'router').validatedFindings;
 }
 
 /**

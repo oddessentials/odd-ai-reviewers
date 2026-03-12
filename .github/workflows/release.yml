@@ -48,15 +48,16 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       # FR-018: Pinned Node.js major version
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
 
       # FR-018: Frozen lockfile ensures reproducibility
       - name: Install dependencies
