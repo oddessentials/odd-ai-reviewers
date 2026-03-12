@@ -62,14 +62,8 @@ export function detectSafeSources(
   // Pattern 1: Constant literal declarations at module scope
   detectConstantLiterals(sourceFile, filePath, mutatedBindings, safeSources, safeConstArrayDecls);
 
-  // Pattern 2: Built-in directory references
-  detectBuiltinReferences(sourceFile, filePath, safeSources);
-
-  // Pattern 3: Safe directory listing returns
-  detectSafeReaddirCalls(sourceFile, filePath, safeSources);
-
-  // Pattern 4: Constant array element access
-  detectConstantElementAccess(sourceFile, filePath, safeConstArrayDecls, safeSources);
+  // Patterns 2-4 share declaration resolution, so handle them in one scope-aware pass.
+  detectScopedSafeSources(sourceFile, filePath, safeConstArrayDecls, safeSources);
 
   return safeSources;
 }
@@ -223,9 +217,10 @@ function isLiteralNode(node: ts.Node): boolean {
 // Pattern 2: Built-in Directory References
 // =============================================================================
 
-function detectBuiltinReferences(
+function detectScopedSafeSources(
   sourceFile: ts.SourceFile,
   filePath: string,
+  safeConstArrayDecls: Set<string>,
   safeSources: SafeSourceInstance[]
 ): void {
   const scope = new ScopeStack();
@@ -236,11 +231,9 @@ function detectBuiltinReferences(
 
     registerNodeDeclarations(node, scope);
 
-    // __dirname and __filename as standalone identifiers
     if (ts.isIdentifier(node)) {
       const name = node.text;
       if (name === '__dirname' || name === '__filename') {
-        // Skip if this builtin ref is inside a path.join/resolve with unsafe args
         if (!isInsideUnsafePathCall(node)) {
           const patternId = name === '__dirname' ? 'builtin-dirname' : 'builtin-filename';
           const binding = findAssignedBinding(node, sourceFile, scope, true);
@@ -258,11 +251,9 @@ function detectBuiltinReferences(
       }
     }
 
-    // import.meta.dirname and import.meta.url as PropertyAccessExpression
     if (ts.isPropertyAccessExpression(node) && isImportMetaProperty(node)) {
       const propName = node.name.text;
       if (propName === 'dirname' || propName === 'url') {
-        // Skip if this builtin ref is inside a path.join/resolve with unsafe args
         if (!isInsideUnsafePathCall(node)) {
           const binding = findAssignedBinding(node, sourceFile, scope, true);
           if (binding) {
@@ -279,39 +270,6 @@ function detectBuiltinReferences(
         }
       }
     }
-
-    ts.forEachChild(node, visit);
-
-    if (isScope) scope.leaveScope();
-  };
-
-  visit(sourceFile);
-}
-
-/**
- * Check if a PropertyAccessExpression is on `import.meta`.
- */
-function isImportMetaProperty(node: ts.PropertyAccessExpression): boolean {
-  // import.meta.X → node.expression is MetaProperty (import.meta)
-  return node.expression.kind === ts.SyntaxKind.MetaProperty;
-}
-
-// =============================================================================
-// Pattern 3: Safe Directory Listing Returns
-// =============================================================================
-
-function detectSafeReaddirCalls(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  safeSources: SafeSourceInstance[]
-): void {
-  const scope = new ScopeStack();
-
-  const visit = (node: ts.Node): void => {
-    const isScope = isScopeNode(node);
-    if (isScope) scope.enterScope(node);
-
-    registerNodeDeclarations(node, scope);
 
     if (ts.isCallExpression(node) && isReaddirCall(node)) {
       const arg = node.arguments[0];
@@ -330,129 +288,7 @@ function detectSafeReaddirCalls(
       }
     }
 
-    ts.forEachChild(node, visit);
-
-    if (isScope) scope.leaveScope();
-  };
-
-  visit(sourceFile);
-}
-
-/**
- * Check if a call expression is fs.readdirSync or fs.promises.readdir.
- */
-function isReaddirCall(node: ts.CallExpression): boolean {
-  const expr = node.expression;
-
-  // fs.readdirSync(...)
-  if (ts.isPropertyAccessExpression(expr)) {
-    const methodName = expr.name.text;
-    if (methodName === 'readdirSync' || methodName === 'readdir') {
-      // Check for fs.X or fs.promises.X
-      if (ts.isIdentifier(expr.expression)) {
-        return expr.expression.text === 'fs';
-      }
-      if (ts.isPropertyAccessExpression(expr.expression)) {
-        return (
-          ts.isIdentifier(expr.expression.expression) &&
-          expr.expression.expression.text === 'fs' &&
-          expr.expression.name.text === 'promises'
-        );
-      }
-    }
-  }
-
-  return false;
-}
-
-/**
- * Check if an AST node is a provably safe path argument.
- * Must be ONE of: string literal, built-in ref (__dirname/__filename/import.meta.dirname/url),
- * or a nested path.join/resolve call where ALL arguments are themselves safe.
- *
- * Used by both Pattern 2 (built-in references) and Pattern 3 (safe readdir args).
- */
-function isSafePathArg(node: ts.Node): boolean {
-  // String literal
-  if (ts.isStringLiteral(node)) return true;
-
-  // __dirname or __filename
-  if (ts.isIdentifier(node) && (node.text === '__dirname' || node.text === '__filename')) {
-    return true;
-  }
-
-  // import.meta.dirname or import.meta.url
-  if (ts.isPropertyAccessExpression(node) && isImportMetaProperty(node)) {
-    const propName = node.name.text;
-    return propName === 'dirname' || propName === 'url';
-  }
-
-  // path.join(...) or path.resolve(...) where ALL args are safe
-  if (ts.isCallExpression(node) && isPathJoinOrResolve(node)) {
-    return node.arguments.every((arg) => isSafePathArg(arg));
-  }
-
-  return false;
-}
-
-/**
- * Check if a node is inside a path.join/resolve call that has any unsafe arguments.
- * Returns true when the builtin ref is mixed with non-safe args (e.g., user input),
- * meaning the result variable should NOT be marked as a safe source.
- */
-function isInsideUnsafePathCall(node: ts.Node): boolean {
-  // Walk up to find the nearest CallExpression ancestor
-  let current: ts.Node | undefined = node.parent;
-  while (current) {
-    if (ts.isCallExpression(current) && isPathJoinOrResolve(current)) {
-      // Found a path.join/resolve call containing this node.
-      // Check if ALL arguments are safe — if not, the result is unsafe.
-      return !current.arguments.every((arg) => isSafePathArg(arg));
-    }
-    // Stop walking up if we hit a statement or declaration boundary
-    if (ts.isVariableDeclaration(current) || ts.isBinaryExpression(current)) {
-      break;
-    }
-    current = current.parent;
-  }
-  return false;
-}
-
-/**
- * Check if a call is path.join() or path.resolve().
- */
-function isPathJoinOrResolve(node: ts.CallExpression): boolean {
-  if (!ts.isPropertyAccessExpression(node.expression)) return false;
-  const methodName = node.expression.name.text;
-  if (methodName !== 'join' && methodName !== 'resolve') return false;
-  if (!ts.isIdentifier(node.expression.expression)) return false;
-  return node.expression.expression.text === 'path';
-}
-
-// =============================================================================
-// Pattern 4: Constant Array Element Access
-// =============================================================================
-
-function detectConstantElementAccess(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  safeConstArrayDecls: Set<string>,
-  safeSources: SafeSourceInstance[]
-): void {
-  if (safeConstArrayDecls.size === 0) return;
-
-  // Build a scope stack to resolve element access expressions to their declarations
-  const scope = new ScopeStack();
-
-  const visit = (node: ts.Node): void => {
-    const isScope = isScopeNode(node);
-    if (isScope) scope.enterScope(node);
-
-    // Register all declaration types (var/let/const, destructuring, params, catch)
-    registerNodeDeclarations(node, scope);
-
     if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression)) {
-      // Resolve the identifier to its declaration and check if THAT declaration is safe
       const decl = scope.resolveDeclaration(node.expression.text);
       const declKey = decl ? nodeIdentityKey(decl, sourceFile) : null;
       if (declKey && safeConstArrayDecls.has(declKey)) {
@@ -476,6 +312,90 @@ function detectConstantElementAccess(
   };
 
   visit(sourceFile);
+}
+
+/**
+ * Check if a PropertyAccessExpression is on `import.meta`.
+ */
+function isImportMetaProperty(node: ts.PropertyAccessExpression): boolean {
+  return node.expression.kind === ts.SyntaxKind.MetaProperty;
+}
+
+/**
+ * Check if a call expression is fs.readdirSync or fs.promises.readdir.
+ */
+function isReaddirCall(node: ts.CallExpression): boolean {
+  const expr = node.expression;
+
+  if (ts.isPropertyAccessExpression(expr)) {
+    const methodName = expr.name.text;
+    if (methodName === 'readdirSync' || methodName === 'readdir') {
+      if (ts.isIdentifier(expr.expression)) {
+        return expr.expression.text === 'fs';
+      }
+      if (ts.isPropertyAccessExpression(expr.expression)) {
+        return (
+          ts.isIdentifier(expr.expression.expression) &&
+          expr.expression.expression.text === 'fs' &&
+          expr.expression.name.text === 'promises'
+        );
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if an AST node is a provably safe path argument.
+ * Must be ONE of: string literal, built-in ref (__dirname/__filename/import.meta.dirname/url),
+ * or a nested path.join/resolve call where ALL arguments are themselves safe.
+ */
+function isSafePathArg(node: ts.Node): boolean {
+  if (ts.isStringLiteral(node)) return true;
+
+  if (ts.isIdentifier(node) && (node.text === '__dirname' || node.text === '__filename')) {
+    return true;
+  }
+
+  if (ts.isPropertyAccessExpression(node) && isImportMetaProperty(node)) {
+    const propName = node.name.text;
+    return propName === 'dirname' || propName === 'url';
+  }
+
+  if (ts.isCallExpression(node) && isPathJoinOrResolve(node)) {
+    return node.arguments.every((arg) => isSafePathArg(arg));
+  }
+
+  return false;
+}
+
+/**
+ * Check if a node is inside a path.join/resolve call that has any unsafe arguments.
+ */
+function isInsideUnsafePathCall(node: ts.Node): boolean {
+  let current: ts.Node | undefined = node.parent;
+  while (current) {
+    if (ts.isCallExpression(current) && isPathJoinOrResolve(current)) {
+      return !current.arguments.every((arg) => isSafePathArg(arg));
+    }
+    if (ts.isVariableDeclaration(current) || ts.isBinaryExpression(current)) {
+      break;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+/**
+ * Check if a call is path.join() or path.resolve().
+ */
+function isPathJoinOrResolve(node: ts.CallExpression): boolean {
+  if (!ts.isPropertyAccessExpression(node.expression)) return false;
+  const methodName = node.expression.name.text;
+  if (methodName !== 'join' && methodName !== 'resolve') return false;
+  if (!ts.isIdentifier(node.expression.expression)) return false;
+  return node.expression.expression.text === 'path';
 }
 
 // =============================================================================
