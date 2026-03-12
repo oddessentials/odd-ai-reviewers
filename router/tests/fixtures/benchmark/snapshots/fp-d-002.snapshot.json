@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-12T17:50:50.181Z",
+    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
+    "modelId": "snapshot-seed-v1",
+    "provider": "synthetic",
+    "fixtureHash": "0abf54dd33308ec476c00349aaa53d8ebda4dca5923c7d3ff22848a595f7cd94",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [],
+    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+  }
+}

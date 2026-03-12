@@ -1052,7 +1052,8 @@ export async function runReview(
       executeResult.partialFindings,
       executeResult.allResults,
       executeResult.skippedAgents,
-      diff.files
+      diff.files,
+      agentContext.prDescription
     );
 
     const reportResult = await dispatchReport(

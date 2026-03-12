@@ -271,6 +271,38 @@ jobs:
           severity: 'HIGH,CRITICAL'
           trivyignores: .trivyignore
 
+  # SC-007: False positive benchmark regression gate
+  # Runs the deterministic benchmark suite to catch FP regressions.
+  # Uses snapshot replay (no LLM calls) — fast and deterministic.
+  benchmark-regression:
+    name: Benchmark Regression
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build router
+        run: pnpm --filter ./router build
+
+      - name: Run benchmark regression suite
+        run: pnpm --filter ./router exec vitest run tests/integration/false-positive-benchmark.test.ts
+
   # FR-006: Enforce conventional commit format on PR titles
   # Required for semantic-release version determination via squash-merge
   pr-title-validation:

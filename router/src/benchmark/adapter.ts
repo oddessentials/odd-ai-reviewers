@@ -14,6 +14,9 @@
  */
 
 import ts from 'typescript';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { VulnerabilityDetector } from '../agents/control_flow/vulnerability-detector.js';
 import { validateFindings } from '../report/finding-validator.js';
 import { createLogger } from '../agents/control_flow/logger.js';
@@ -265,4 +268,145 @@ export async function runScenario(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+// =============================================================================
+// Snapshot Adapter (FR-020, FR-021)
+// =============================================================================
+
+/** Version tag embedded in snapshot metadata for format compatibility checks. */
+export const SNAPSHOT_ADAPTER_VERSION = '1.0.0';
+
+export interface SnapshotMetadata {
+  recordedAt: string;
+  promptTemplateHash: string;
+  modelId: string;
+  provider: string;
+  fixtureHash: string;
+  adapterVersion: string;
+}
+
+export interface RecordedResponse {
+  findings: Finding[];
+  rawOutput: string;
+}
+
+export interface ResponseSnapshot {
+  metadata: SnapshotMetadata;
+  response: RecordedResponse;
+}
+
+export interface DriftField {
+  field: keyof SnapshotMetadata;
+  expected: string;
+  actual: string;
+}
+
+export interface DriftCheckResult {
+  valid: boolean;
+  drifted: DriftField[];
+}
+
+/** Compute SHA-256 hash of a string, returned as hex. */
+export function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+/** Snapshot file name for a given scenario ID. */
+function snapshotFileName(scenarioId: string): string {
+  return `${scenarioId}.snapshot.json`;
+}
+
+/**
+ * Load a recorded snapshot for a given scenario ID.
+ * Returns undefined if no snapshot file exists.
+ */
+export async function loadSnapshot(
+  scenarioId: string,
+  snapshotDir: string
+): Promise<ResponseSnapshot | undefined> {
+  const filePath = join(snapshotDir, snapshotFileName(scenarioId));
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    return JSON.parse(content) as ResponseSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Validate snapshot metadata against current system state.
+ * Returns drift details if any metadata field has changed.
+ */
+export function validateSnapshotMetadata(
+  snapshot: ResponseSnapshot,
+  currentPromptHash: string,
+  currentFixtureHash: string
+): DriftCheckResult {
+  const drifted: DriftField[] = [];
+
+  if (snapshot.metadata.promptTemplateHash !== currentPromptHash) {
+    drifted.push({
+      field: 'promptTemplateHash',
+      expected: currentPromptHash,
+      actual: snapshot.metadata.promptTemplateHash,
+    });
+  }
+
+  if (snapshot.metadata.fixtureHash !== currentFixtureHash) {
+    drifted.push({
+      field: 'fixtureHash',
+      expected: currentFixtureHash,
+      actual: snapshot.metadata.fixtureHash,
+    });
+  }
+
+  return { valid: drifted.length === 0, drifted };
+}
+
+/**
+ * Run a benchmark scenario using a recorded snapshot.
+ * Validates metadata first; throws if snapshot not found or drift detected.
+ */
+export async function runWithSnapshot(
+  scenarioId: string,
+  snapshotDir: string,
+  currentPromptHash: string,
+  currentFixtureHash: string
+): Promise<Finding[]> {
+  const snapshot = await loadSnapshot(scenarioId, snapshotDir);
+  if (!snapshot) {
+    throw new Error(
+      `No snapshot found for scenario "${scenarioId}" in ${snapshotDir}. ` +
+        `Run with --record to capture a snapshot.`
+    );
+  }
+
+  const driftCheck = validateSnapshotMetadata(snapshot, currentPromptHash, currentFixtureHash);
+  if (!driftCheck.valid) {
+    const details = driftCheck.drifted
+      .map((d) => `  ${d.field}: snapshot="${d.actual}" current="${d.expected}"`)
+      .join('\n');
+    throw new Error(
+      `Snapshot drift detected for scenario "${scenarioId}":\n${details}\n` +
+        `Re-record with --record to update.`
+    );
+  }
+
+  return snapshot.response.findings;
+}
+
+/**
+ * Record a live LLM response as a snapshot for a given scenario.
+ */
+export async function recordSnapshot(
+  scenarioId: string,
+  response: RecordedResponse,
+  metadata: SnapshotMetadata,
+  snapshotDir: string
+): Promise<void> {
+  await mkdir(snapshotDir, { recursive: true });
+  const snapshot: ResponseSnapshot = { metadata, response };
+  const filePath = join(snapshotDir, snapshotFileName(scenarioId));
+  await writeFile(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
 }

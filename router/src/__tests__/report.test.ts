@@ -353,6 +353,45 @@ describe('Report Module', () => {
       // Console log should indicate pre-normalization
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('pre-normalization'));
     });
+
+    it('preserves file headers when passing diff content to the framework filter', () => {
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/app.ts',
+          line: 4,
+          message: 'unused param next in error handler',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'src/app.ts',
+          status: 'modified' as const,
+          additions: 6,
+          deletions: 0,
+          patch: [
+            '@@ -1,3 +1,9 @@',
+            "+import express from 'express';",
+            '+const app = express();',
+            '+',
+            '+app.use((err, req, res, next) => {',
+            "+  res.status(500).send('error');",
+            '+});',
+            '+',
+            ' export default app;',
+          ].join('\n'),
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+
+      expect(processed.sorted).toEqual([]);
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[framework-filter] Suppressed 1 framework convention finding(s)')
+      );
+    });
   });
 
   /**

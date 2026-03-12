@@ -28,6 +28,10 @@ import {
   validateFindingsSemantics,
   normalizeAndValidateFindings,
 } from '../report/finding-validator.js';
+import {
+  filterFrameworkConventionFindings,
+  getValidFindings,
+} from '../report/framework-pattern-filter.js';
 import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
@@ -57,6 +61,27 @@ export interface ProcessedFindings {
   summary: string;
 }
 
+function buildFrameworkFilterDiffContent(diffFiles: DiffFile[]): string {
+  return diffFiles
+    .flatMap((diffFile) => {
+      if (!diffFile.patch) {
+        return [];
+      }
+
+      const oldPath = diffFile.oldPath ?? diffFile.path;
+      const fromPath = diffFile.status === 'added' ? '/dev/null' : `a/${oldPath}`;
+      const toPath = diffFile.status === 'deleted' ? '/dev/null' : `b/${diffFile.path}`;
+      const beforeHeader = diffFile.status === 'added' ? '--- /dev/null' : `--- a/${oldPath}`;
+      const afterHeader =
+        diffFile.status === 'deleted' ? '+++ /dev/null' : `+++ b/${diffFile.path}`;
+
+      return [`diff --git ${fromPath} ${toPath}`, beforeHeader, afterHeader, diffFile.patch].join(
+        '\n'
+      );
+    })
+    .join('\n');
+}
+
 /**
  * Process findings: deduplicate, sanitize, sort, and generate summary.
  *
@@ -68,7 +93,8 @@ export function processFindings(
   partialFindings: Finding[],
   allResults: AgentResult[],
   skippedAgents: SkippedAgent[],
-  _diffFiles: DiffFile[] = []
+  diffFiles: DiffFile[] = [],
+  prDescription?: string
 ): ProcessedFindings {
   // Process complete findings (from successful agents)
   const deduplicated = deduplicateFindings(completeFindings);
@@ -78,10 +104,23 @@ export function processFindings(
   // Stage 1 (semantic-only): Filter self-contradictions, classify findings.
   // NO line/path validation here — deferred to Stage 2 in platform reporters
   // after normalizeFindingsForDiff() has remapped renamed paths and snapped stale lines.
-  const validationResult = validateFindingsSemantics(sanitized);
+  const validationResult = validateFindingsSemantics(sanitized, prDescription);
   const validated = validationResult.validFindings;
 
-  const sorted = sortFindings(validated);
+  // Stage 1.5: Framework convention filter (FR-013, default-deny closed matcher table).
+  // Suppresses known false positives from framework patterns (Express error middleware,
+  // TypeScript _prefix convention, exhaustive switch with assertNever).
+  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
+  const frameworkResult = filterFrameworkConventionFindings(validated, diffContent);
+  const frameworkFiltered = getValidFindings(frameworkResult);
+
+  if (frameworkResult.suppressed > 0) {
+    console.log(
+      `[router] [framework-filter] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
+    );
+  }
+
+  const sorted = sortFindings(frameworkFiltered);
 
   // Process partial findings (from failed agents) separately
   // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings

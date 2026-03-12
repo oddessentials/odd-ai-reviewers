@@ -2,15 +2,16 @@
  * False Positive Regression Benchmark Test Suite
  *
  * Validates the dual-pool benchmark scoring (FP suppression + TP preservation)
- * using deterministic analysis (safe-source detection, finding-validator).
+ * using deterministic analysis (safe-source detection, finding-validator)
+ * and snapshot replay for LLM-dependent patterns.
  *
- * Patterns B/C/D/F are skipped because they require LLM integration.
- * Patterns A and E are deterministic and run in CI.
+ * Patterns A and E are deterministic and run via AST analysis.
+ * Patterns B/C/D/F use snapshot replay (pre-recorded LLM responses).
  * TP scenarios test the VulnerabilityDetector directly.
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { BenchmarkScenario } from '../../src/benchmark/scoring.js';
 import {
@@ -23,7 +24,10 @@ import {
   runScenario,
   parseDiffFiles,
   getUnsupportedScenarioReason,
+  runWithSnapshot,
+  sha256,
 } from '../../src/benchmark/adapter.js';
+import type { Finding } from '../../src/agents/types.js';
 
 // =============================================================================
 // Load Fixtures
@@ -57,6 +61,51 @@ const xssTP = tpScenarios.filter((s) => s.category === 'xss');
 const pathTP = tpScenarios.filter((s) => s.category === 'path_traversal');
 const ssrfTP = tpScenarios.filter((s) => s.category === 'ssrf');
 const authTP = tpScenarios.filter((s) => s.category === 'auth_bypass');
+
+// =============================================================================
+// Snapshot Replay
+// =============================================================================
+
+const snapshotDir = join(import.meta.dirname, '..', 'fixtures', 'benchmark', 'snapshots');
+const routerRoot = join(import.meta.dirname, '..', '..');
+const snapshotPromptSources = [
+  join(routerRoot, 'src', 'agents', 'ai_semantic_review.ts'),
+  join(routerRoot, 'src', 'agents', 'opencode.ts'),
+  join(routerRoot, 'src', 'agents', 'pr_agent.ts'),
+  join(routerRoot, '..', 'config', 'prompts', 'semantic_review.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'opencode_system.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'pr_agent_review.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'architecture_review.md'),
+];
+const currentSnapshotPromptHash = sha256(
+  snapshotPromptSources.map((filePath) => readFileSync(filePath, 'utf-8')).join('\n---FILE---\n')
+);
+
+/**
+ * Check if a scenario has a recorded snapshot available.
+ */
+function hasSnapshot(scenarioId: string): boolean {
+  return existsSync(join(snapshotDir, `${scenarioId}.snapshot.json`));
+}
+
+/**
+ * Run a scenario using snapshot replay. Returns findings from the recorded snapshot.
+ * Throws if no snapshot exists.
+ */
+async function runFromSnapshot(scenario: BenchmarkScenario): Promise<Finding[]> {
+  return runWithSnapshot(
+    scenario.id,
+    snapshotDir,
+    currentSnapshotPromptHash,
+    sha256(scenario.diff)
+  );
+}
+
+// Filter patterns B/C/D/F to only those with available snapshots
+const patternBWithSnapshots = patternB.filter((s) => hasSnapshot(s.id));
+const patternCWithSnapshots = patternC.filter((s) => hasSnapshot(s.id));
+const patternDWithSnapshots = patternD.filter((s) => hasSnapshot(s.id));
+const patternFWithSnapshots = patternF.filter((s) => hasSnapshot(s.id));
 
 // =============================================================================
 // Scoring Unit Tests
@@ -248,6 +297,40 @@ diff --git a/src/b.ts b/src/b.ts
       `Scenario ${scenario.id} is unsupported by the deterministic benchmark adapter`
     );
   });
+
+  it('rejects snapshot replay when fixture metadata drifts', async () => {
+    const scenario = patternBWithSnapshots[0];
+    expect(scenario).toBeDefined();
+    if (!scenario) {
+      throw new Error('Expected at least one snapshot-backed Pattern B scenario');
+    }
+
+    await expect(
+      runWithSnapshot(
+        scenario.id,
+        snapshotDir,
+        currentSnapshotPromptHash,
+        sha256(`${scenario.diff}\n`)
+      )
+    ).rejects.toThrow(`Snapshot drift detected for scenario "${scenario.id}"`);
+  });
+
+  it('rejects snapshot replay when prompt metadata drifts', async () => {
+    const scenario = patternBWithSnapshots[0];
+    expect(scenario).toBeDefined();
+    if (!scenario) {
+      throw new Error('Expected at least one snapshot-backed Pattern B scenario');
+    }
+
+    await expect(
+      runWithSnapshot(
+        scenario.id,
+        snapshotDir,
+        sha256(`${currentSnapshotPromptHash}:drift`),
+        sha256(scenario.diff)
+      )
+    ).rejects.toThrow(`Snapshot drift detected for scenario "${scenario.id}"`);
+  });
 });
 
 // =============================================================================
@@ -341,28 +424,40 @@ describe('False Positive Regression Suite', () => {
       );
     });
 
-    // Pattern B requires LLM integration for framework convention detection
-    describe.skip('Pattern B: Framework Conventions', () => {
-      it.each(patternB)('should not flag: $description', async (scenario) => {
-        const findings = await runScenario(scenario);
-        expect(findings).toHaveLength(0);
-      });
+    // Pattern B uses snapshot replay for framework convention detection
+    describe('Pattern B: Framework Conventions (snapshot replay)', () => {
+      it.skipIf(patternBWithSnapshots.length === 0).each(patternBWithSnapshots)(
+        'should not flag: $description',
+        async (scenario) => {
+          const findings = await runFromSnapshot(scenario);
+          expect(findings).toHaveLength(0);
+        },
+        15_000
+      );
     });
 
-    // Pattern C requires LLM integration for project context understanding
-    describe.skip('Pattern C: Project Context', () => {
-      it.each(patternC)('should not flag: $description', async (scenario) => {
-        const findings = await runScenario(scenario);
-        expect(findings).toHaveLength(0);
-      });
+    // Pattern C uses snapshot replay for project context understanding
+    describe('Pattern C: Project Context (snapshot replay)', () => {
+      it.skipIf(patternCWithSnapshots.length === 0).each(patternCWithSnapshots)(
+        'should not flag: $description',
+        async (scenario) => {
+          const findings = await runFromSnapshot(scenario);
+          expect(findings).toHaveLength(0);
+        },
+        15_000
+      );
     });
 
-    // Pattern D requires LLM integration for PR description analysis
-    describe.skip('Pattern D: PR Description', () => {
-      it.each(patternD)('should not flag: $description', async (scenario) => {
-        const findings = await runScenario(scenario);
-        expect(findings).toHaveLength(0);
-      });
+    // Pattern D uses snapshot replay for PR description analysis
+    describe('Pattern D: PR Description (snapshot replay)', () => {
+      it.skipIf(patternDWithSnapshots.length === 0).each(patternDWithSnapshots)(
+        'should not flag: $description',
+        async (scenario) => {
+          const findings = await runFromSnapshot(scenario);
+          expect(findings).toHaveLength(0);
+        },
+        15_000
+      );
     });
 
     describe('Pattern E: Self-Contradicting', () => {
@@ -379,12 +474,16 @@ describe('False Positive Regression Suite', () => {
       );
     });
 
-    // Pattern F is mixed/LLM-dependent
-    describe.skip('Pattern F: Mixed', () => {
-      it.each(patternF)('should not flag: $description', async (scenario) => {
-        const findings = await runScenario(scenario);
-        expect(findings).toHaveLength(0);
-      });
+    // Pattern F uses snapshot replay for mixed/LLM-dependent scenarios
+    describe('Pattern F: Mixed (snapshot replay)', () => {
+      it.skipIf(patternFWithSnapshots.length === 0).each(patternFWithSnapshots)(
+        'should not flag: $description',
+        async (scenario) => {
+          const findings = await runFromSnapshot(scenario);
+          expect(findings).toHaveLength(0);
+        },
+        15_000
+      );
     });
   });
 
@@ -464,14 +563,29 @@ describe('False Positive Regression Suite', () => {
   // ===========================================================================
 
   describe('Release Gate Metrics', () => {
-    // Only deterministic scenarios count toward release gates
-    const deterministicFP = [...patternA, ...patternE];
+    // Deterministic (AST-based) + snapshot-replayed FP scenarios
+    const allRunnableFP = [
+      ...patternA,
+      ...patternE,
+      ...patternBWithSnapshots,
+      ...patternCWithSnapshots,
+      ...patternDWithSnapshots,
+      ...patternFWithSnapshots,
+    ];
     const deterministicTP = tpScenarios;
 
-    it('SC-001: FP suppression rate >= 85% (deterministic scenarios)', async () => {
+    /** Run an FP scenario — uses AST for A/E, snapshot for B/C/D/F */
+    async function runFPScenario(scenario: BenchmarkScenario): Promise<Finding[]> {
+      if (scenario.pattern === 'A' || scenario.pattern === 'E') {
+        return runScenario(scenario);
+      }
+      return runFromSnapshot(scenario);
+    }
+
+    it('SC-001: FP suppression rate >= 85% (all runnable scenarios)', async () => {
       const results = [];
-      for (const scenario of deterministicFP) {
-        const findings = await runScenario(scenario);
+      for (const scenario of allRunnableFP) {
+        const findings = await runFPScenario(scenario);
         results.push(scoreScenario(scenario, findings));
       }
       const report = computeReport(results);

@@ -211,7 +211,10 @@ export const prAgentAgent: ReviewAgent = {
 4. When uncertain about data flow or context (e.g., a function's return value is not visible in the diff), report at "info" severity with an explicit uncertainty qualifier: "Potential issue — verify that [specific concern]."
 
 ### Framework & Language Conventions
-Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical query keys as double-fetching (React Query dedup), (3) Promise.allSettled iteration as "wrong order", (4) TypeScript _prefix unused params, (5) assertNever/exhaustive switch as missing error handling, (6) constants adjacent to their only usage as needing externalization.`;
+Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical query keys as double-fetching (React Query dedup), (3) Promise.allSettled iteration as "wrong order", (4) TypeScript _prefix unused params, (5) assertNever/exhaustive switch as missing error handling, (6) constants adjacent to their only usage as needing externalization.
+
+### Active Context Directives
+Before generating findings: (1) CHECK any Project Rules provided — do not contradict documented decisions, (2) CHECK any PR Description provided — understand stated intent before flagging changes.`;
     if (existsSync(PROMPT_PATH)) {
       try {
         systemPrompt = await readFile(PROMPT_PATH, 'utf-8');
