@@ -3,8 +3,8 @@
 # This file documents known CVEs that are accepted risks with justification.
 # All CVEs here are from third-party binaries we do not control.
 #
-# Last reviewed: 2026-02-10 by AI Review Router team
-# Next review due: 2026-05-10
+# Last reviewed: 2026-03-11 by AI Review Router team
+# Next review due: 2026-06-11
 
 # ============================================================================
 # OpenCode CLI Binary (Go runtime CVEs)
@@ -157,3 +157,72 @@ CVE-2025-61730
 #   configs across goroutines or perform session resumption.
 # Fixed in: Go 1.24.13, 1.25.7 | Reviewdog compiled with Go 1.25.0
 CVE-2025-68121
+
+# ============================================================================
+# node-tar (new CVEs found by Trivy v0.69.3)
+#
+# tar 6.2.1 is bundled with npm in the node:22-slim Docker base image.
+# tar 7.4.3 is bundled in the OpenCode v1.1.40 binary.
+# Neither is controllable via pnpm — must wait for upstream base image update.
+#
+# Risk assessment: LOW - tar is used only during Docker build (npm ci),
+# not at application runtime. No user-controlled archives are processed.
+# ============================================================================
+
+# node-tar - Arbitrary file read/write via hardlinks
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: node-tar 6.2.1, 7.4.3
+# Risk: LOW - Docker build-time only, no user-controlled archives
+# Fixed in: node-tar >=7.5.7 | Waiting for upstream releases
+CVE-2026-26960
+
+# node-tar - Hardlink path traversal
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: node-tar 7.4.3 (OpenCode binary)
+# Risk: LOW - OpenCode runs in isolated subprocess, no tar operations
+# Fixed in: node-tar >=7.5.7 | Waiting for upstream releases
+CVE-2026-29786
+
+# node-tar - File overwrite via symlink traversal
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: node-tar 6.2.1, 7.4.3
+# Risk: LOW - Docker build-time only, no user-controlled archives
+# Fixed in: node-tar >=7.5.7 | Waiting for upstream releases
+CVE-2026-31802
+
+# ============================================================================
+# minimatch 9.0.5 (bundled in node:22-slim base image via npm)
+#
+# The node:22-slim Docker base image ships npm, which bundles minimatch 9.0.5.
+# This is not controllable via pnpm — waiting for upstream Node.js base image
+# update. Our application dependencies use minimatch 10.2.4 and 3.1.5 only.
+#
+# Risk assessment: LOW - npm's bundled minimatch is used for file globbing
+# within npm itself, not by our application code. DoS requires malicious
+# glob patterns, which are not user-supplied in this context.
+# ============================================================================
+
+# minimatch - DoS via glob patterns (npm-bundled in base image)
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: minimatch 9.0.5 (bundled in npm via node:22-slim)
+# Risk: LOW - npm internal, not application code
+CVE-2026-26996
+
+# minimatch - DoS via recursive backtracking (npm-bundled in base image)
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: minimatch 9.0.5 (bundled in npm via node:22-slim)
+# Risk: LOW - npm internal, not application code
+CVE-2026-27903
+
+# minimatch - DoS via catastrophic backtracking (npm-bundled in base image)
+# Created: 2026-03-11
+# Expires: 2026-09-07
+# Package: minimatch 9.0.5 (bundled in npm via node:22-slim)
+# Risk: LOW - npm internal, not application code
+CVE-2026-27904
+
