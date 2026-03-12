@@ -72,6 +72,10 @@ const snapshotPromptSources = [
   join(routerRoot, 'src', 'agents', 'ai_semantic_review.ts'),
   join(routerRoot, 'src', 'agents', 'opencode.ts'),
   join(routerRoot, 'src', 'agents', 'pr_agent.ts'),
+  join(routerRoot, '..', 'config', 'prompts', 'semantic_review.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'opencode_system.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'pr_agent_review.md'),
+  join(routerRoot, '..', 'config', 'prompts', 'architecture_review.md'),
 ];
 const currentSnapshotPromptHash = sha256(
   snapshotPromptSources.map((filePath) => readFileSync(filePath, 'utf-8')).join('\n---FILE---\n')

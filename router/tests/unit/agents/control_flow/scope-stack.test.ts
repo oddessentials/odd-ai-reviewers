@@ -842,6 +842,42 @@ describe('extractBindingsFromAssignmentTarget', () => {
     expect(bindings[0]?.depth).toBe(1);
   });
 
+  it('should propagate parentIndex for nested bindings in array destructuring', () => {
+    // [{ a: b }] — `b` is nested (depth 1), but its parent container is at array index 0
+    const sf = parse('[{ a: b }] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.name).toBe('b');
+    expect(bindings[0]?.depth).toBe(1);
+    // index is not set (nested binding), but parentIndex points to array position 0
+    expect(bindings[0]?.index).toBeUndefined();
+    expect(bindings[0]?.parentIndex).toBe(0);
+  });
+
+  it('should propagate parentIndex for multiple nested containers', () => {
+    // [{ a }, { b }] — a has parentIndex 0, b has parentIndex 1
+    const sf = parse('[{ a }, { b }] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings.map((b) => b.name)).toEqual(['a', 'b']);
+    expect(bindings[0]?.parentIndex).toBe(0);
+    expect(bindings[1]?.parentIndex).toBe(1);
+  });
+
+  it('should not set parentIndex on direct (non-nested) array bindings', () => {
+    const sf = parse('[a, b] = arr;');
+    const lhs = findFirstAssignmentLHS(sf);
+    assert(lhs, 'expected assignment LHS');
+    const bindings = extractBindingsFromAssignmentTarget(lhs);
+    expect(bindings[0]?.index).toBe(0);
+    expect(bindings[0]?.parentIndex).toBeUndefined();
+    expect(bindings[1]?.index).toBe(1);
+    expect(bindings[1]?.parentIndex).toBeUndefined();
+  });
+
   it('should handle deeply nested destructuring', () => {
     // [{a: [b]}] — outer array (depth 0) → object (depth 1) → array (depth 2) → b (depth 2)
     const sf = parse('[{a: [b]}] = arr;');

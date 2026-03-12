@@ -43,6 +43,13 @@ export interface DestructuringBinding {
   node: ts.Node;
   /** Position in array destructuring (for per-element taint) */
   index?: number;
+  /**
+   * For nested bindings inside an array element container (e.g. `[{ a }]`),
+   * the position of the parent container in the enclosing array.
+   * Used by the vulnerability detector to look up the correct RHS element
+   * when `index` is not set on nested bindings.
+   */
+  parentIndex?: number;
   /** Original property key (for renamed destructuring, e.g. `{ orig: renamed }`) */
   propertyKey?: string;
   /** Whether this is a rest element (`...rest`) */
@@ -103,20 +110,30 @@ function extractAssignmentBindings(
       if (ts.isSpreadElement(element)) {
         // Identifiers directly in this array stay at current depth;
         // nested containers increment depth.
-        const childDepth = isContainerNode(element.expression) ? depth + 1 : depth;
+        const isContainer = isContainerNode(element.expression);
+        const childDepth = isContainer ? depth + 1 : depth;
         const inner = extractAssignmentBindings(element.expression, childDepth, maxDepth);
         for (const binding of inner) {
           binding.isRest = true;
           if (binding.depth === childDepth) binding.index = i;
+          if (isContainer && binding.parentIndex === undefined) {
+            binding.parentIndex = i;
+          }
         }
         result.push(...inner);
       } else {
-        const childDepth = isContainerNode(element) ? depth + 1 : depth;
+        const isContainer = isContainerNode(element);
+        const childDepth = isContainer ? depth + 1 : depth;
         const inner = extractAssignmentBindings(element, childDepth, maxDepth);
         for (const binding of inner) {
           // Set index on direct children of this array
           if (binding.depth === depth && binding.index === undefined) {
             binding.index = i;
+          }
+          // For nested bindings from container elements (e.g. [{ a }]),
+          // propagate the parent array position so per-element taint works
+          if (isContainer && binding.parentIndex === undefined) {
+            binding.parentIndex = i;
           }
         }
         result.push(...inner);
