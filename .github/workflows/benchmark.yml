@@ -68,11 +68,12 @@ jobs:
       - name: Run judge
         env:
           MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
+          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
         run: |
           cd /tmp/benchmark
           uv run judge \
             --candidates /tmp/benchmark-results/candidates.json \
-            --model ${{ inputs.judge_model || 'openai/gpt-4o-mini' }} \
+            --model "$JUDGE_MODEL" \
             --output /tmp/benchmark-results
 
       - name: Check regression
