@@ -21,8 +21,16 @@ import {
 // ---------------------------------------------------------------------------
 
 vi.mock('node:child_process', () => ({
-  execFileSync: vi.fn(),
+  execFile: vi.fn(),
 }));
+
+vi.mock('node:util', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    promisify: (fn: unknown) => fn, // promisify returns the mock directly
+  };
+});
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -38,10 +46,10 @@ vi.mock('node:fs', async (importOriginal) => {
   };
 });
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 
-const mockExecFileSync = vi.mocked(execFileSync);
+const mockExecFile = vi.mocked(execFile);
 const mockExistsSync = vi.mocked(existsSync);
 const mockReadFileSync = vi.mocked(readFileSync);
 const mockReaddirSync = vi.mocked(readdirSync);
@@ -88,6 +96,31 @@ function makeTask(overrides: Partial<PRTask> = {}): PRTask {
     },
     ...overrides,
   };
+}
+
+/** Helper to create a resolved execFile result. */
+function execOk(stdout = ''): ReturnType<typeof execFile> {
+  return Promise.resolve({ stdout, stderr: '' }) as unknown as ReturnType<typeof execFile>;
+}
+
+/** Helper to create a rejected execFile result. */
+function execFail(message: string): ReturnType<typeof execFile> {
+  return Promise.reject(new Error(message)) as unknown as ReturnType<typeof execFile>;
+}
+
+/**
+ * Set up mocks for a full clone + review sequence:
+ *   Clone: 3 calls (git clone, git fetch PR head, git checkout pr-head)
+ *   Review: 2 calls (git rev-parse origin/HEAD, node <cli> local)
+ */
+function mockFullSequence(cliOutput: object): void {
+  mockExistsSync.mockReturnValue(false);
+  mockExecFile
+    .mockReturnValueOnce(execOk()) // git clone
+    .mockReturnValueOnce(execOk()) // git fetch PR ref
+    .mockReturnValueOnce(execOk()) // git checkout pr-head
+    .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+    .mockReturnValueOnce(execOk(JSON.stringify(cliOutput))); // node <cli> local
 }
 
 // ---------------------------------------------------------------------------
@@ -337,49 +370,25 @@ describe('processPR', () => {
     vi.restoreAllMocks();
   });
 
-  /** Shorthand for a successful execFileSync return (e.g., git clone/fetch/checkout). */
-  const gitOk = () => '' as unknown as ReturnType<typeof execFileSync>;
-
-  /**
-   * Set up mocks for a full clone + review sequence:
-   *   Clone: 3 calls (git clone, git fetch PR head, git checkout pr-head)
-   *   Review: 2 calls (git rev-parse origin/HEAD, node <cli> local)
-   */
-  function mockFullSequence(cliOutput: object): void {
-    mockExistsSync.mockReturnValue(false);
-    mockExecFileSync.mockImplementationOnce(gitOk); // git clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // git fetch PR ref
-    mockExecFileSync.mockImplementationOnce(gitOk); // git checkout pr-head
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/main' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify(cliOutput) as unknown as ReturnType<typeof execFileSync>
-    ); // node <cli> local
-  }
-
-  it('skips PR on CLI failure and returns error', () => {
+  it('skips PR on CLI failure and returns error', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockExistsSync.mockReturnValue(false);
-    mockExecFileSync.mockImplementationOnce(gitOk); // git clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // git fetch PR ref
-    mockExecFileSync.mockImplementationOnce(gitOk); // git checkout pr-head
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/main' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch
-    mockExecFileSync.mockImplementationOnce(() => {
-      throw new Error('CLI process exited with code 1');
-    }); // CLI fails
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // git clone
+      .mockReturnValueOnce(execOk()) // git fetch PR ref
+      .mockReturnValueOnce(execOk()) // git checkout pr-head
+      .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execFail('CLI process exited with code 1')); // CLI fails
 
-    const result = processPR(task, options, '/tmp/work');
+    const result = await processPR(task, options, '/tmp/work');
 
     expect(result.error).toBeDefined();
     expect(result.candidates).toEqual([]);
   });
 
-  it('returns candidates from successful CLI output', () => {
+  it('returns candidates from successful CLI output', async () => {
     const task = makeTask();
     const options = makeOptions();
     const cliOutput = {
@@ -397,7 +406,7 @@ describe('processPR', () => {
 
     mockFullSequence(cliOutput);
 
-    const result = processPR(task, options, '/tmp/work');
+    const result = await processPR(task, options, '/tmp/work');
 
     expect(result.error).toBeUndefined();
     expect(result.candidates).toHaveLength(2);
@@ -415,37 +424,37 @@ describe('processPR', () => {
     });
   });
 
-  it('fetches and checks out the PR ref during clone', () => {
+  it('fetches and checks out the PR ref during clone', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockFullSequence({ findings: [] });
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
     // Verify git fetch was called with the PR ref
-    const fetchCall = mockExecFileSync.mock.calls.find(
+    const fetchCall = mockExecFile.mock.calls.find(
       (call) => call[0] === 'git' && (call[1] as string[])?.[0] === 'fetch'
     );
     expect(fetchCall).toBeDefined();
     expect(fetchCall?.[1]).toContain('pull/123/head:pr-head');
 
     // Verify git checkout was called for the PR branch
-    const checkoutCall = mockExecFileSync.mock.calls.find(
+    const checkoutCall = mockExecFile.mock.calls.find(
       (call) => call[0] === 'git' && (call[1] as string[])?.[0] === 'checkout'
     );
     expect(checkoutCall).toBeDefined();
     expect(checkoutCall?.[1]).toContain('pr-head');
   });
 
-  it('uses locally built CLI instead of npx', () => {
+  it('uses locally built CLI instead of npx', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockFullSequence({ findings: [] });
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
     // Verify node is called (not npx) with the built CLI path
-    const nodeCall = mockExecFileSync.mock.calls.find((call) => call[0] === 'node');
+    const nodeCall = mockExecFile.mock.calls.find((call) => call[0] === 'node');
     expect(nodeCall).toBeDefined();
     const args = (nodeCall?.[1] ?? []) as string[];
     expect(args[0]).toContain('main.js');
@@ -455,28 +464,25 @@ describe('processPR', () => {
     expect(args).toContain('json');
 
     // npx was NOT called
-    const npxCall = mockExecFileSync.mock.calls.find((call) => call[0] === 'npx');
+    const npxCall = mockExecFile.mock.calls.find((call) => call[0] === 'npx');
     expect(npxCall).toBeUndefined();
   });
 
-  it('passes --base with detected default branch', () => {
+  it('passes --base with detected default branch', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockExistsSync.mockReturnValue(false);
-    mockExecFileSync.mockImplementationOnce(gitOk); // clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // fetch
-    mockExecFileSync.mockImplementationOnce(gitOk); // checkout
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/develop' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch → origin/develop
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify({ findings: [] }) as unknown as ReturnType<typeof execFileSync>
-    ); // CLI
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // clone
+      .mockReturnValueOnce(execOk()) // fetch
+      .mockReturnValueOnce(execOk()) // checkout
+      .mockReturnValueOnce(execOk('origin/develop')) // detect default branch → origin/develop
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
-    const nodeCall = mockExecFileSync.mock.calls.find((call) => call[0] === 'node');
+    const nodeCall = mockExecFile.mock.calls.find((call) => call[0] === 'node');
     expect(nodeCall).toBeDefined();
     const args = (nodeCall?.[1] ?? []) as string[];
     const baseIdx = args.indexOf('--base');
@@ -484,24 +490,21 @@ describe('processPR', () => {
     expect(args[baseIdx + 1]).toBe('origin/develop');
   });
 
-  it('falls back to origin/main when default branch detection fails', () => {
+  it('falls back to origin/main when default branch detection fails', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockExistsSync.mockReturnValue(false);
-    mockExecFileSync.mockImplementationOnce(gitOk); // clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // fetch
-    mockExecFileSync.mockImplementationOnce(gitOk); // checkout
-    mockExecFileSync.mockImplementationOnce(() => {
-      throw new Error('Not a symbolic ref');
-    }); // detect default branch fails
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify({ findings: [] }) as unknown as ReturnType<typeof execFileSync>
-    ); // CLI
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // clone
+      .mockReturnValueOnce(execOk()) // fetch
+      .mockReturnValueOnce(execOk()) // checkout
+      .mockReturnValueOnce(execFail('Not a symbolic ref')) // detect default branch fails
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
-    const nodeCall = mockExecFileSync.mock.calls.find((call) => call[0] === 'node');
+    const nodeCall = mockExecFile.mock.calls.find((call) => call[0] === 'node');
     expect(nodeCall).toBeDefined();
     const args = (nodeCall?.[1] ?? []) as string[];
     const baseIdx = args.indexOf('--base');
@@ -509,22 +512,22 @@ describe('processPR', () => {
     expect(args[baseIdx + 1]).toBe('origin/main');
   });
 
-  it('dry-run mode produces output without running real CLI', () => {
+  it('dry-run mode produces output without running real CLI', async () => {
     const task = makeTask();
     const options = makeOptions({ dryRun: true });
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const result = processPR(task, options, '/tmp/work');
+    const result = await processPR(task, options, '/tmp/work');
 
     expect(result.error).toBeUndefined();
     expect(result.candidates).toEqual([]);
-    // execFileSync should NOT have been called at all in dry-run
-    expect(mockExecFileSync).not.toHaveBeenCalled();
+    // execFile should NOT have been called at all in dry-run
+    expect(mockExecFile).not.toHaveBeenCalled();
 
     logSpy.mockRestore();
   });
 
-  it('dry-run returns error for unparseable PR URL', () => {
+  it('dry-run returns error for unparseable PR URL', async () => {
     const task = makeTask({
       golden: {
         pr_title: 'Bad PR',
@@ -534,13 +537,13 @@ describe('processPR', () => {
     });
     const options = makeOptions({ dryRun: true });
 
-    const result = processPR(task, options, '/tmp/work');
+    const result = await processPR(task, options, '/tmp/work');
 
     expect(result.error).toBeDefined();
     expect(result.error).toContain('Cannot parse repo URL');
   });
 
-  it('cleans up clone directory after processing when cleanup is enabled', () => {
+  it('cleans up clone directory after processing when cleanup is enabled', async () => {
     const task = makeTask();
     const options = makeOptions({ cleanup: true });
 
@@ -548,70 +551,61 @@ describe('processPR', () => {
     // After: existsSync for cleanup check (true = dir exists)
     mockExistsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
 
-    mockExecFileSync.mockImplementationOnce(gitOk); // git clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // git fetch PR ref
-    mockExecFileSync.mockImplementationOnce(gitOk); // git checkout pr-head
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/main' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify({ findings: [] }) as unknown as ReturnType<typeof execFileSync>
-    ); // CLI
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // git clone
+      .mockReturnValueOnce(execOk()) // git fetch PR ref
+      .mockReturnValueOnce(execOk()) // git checkout pr-head
+      .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
     expect(mockRmSync).toHaveBeenCalled();
   });
 
-  it('skips cleanup when cleanup option is false', () => {
+  it('skips cleanup when cleanup option is false', async () => {
     const task = makeTask();
     const options = makeOptions({ cleanup: false });
 
     mockExistsSync.mockReturnValue(false);
-    mockExecFileSync.mockImplementationOnce(gitOk); // git clone
-    mockExecFileSync.mockImplementationOnce(gitOk); // git fetch PR ref
-    mockExecFileSync.mockImplementationOnce(gitOk); // git checkout pr-head
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/main' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify({ findings: [] }) as unknown as ReturnType<typeof execFileSync>
-    ); // CLI
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // git clone
+      .mockReturnValueOnce(execOk()) // git fetch PR ref
+      .mockReturnValueOnce(execOk()) // git checkout pr-head
+      .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
     expect(mockRmSync).not.toHaveBeenCalled();
   });
 
-  it('handles empty findings array from CLI', () => {
+  it('handles empty findings array from CLI', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     mockFullSequence({ findings: [] });
 
-    const result = processPR(task, options, '/tmp/work');
+    const result = await processPR(task, options, '/tmp/work');
 
     expect(result.candidates).toEqual([]);
     expect(result.error).toBeUndefined();
   });
 
-  it('skips clone when directory already exists', () => {
+  it('skips clone when directory already exists', async () => {
     const task = makeTask();
     const options = makeOptions();
 
     // Clone dir already exists — skip clone (3 git calls skipped)
     mockExistsSync.mockReturnValueOnce(true);
 
-    mockExecFileSync.mockImplementationOnce(
-      () => 'origin/main' as unknown as ReturnType<typeof execFileSync>
-    ); // detect default branch
-    mockExecFileSync.mockImplementationOnce(
-      () => JSON.stringify({ findings: [] }) as unknown as ReturnType<typeof execFileSync>
-    ); // CLI
+    mockExecFile
+      .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
-    processPR(task, options, '/tmp/work');
+    await processPR(task, options, '/tmp/work');
 
     // Only 2 calls (detect branch + review), not 5 (clone + fetch + checkout + detect + review)
-    expect(mockExecFileSync).toHaveBeenCalledTimes(2);
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
   });
 });

@@ -21,7 +21,10 @@
  */
 
 import { parseArgs } from 'node:util';
-import { execFileSync } from 'node:child_process';
+import { execFile as execFileCb } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFile = promisify(execFileCb);
 import {
   readFileSync,
   writeFileSync,
@@ -214,7 +217,7 @@ export function transformFinding(finding: CLIFinding): BenchmarkCandidate {
 // PR Processing
 // =============================================================================
 
-function cloneRepo(repoUrl: string, targetDir: string, timeoutMs: number): void {
+async function cloneRepo(repoUrl: string, targetDir: string, timeoutMs: number): Promise<void> {
   // Extract clone URL and PR number from PR URL: https://github.com/owner/repo/pull/123
   const match = repoUrl.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/);
   if (!match?.[1] || !match?.[2]) {
@@ -225,30 +228,27 @@ function cloneRepo(repoUrl: string, targetDir: string, timeoutMs: number): void 
   const prNumber = match[2];
 
   // Clone with enough depth for merge-base computation against the default branch
-  execFileSync('git', ['clone', '--depth', '50', cloneUrl, targetDir], {
+  await execFile('git', ['clone', '--depth', '50', cloneUrl, targetDir], {
     timeout: timeoutMs,
-    stdio: 'pipe',
     encoding: 'utf-8',
   });
 
   // Fetch the PR head ref so we review the actual PR diff, not the default branch
-  execFileSync('git', ['fetch', 'origin', `pull/${prNumber}/head:pr-head`, '--depth', '50'], {
+  await execFile('git', ['fetch', 'origin', `pull/${prNumber}/head:pr-head`, '--depth', '50'], {
     timeout: timeoutMs,
-    stdio: 'pipe',
     encoding: 'utf-8',
     cwd: targetDir,
   });
 
   // Checkout the PR branch
-  execFileSync('git', ['checkout', 'pr-head'], {
+  await execFile('git', ['checkout', 'pr-head'], {
     timeout: timeoutMs,
-    stdio: 'pipe',
     encoding: 'utf-8',
     cwd: targetDir,
   });
 }
 
-function runLocalReview(repoDir: string, timeoutMs: number): CLIFinding[] {
+async function runLocalReview(repoDir: string, timeoutMs: number): Promise<CLIFinding[]> {
   // Use the locally built CLI, not npx (which would resolve a published
   // package from npm instead of the code built from this branch)
   const __dirname = import.meta.dirname ?? dirname(fileURLToPath(import.meta.url));
@@ -257,32 +257,35 @@ function runLocalReview(repoDir: string, timeoutMs: number): CLIFinding[] {
   // Detect the default branch for diff comparison
   let baseBranch: string;
   try {
-    baseBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
+    const branchResult = await execFile('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
       cwd: repoDir,
       encoding: 'utf-8',
       timeout: 10_000,
-      stdio: 'pipe',
-    }).trim();
+    });
+    baseBranch = branchResult.stdout.trim();
   } catch {
     baseBranch = 'origin/main';
   }
 
-  const result = execFileSync(
+  const result = await execFile(
     'node',
     [cliPath, 'local', '.', '--base', baseBranch, '--format', 'json', '--no-color'],
     {
       timeout: timeoutMs,
-      stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf-8',
       cwd: repoDir,
     }
   );
 
-  const output: CLIOutput = JSON.parse(result);
+  const output: CLIOutput = JSON.parse(result.stdout);
   return output.findings ?? [];
 }
 
-export function processPR(task: PRTask, options: AdapterOptions, workDir: string): PRResult {
+export async function processPR(
+  task: PRTask,
+  options: AdapterOptions,
+  workDir: string
+): Promise<PRResult> {
   const prUrl = task.golden.url;
   const cloneDir = join(workDir, `${task.project}-${task.prNumber}`);
   const timeoutMs = options.timeoutPerPr * 1000;
@@ -300,11 +303,11 @@ export function processPR(task: PRTask, options: AdapterOptions, workDir: string
 
     // Clone
     if (!existsSync(cloneDir)) {
-      cloneRepo(prUrl, cloneDir, timeoutMs);
+      await cloneRepo(prUrl, cloneDir, timeoutMs);
     }
 
     // Run review
-    const findings = runLocalReview(cloneDir, timeoutMs);
+    const findings = await runLocalReview(cloneDir, timeoutMs);
     const candidates = findings.map(transformFinding);
 
     return { prUrl, candidates };
@@ -410,7 +413,7 @@ async function processWithConcurrency(
           );
         }
 
-        result = processPR(task, options, workDir);
+        result = await processPR(task, options, workDir);
         if (!result.error) break;
         lastError = result.error;
       }

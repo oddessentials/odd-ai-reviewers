@@ -19,7 +19,10 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { VulnerabilityDetector } from '../agents/control_flow/vulnerability-detector.js';
-import { validateFindings } from '../report/finding-validator.js';
+import {
+  validateFindingsSemantics,
+  validateNormalizedFindings,
+} from '../report/finding-validator.js';
 import {
   filterFrameworkConventionFindings,
   getValidFindings,
@@ -252,7 +255,7 @@ export async function runScenario(
       const inputFindings = scenario.syntheticFindings ?? allFindings;
       const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
       const diffFilePaths = diffFiles.map((df) => df.path);
-      const summary = validateFindings(inputFindings, lineResolver, diffFilePaths);
+      const summary = validateNormalizedFindings(inputFindings, lineResolver, diffFilePaths);
       return summary.validFindings;
     }
 
@@ -402,13 +405,25 @@ export async function runWithSnapshot(
   let findings = snapshot.response.findings;
 
   // Apply the same post-processing pipeline used in production:
-  // 1. finding-validator (self-contradiction, stale lines, PR intent)
-  // 2. framework-pattern-filter (deterministic framework convention matchers)
+  // Stage 1: semantic validation (self-contradiction + PR intent suppression)
+  // Stage 2: diff-bound validation (line checking after normalization)
+  // Stage 3: framework-pattern-filter (deterministic framework convention matchers)
   if (scenario) {
     const diffFiles = parseDiffFiles(scenario.diff);
+
+    // Stage 1: semantic filtering — includes PR-intent contradiction suppression
+    const semanticResult = validateFindingsSemantics(findings, scenario.prDescription);
+
+    // Stage 2: line validation against diff ranges
     const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
     const diffFilePaths = diffFiles.map((df) => df.path);
-    const validated = validateFindings(findings, lineResolver, diffFilePaths);
+    const validated = validateNormalizedFindings(
+      semanticResult.validFindings,
+      lineResolver,
+      diffFilePaths
+    );
+
+    // Stage 3: framework convention matchers
     const frameworkFiltered = filterFrameworkConventionFindings(
       validated.validFindings,
       scenario.diff
