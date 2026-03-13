@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.9.0...v1.10.0) (2026-03-13)
+
+### Features
+
+* close FP gaps — cross-platform benchmark, snapshot post-processing, regression fixes ([#168](https://github.com/oddessentials/odd-ai-reviewers/issues/168)) ([#169](https://github.com/oddessentials/odd-ai-reviewers/issues/169)) ([0b43624](https://github.com/oddessentials/odd-ai-reviewers/commit/0b43624f1bfe9fb151476b672bbed58af70b6637)), closes [#158](https://github.com/oddessentials/odd-ai-reviewers/issues/158) [#159](https://github.com/oddessentials/odd-ai-reviewers/issues/159) [#160](https://github.com/oddessentials/odd-ai-reviewers/issues/160) [#161](https://github.com/oddessentials/odd-ai-reviewers/issues/161)
+
 ## [1.9.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.8.0...v1.9.0) (2026-03-12)
 
 ### Features
