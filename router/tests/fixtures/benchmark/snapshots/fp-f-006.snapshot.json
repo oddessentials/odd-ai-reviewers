@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.183Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:13:56.619Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "1b33622155e144712629eb1d149deef5e858ebd5442ceae0dbbc4c2c4eee6c35",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in the file `src/debug.ts` introduce a new function `debugLog` that logs messages to the console in development mode. There are no issues related to logic errors, security vulnerabilities, performance, API misuse, or missing error handling in the diff provided. The existing `debug` function remains unchanged but unused.\"\n}\n```"
   }
 }

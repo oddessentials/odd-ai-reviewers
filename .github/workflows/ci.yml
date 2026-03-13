@@ -57,6 +57,9 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      - name: Prompt sync check
+        run: pnpm prompts:check
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -302,6 +305,14 @@ jobs:
 
       - name: Run benchmark regression suite
         run: pnpm --filter ./router exec vitest run tests/integration/false-positive-benchmark.test.ts
+
+      - name: Benchmark check smoke test
+        run: |
+          npx tsx scripts/benchmark-check.ts \
+            --results router/tests/fixtures/benchmark/mock-results/ \
+            --min-precision 0.01 \
+            --min-recall 0.01 \
+            --min-f1 0.01
 
   # FR-006: Enforce conventional commit format on PR titles
   # Required for semantic-release version determination via squash-merge

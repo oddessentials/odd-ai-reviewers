@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.181Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:13:24.486Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "1b918f7e15f1b53566d599a3c154bb09a3ef72ba4b9f05be5c3bd9ac87d2145f",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces a new `Card` component that takes a `title` prop and renders it in an `h2` element with predefined inline styles. There are no logic errors, security vulnerabilities, or performance issues present in the code. The use of inline styles is consistent with the stated project rules, which specify the use of inline styles instead of CSS-in-JS libraries. The implementation appears correct and follows the project guidelines.\"\n}\n```"
   }
 }

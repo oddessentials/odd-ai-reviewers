@@ -31,6 +31,12 @@ const COMMON_AGENT_ENV_ALLOWLIST = [
   'TERM',
   'NO_COLOR',
   'NODE_ENV',
+  // Windows: required for Python to find user-level packages (e.g., Semgrep)
+  'APPDATA',
+  // Windows: required for subprocess creation (CreateProcess)
+  'SYSTEMROOT',
+  // Windows: Python fallback for HOME
+  'USERPROFILE',
 ];
 
 const AGENT_ENV_ALLOWLIST: Record<AgentId, string[]> = {
@@ -104,6 +110,12 @@ const ROUTER_ENV_ALLOWLIST = [
   'LC_ALL',
   'TERM',
   'NODE_ENV',
+  // Windows: required for Python to find user-level packages (e.g., Semgrep)
+  'APPDATA',
+  // Windows: required for subprocess creation (CreateProcess)
+  'SYSTEMROOT',
+  // Windows: Python fallback for HOME
+  'USERPROFILE',
   // AI Provider Keys (canonical only)
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',

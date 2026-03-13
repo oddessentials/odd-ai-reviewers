@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.184Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:14:06.830Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "1763de0ed9470920950e337d0c762baa853e5081a865e49abf59e66dafb10cf7",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce a simple function `getUser` which returns a user object with a `name` property. This function is called with a hardcoded user ID ('123'), and the result is logged to the console. The changes do not introduce any logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling. No issues were found in this diff.\"\n}\n```"
   }
 }

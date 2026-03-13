@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.184Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:14:01.249Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "5bdfb0b8cd426e445b8328282ed1c2dda424198705667210ebdfbae8ddd3d100",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes made in `tests/auth.test.ts` involve the addition of mock functions using the `vitest` testing framework. The `authenticate` and `verify` functions from the `./auth` module are being mocked to return predetermined values. There are no issues found in terms of logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling in this diff.\"\n}\n```"
   }
 }

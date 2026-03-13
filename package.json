@@ -25,7 +25,10 @@
     "docs:linkcheck": "node scripts/linkcheck.cjs",
     "docs:dev": "node scripts/docs-dev-server.mjs",
     "spec:linkcheck": "node scripts/check-spec-test-links.cjs",
-    "test:bin-resolution": "node scripts/test-pnpm-bin-resolution.mjs"
+    "test:bin-resolution": "node scripts/test-pnpm-bin-resolution.mjs",
+    "prompts:sync": "npx tsx scripts/sync-prompt-conventions.ts",
+    "prompts:check": "npx tsx scripts/sync-prompt-conventions.ts --check",
+    "benchmark:record": "cross-env RECORD=true pnpm --filter ./router exec vitest run tests/integration/false-positive-benchmark.test.ts"
   },
   "keywords": [
     "code-review",
@@ -50,6 +53,7 @@
     "@typescript-eslint/parser": "8.57.0",
     "chokidar": "5.0.0",
     "conventional-changelog-conventionalcommits": "9.3.0",
+    "cross-env": "10.1.0",
     "dependency-cruiser": "17.3.8",
     "dompurify": "^3.3.3",
     "eslint": "9.39.2",

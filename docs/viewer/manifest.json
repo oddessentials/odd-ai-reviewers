@@ -2,6 +2,38 @@
   "version": 2,
   "tree": [
     {
+      "name": "analysis",
+      "type": "folder",
+      "path": "analysis",
+      "children": [
+        {
+          "name": "baseline-report.md",
+          "type": "file",
+          "path": "../analysis/baseline-report.md"
+        },
+        {
+          "name": "benchmark-integration-plan.md",
+          "type": "file",
+          "path": "../analysis/benchmark-integration-plan.md"
+        },
+        {
+          "name": "fp-taxonomy.md",
+          "type": "file",
+          "path": "../analysis/fp-taxonomy.md"
+        },
+        {
+          "name": "gap-analysis.md",
+          "type": "file",
+          "path": "../analysis/gap-analysis.md"
+        },
+        {
+          "name": "prompt-rule-gap-analysis.md",
+          "type": "file",
+          "path": "../analysis/prompt-rule-gap-analysis.md"
+        }
+      ]
+    },
+    {
       "name": "architecture",
       "type": "folder",
       "path": "architecture",
@@ -268,6 +300,31 @@
     }
   ],
   "files": [
+    {
+      "name": "analysis/baseline-report.md",
+      "type": "file",
+      "path": "../analysis/baseline-report.md"
+    },
+    {
+      "name": "analysis/benchmark-integration-plan.md",
+      "type": "file",
+      "path": "../analysis/benchmark-integration-plan.md"
+    },
+    {
+      "name": "analysis/fp-taxonomy.md",
+      "type": "file",
+      "path": "../analysis/fp-taxonomy.md"
+    },
+    {
+      "name": "analysis/gap-analysis.md",
+      "type": "file",
+      "path": "../analysis/gap-analysis.md"
+    },
+    {
+      "name": "analysis/prompt-rule-gap-analysis.md",
+      "type": "file",
+      "path": "../analysis/prompt-rule-gap-analysis.md"
+    },
     {
       "name": "architecture/index.md",
       "type": "file",

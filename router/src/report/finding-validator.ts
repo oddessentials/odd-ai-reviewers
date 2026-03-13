@@ -26,7 +26,7 @@ export interface FindingValidationResult {
   classification: FindingClassification;
   valid: boolean;
   filterReason?: string;
-  filterType?: 'invalid_line' | 'self_contradicting';
+  filterType?: 'invalid_line' | 'self_contradicting' | 'pr_intent_contradiction';
 }
 
 export interface FindingValidationSummary {
@@ -37,6 +37,7 @@ export interface FindingValidationSummary {
     valid: number;
     filteredByLine: number;
     filteredBySelfContradiction: number;
+    filteredByPRIntent: number;
     byClassification: Record<FindingClassification, number>;
   };
 }
@@ -111,51 +112,127 @@ function hasActionableSuggestion(suggestion: string | undefined): boolean {
 const PR_INTENT_PATTERN = /\b(add|fix|remove|rename|update|refactor)\s+(.+)/i;
 
 /**
- * FR-014: Diagnostic PR intent contradiction logging.
+ * Categories eligible for PR intent suppression.
+ * Security, logic, error-handling, performance, and api-misuse are NEVER eligible.
+ */
+const PR_INTENT_ELIGIBLE_CATEGORIES = new Set([
+  'documentation',
+  'style',
+  'cosmetic',
+  'refactoring',
+]);
+
+/**
+ * Exact contradiction pairs for PR intent suppression.
+ * Maps PR verb → finding verbs that indicate contradiction.
+ */
+const PR_INTENT_CONTRADICTION_PAIRS: Record<string, string[]> = {
+  add: ['remove', 'delete'],
+  remove: ['add', 'missing'],
+  rename: ['revert', 'original name'],
+  refactor: ['revert', 'undo'],
+};
+
+/**
+ * FR-112: PR intent contradiction filter.
  *
- * Extracts action signals from PR title/description and logs warnings when
- * finding messages appear to contradict the stated PR intent.
- * DIAGNOSTIC ONLY — no suppression, no filtering, no modification of findings.
+ * Filters info-severity findings in eligible categories whose message
+ * contradicts the PR description's stated intent. Uses exact contradiction
+ * pairs and subject match requirements.
  *
  * @param findings - Array of findings to check against PR intent
  * @param prDescription - Combined PR title and description text
+ * @param prIntentSuppression - Kill switch (default: true = enabled)
+ * @returns Array of findings that were NOT filtered (surviving findings)
  */
-export function logPRIntentContradictions(findings: Finding[], prDescription: string): void {
+export function filterPRIntentContradictions(
+  findings: Finding[],
+  prDescription: string,
+  prIntentSuppression = true
+): { surviving: Finding[]; filtered: FindingValidationResult[] } {
+  const filtered: FindingValidationResult[] = [];
+
+  if (!prIntentSuppression) {
+    return { surviving: [...findings], filtered: [] };
+  }
+
   const match = PR_INTENT_PATTERN.exec(prDescription);
-  if (!match) return;
+  if (!match) {
+    return { surviving: [...findings], filtered: [] };
+  }
 
   const verb = (match[1] ?? '').toLowerCase();
   const subject = (match[2] ?? '').toLowerCase().trim();
+  const contradictionVerbs = PR_INTENT_CONTRADICTION_PAIRS[verb];
+
+  if (!contradictionVerbs) {
+    return { surviving: [...findings], filtered: [] };
+  }
+
+  const surviving: Finding[] = [];
 
   for (const finding of findings) {
+    // Gate 1: Only info severity
+    if (finding.severity !== 'info') {
+      surviving.push(finding);
+      continue;
+    }
+
+    // Gate 2: Only eligible categories (category is parsed from ruleId, e.g. "semantic/documentation")
+    let category = '';
+    if (finding.ruleId) {
+      const ruleMatch = finding.ruleId.match(/^([^/]+)\/(.+)$/);
+      if (ruleMatch?.[2]) category = ruleMatch[2].toLowerCase();
+    }
+    if (!PR_INTENT_ELIGIBLE_CATEGORIES.has(category)) {
+      surviving.push(finding);
+      continue;
+    }
+
     const messageLower = finding.message.toLowerCase();
 
-    // Check if the finding message references the same subject as the PR intent
-    // and appears to contradict the action (e.g., PR says "add X" but finding says "remove X")
-    if (!messageLower.includes(subject.slice(0, Math.min(subject.length, 30)))) continue;
-
-    const contradictionVerbs: Record<string, string[]> = {
-      add: ['remove', 'delete', 'drop', 'unnecessary'],
-      fix: ['break', 'revert', 'undo'],
-      remove: ['add', 'keep', 'preserve', 'missing'],
-      rename: ['revert', 'undo', 'original name'],
-      update: ['revert', 'downgrade', 'old version'],
-      refactor: ['revert', 'undo', 'original'],
-    };
-
-    const opposites = contradictionVerbs[verb] ?? [];
-    const hasContradiction = opposites.some((opp) => messageLower.includes(opp));
-
-    if (hasContradiction) {
-      console.log('[router] [finding-validator] [pr-intent]', {
-        warning: 'Finding may contradict PR intent',
-        prIntent: `${verb} ${subject}`,
-        findingFile: finding.file,
-        findingLine: finding.line,
-        findingMessage: finding.message.slice(0, 120),
-      });
+    // Gate 3: Subject match — finding must reference same file or code construct
+    const subjectWords = subject.split(/\s+/).filter((w) => w.length > 3);
+    const hasSubjectMatch =
+      subjectWords.some((word) => messageLower.includes(word)) ||
+      (finding.file && subject.includes(finding.file.split('/').pop()?.toLowerCase() ?? ''));
+    if (!hasSubjectMatch) {
+      surviving.push(finding);
+      continue;
     }
+
+    // Gate 4: Contradiction verb present in finding message
+    const hasContradiction = contradictionVerbs.some((opp) => messageLower.includes(opp));
+    if (!hasContradiction) {
+      surviving.push(finding);
+      continue;
+    }
+
+    // All gates passed — suppress this finding
+    console.log('[router] [finding-validator] [filtered:pr-intent]', {
+      file: finding.file,
+      severity: finding.severity,
+      category,
+      prVerb: verb,
+      subject: subject.slice(0, 60),
+      contradictionVerb: contradictionVerbs.find((opp) => messageLower.includes(opp)),
+      findingMessage: finding.message.slice(0, 120),
+    });
+
+    filtered.push({
+      finding,
+      classification: finding.file
+        ? finding.line !== undefined
+          ? 'inline'
+          : 'file-level'
+        : 'global',
+      valid: false,
+      filterReason: `PR intent contradiction: PR says "${verb} ${subject.slice(0, 40)}" but finding suggests opposite`,
+      filterType: 'pr_intent_contradiction',
+    });
   }
+
+  return { surviving, filtered };
 }
 
 /**
@@ -184,6 +261,7 @@ export function validateFindingsSemantics(
     valid: 0,
     filteredByLine: 0,
     filteredBySelfContradiction: 0,
+    filteredByPRIntent: 0,
     byClassification: {
       inline: 0,
       'file-level': 0,
@@ -245,7 +323,7 @@ export function validateFindingsSemantics(
   }
 
   // Build final arrays
-  const validFindings: Finding[] = [];
+  let validFindings: Finding[] = [];
   const filtered: FindingValidationResult[] = [];
 
   for (const result of results) {
@@ -257,9 +335,14 @@ export function validateFindingsSemantics(
     }
   }
 
-  // FR-014: Diagnostic PR intent logging (no suppression, no filtering)
+  // Pass 4: PR intent contradiction filter (FR-112, info severity + eligible category only)
   if (prDescription) {
-    logPRIntentContradictions(validFindings, prDescription);
+    const prIntentResult = filterPRIntentContradictions(validFindings, prDescription);
+    validFindings = prIntentResult.surviving;
+    for (const f of prIntentResult.filtered) {
+      filtered.push(f);
+      stats.filteredByPRIntent++;
+    }
   }
 
   return { validFindings, filtered, stats };
@@ -288,6 +371,7 @@ export function validateNormalizedFindings(
     valid: 0,
     filteredByLine: 0,
     filteredBySelfContradiction: 0,
+    filteredByPRIntent: 0,
     byClassification: {
       inline: 0,
       'file-level': 0,

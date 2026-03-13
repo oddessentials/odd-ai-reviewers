@@ -16,11 +16,19 @@
 import ts from 'typescript';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { VulnerabilityDetector } from '../agents/control_flow/vulnerability-detector.js';
-import { validateFindings } from '../report/finding-validator.js';
+import {
+  validateFindingsSemantics,
+  validateNormalizedFindings,
+} from '../report/finding-validator.js';
+import {
+  filterFrameworkConventionFindings,
+  getValidFindings,
+} from '../report/framework-pattern-filter.js';
 import { createLogger } from '../agents/control_flow/logger.js';
-import type { Finding } from '../agents/types.js';
+import type { Finding, Severity } from '../agents/types.js';
 import type { BenchmarkScenario } from './scoring.js';
 
 const DETERMINISTIC_PATTERNS = new Set<BenchmarkScenario['pattern']>(['A', 'E']);
@@ -247,7 +255,7 @@ export async function runScenario(
       const inputFindings = scenario.syntheticFindings ?? allFindings;
       const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
       const diffFilePaths = diffFiles.map((df) => df.path);
-      const summary = validateFindings(inputFindings, lineResolver, diffFilePaths);
+      const summary = validateNormalizedFindings(inputFindings, lineResolver, diffFilePaths);
       return summary.validFindings;
     }
 
@@ -372,7 +380,8 @@ export async function runWithSnapshot(
   scenarioId: string,
   snapshotDir: string,
   currentPromptHash: string,
-  currentFixtureHash: string
+  currentFixtureHash: string,
+  scenario?: BenchmarkScenario
 ): Promise<Finding[]> {
   const snapshot = await loadSnapshot(scenarioId, snapshotDir);
   if (!snapshot) {
@@ -393,7 +402,36 @@ export async function runWithSnapshot(
     );
   }
 
-  return snapshot.response.findings;
+  let findings = snapshot.response.findings;
+
+  // Apply the same post-processing pipeline used in production:
+  // Stage 1: semantic validation (self-contradiction + PR intent suppression)
+  // Stage 2: diff-bound validation (line checking after normalization)
+  // Stage 3: framework-pattern-filter (deterministic framework convention matchers)
+  if (scenario) {
+    const diffFiles = parseDiffFiles(scenario.diff);
+
+    // Stage 1: semantic filtering — includes PR-intent contradiction suppression
+    const semanticResult = validateFindingsSemantics(findings, scenario.prDescription);
+
+    // Stage 2: line validation against diff ranges
+    const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
+    const diffFilePaths = diffFiles.map((df) => df.path);
+    const validated = validateNormalizedFindings(
+      semanticResult.validFindings,
+      lineResolver,
+      diffFilePaths
+    );
+
+    // Stage 3: framework convention matchers
+    const frameworkFiltered = filterFrameworkConventionFindings(
+      validated.validFindings,
+      scenario.diff
+    );
+    findings = getValidFindings(frameworkFiltered);
+  }
+
+  return findings;
 }
 
 /**
@@ -409,4 +447,161 @@ export async function recordSnapshot(
   const snapshot: ResponseSnapshot = { metadata, response };
   const filePath = join(snapshotDir, snapshotFileName(scenarioId));
   await writeFile(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+}
+
+/**
+ * Build snapshot metadata for a recorded scenario.
+ */
+export function buildSnapshotMetadata(
+  promptHash: string,
+  fixtureHash: string,
+  modelId = process.env['BENCHMARK_MODEL_ID'] ?? 'unknown',
+  provider = process.env['BENCHMARK_PROVIDER'] ?? 'unknown'
+): SnapshotMetadata {
+  return {
+    recordedAt: new Date().toISOString(),
+    promptTemplateHash: promptHash,
+    modelId,
+    provider,
+    fixtureHash,
+    adapterVersion: SNAPSHOT_ADAPTER_VERSION,
+  };
+}
+
+// =============================================================================
+// Live LLM Scenario Runner (for RECORD mode)
+// =============================================================================
+
+const PROMPT_PATH = join(import.meta.dirname, '../../../config/prompts/semantic_review.md');
+
+/** Severity mapping from LLM response levels to Finding severity */
+function mapLLMSeverity(severity: string): Severity {
+  switch (severity) {
+    case 'critical':
+    case 'high':
+    case 'error':
+      return 'error';
+    case 'medium':
+    case 'warning':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
+
+/**
+ * Run a benchmark scenario against a live LLM and return the response.
+ * Requires either ANTHROPIC_API_KEY or OPENAI_API_KEY in the environment.
+ * Used exclusively by the benchmark:record command (RECORD=true).
+ */
+export async function runLiveScenario(scenario: BenchmarkScenario): Promise<RecordedResponse> {
+  const diffFiles = parseDiffFiles(scenario.diff);
+  if (diffFiles.length === 0) {
+    return { findings: [], rawOutput: '{"findings":[],"summary":"No diff files"}' };
+  }
+
+  // Load the prompt template
+  let systemPrompt =
+    'You are a senior code reviewer. Analyze the diff for security vulnerabilities, logic errors, and code quality issues. Return JSON with findings array and summary string.';
+  if (existsSync(PROMPT_PATH)) {
+    try {
+      systemPrompt = await readFile(PROMPT_PATH, 'utf-8');
+    } catch {
+      // fall back to default prompt
+    }
+  }
+
+  const fileSummary = diffFiles.map((f) => `- ${f.path}`).join('\n');
+  let userPrompt = `## Files Changed\n${fileSummary}\n`;
+
+  if (scenario.projectRules) {
+    userPrompt += `\n## Project Rules\n\n${scenario.projectRules}\n`;
+  }
+  if (scenario.prDescription) {
+    userPrompt += `\n## PR Description\n\n${scenario.prDescription}\n`;
+  }
+  userPrompt += `\n## Diff Content\n\`\`\`diff\n${scenario.diff}\n\`\`\`\n\nReturn JSON: {"findings": [...], "summary": "..."}`;
+
+  const anthropicKey = process.env['ANTHROPIC_API_KEY'];
+  const openaiKey = process.env['OPENAI_API_KEY'];
+
+  if (anthropicKey) {
+    return runLiveAnthropic(anthropicKey, systemPrompt, userPrompt);
+  } else if (openaiKey) {
+    return runLiveOpenAI(openaiKey, systemPrompt, userPrompt);
+  } else {
+    throw new Error(
+      'RECORD mode requires ANTHROPIC_API_KEY or OPENAI_API_KEY in the environment. ' +
+        'Set one of these to record live LLM snapshots.'
+    );
+  }
+}
+
+async function runLiveAnthropic(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<RecordedResponse> {
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey });
+  const model = process.env['BENCHMARK_MODEL_ID'] ?? 'claude-sonnet-4-20250514';
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const textContent = response.content.find((c) => c.type === 'text');
+  const rawOutput = textContent && textContent.type === 'text' ? textContent.text : '';
+
+  return { findings: parseLLMFindings(rawOutput), rawOutput };
+}
+
+async function runLiveOpenAI(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<RecordedResponse> {
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({ apiKey });
+  const model = process.env['BENCHMARK_MODEL_ID'] ?? 'gpt-4o';
+
+  const response = await client.chat.completions.create({
+    model,
+    max_tokens: 4096,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  });
+
+  const rawOutput = response.choices[0]?.message?.content ?? '';
+  return { findings: parseLLMFindings(rawOutput), rawOutput };
+}
+
+/** Parse LLM JSON output into Finding[]. Tolerates code-fenced JSON. */
+function parseLLMFindings(raw: string): Finding[] {
+  try {
+    // Strip markdown code fences if present
+    const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+    const parsed = JSON.parse(cleaned) as { findings?: unknown[] };
+    const findings = parsed.findings ?? [];
+    return findings.map((item) => {
+      const f = item as Record<string, unknown>;
+      return {
+        severity: mapLLMSeverity(String(f['severity'] ?? 'info')),
+        file: String(f['file'] ?? ''),
+        line: typeof f['line'] === 'number' ? f['line'] : undefined,
+        message: String(f['message'] ?? ''),
+        suggestion: typeof f['suggestion'] === 'string' ? f['suggestion'] : undefined,
+        ruleId: typeof f['category'] === 'string' ? `semantic/${f['category']}` : undefined,
+        sourceAgent: 'ai_semantic_review',
+      };
+    }) as Finding[];
+  } catch {
+    // If we can't parse, return empty — the raw output is still recorded
+    return [];
+  }
 }

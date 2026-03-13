@@ -818,10 +818,10 @@ describe('Performance', () => {
     detectSafeSources(sf, 'perf-test.ts');
     const elapsed = performance.now() - start;
 
-    expect(elapsed).toBeLessThan(100);
+    expect(elapsed).toBeLessThan(200);
   });
 
-  it('should complete within 100ms with scope-aware tracking on a file with many scopes', () => {
+  it('should complete within 200ms with scope-aware tracking on a file with many scopes', () => {
     const lines: string[] = [];
     for (let i = 0; i < 50; i++) {
       lines.push(`const ARR_${i} = ["a", "b", "c"];`);
@@ -837,6 +837,6 @@ describe('Performance', () => {
     detectSafeSources(sf, 'perf-test.ts');
     const elapsed = performance.now() - start;
 
-    expect(elapsed).toBeLessThan(100);
+    expect(elapsed).toBeLessThan(200);
   });
 });

@@ -1,5 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "snapshotVersion": 2,
   "scenarios": [
     {
       "id": "fp-a-001",
@@ -684,6 +685,169 @@
       "diff": "diff --git a/src/scoped.ts b/src/scoped.ts\n--- a/src/scoped.ts\n+++ b/src/scoped.ts\n@@ -1,3 +1,12 @@\n+function handleSafe() {\n+  const { data } = { data: 'hardcoded' };\n+  db.query(data);\n+}\n+\n+function handleTainted(req: any, res: any) {\n+  const { data } = req.body;\n+  const result = db.query(data);\n+  res.json(result);\n+}\n+\n export function scoped() {}",
       "expectedFindings": [{ "file": "src/scoped.ts", "messageContains": "unsanitized input" }],
       "truePositive": true
+    },
+    {
+      "id": "fp-f-014",
+      "category": "existence-verification",
+      "pattern": "F",
+      "subcategory": "wrong-line-ref",
+      "description": "Finding references non-existent function at cited line",
+      "sourceIssue": "#158",
+      "diff": "diff --git a/src/utils.ts b/src/utils.ts\n--- a/src/utils.ts\n+++ b/src/utils.ts\n@@ -1,3 +1,8 @@\n+export function formatDate(date: Date): string {\n+  return date.toISOString().split('T')[0];\n+}\n+\n+export function parseDate(s: string): Date {\n+  return new Date(s);\n+}\n+\n export function utils() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-015",
+      "category": "existence-verification",
+      "pattern": "F",
+      "subcategory": "missing-api",
+      "description": "Finding claims API misuse for standard library function",
+      "sourceIssue": "#160",
+      "diff": "diff --git a/src/parser.ts b/src/parser.ts\n--- a/src/parser.ts\n+++ b/src/parser.ts\n@@ -1,3 +1,6 @@\n+export function parseJSON(input: string): unknown {\n+  return JSON.parse(input);\n+}\n+\n export function parse() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-005",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Suggests runtime type check for TypeScript union type parameter",
+      "sourceIssue": "#159",
+      "diff": "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -1,3 +1,8 @@\n+type LogLevel = 'debug' | 'info' | 'warn' | 'error';\n+\n+export function setLogLevel(level: LogLevel): void {\n+  console.log(`Setting log level to ${level}`);\n+}\n+\n export function config() {}",
+      "syntheticFindings": [
+        {
+          "severity": "info",
+          "file": "src/config.ts",
+          "line": 3,
+          "message": "Consider adding runtime type check but this is acceptable as-is",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-006",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Suggests extracting constant used only in adjacent function",
+      "sourceIssue": "#161",
+      "diff": "diff --git a/src/retry.ts b/src/retry.ts\n--- a/src/retry.ts\n+++ b/src/retry.ts\n@@ -1,3 +1,10 @@\n+const MAX_RETRIES = 3;\n+\n+export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {\n+  for (let i = 0; i < MAX_RETRIES; i++) {\n+    try { return await fn(); } catch (e) { if (i === MAX_RETRIES - 1) throw e; }\n+  }\n+  throw new Error('unreachable');\n+}\n+\n export function retry() {}",
+      "syntheticFindings": [
+        {
+          "severity": "info",
+          "file": "src/retry.ts",
+          "line": 1,
+          "message": "No action required; the constant is correctly co-located",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-e-007",
+      "category": "self-contradicting",
+      "pattern": "E",
+      "description": "Flags budget amount as code quality issue",
+      "sourceIssue": "#159",
+      "diff": "diff --git a/src/billing.ts b/src/billing.ts\n--- a/src/billing.ts\n+++ b/src/billing.ts\n@@ -1,3 +1,7 @@\n+const MONTHLY_BUDGET = 50000;\n+\n+export function checkBudget(spent: number): boolean {\n+  return spent <= MONTHLY_BUDGET;\n+}\n+\n export function billing() {}",
+      "syntheticFindings": [
+        {
+          "severity": "info",
+          "file": "src/billing.ts",
+          "line": 1,
+          "message": "Not blocking — can be ignored, the constant is fine",
+          "sourceAgent": "benchmark"
+        }
+      ],
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-c-005",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Flags behavior explicitly described in PR description",
+      "sourceIssue": "#160",
+      "diff": "diff --git a/src/feature-flag.ts b/src/feature-flag.ts\n--- a/src/feature-flag.ts\n+++ b/src/feature-flag.ts\n@@ -1,3 +1,10 @@\n+// PR: \"Add environment-dependent feature flag\"\n+export function isFeatureEnabled(env: string): boolean {\n+  if (env === 'production') return false;\n+  if (env === 'staging') return true;\n+  return process.env.FEATURE_FLAG === 'true';\n+}\n+\n export function flags() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-c-006",
+      "category": "project-context",
+      "pattern": "C",
+      "description": "Flags singleton pattern as resource leak",
+      "sourceIssue": "#161",
+      "diff": "diff --git a/src/db.ts b/src/db.ts\n--- a/src/db.ts\n+++ b/src/db.ts\n@@ -1,3 +1,12 @@\n+let instance: DatabaseConnection | null = null;\n+\n+export function getConnection(): DatabaseConnection {\n+  if (!instance) {\n+    instance = new DatabaseConnection();\n+  }\n+  return instance;\n+}\n+\n+interface DatabaseConnection { query(sql: string): Promise<unknown[]> }\n+\n export function db() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-006",
+      "category": "framework-convention",
+      "pattern": "B",
+      "description": "React Query useQuery with same key is not double-fetching",
+      "sourceIssue": "#159",
+      "diff": "diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx\n--- a/src/Dashboard.tsx\n+++ b/src/Dashboard.tsx\n@@ -1,3 +1,12 @@\n+import { useQuery } from '@tanstack/react-query';\n+\n+export function Dashboard() {\n+  const { data } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });\n+  return <div>{data?.length} users</div>;\n+}\n+\n+function fetchUsers() { return fetch('/api/users').then(r => r.json()); }\n+\n export function App() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-b-007",
+      "category": "framework-convention",
+      "pattern": "B",
+      "description": "Promise.allSettled results accessed in order is correct",
+      "sourceIssue": "#161",
+      "diff": "diff --git a/src/batch.ts b/src/batch.ts\n--- a/src/batch.ts\n+++ b/src/batch.ts\n@@ -1,3 +1,10 @@\n+export async function batchProcess(urls: string[]) {\n+  const results = await Promise.allSettled(urls.map(u => fetch(u)));\n+  results.forEach((result, i) => {\n+    console.log(`URL ${i}: ${result.status}`);\n+  });\n+}\n+\n export function batch() {}",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-d-006",
+      "category": "pr-intent",
+      "pattern": "D",
+      "description": "PR adds feature but finding suggests removing it",
+      "sourceIssue": "#160",
+      "diff": "diff --git a/src/auth.ts b/src/auth.ts\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,8 @@\n+// PR: \"Add OAuth2 token refresh\"\n+export function refreshToken(token: string): Promise<string> {\n+  return fetch('/api/refresh', { method: 'POST', body: token }).then(r => r.text());\n+}\n+\n export function auth() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "feat: Add OAuth2 token refresh endpoint"
+    },
+    {
+      "id": "fp-d-007",
+      "category": "pr-intent",
+      "pattern": "D",
+      "description": "PR renames function but finding suggests reverting",
+      "sourceIssue": "#161",
+      "diff": "diff --git a/src/helpers.ts b/src/helpers.ts\n--- a/src/helpers.ts\n+++ b/src/helpers.ts\n@@ -1,5 +1,5 @@\n-export function getUserName(id: number): string {\n+export function fetchUserDisplayName(id: number): string {\n   return `User ${id}`;\n }\n\n export function helpers() {}",
+      "expectedFindings": [],
+      "truePositive": false,
+      "prDescription": "refactor: Rename getUserName to fetchUserDisplayName for clarity"
+    },
+    {
+      "id": "fp-f-016",
+      "category": "developer-tooling",
+      "pattern": "F",
+      "subcategory": "husky-hook",
+      "description": "Shell command in .husky/pre-commit is not injection risk",
+      "sourceIssue": "#159",
+      "diff": "diff --git a/.husky/pre-commit b/.husky/pre-commit\n--- /dev/null\n+++ b/.husky/pre-commit\n@@ -0,0 +1,3 @@\n+#!/usr/bin/env sh\n+. \"$(dirname -- \"$0\")/_/husky.sh\"\n+npx lint-staged",
+      "expectedFindings": [],
+      "truePositive": false
+    },
+    {
+      "id": "fp-f-017",
+      "category": "data-flow",
+      "pattern": "F",
+      "subcategory": "binary-response",
+      "description": "Audio response with content-type audio/mpeg is not XSS",
+      "sourceIssue": "#160",
+      "diff": "diff --git a/src/audio.ts b/src/audio.ts\n--- a/src/audio.ts\n+++ b/src/audio.ts\n@@ -1,3 +1,8 @@\n+import { Response } from 'express';\n+\n+export function serveAudio(res: Response, buffer: Buffer): void {\n+  res.setHeader('Content-Type', 'audio/mpeg');\n+  res.send(buffer);\n+}\n+\n export function audio() {}",
+      "expectedFindings": [],
+      "truePositive": false
     }
   ]
 }

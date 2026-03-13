@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.183Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:13:53.241Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "a9f65defd2b4fe1b486b0de07e4a2703f75b335f681230968835fe628bbc9896",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change introduces a new function `processInput` which processes an input of type `string | null` and returns a string. If the input is `null`, it returns the default string 'default', otherwise it converts the input string to uppercase. The function implementation correctly handles the potential null input and performs the expected operation without any apparent issues. No security vulnerabilities, logic errors, performance issues, or API misuse were identified in the change.\"\n}\n```"
   }
 }

@@ -7,3 +7,7 @@ Dockerfile*
 coverage/
 dist/
 build/
+benchmark-results/
+.specify/
+specs/
+docs/

@@ -22,6 +22,7 @@ import { parseJsonResponse } from './json-utils.js';
 import { withRetry } from './retry.js';
 import { withTokenCompatibility } from './token-compat.js';
 import { AgentError, AgentErrorCode } from '../types/errors.js';
+import { SHARED_CONVENTIONS_SUMMARY } from '../prompts/shared-conventions.generated.js';
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -239,7 +240,9 @@ Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical qu
 ### Active Context Directives
 Before generating findings: (1) CHECK any Project Rules provided — do not contradict documented decisions, (2) CHECK any PR Description provided — understand stated intent before flagging changes.
 
-Return a JSON object with findings. Do NOT include any text before or after the JSON.`;
+Return a JSON object with findings. Do NOT include any text before or after the JSON.
+
+${SHARED_CONVENTIONS_SUMMARY}`;
 
     if (existsSync(PROMPT_PATH)) {
       try {
