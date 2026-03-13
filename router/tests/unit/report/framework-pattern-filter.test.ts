@@ -461,6 +461,267 @@ describe('Framework Pattern Filter (FR-013)', () => {
   });
 
   // ===========================================================================
+  // React Query Dedup (react-query-dedup) — T022
+  // ===========================================================================
+
+  describe('React Query Dedup matcher', () => {
+    const reactQueryDiff = `diff --git a/src/hooks/useData.tsx b/src/hooks/useData.tsx
+--- a/src/hooks/useData.tsx
++++ b/src/hooks/useData.tsx
+@@ -1,10 +1,12 @@
++import { useQuery } from '@tanstack/react-query';
++
+ export function useData() {
+-  const data = fetch('/api/data');
++  const { data } = useQuery(['data'], () => fetch('/api/data'));
+   return data;
+ }
+`;
+
+    const swrDiff = `diff --git a/src/hooks/useData.tsx b/src/hooks/useData.tsx
+--- a/src/hooks/useData.tsx
++++ b/src/hooks/useData.tsx
+@@ -1,10 +1,12 @@
++import useSWR from 'swr';
++
+ export function useData() {
+-  const data = fetch('/api/data');
++  const { data } = useSWR('/api/data', fetcher);
+   return data;
+ }
+`;
+
+    const noQueryImportDiff = `diff --git a/src/api.ts b/src/api.ts
+--- a/src/api.ts
++++ b/src/api.ts
+@@ -1,5 +1,5 @@
+ export async function fetchData() {
+-  return fetch('/api/data');
++  return fetch('/api/data').then(r => r.json());
+ }
+`;
+
+    const queryImportNoHookDiff = `diff --git a/src/config.ts b/src/config.ts
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -1,5 +1,5 @@
++import { QueryClient } from '@tanstack/react-query';
++
+ export const config = {
+   timeout: 5000,
+ };
+`;
+
+    it('should suppress when react-query import + useQuery hook near line', () => {
+      const findings = [
+        makeFinding({
+          message: 'Duplicate data fetching detected',
+          file: 'src/hooks/useData.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, reactQueryDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress when swr import + useSWR hook near line', () => {
+      const findings = [
+        makeFinding({
+          message: 'Redundant query call detected',
+          file: 'src/hooks/useData.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, swrDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should NOT suppress when no query library import', () => {
+      const findings = [
+        makeFinding({
+          message: 'Duplicate data fetching call',
+          file: 'src/api.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noQueryImportDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+
+    it('should NOT suppress when message mentions raw fetch() (HTTP exclusion)', () => {
+      const findings = [
+        makeFinding({
+          message: 'Duplicate fetch() call in component',
+          file: 'src/hooks/useData.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, reactQueryDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+
+    it('should NOT suppress when react-query import but no hook call near line', () => {
+      const findings = [
+        makeFinding({
+          message: 'Duplicate database connection',
+          file: 'src/config.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryImportNoHookDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+
+    it('should NOT suppress duplicate-fetch finding near useMutation', () => {
+      const mutationDiff = `diff --git a/src/hooks/useSubmit.tsx b/src/hooks/useSubmit.tsx
+--- a/src/hooks/useSubmit.tsx
++++ b/src/hooks/useSubmit.tsx
+@@ -1,10 +1,12 @@
++import { useMutation } from '@tanstack/react-query';
++
+ export function useSubmit() {
+-  const submit = fetch('/api/submit', { method: 'POST' });
++  const { mutate } = useMutation(() => fetch('/api/submit', { method: 'POST' }));
+   return mutate;
+ }
+`;
+
+      const findings = [
+        makeFinding({
+          message: 'Duplicate data fetching detected',
+          file: 'src/hooks/useSubmit.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, mutationDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+
+    it('should NOT suppress duplicate-fetch finding near useSubscription', () => {
+      const subscriptionDiff = `diff --git a/src/hooks/useFeed.tsx b/src/hooks/useFeed.tsx
+--- a/src/hooks/useFeed.tsx
++++ b/src/hooks/useFeed.tsx
+@@ -1,10 +1,12 @@
++import { useSubscription } from '@apollo/client';
++
+ export function useFeed() {
+-  const data = fetch('/api/feed');
++  const { data } = useSubscription(FEED_SUBSCRIPTION);
+   return data;
+ }
+`;
+
+      const findings = [
+        makeFinding({
+          message: 'Redundant query call detected',
+          file: 'src/hooks/useFeed.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, subscriptionDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+  });
+
+  // ===========================================================================
+  // Promise.allSettled Order (promise-allsettled-order) — T023
+  // ===========================================================================
+
+  describe('Promise.allSettled Order matcher', () => {
+    const allSettledWithForEachDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,10 +1,10 @@
+ async function processBatch(items: string[]) {
+   const promises = items.map(item => processItem(item));
+   const results = await Promise.allSettled(promises);
+-  return results;
++  results.forEach((result, i) => {
++    console.log(items[i], result.status);
++  });
+ }
+`;
+
+    const allSettledFarAwayDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,5 +1,5 @@
+ // Promise.allSettled is used elsewhere in this file
+ function unrelated() {
+-  return 42;
++  return 43;
+ }
+`;
+
+    const allSettledNoIterationDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,8 +1,8 @@
+ async function processBatch(promises: Promise<unknown>[]) {
+   const results = await Promise.allSettled(promises);
+-  return results;
++  return results.length;
+ }
+`;
+
+    it('should suppress when allSettled call + forEach near line', () => {
+      const findings = [
+        makeFinding({
+          message: 'allSettled results order not guaranteed',
+          file: 'src/batch.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledWithForEachDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should NOT suppress when allSettled NOT near finding line', () => {
+      const findings = [
+        makeFinding({
+          message: 'allSettled results may not match order',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledFarAwayDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+
+    it('should NOT suppress when allSettled near line but no result iteration', () => {
+      const findings = [
+        makeFinding({
+          message: 'allSettled results order may not match',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledNoIterationDiff);
+      expect(result.suppressed).toBe(0);
+      expect(result.passed).toBe(1);
+    });
+  });
+
+  // ===========================================================================
   // Mixed scenarios and edge cases
   // ===========================================================================
 

@@ -1,4 +1,4 @@
-# odd-ai-reviewers Development Guidelines
+﻿# odd-ai-reviewers Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-01-27
 
@@ -47,6 +47,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (stateless per run; file-based cache exists but not modified) (410-false-positive-deep-fixes)
 - TypeScript 5.9.3 (ES2022 target, NodeNext modules) + TypeScript compiler API (AST parsing), Zod 4.3.6 (schema validation), Commander 14.x (CLI), Vitest 4.0.18 (testing) (411-fp-gap-closure)
 - N/A (stateless per run; file-based benchmark fixtures and snapshots) (411-fp-gap-closure)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (validation), Commander 14.x (CLI), Vitest 4.x (testing), Octokit 22.x (GitHub API), Anthropic SDK 0.71.x, OpenAI SDK 6.x (414-fp-reduction-and-benchmark)
+- File-based (benchmark fixtures as JSON, snapshots as JSON with SHA-256 hash validation) (414-fp-reduction-and-benchmark)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -74,9 +76,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 414-fp-reduction-and-benchmark: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (validation), Commander 14.x (CLI), Vitest 4.x (testing), Octokit 22.x (GitHub API), Anthropic SDK 0.71.x, OpenAI SDK 6.x
 - 411-fp-gap-closure: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + TypeScript compiler API (AST parsing), Zod 4.3.6 (schema validation), Commander 14.x (CLI), Vitest 4.0.18 (testing)
 - 410-false-positive-deep-fixes: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules), Node.js >=22.0.0 + TypeScript compiler API (AST parsing), Zod 4.x (schema validation), Commander 14.x (CLI), Octokit 22.x (GitHub API), OpenAI SDK 6.x, Anthropic SDK 0.71.x
-- 001-openai-token-compat: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + OpenAI SDK 6.17.0, Zod 4.3.6 (validation), existing error types from `router/src/types/errors.ts`
 
 
 

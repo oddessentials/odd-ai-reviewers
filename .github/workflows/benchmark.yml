@@ -1,0 +1,92 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      judge_model:
+        description: 'Model to use for judging (e.g., openai/gpt-4o-mini)'
+        required: false
+        default: 'openai/gpt-4o-mini'
+  schedule:
+    # Weekly: Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: External Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # Block fork PRs from accessing secrets
+    if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Clone benchmark repo
+        run: git clone --depth 1 https://github.com/withmartian/code-review-benchmark.git /tmp/benchmark
+
+      - name: Run adapter
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          npx tsx scripts/benchmark-adapter.ts \
+            --golden-dir /tmp/benchmark/golden \
+            --output /tmp/benchmark-results/candidates.json \
+            --concurrency 2 \
+            --timeout-per-pr 300 \
+            --max-runtime 6000
+
+      - name: Run judge
+        env:
+          MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
+        run: |
+          cd /tmp/benchmark
+          uv run judge \
+            --candidates /tmp/benchmark-results/candidates.json \
+            --model ${{ inputs.judge_model || 'openai/gpt-4o-mini' }} \
+            --output /tmp/benchmark-results
+
+      - name: Check regression
+        run: |
+          npx tsx scripts/benchmark-check.ts \
+            --results /tmp/benchmark-results \
+            --min-precision 0.40 \
+            --min-recall 0.30 \
+            --min-f1 0.35
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: /tmp/benchmark-results/
+          retention-days: 30

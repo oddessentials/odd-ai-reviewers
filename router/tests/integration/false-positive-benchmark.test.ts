@@ -25,8 +25,11 @@ import {
   parseDiffFiles,
   getUnsupportedScenarioReason,
   runWithSnapshot,
+  recordSnapshot,
+  buildSnapshotMetadata,
   sha256,
 } from '../../src/benchmark/adapter.js';
+import type { RecordedResponse } from '../../src/benchmark/adapter.js';
 import type { Finding } from '../../src/agents/types.js';
 
 // =============================================================================
@@ -97,8 +100,43 @@ async function runFromSnapshot(scenario: BenchmarkScenario): Promise<Finding[]> 
     scenario.id,
     snapshotDir,
     currentSnapshotPromptHash,
-    sha256(scenario.diff)
+    sha256(scenario.diff),
+    scenario
   );
+}
+
+/** Whether snapshot recording mode is active (set via RECORD=true env var). */
+const RECORDING = process.env['RECORD'] === 'true';
+
+// When recording, load API keys from root .env (if present and not already set).
+// CI provides keys via secrets; local dev uses .env. Keys already in the
+// environment (e.g. from CI secrets) are never overwritten.
+if (RECORDING) {
+  const envFile = join(import.meta.dirname, '..', '..', '..', '.env');
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, 'utf-8').split('\n')) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
+      if (m?.[1] && m[2] !== undefined && !process.env[m[1]]) {
+        process.env[m[1]] = m[2].trim();
+      }
+    }
+  }
+}
+
+/**
+ * Record a snapshot for a scenario after a live LLM run.
+ * Called only when RECORD=true. The caller provides the findings
+ * obtained from a live LLM invocation.
+ */
+async function recordScenarioSnapshot(
+  scenario: BenchmarkScenario,
+  findings: Finding[],
+  rawOutput: string
+): Promise<void> {
+  const response: RecordedResponse = { findings, rawOutput };
+  const metadata = buildSnapshotMetadata(currentSnapshotPromptHash, sha256(scenario.diff));
+  await recordSnapshot(scenario.id, response, metadata, snapshotDir);
+  console.log(`[benchmark:record] Recorded snapshot for ${scenario.id}`);
 }
 
 // Filter patterns B/C/D/F to only those with available snapshots
@@ -338,12 +376,12 @@ diff --git a/src/b.ts b/src/b.ts
 // =============================================================================
 
 describe('Fixture Validation', () => {
-  it('has correct total fixture count (53+)', () => {
-    expect(scenarios.length).toBeGreaterThanOrEqual(53);
+  it('has correct total fixture count (66+)', () => {
+    expect(scenarios.length).toBeGreaterThanOrEqual(66);
   });
 
-  it('has 43 FP fixtures', () => {
-    expect(fpScenarios.length).toBe(43);
+  it('has 56 FP fixtures', () => {
+    expect(fpScenarios.length).toBe(56);
   });
 
   it('has 10+ TP fixtures', () => {
@@ -354,24 +392,24 @@ describe('Fixture Validation', () => {
     expect(patternA.length).toBe(12);
   });
 
-  it('has 5 Pattern B fixtures', () => {
-    expect(patternB.length).toBe(5);
+  it('has 7 Pattern B fixtures', () => {
+    expect(patternB.length).toBe(7);
   });
 
-  it('has 4 Pattern C fixtures', () => {
-    expect(patternC.length).toBe(4);
+  it('has 6 Pattern C fixtures', () => {
+    expect(patternC.length).toBe(6);
   });
 
-  it('has 5 Pattern D fixtures', () => {
-    expect(patternD.length).toBe(5);
+  it('has 7 Pattern D fixtures', () => {
+    expect(patternD.length).toBe(7);
   });
 
-  it('has 4 Pattern E fixtures', () => {
-    expect(patternE.length).toBe(4);
+  it('has 7 Pattern E fixtures', () => {
+    expect(patternE.length).toBe(7);
   });
 
-  it('has 13 Pattern F fixtures', () => {
-    expect(patternF.length).toBe(13);
+  it('has 17 Pattern F fixtures', () => {
+    expect(patternF.length).toBe(17);
   });
 
   it('all FP fixtures have truePositive: false', () => {
@@ -582,14 +620,25 @@ describe('False Positive Regression Suite', () => {
       return runFromSnapshot(scenario);
     }
 
-    it('SC-001: FP suppression rate >= 85% (all runnable scenarios)', async () => {
+    it('Runnable scenario ratio >= 80% (prevents vacuous gate)', () => {
+      const runnableCount = allRunnableFP.length + deterministicTP.length;
+      const totalCount = fpScenarios.length + tpScenarios.length;
+      const ratio = runnableCount / totalCount;
+      expect(
+        ratio,
+        `Only ${runnableCount}/${totalCount} scenarios (${(ratio * 100).toFixed(1)}%) are runnable. ` +
+          `Record snapshots with 'pnpm benchmark:record' to increase coverage.`
+      ).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it('SC-001: FP suppression rate >= 90% (all runnable scenarios)', async () => {
       const results = [];
       for (const scenario of allRunnableFP) {
         const findings = await runFPScenario(scenario);
         results.push(scoreScenario(scenario, findings));
       }
       const report = computeReport(results);
-      expect(report.pool1.suppressionRate).toBeGreaterThanOrEqual(0.85);
+      expect(report.pool1.suppressionRate).toBeGreaterThanOrEqual(0.9);
     }, 120_000);
 
     it('SC-002: TP recall = 100%', async () => {
@@ -622,5 +671,25 @@ describe('False Positive Regression Suite', () => {
       const rate = passed / results.length;
       expect(rate).toBeGreaterThanOrEqual(0.8);
     }, 60_000);
+  });
+
+  // ===========================================================================
+  // Snapshot Recording (RECORD=true)
+  // ===========================================================================
+
+  describe.runIf(RECORDING)('Snapshot Recording', () => {
+    const snapshotScenarios = [...patternB, ...patternC, ...patternD, ...patternF];
+
+    it.each(snapshotScenarios)(
+      'record snapshot: $id — $description',
+      async (scenario) => {
+        const { runLiveScenario } = await import('../../src/benchmark/adapter.js');
+        const response = await runLiveScenario(scenario);
+        await recordScenarioSnapshot(scenario, response.findings, response.rawOutput);
+        // Recording always passes — we just need to capture the snapshot
+        expect(true).toBe(true);
+      },
+      120_000
+    );
   });
 });

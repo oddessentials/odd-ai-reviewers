@@ -10,6 +10,7 @@ import {
   validateFindingsSemantics,
   validateNormalizedFindings,
   normalizeUnicode,
+  filterPRIntentContradictions,
 } from '../../../src/report/finding-validator.js';
 import type { Finding } from '../../../src/agents/types.js';
 
@@ -745,5 +746,138 @@ describe('Unicode bypass hardening (US4)', () => {
       expect(result.validFindings).toHaveLength(0);
       expect(result.filtered[0]?.filterType).toBe('self_contradicting');
     });
+  });
+});
+
+/**
+ * PR intent contradiction filter tests (FR-112)
+ *
+ * Tests that filterPRIntentContradictions correctly suppresses info-severity
+ * findings in eligible categories whose message contradicts the PR intent.
+ */
+describe('filterPRIntentContradictions', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  it('suppresses info + eligible category finding that contradicts PR intent', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing this redundant delete handler code',
+        severity: 'info',
+        file: 'src/handler.ts',
+        ruleId: 'semantic/documentation',
+      }),
+    ];
+    const result = filterPRIntentContradictions(findings, 'add handler for delete operations');
+    expect(result.surviving).toHaveLength(0);
+    expect(result.filtered).toHaveLength(1);
+    expect(result.filtered[0]?.filterType).toBe('pr_intent_contradiction');
+  });
+
+  it('does NOT suppress info + ineligible category (security)', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing this unsafe delete operation',
+        severity: 'info',
+        file: 'src/handler.ts',
+        ruleId: 'semantic/security',
+      }),
+    ];
+    const result = filterPRIntentContradictions(findings, 'add handler for delete operations');
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('does NOT suppress warning severity even with eligible category', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing this delete handler',
+        severity: 'warning',
+        file: 'src/handler.ts',
+        ruleId: 'semantic/documentation',
+      }),
+    ];
+    const result = filterPRIntentContradictions(findings, 'add handler for delete operations');
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('does NOT suppress when finding does not reference PR subject', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing the database connection',
+        severity: 'info',
+        file: 'src/database.ts',
+        ruleId: 'semantic/documentation',
+      }),
+    ];
+    // PR is about "handler" but finding is about "database connection" — no subject match
+    const result = filterPRIntentContradictions(findings, 'add handler for events');
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('does NOT suppress when kill switch is disabled', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing this redundant delete handler code',
+        severity: 'info',
+        file: 'src/handler.ts',
+        ruleId: 'semantic/documentation',
+      }),
+    ];
+    const result = filterPRIntentContradictions(
+      findings,
+      'add handler for delete operations',
+      false // kill switch disabled
+    );
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('returns all findings when PR description has no intent pattern', () => {
+    const findings = [
+      makeFinding({ message: 'Some finding' }),
+      makeFinding({ message: 'Another finding' }),
+    ];
+    const result = filterPRIntentContradictions(findings, 'Bumped version to 2.0');
+    expect(result.surviving).toHaveLength(2);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('does NOT suppress when no contradiction verb is present in message', () => {
+    const findings = [
+      makeFinding({
+        message: 'This handler code could use better documentation',
+        severity: 'info',
+        file: 'src/handler.ts',
+        ruleId: 'semantic/documentation',
+      }),
+    ];
+    // PR says "add handler" but finding message does not contain "remove" or "delete"
+    const result = filterPRIntentContradictions(findings, 'add handler for events');
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
+  });
+
+  it('does NOT suppress finding without ruleId', () => {
+    const findings = [
+      makeFinding({
+        message: 'Consider removing this delete handler',
+        severity: 'info',
+        file: 'src/handler.ts',
+        // no ruleId — category parsing will yield empty string
+      }),
+    ];
+    const result = filterPRIntentContradictions(findings, 'add handler for delete operations');
+    expect(result.surviving).toHaveLength(1);
+    expect(result.filtered).toHaveLength(0);
   });
 });

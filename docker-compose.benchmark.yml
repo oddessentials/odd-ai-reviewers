@@ -1,0 +1,22 @@
+services:
+  benchmark-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+    env_file:
+      - .env
+    volumes:
+      - ./benchmark-results:/results
+    tmpfs:
+      - /tmp:size=2G
+    command:
+      [
+        '--golden-dir',
+        '/benchmark/golden',
+        '--output',
+        '/results',
+        '--concurrency',
+        '2',
+        '--timeout-per-pr',
+        '300',
+      ]

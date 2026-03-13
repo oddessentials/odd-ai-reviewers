@@ -13,6 +13,7 @@ import { withRetry } from './retry.js';
 import { withTokenCompatibility } from './token-compat.js';
 import { parseJsonResponse } from './json-utils.js';
 import { getCurrentDateUTC } from './date-utils.js';
+import { SHARED_CONVENTIONS_SUMMARY } from '../prompts/shared-conventions.generated.js';
 
 // Supported file extensions for PR-Agent review
 const SUPPORTED_EXTENSIONS = [
@@ -214,7 +215,9 @@ export const prAgentAgent: ReviewAgent = {
 Do NOT flag: (1) Express 4-param error middleware unused _next, (2) identical query keys as double-fetching (React Query dedup), (3) Promise.allSettled iteration as "wrong order", (4) TypeScript _prefix unused params, (5) assertNever/exhaustive switch as missing error handling, (6) constants adjacent to their only usage as needing externalization.
 
 ### Active Context Directives
-Before generating findings: (1) CHECK any Project Rules provided — do not contradict documented decisions, (2) CHECK any PR Description provided — understand stated intent before flagging changes.`;
+Before generating findings: (1) CHECK any Project Rules provided — do not contradict documented decisions, (2) CHECK any PR Description provided — understand stated intent before flagging changes.
+
+${SHARED_CONVENTIONS_SUMMARY}`;
     if (existsSync(PROMPT_PATH)) {
       try {
         systemPrompt = await readFile(PROMPT_PATH, 'utf-8');

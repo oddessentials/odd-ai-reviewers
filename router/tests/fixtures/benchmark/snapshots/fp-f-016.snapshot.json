@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-13T03:14:16.750Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
+    "fixtureHash": "715b39f54d29c940687e10d979a597e4b5564278126188179cc13b494e36c2b0",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [],
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces a new pre-commit hook using Husky to run lint-staged with no issues detected. The script is standard and does not present any security, performance, or logic concerns.\"\n}\n```"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "precision": 0.45,
+  "recall": 0.35,
+  "f1": 0.39,
+  "tool": "odd-ai-reviewers",
+  "judge_model": "openai/gpt-4o-mini",
+  "timestamp": "2026-03-12T00:00:00.000Z",
+  "total_tool_comments": 127,
+  "total_golden_comments": 163,
+  "true_positives": 57,
+  "false_positives": 70,
+  "false_negatives": 106,
+  "projects": {
+    "sentry": { "precision": 0.5, "recall": 0.38, "f1": 0.43 },
+    "grafana": { "precision": 0.42, "recall": 0.32, "f1": 0.36 },
+    "calcom": { "precision": 0.48, "recall": 0.4, "f1": 0.44 },
+    "discourse": { "precision": 0.38, "recall": 0.28, "f1": 0.32 },
+    "keycloak": { "precision": 0.47, "recall": 0.37, "f1": 0.41 }
+  }
+}

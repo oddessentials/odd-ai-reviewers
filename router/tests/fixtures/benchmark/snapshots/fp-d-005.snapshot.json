@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.182Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:13:39.021Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "725cb4d622256ce256c89ed0d817dc713d0529d3cc7b2ccc9ce4f28c9d98c236",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The refactor in `tests/user.test.ts` converts individual test cases into parameterized tests using `it.each`, improving readability and reducing code duplication. No logic errors, security vulnerabilities, or performance issues were identified. The change is consistent with common testing patterns and does not introduce any new issues.\"\n}\n```"
   }
 }

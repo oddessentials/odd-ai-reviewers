@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.184Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:14:09.567Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "3216254891772007540da958b87e36d8d1f78e17ecec3411bf0098d7d9bc5339",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff adds a new `logStartup` function that logs the server start information, including the port and environment. There are no logic errors, security vulnerabilities, or performance issues in the added code. The use of environment variables with default values for logging is appropriate, and no action is needed.\"\n}\n```"
   }
 }

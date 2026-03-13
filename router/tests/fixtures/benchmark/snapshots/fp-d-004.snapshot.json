@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-12T17:50:50.182Z",
-    "promptTemplateHash": "039afa6cfc2d4e41339b2c24fd1fb8f46fa5e47506530cf870967e8df19fb8f5",
-    "modelId": "snapshot-seed-v1",
-    "provider": "synthetic",
+    "recordedAt": "2026-03-13T03:13:37.343Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
     "fixtureHash": "29e65bbdbd656e77411419faa631cd5746be40b524eeef9a090dfaafe2d24495",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "{\"note\":\"Synthetic seed snapshot — FP scenario expects zero findings\"}"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a new feature flag `FEATURE_DASHBOARD` which determines the dashboard version to be used. The added logic safely checks the environment variable and uses a conditional to select the appropriate dashboard path. No issues with security, logic, performance, API misuse, or error handling are detected in the provided changes.\"\n}\n```"
   }
 }

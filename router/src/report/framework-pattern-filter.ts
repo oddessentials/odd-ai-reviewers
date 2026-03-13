@@ -5,7 +5,7 @@
  * using a closed, default-deny matcher table. Runs in Stage 1 validation
  * (after self-contradiction filter, before Stage 2 diff-bound validation).
  *
- * The matcher table is CLOSED: only these 3 matchers exist.
+ * The matcher table is CLOSED: only these 5 matchers exist.
  * Adding a new matcher requires a spec amendment.
  */
 
@@ -119,7 +119,7 @@ function extractLinesNearFinding(
 
 // =============================================================================
 // Closed Matcher Table — DEFAULT DENY
-// Only these 3 matchers. No additions without spec change.
+// Only these 5 matchers. No additions without spec change.
 // =============================================================================
 
 const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
@@ -199,6 +199,64 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     },
     suppressionReason:
       'Exhaustive switch with assertNever/throw — all cases handled at compile time',
+  },
+
+  // T022: React Query Deduplication
+  {
+    id: 'react-query-dedup',
+    name: 'React Query Dedup',
+    messagePattern: /duplicate|double.?fetch|redundant.*query|multiple.*useQuery/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+
+      // Evidence 1: Query library import in file section
+      const hasQueryImport =
+        /from\s+['"]@tanstack\/react-query['"]/.test(fileSection) ||
+        /from\s+['"]swr['"]/.test(fileSection) ||
+        /from\s+['"]@apollo\/client['"]/.test(fileSection);
+      if (!hasQueryImport) return false;
+
+      // Evidence 2: Query hook call near the finding line
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 10);
+      const nearbyText = nearbyLines.join('\n');
+      const hasQueryHook = /\b(useQuery|useSWR|useInfiniteQuery)\s*\(/.test(nearbyText);
+      if (!hasQueryHook) return false;
+
+      // Evidence 3: Exclude raw HTTP findings (not about library dedup)
+      if (/api\s*call|http\s*request|\bfetch\s*\(/.test(finding.message.toLowerCase())) {
+        return false;
+      }
+
+      return true;
+    },
+    suppressionReason: 'Query library deduplicates by cache key — not double-fetching',
+  },
+
+  // T023: Promise.allSettled Order Preservation
+  {
+    id: 'promise-allsettled-order',
+    name: 'Promise.allSettled Order',
+    messagePattern:
+      /allSettled.*(?:order|sequence)|(?:order|sequence).*allSettled|allSettled.*results.*not.*(?:match|correspond|align)/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+
+      // Evidence 1: Promise.allSettled call near the finding line (not just file-wide)
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 10);
+      const nearbyText = nearbyLines.join('\n');
+      if (!/Promise\.allSettled\s*\(/.test(nearbyText)) return false;
+
+      // Evidence 2: Result iteration (indexed or sequential access)
+      const hasResultAccess = /\.\s*forEach|\.map\s*\(|\[(\w+|\d+)\]|for\s*\(.*\s+of\s/.test(
+        nearbyText
+      );
+      if (!hasResultAccess) return false;
+
+      return true;
+    },
+    suppressionReason: 'Promise.allSettled preserves input order per ECMAScript spec',
   },
 ] as const;
 

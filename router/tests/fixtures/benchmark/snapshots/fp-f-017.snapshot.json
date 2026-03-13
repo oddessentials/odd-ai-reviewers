@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-13T03:14:18.819Z",
+    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
+    "modelId": "unknown",
+    "provider": "unknown",
+    "fixtureHash": "de350a756926569f965b02d5a8f9c20b10cffd25ad8757537df0625519fc831c",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [],
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The new function `serveAudio` correctly sets the `Content-Type` to `audio/mpeg` before sending the buffer, which is appropriate for serving audio content. There are no logic errors, security vulnerabilities, or performance issues detected in the added code. The `Response` object from Express is used properly to send audio data, and the function implements proper content-type setting for the audio buffer.\"\n}\n```"
+  }
+}

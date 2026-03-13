@@ -7,8 +7,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import {
+  SHARED_CONVENTIONS_HASH,
+  SHARED_CONVENTIONS_SUMMARY,
+} from '../../../src/prompts/shared-conventions.generated.js';
 
 /** Extract the 4 Core Rules from a prompt string (file-based or hardcoded). */
 function extractCoreRules(content: string): string[] {
@@ -33,11 +38,13 @@ function extractCoreRules(content: string): string[] {
 }
 
 /**
- * Check for the 6 Framework Convention keywords in a prompt string.
+ * Check for all 12 convention keywords in a prompt string (6 framework + 6 shared).
  * Returns an array of keyword labels that were found.
  */
 function extractFrameworkConventions(content: string): string[] {
   const found: string[] = [];
+
+  // Framework conventions (1-6)
 
   // Rule 1: Express error middleware
   if (/Express/i.test(content)) found.push('Express');
@@ -56,6 +63,32 @@ function extractFrameworkConventions(content: string): string[] {
 
   // Rule 6: Constant externalization
   if (/externali/i.test(content)) found.push('externalization');
+
+  // Shared conventions (7-12)
+
+  // Rule 7: Existence verification before reporting
+  if (
+    /existence verification/i.test(content) ||
+    /Verify the specific code construct/i.test(content)
+  )
+    found.push('existence verification');
+
+  // Rule 8: TypeScript type-system trust
+  if (/type-system trust/i.test(content) || /TypeScript type-system/i.test(content))
+    found.push('type-system trust');
+
+  // Rule 9: No business-decision findings
+  if (/business-decision/i.test(content)) found.push('business-decision');
+
+  // Rule 10: No cosmetic refactoring suggestions
+  if (/cosmetic refactoring/i.test(content)) found.push('cosmetic refactoring');
+
+  // Rule 11: Developer tooling files
+  if (/developer tooling/i.test(content) || /Developer tooling files/i.test(content))
+    found.push('developer tooling');
+
+  // Rule 12: React useRef pattern
+  if (/useRef/i.test(content)) found.push('React useRef');
 
   return found;
 }
@@ -171,22 +204,28 @@ describe('Fallback prompt sync (FR-012)', () => {
         ).toBe(true);
       });
 
-      it('file-based prompt contains all 6 Framework Convention keywords', () => {
+      it('file-based prompt contains all 12 convention keywords (6 framework + 6 shared)', () => {
         const promptContent = readFileSync(promptPath, 'utf-8');
         const conventions = extractFrameworkConventions(promptContent);
         expect(
           conventions,
-          `${name} file-based prompt missing conventions: expected 6, found [${conventions.join(', ')}]`
-        ).toHaveLength(6);
+          `${name} file-based prompt missing conventions: expected 12, found [${conventions.join(', ')}]`
+        ).toHaveLength(12);
       });
 
-      it('hardcoded fallback contains all 6 Framework Convention keywords', () => {
+      it('hardcoded fallback contains 6 framework convention keywords + SHARED_CONVENTIONS_SUMMARY import', () => {
         const agentSource = readFileSync(agentPath, 'utf-8');
+        // Agent fallbacks contain the 6 original framework conventions inline
+        // plus conventions 7-12 via the SHARED_CONVENTIONS_SUMMARY import
         const conventions = extractFrameworkConventions(agentSource);
         expect(
-          conventions,
-          `${name} hardcoded fallback missing conventions: expected 6, found [${conventions.join(', ')}]`
-        ).toHaveLength(6);
+          conventions.length,
+          `${name} hardcoded fallback missing framework conventions: found [${conventions.join(', ')}]`
+        ).toBeGreaterThanOrEqual(6);
+        expect(
+          agentSource.includes('SHARED_CONVENTIONS_SUMMARY'),
+          `${name} hardcoded fallback must import SHARED_CONVENTIONS_SUMMARY for conventions 7-12`
+        ).toBe(true);
       });
 
       it('file-based prompt contains Active Context Directives section', () => {
@@ -249,9 +288,9 @@ describe('Framework Convention prompts (FR-012)', () => {
       ).toBe(true);
     });
 
-    it(`${name} file-based prompt contains all 6 numbered convention rules`, () => {
+    it(`${name} file-based prompt contains all 12 numbered convention rules`, () => {
       const content = readFileSync(promptPath, 'utf-8');
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= 12; i++) {
         // eslint-disable-next-line security/detect-non-literal-regexp
         const rulePattern = new RegExp(`${i}\\.\\s+\\*\\*`);
         expect(
@@ -261,13 +300,114 @@ describe('Framework Convention prompts (FR-012)', () => {
       }
     });
 
-    it(`${name} file-based prompt contains all 6 Framework Convention keywords`, () => {
+    it(`${name} file-based prompt contains all 12 convention keywords (6 framework + 6 shared)`, () => {
       const content = readFileSync(promptPath, 'utf-8');
       const conventions = extractFrameworkConventions(content);
       expect(
         conventions,
-        `${name} prompt missing conventions: expected 6, found [${conventions.join(', ')}]`
-      ).toHaveLength(6);
+        `${name} prompt missing conventions: expected 12, found [${conventions.join(', ')}]`
+      ).toHaveLength(12);
     });
   }
+});
+
+describe('Shared conventions hash validation (T008)', () => {
+  const sharedConventionsPath = join(repoRoot, 'config/prompts/_shared_conventions.md');
+
+  it('SHARED_CONVENTIONS_HASH matches SHA-256 of _shared_conventions.md', () => {
+    const content = readFileSync(sharedConventionsPath, 'utf-8');
+    const computedHash = createHash('sha256').update(content).digest('hex');
+    expect(
+      SHARED_CONVENTIONS_HASH,
+      `Shared conventions hash mismatch: generated file is stale. Run \`pnpm prompts:sync\` to regenerate.`
+    ).toBe(computedHash);
+  });
+
+  it('all 4 prompt files contain shared conventions content matching the source file', () => {
+    const sourceContent = readFileSync(sharedConventionsPath, 'utf-8');
+
+    for (const { name, promptPath } of allPromptFiles) {
+      const promptContent = readFileSync(promptPath, 'utf-8');
+
+      const beginMarker = '<!-- BEGIN SHARED CONVENTIONS';
+      const endMarker = '<!-- END SHARED CONVENTIONS -->';
+
+      const beginIdx = promptContent.indexOf(beginMarker);
+      const endIdx = promptContent.indexOf(endMarker);
+
+      expect(beginIdx, `${name} prompt is missing BEGIN SHARED CONVENTIONS marker`).toBeGreaterThan(
+        -1
+      );
+      expect(endIdx, `${name} prompt is missing END SHARED CONVENTIONS marker`).toBeGreaterThan(-1);
+
+      // Extract content between the BEGIN marker line end and END marker start
+      const afterBeginLine = promptContent.indexOf('\n', beginIdx);
+      const embeddedContent = promptContent.slice(afterBeginLine + 1, endIdx).trim();
+      const normalizedSource = sourceContent.trim();
+
+      expect(
+        normalize(embeddedContent),
+        `${name} prompt shared conventions content has diverged from _shared_conventions.md`
+      ).toBe(normalize(normalizedSource));
+    }
+  });
+});
+
+describe('architecture_review Active Context Directives (T008)', () => {
+  const archPromptPath = join(repoRoot, 'config/prompts/architecture_review.md');
+
+  it('architecture_review.md contains Active Context Directives section', () => {
+    const content = readFileSync(archPromptPath, 'utf-8');
+    expect(
+      content.includes('### Active Context Directives'),
+      'architecture_review.md missing Active Context Directives header'
+    ).toBe(true);
+  });
+
+  it('architecture_review.md contains both Active Context Directive keywords', () => {
+    const content = readFileSync(archPromptPath, 'utf-8');
+    const directives = extractActiveContextDirectives(content);
+    expect(
+      directives,
+      `architecture_review.md missing directives: expected 2, found [${directives.join(', ')}]`
+    ).toHaveLength(2);
+  });
+});
+
+describe('SHARED_CONVENTIONS_SUMMARY content validation (T008)', () => {
+  it('summary contains key convention phrases', () => {
+    const requiredPhrases = [
+      'Existence verification',
+      'TypeScript type-system trust',
+      'MANDATORY',
+      'Design intent awareness',
+    ];
+
+    for (const phrase of requiredPhrases) {
+      expect(
+        SHARED_CONVENTIONS_SUMMARY.includes(phrase),
+        `SHARED_CONVENTIONS_SUMMARY is missing key phrase: "${phrase}"`
+      ).toBe(true);
+    }
+  });
+
+  it('summary contains convention numbers 7 through 12', () => {
+    for (let i = 7; i <= 12; i++) {
+      expect(
+        SHARED_CONVENTIONS_SUMMARY.includes(`${i}.`),
+        `SHARED_CONVENTIONS_SUMMARY is missing convention number ${i}`
+      ).toBe(true);
+    }
+  });
+
+  it('summary contains ACD directive references', () => {
+    expect(
+      SHARED_CONVENTIONS_SUMMARY.includes('Project Rules'),
+      'SHARED_CONVENTIONS_SUMMARY missing Project Rules ACD reference'
+    ).toBe(true);
+    expect(
+      SHARED_CONVENTIONS_SUMMARY.includes('PR Description'),
+      'SHARED_CONVENTIONS_SUMMARY missing PR Description ACD reference'
+    ).toBe(true);
+  });
 });
