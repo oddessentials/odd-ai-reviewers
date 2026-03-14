@@ -1555,6 +1555,89 @@ describe('Framework Pattern Filter (FR-013)', () => {
       const result = filterFrameworkConventionFindings(findings, allSettledWithStatusCheckDiff);
       expect(result.suppressed).toBe(0);
     });
+
+    // Fix 1 (T023): .status check is now MANDATORY — iteration alone is insufficient
+    it('should NOT suppress when allSettled + forEach but NO .status check', () => {
+      const forEachNoStatusDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,8 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  results.forEach((result, i) => {
++    console.log(\`URL \${i}: done\`);
++  });
++}
++
+ export function batch() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Unhandled rejected promises in Promise.allSettled results.',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, forEachNoStatusDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress fp-b-003: for-of with .status check', () => {
+      const fpB003Diff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  for (const result of results) {
++    if (result.status === 'fulfilled') {
++      console.log(result.value.status);
++    }
++  }
++}
++
+ export function batch() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Unhandled rejected promises in Promise.allSettled results.',
+          file: 'src/batch.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, fpB003Diff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should suppress fp-b-007: forEach with result.status in template literal', () => {
+      const fpB007Diff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++export async function batchProcess(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  results.forEach((result, i) => {
++    console.log(\`URL \${i}: \${result.status}\`);
++  });
++}
++
+ export function batch() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'allSettled results order may not match input order.',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, fpB007Diff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
   });
 
   // ===========================================================================
@@ -1620,6 +1703,100 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       const result = filterFrameworkConventionFindings(findings, paramStringDiff);
       expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T026 Fix: Union member vs case branch count verification
+  // ===========================================================================
+
+  describe('T026 case coverage verification', () => {
+    it('should suppress fp-f-010: Theme union with 2 members and 2 cases', () => {
+      const fpF010Diff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,10 @@
++type Theme = 'light' | 'dark';
++
++function getBackground(theme: Theme): string {
++  switch (theme) {
++    case 'light': return '#ffffff';
++    case 'dark': return '#1a1a1a';
++  }
++}
++
+ export function theme() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Non-exhaustive switch statement on Theme type. Missing default case.',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, fpF010Diff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('exhaustive-type-narrowed-switch');
+    });
+
+    it('should NOT suppress when switch is missing a union member (3 members, 2 cases)', () => {
+      const missingCaseDiff = `diff --git a/src/status.ts b/src/status.ts
+--- a/src/status.ts
++++ b/src/status.ts
+@@ -1,3 +1,11 @@
++type Status = 'pending' | 'active' | 'done';
++
++function getLabel(status: Status): string {
++  switch (status) {
++    case 'pending': return 'Pending';
++    case 'active': return 'Active';
++  }
++}
++
+ export function status() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Non-exhaustive switch: missing case for "done"',
+          file: 'src/status.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, missingCaseDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress when switch has more cases than union members (defensive branches)', () => {
+      // 2 union members, 3 cases — still exhaustive plus a guard
+      const extraCaseDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,12 @@
++type Theme = 'light' | 'dark';
++
++function getBackground(theme: Theme): string {
++  switch (theme) {
++    case 'light': return '#ffffff';
++    case 'dark': return '#1a1a1a';
++    case 'system': return '#888888';
++  }
++}
++
+ export function theme() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, extraCaseDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('exhaustive-type-narrowed-switch');
     });
   });
 
@@ -1794,6 +1971,130 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       const result = filterFrameworkConventionFindings(findings, '');
       expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T022 Fix: Error-handling findings require error destructuring
+  // ===========================================================================
+
+  describe('T022 error-handling message requires error destructuring', () => {
+    const queryDataOnlyDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,12 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const queryWithErrorDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  if (error) return <div>Error: {error.message}</div>;
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const queryWithIsErrorDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,13 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  if (isError) return <div>Failed to load</div>;
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    it('should NOT suppress "missing error handling" when only { data } is destructured (fp-b-006 guard)', () => {
+      const findings = [
+        makeFinding({
+          message: 'Missing error handling — useQuery errors are not displayed to the user.',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress "missing error handling" when error is destructured from hook result', () => {
+      const findings = [
+        makeFinding({
+          message: 'Missing error handling — useQuery errors are not displayed to the user.',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryWithErrorDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress "missing error handling" when isError is destructured from hook result', () => {
+      const findings = [
+        makeFinding({
+          message: 'Missing error handling for useQuery — consider using isError state.',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryWithIsErrorDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress fp-b-006: duplicate key finding (non-error-handling message) even with { data } only', () => {
+      // fp-b-006 message is about duplicate fetching, NOT error handling,
+      // so the error-destructuring gate does not apply.
+      const findings = [
+        makeFinding({
+          message: 'React Query useQuery with same key is not double-fetching',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress non-error-handling useQuery findings regardless of error destructuring', () => {
+      // "duplicate data fetching" message does not match missing.*error|error.*handling
+      const findings = [
+        makeFinding({
+          message: 'Duplicate data fetching detected',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
+      expect(result.suppressed).toBe(1);
     });
   });
 

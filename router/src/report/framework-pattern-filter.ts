@@ -230,6 +230,16 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
         return false;
       }
 
+      // Evidence 4: When the finding is specifically about missing error handling,
+      // require that `error` or `isError` is actually destructured from the hook result.
+      // A component that only destructures `{ data }` is NOT handling error state,
+      // so the finding is legitimate.
+      const isErrorHandlingFinding = /missing.*error|error.*handling/i.test(finding.message);
+      if (isErrorHandlingFinding) {
+        const hasErrorDestructuring = /\{\s*[^}]*\b(?:error|isError)\b[^}]*\}/.test(nearbyText);
+        if (!hasErrorDestructuring) return false;
+      }
+
       return true;
     },
     suppressionReason:
@@ -264,8 +274,12 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
           nearbyText
         );
 
-      // Must have EITHER result iteration OR .status check (or both)
-      if (!hasResultAccess && !hasStatusCheck) return false;
+      // .status check is MANDATORY: iteration alone does not prove settled results
+      // are properly handled (code may iterate but ignore the status field).
+      if (!hasStatusCheck) return false;
+
+      // Result iteration still required to prove the results array is actually consumed.
+      if (!hasResultAccess) return false;
 
       return true;
     },
@@ -401,10 +415,22 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       // e.g., `type Theme = 'light' | 'dark'`
       // SAFETY: typeName is from [A-Z][\w]* match — only [a-zA-Z0-9_], no regex special chars.
       // eslint-disable-next-line security/detect-non-literal-regexp
-      const namedUnionPattern = new RegExp(
-        '\\btype\\s+' + typeName + '\\s*=\\s*(?:[\'"][^\'"]+[\'"]\\s*\\|)'
+      const unionDeclarationPattern = new RegExp(
+        '\\btype\\s+' + typeName + '\\s*=\\s*((?:[\'"][^\'"]+[\'"]\\s*\\|?\\s*)+)'
       );
-      if (!namedUnionPattern.test(fileSection)) return false;
+      const unionMatch = fileSection.match(unionDeclarationPattern);
+      if (!unionMatch?.[1]) return false;
+
+      // Step 2c: count union members and verify case branches cover all of them.
+      // Extract all string-literal members from the union declaration.
+      const unionMembers = unionMatch[1].match(/['"][^'"]+['"]/g) ?? [];
+      if (unionMembers.length === 0) return false;
+
+      // Count `case '...'` or `case "..."` branches in nearby switch text.
+      const caseBranches = (nearbyText.match(/\bcase\s+['"][^'"]+['"]\s*:/g) ?? []).length;
+
+      // All union members must be covered (case count >= member count).
+      if (caseBranches < unionMembers.length) return false;
 
       return true;
     },
