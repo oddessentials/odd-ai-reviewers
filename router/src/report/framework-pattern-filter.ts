@@ -230,14 +230,62 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
         return false;
       }
 
-      // Evidence 4: When the finding is specifically about missing error handling,
-      // require that `error` or `isError` is actually destructured from the hook result.
-      // A component that only destructures `{ data }` is NOT handling error state,
-      // so the finding is legitimate.
+      // Evidence 4: When the finding is about missing error handling, require BOTH:
+      //   (a) error/isError is destructured from the hook result, AND
+      //   (b) the destructured binding is used in a conditional branch on error state
+      //       (if-check, short-circuit, ternary). Property access alone (error?.message)
+      //       is NOT sufficient — logging or rendering a field without branching does
+      //       not prove the component handles the error for the user.
       const isErrorHandlingFinding = /missing.*error|error.*handling/i.test(finding.message);
       if (isErrorHandlingFinding) {
-        const hasErrorDestructuring = /\{\s*[^}]*\b(?:error|isError)\b[^}]*\}/.test(nearbyText);
-        if (!hasErrorDestructuring) return false;
+        // Step (a): error/isError must appear in a destructuring pattern.
+        // Extract the actual binding name (handles aliases like { error: queryError }).
+        const errorBindings: string[] = [];
+
+        // Match shorthand `{ ..., error, ... }` or `{ ..., isError, ... }`
+        // and aliased `{ ..., error: NAME, ... }` or `{ ..., isError: NAME, ... }`
+        const destructuringBlock = nearbyText.match(/\{\s*([^}]*\b(?:error|isError)\b[^}]*)\}/);
+        if (!destructuringBlock?.[1]) return false;
+
+        const blockContent = destructuringBlock[1];
+        // Check for alias pattern: `error: someAlias` or `isError: someAlias`
+        const aliasMatches = blockContent.matchAll(/\b(?:error|isError)\s*:\s*(\w+)/g);
+        for (const m of aliasMatches) {
+          if (m[1]) errorBindings.push(m[1]);
+        }
+        // Check for shorthand: `error` or `isError` without `: alias`
+        if (/\berror\b(?!\s*:)/.test(blockContent)) {
+          errorBindings.push('error');
+        }
+        if (/\bisError\b(?!\s*:)/.test(blockContent)) {
+          errorBindings.push('isError');
+        }
+
+        if (errorBindings.length === 0) return false;
+
+        // Step (b): At least one extracted binding must appear in a conditional branch
+        // on error state: if-check, short-circuit (&&), or ternary (?).
+        // SAFETY: bindings are from \w+ match — only [a-zA-Z0-9_], no regex special chars.
+        //
+        // Fail-open patterns (not checked, finding passes through):
+        //   - binding used only as callback argument
+        //   - binding only logged (console.log/console.error)
+        //   - property access without conditional guard (error?.message)
+        //   - nested destructuring from the binding
+        const hasErrorUsage = errorBindings.some((binding) => {
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          const ifCheck = new RegExp('\\bif\\s*\\(\\s*' + binding + '\\b');
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          const shortCircuit = new RegExp('\\b' + binding + '\\s*&&');
+          // Ternary: `binding ? ... : ...` — must exclude optional chaining `binding?.`
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          const ternary = new RegExp('\\b' + binding + '\\s*\\?(?!\\.)');
+
+          return (
+            ifCheck.test(nearbyText) || shortCircuit.test(nearbyText) || ternary.test(nearbyText)
+          );
+        });
+        if (!hasErrorUsage) return false;
       }
 
       return true;
@@ -261,25 +309,89 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       const nearbyText = nearbyLines.join('\n');
       if (!/Promise\.allSettled\s*\(/.test(nearbyText)) return false;
 
-      // Evidence 2: Result iteration on the allSettled output (not the input mapping)
-      // Exclude .map() that feeds INTO allSettled (e.g., urls.map(u => fetch(u)))
-      // by requiring forEach/for-of patterns or indexed access on results
-      const hasResultAccess = /\.\s*forEach\s*\(|for\s*\(.*\s+of\s|\bresults?\s*\[/.test(
-        nearbyText
-      );
+      // Evidence 2+3: Iteration and .status must be BOUND to the allSettled result variable.
+      // Unscoped checks (any .forEach + any .status in nearbyText) allow false suppression
+      // when unrelated iteration or HTTP .status references exist nearby.
 
-      // Evidence 3: .status check (proves code handles settled results properly)
-      const hasStatusCheck =
-        /\.status\s*(?:===?|!==?)\s*['"](?:fulfilled|rejected)['"]|result\.status|\.status\b/.test(
+      // Step 2a: Extract the result variable name.
+      // Primary: `const/let/var X = await Promise.allSettled(...)`
+      const allSettledVarMatch = nearbyText.match(
+        /\b(?:const|let|var)\s+(\w+)\s*=\s*await\s+Promise\.allSettled\s*\(/
+      );
+      let varName = allSettledVarMatch?.[1];
+
+      // Fallback: `.then()` chain — `Promise.allSettled(...).then((X) => ...)` or
+      // `.then(X => ...)` or `.then(function(X) { ... })`.
+      // NOTE: This is a bounded heuristic over the ±10-line diff window, not a
+      // structurally correct parser. The lazy [\s\S]*? relies on regex backtracking
+      // to find the closing paren of allSettled(...) when nested parens are present.
+      // This is acceptable given the small window size but is not balanced-paren parsing.
+      // Fail-open patterns (not checked):
+      //   - separated await: `const p = Promise.allSettled(...); const r = await p;`
+      //   - named function reference: `.then(handleResults)`
+      //   - generator patterns
+      if (!varName) {
+        const thenMatch = nearbyText.match(
+          /Promise\.allSettled\s*\([\s\S]*?\)\.then\s*\(\s*(?:function\s*\(\s*(\w+)|(\w+)\s*=>|\(\s*(\w+)\s*\)\s*=>)/
+        );
+        varName = thenMatch?.[1] ?? thenMatch?.[2] ?? thenMatch?.[3];
+      }
+      if (!varName) return false; // Cannot identify result variable — fail open
+
+      // Step 2b: Require iteration to reference the allSettled result variable.
+      // SAFETY: varName is from \w+ match — only [a-zA-Z0-9_], no regex special chars.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const iterationPattern = new RegExp(
+        '\\b' +
+          varName +
+          '\\s*\\.\\s*forEach\\s*\\(' +
+          '|for\\s*\\([^)]*\\s+of\\s+' +
+          varName +
+          '\\b' +
+          '|\\b' +
+          varName +
+          '\\s*\\['
+      );
+      if (!iterationPattern.test(nearbyText)) return false;
+
+      // Step 2c: .status check must appear on the iteration callback parameter,
+      // not on an unrelated variable. Extract the callback/loop variable name
+      // and require PARAM.status in nearbyText.
+      let hasStatusCheck = false;
+
+      // Pattern A: VARNAME.forEach((PARAM, ...) => { ... PARAM.status ... })
+      const forEachParamMatch = nearbyText.match(
+        // eslint-disable-next-line security/detect-non-literal-regexp
+        new RegExp('\\b' + varName + '\\s*\\.\\s*forEach\\s*\\(\\s*(?:\\(\\s*)?(\\w+)')
+      );
+      if (forEachParamMatch?.[1]) {
+        const cbParam = forEachParamMatch[1];
+        // eslint-disable-next-line security/detect-non-literal-regexp
+        hasStatusCheck = new RegExp('\\b' + cbParam + '\\.status\\b').test(nearbyText);
+      }
+
+      // Pattern B: for (const LOOPVAR of VARNAME) { ... LOOPVAR.status ... }
+      if (!hasStatusCheck) {
+        const forOfMatch = nearbyText.match(
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          new RegExp('for\\s*\\(\\s*(?:const|let|var)\\s+(\\w+)\\s+of\\s+' + varName + '\\b')
+        );
+        if (forOfMatch?.[1]) {
+          const loopVar = forOfMatch[1];
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          hasStatusCheck = new RegExp('\\b' + loopVar + '\\.status\\b').test(nearbyText);
+        }
+      }
+
+      // Pattern C: indexed access VARNAME[i].status
+      if (!hasStatusCheck) {
+        // eslint-disable-next-line security/detect-non-literal-regexp
+        hasStatusCheck = new RegExp('\\b' + varName + '\\s*\\[\\w+\\]\\s*\\.\\s*status\\b').test(
           nearbyText
         );
+      }
 
-      // .status check is MANDATORY: iteration alone does not prove settled results
-      // are properly handled (code may iterate but ignore the status field).
       if (!hasStatusCheck) return false;
-
-      // Result iteration still required to prove the results array is actually consumed.
-      if (!hasResultAccess) return false;
 
       return true;
     },
@@ -421,16 +533,28 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       const unionMatch = fileSection.match(unionDeclarationPattern);
       if (!unionMatch?.[1]) return false;
 
-      // Step 2c: count union members and verify case branches cover all of them.
-      // Extract all string-literal members from the union declaration.
-      const unionMembers = unionMatch[1].match(/['"][^'"]+['"]/g) ?? [];
-      if (unionMembers.length === 0) return false;
+      // Step 2c: verify every union member VALUE has a corresponding case branch.
+      // Uses set-membership (not count comparison) to prevent duplicate case values
+      // from inflating the count. e.g., case 'light', case 'light' = 1 unique value,
+      // not 2 — so a 3-member union with a duplicate case is correctly rejected.
+      const unionMemberQuoted = unionMatch[1].match(/['"][^'"]+['"]/g) ?? [];
+      if (unionMemberQuoted.length === 0) return false;
 
-      // Count `case '...'` or `case "..."` branches in nearby switch text.
-      const caseBranches = (nearbyText.match(/\bcase\s+['"][^'"]+['"]\s*:/g) ?? []).length;
+      // Extract raw string values (without quotes) from union members
+      const unionMemberValues = unionMemberQuoted.map((m) => m.slice(1, -1));
 
-      // All union members must be covered (case count >= member count).
-      if (caseBranches < unionMembers.length) return false;
+      // Extract raw string values from case branches (deduplicated via Set)
+      const caseBranchMatches = nearbyText.match(/\bcase\s+['"]([^'"]+)['"]\s*:/g) ?? [];
+      const caseValues = new Set(
+        caseBranchMatches.map((m) => {
+          const val = m.match(/['"]([^'"]+)['"]/);
+          return val?.[1] ?? '';
+        })
+      );
+
+      // Every union member must have a matching case branch (set membership)
+      const allMembersCovered = unionMemberValues.every((member) => caseValues.has(member));
+      if (!allMembersCovered) return false;
 
       return true;
     },

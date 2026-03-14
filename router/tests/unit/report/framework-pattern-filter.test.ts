@@ -2438,6 +2438,331 @@ describe('Framework Pattern Filter (FR-013)', () => {
   // getValidFindings helper
   // ===========================================================================
 
+  // ===========================================================================
+  // T022 Fix: Aliased destructuring and optional chaining
+  // ===========================================================================
+
+  describe('T022 aliased destructuring and optional chaining', () => {
+    const aliasedErrorDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error: queryError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  if (queryError) return <div>Error: {queryError.message}</div>;
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const aliasedIsErrorDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, isError: hasErr } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  if (hasErr) return <div>Failed to load</div>;
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const optionalChainingDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return <div>{error?.message ?? data?.length + ' users'}</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const aliasedOptionalChainingDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error: fetchErr } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return <div>{fetchErr?.message ?? data?.length + ' users'}</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const aliasedTernaryDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error: queryError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return queryError ? <div>Error!</div> : <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const aliasedNoUsageDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error: queryError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  console.log(queryError);
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const aliasedShortCircuitDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error: queryError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return <div>{queryError && <span>Error!</span>}{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    const errorHandlingMsg =
+      'Missing error handling — useQuery errors are not displayed to the user.';
+
+    it('should suppress when error is aliased and alias is used in conditional (T022 alias)', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedErrorDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress when isError is aliased and alias is used in conditional (T022 alias)', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedIsErrorDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should NOT suppress when error is only used with optional chaining (error?.message) — not a conditional guard', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, optionalChainingDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when aliased error is only used with optional chaining (fetchErr?.message) — not a conditional guard', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedOptionalChainingDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress when aliased error is used in ternary (queryError ? ... : ...)', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedTernaryDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should NOT suppress when aliased error is only logged, not used in guard (fail-open)', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedNoUsageDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress when aliased error is used in short-circuit render (queryError && ...)', () => {
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, aliasedShortCircuitDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress when both error and isError are destructured but only isError is guarded (dual-binding)', () => {
+      const dualBindingDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data, error, isError } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  if (isError) return <div>Error: {error.message}</div>;
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+      const findings = [
+        makeFinding({ message: errorHandlingMsg, file: 'src/Dashboard.tsx', line: 5 }),
+      ];
+      const result = filterFrameworkConventionFindings(findings, dualBindingDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+  });
+
+  // ===========================================================================
+  // T023 Fix: .then() chain extraction
+  // ===========================================================================
+
+  describe('T023 .then() chain extraction', () => {
+    const thenArrowDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++export function batchProcess(urls: string[]) {
++  Promise.allSettled(urls.map(u => fetch(u))).then(results => {
++    for (const result of results) {
++      if (result.status === 'fulfilled') console.log(result.value);
++    }
++  });
++}
++
+ export function batch() {}`;
+
+    const thenParenArrowDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++export function batchProcess(urls: string[]) {
++  Promise.allSettled(urls.map(u => fetch(u))).then((results) => {
++    results.forEach((r) => {
++      console.log(r.status);
++    });
++  });
++}
++
+ export function batch() {}`;
+
+    const thenFunctionDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++export function batchProcess(urls: string[]) {
++  Promise.allSettled(urls.map(u => fetch(u))).then(function(outcomes) {
++    for (const outcome of outcomes) {
++      if (outcome.status === 'rejected') console.error(outcome.reason);
++    }
++  });
++}
++
+ export function batch() {}`;
+
+    const thenNoStatusDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,8 @@
++export function batchProcess(urls: string[]) {
++  Promise.allSettled(urls.map(u => fetch(u))).then(results => {
++    results.forEach(r => console.log(r));
++  });
++}
++
+ export function batch() {}`;
+
+    const thenNamedRefDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,6 @@
++export function batchProcess(urls: string[]) {
++  Promise.allSettled(urls.map(u => fetch(u))).then(handleResults);
++}
++
+ export function batch() {}`;
+
+    const allSettledMsg = 'Unhandled rejected promises in Promise.allSettled results.';
+
+    it('should suppress .then(results => ...) with for-of + .status (T023 .then)', () => {
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, thenArrowDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should suppress .then((results) => ...) with forEach + .status (T023 .then)', () => {
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, thenParenArrowDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should suppress .then(function(outcomes) {...}) with for-of + .status (T023 .then)', () => {
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, thenFunctionDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should NOT suppress .then() chain when no .status check (fail-open)', () => {
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, thenNoStatusDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress .then(handleResults) — named function ref (fail-open)', () => {
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, thenNamedRefDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should still suppress await pattern (regression guard)', () => {
+      const awaitDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  for (const result of results) {
++    if (result.status === 'fulfilled') console.log(result.value);
++  }
++}
++
+ export function batch() {}`;
+      const findings = [makeFinding({ message: allSettledMsg, file: 'src/batch.ts', line: 3 })];
+      const result = filterFrameworkConventionFindings(findings, awaitDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+  });
+
   describe('getValidFindings', () => {
     it('should return only non-suppressed findings', () => {
       const findings = [
