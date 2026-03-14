@@ -722,6 +722,565 @@ describe('Framework Pattern Filter (FR-013)', () => {
   });
 
   // ===========================================================================
+  // T019 Widened Express Error Middleware patterns (FR-014)
+  // ===========================================================================
+
+  describe('Express Error Middleware widened patterns (FR-014)', () => {
+    const phrases = [
+      'declared but never referenced',
+      'dead code: parameter next never called',
+      'parameter not referenced in function body',
+    ];
+
+    for (const phrase of phrases) {
+      it(`should suppress "${phrase}" when 4-param + Express indicator present`, () => {
+        const findings = [
+          makeFinding({
+            message: `${phrase}`,
+            file: 'src/app.ts',
+            line: 4,
+          }),
+        ];
+
+        const result = filterFrameworkConventionFindings(
+          findings,
+          EXPRESS_DIFF_WITH_USE_AND_4_PARAMS
+        );
+        expect(result.suppressed).toBe(1);
+        expect(result.results[0]?.matcherId).toBe('express-error-mw');
+      });
+
+      // FR-014(c): 5 negative cases per phrase
+      it(`should NOT suppress "${phrase}" without 4 params`, () => {
+        const findings = [makeFinding({ message: phrase, file: 'src/app.ts', line: 1 })];
+        const result = filterFrameworkConventionFindings(
+          findings,
+          EXPRESS_DIFF_WITH_USE_BUT_3_PARAMS
+        );
+        expect(result.suppressed).toBe(0);
+      });
+
+      it(`should NOT suppress "${phrase}" without Express indicator`, () => {
+        const findings = [makeFinding({ message: phrase, file: 'src/app.ts', line: 1 })];
+        const result = filterFrameworkConventionFindings(findings, EXPRESS_DIFF_WITHOUT_USE);
+        expect(result.suppressed).toBe(0);
+      });
+
+      it(`should NOT suppress "${phrase}" in non-handler context`, () => {
+        const nonHandlerDiff = `diff --git a/src/app.ts b/src/app.ts
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,3 +1,6 @@
++function helper(a: string, b: number) {
++  return a + b;
++}
++
+ export default app;`;
+
+        const findings = [makeFinding({ message: phrase, file: 'src/app.ts', line: 1 })];
+        const result = filterFrameworkConventionFindings(findings, nonHandlerDiff);
+        expect(result.suppressed).toBe(0);
+      });
+
+      it(`should NOT suppress "${phrase}" with Koa framework`, () => {
+        const koaDiff = `diff --git a/src/app.ts b/src/app.ts
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,3 +1,8 @@
++import Koa from 'koa';
++const app = new Koa();
++app.use(async (ctx, next) => {
++  await next();
++});
++
+ export default app;`;
+
+        const findings = [makeFinding({ message: phrase, file: 'src/app.ts', line: 3 })];
+        // Koa middleware has 2 params (ctx, next) not 4, so evidence fails
+        const result = filterFrameworkConventionFindings(findings, koaDiff);
+        expect(result.suppressed).toBe(0);
+      });
+
+      it(`should NOT suppress "${phrase}" alongside a genuine security finding`, () => {
+        const findings = [
+          makeFinding({
+            message: `Security: SQL injection vulnerability. Also ${phrase}`,
+            file: 'src/db.ts',
+            line: 5,
+          }),
+        ];
+        // No Express evidence in wrong file
+        const result = filterFrameworkConventionFindings(
+          findings,
+          EXPRESS_DIFF_WITH_USE_AND_4_PARAMS
+        );
+        expect(result.suppressed).toBe(0);
+      });
+    }
+  });
+
+  // ===========================================================================
+  // Safe Local File Read (safe-local-file-read) — T025
+  // ===========================================================================
+
+  describe('Safe Local File Read matcher (T025)', () => {
+    // 5 positive cases — one per allowed base
+    const positiveBaseCases = [
+      { base: '__dirname', code: `path.join(__dirname, 'template.html')` },
+      { base: '__filename', code: `path.resolve(__filename, 'config.json')` },
+      { base: 'import.meta.dirname', code: `path.join(import.meta.dirname, 'views')` },
+      { base: 'import.meta.filename', code: `path.resolve(import.meta.filename, 'data.json')` },
+      { base: 'import.meta.url', code: `path.join(import.meta.url, 'assets')` },
+    ];
+
+    for (const { base, code } of positiveBaseCases) {
+      it(`should suppress path traversal finding when ${base} + string literal used`, () => {
+        const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = ${code};
++const content = fs.readFileSync(filePath);
++
+ export {};`;
+
+        const findings = [
+          makeFinding({
+            message: 'Potential path traversal vulnerability',
+            file: 'src/files.ts',
+            line: 1,
+          }),
+        ];
+
+        const result = filterFrameworkConventionFindings(findings, diff);
+        expect(result.suppressed).toBe(1);
+        expect(result.results[0]?.matcherId).toBe('safe-local-file-read');
+      });
+    }
+
+    // 8 negative cases
+    it('should NOT suppress when variable is used as path segment', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, filename);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when function call is used as path segment', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, getPath());
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when property access is used as path segment', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, config.path);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when template interpolation is used', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, \`\${userInput}\`);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Path traversal risk with dynamic path',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when process.env is used as path segment', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, process.env.CONFIG_DIR);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when req.* is used as path segment', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, req.params.file);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Path traversal via user input',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when alias is used for __dirname', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,6 @@
++const dir = __dirname;
++const filePath = path.join(dir, 'template.html');
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress multi-line path.join calls', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,7 @@
++const filePath = path.join(
++  __dirname,
++  'template.html'
++);
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Path traversal risk detected',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      // Multi-line is deliberately not matched (single-line only)
+      expect(result.suppressed).toBe(0);
+    });
+
+    // B1: Security — reject '..' path traversal
+    it('should NOT suppress when string literal contains ".." (B1 security)', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, '../../etc/passwd');
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    // B2: Security — reject absolute paths
+    it('should NOT suppress when string literal starts with "/" (B2 security)', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, '/etc/passwd');
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when string literal starts with drive letter (B2 security)', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, "C:\\Windows\\System32\\config");
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    // Multiple string literal segments
+    it('should suppress when multiple safe string literal segments used', () => {
+      const diff = `diff --git a/src/files.ts b/src/files.ts
+--- a/src/files.ts
++++ b/src/files.ts
+@@ -1,3 +1,5 @@
++const filePath = path.join(__dirname, 'views', 'templates', 'index.html');
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'Potential path traversal vulnerability',
+          file: 'src/files.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, diff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('safe-local-file-read');
+    });
+  });
+
+  // ===========================================================================
+  // Exhaustive Type-Narrowed Switch (exhaustive-type-narrowed-switch) — T026
+  // ===========================================================================
+
+  describe('Exhaustive Type-Narrowed Switch matcher (T026)', () => {
+    const unionSwitchDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,13 @@
++type Theme = 'light' | 'dark';
++
++function getColors(theme: Theme) {
++  switch (theme) {
++    case 'light':
++      return { bg: '#fff', fg: '#000' };
++    case 'dark':
++      return { bg: '#000', fg: '#fff' };
++  }
++}
++
+ export {};`;
+
+    const noUnionDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,11 @@
++function getColors(theme: string) {
++  switch (theme) {
++    case 'light':
++      return { bg: '#fff', fg: '#000' };
++    case 'dark':
++      return { bg: '#000', fg: '#fff' };
++  }
++}
++
+ export {};`;
+
+    const numberTypeDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,11 @@
++function getLevel(level: number) {
++  switch (level) {
++    case 1:
++      return 'low';
++    case 2:
++      return 'high';
++  }
++}
++
+ export {};`;
+
+    it('should suppress "missing default" when union type + switch present', () => {
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch statement',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('exhaustive-type-narrowed-switch');
+    });
+
+    it('should suppress "no default" phrasing', () => {
+      const findings = [
+        makeFinding({
+          message: 'Switch has no default branch',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should suppress "add default" phrasing', () => {
+      const findings = [
+        makeFinding({
+          message: 'Consider adding a default case to the switch',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should suppress "non-exhaustive" phrasing', () => {
+      const findings = [
+        makeFinding({
+          message: 'Non-exhaustive switch statement',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress when no union type visible in diff', () => {
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch',
+          file: 'src/theme.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noUnionDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when switch target type is string', () => {
+      // noUnionDiff has `: string` type — no union visible AND string safety constraint
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch',
+          file: 'src/theme.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noUnionDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when switch target type is number', () => {
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch',
+          file: 'src/theme.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, numberTypeDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when finding file does not match diff', () => {
+      const findings = [
+        makeFinding({
+          message: 'missing default case',
+          file: 'src/other.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchDiff);
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
   // Mixed scenarios and edge cases
   // ===========================================================================
 
@@ -857,6 +1416,719 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       const result = filterFrameworkConventionFindings(findings, '');
       // _ alone does not match /^_\w+$/ since \w+ requires 1+ chars after _
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T023 Widened: Promise.allSettled error-handling patterns
+  // ===========================================================================
+
+  describe('Promise.allSettled widened patterns (T023)', () => {
+    const allSettledWithStatusCheckDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  for (const result of results) {
++    if (result.status === 'fulfilled') {
++      console.log(result.value.status);
++    }
++  }
++}
++
+ export function batch() {}`;
+
+    const allSettledWithForEachDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,10 @@
++export async function batchProcess(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  results.forEach((result, i) => {
++    console.log(\`URL \${i}: \${result.status}\`);
++  });
++}
++
+ export function batch() {}`;
+
+    const allSettledNoIterationDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,6 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.allSettled(urls.map(u => fetch(u)));
++  return results.length;
++}
++
+ export function batch() {}`;
+
+    it('should suppress "Unhandled rejected promises" when allSettled + .status check present', () => {
+      const findings = [
+        makeFinding({
+          message: 'Unhandled rejected promises in Promise.allSettled results.',
+          file: 'src/batch.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledWithStatusCheckDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should suppress generic "additional error handling" when allSettled + forEach present', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'Potential issue — verify that the fetch requests do not need any additional error handling or response processing.',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledWithForEachDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('promise-allsettled-order');
+    });
+
+    it('should suppress "silent rejection" when allSettled + .status check present', () => {
+      const findings = [
+        makeFinding({
+          message: 'Silent rejection ignoring in Promise.allSettled handler',
+          file: 'src/batch.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledWithStatusCheckDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress when allSettled present but no iteration AND no .status check', () => {
+      const findings = [
+        makeFinding({
+          message: 'Unhandled rejected promises in Promise.allSettled results.',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledNoIterationDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress generic error-handling finding without allSettled in diff', () => {
+      const noAllSettledDiff = `diff --git a/src/batch.ts b/src/batch.ts
+--- a/src/batch.ts
++++ b/src/batch.ts
+@@ -1,3 +1,6 @@
++async function processBatch(urls: string[]) {
++  const results = await Promise.all(urls.map(u => fetch(u)));
++  return results;
++}
++
+ export function batch() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Missing error handling for rejected promises',
+          file: 'src/batch.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noAllSettledDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress non-allSettled error handling finding', () => {
+      const findings = [
+        makeFinding({
+          message: 'Missing try-catch around database query',
+          file: 'src/db.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, allSettledWithStatusCheckDiff);
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T026 Regression: Return type vs parameter type
+  // ===========================================================================
+
+  describe('T026 return type regression', () => {
+    const unionSwitchWithReturnTypeDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,10 @@
++type Theme = 'light' | 'dark';
++
++function getBackground(theme: Theme): string {
++  switch (theme) {
++    case 'light': return '#ffffff';
++    case 'dark': return '#1a1a1a';
++  }
++}
++
+ export function theme() {}`;
+
+    it('should suppress when return type is string but switch target is union type', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'Non-exhaustive switch statement on Theme type. The switch does not include a default case.',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, unionSwitchWithReturnTypeDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('exhaustive-type-narrowed-switch');
+    });
+
+    it('should still NOT suppress when switch target is typed as string', () => {
+      const paramStringDiff = `diff --git a/src/theme.ts b/src/theme.ts
+--- a/src/theme.ts
++++ b/src/theme.ts
+@@ -1,3 +1,13 @@
++type Theme = 'light' | 'dark';
++
++function getColors(theme: string) {
++  switch (theme) {
++    case 'light':
++      return { bg: '#fff', fg: '#000' };
++    case 'dark':
++      return { bg: '#000', fg: '#fff' };
++  }
++}
++
+ export {};`;
+
+      const findings = [
+        makeFinding({
+          message: 'missing default case in switch',
+          file: 'src/theme.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, paramStringDiff);
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T025 Widened: Sync file read patterns
+  // ===========================================================================
+
+  describe('T025 widened sync file read patterns', () => {
+    const safeReadFileSyncDiff = `diff --git a/src/template.ts b/src/template.ts
+--- a/src/template.ts
++++ b/src/template.ts
+@@ -1,3 +1,7 @@
++import fs from 'fs';
++import path from 'path';
++
++const tmpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf-8');
++
+ export function template() {}`;
+
+    it('should suppress "Synchronous file read" finding when path is safe', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'Synchronous file read operation detected with fs.readFileSync. This can block the event loop.',
+          file: 'src/template.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, safeReadFileSyncDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('safe-local-file-read');
+    });
+
+    it('should suppress "readFileSync blocks" phrasing when path is safe', () => {
+      const findings = [
+        makeFinding({
+          message: 'readFileSync blocks the event loop during I/O',
+          file: 'src/template.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, safeReadFileSyncDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress sync read finding when path has dynamic segment', () => {
+      const dynamicPathDiff = `diff --git a/src/template.ts b/src/template.ts
+--- a/src/template.ts
++++ b/src/template.ts
+@@ -1,3 +1,5 @@
++const tmpl = fs.readFileSync(path.join(__dirname, userInput), 'utf-8');
++
+ export function template() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Synchronous file read operation detected with fs.readFileSync.',
+          file: 'src/template.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, dynamicPathDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress sync read finding without path.join/__dirname', () => {
+      const rawPathDiff = `diff --git a/src/template.ts b/src/template.ts
+--- a/src/template.ts
++++ b/src/template.ts
+@@ -1,3 +1,5 @@
++const tmpl = fs.readFileSync('/etc/config.json', 'utf-8');
++
+ export function template() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Synchronous file read operation detected with fs.readFileSync.',
+          file: 'src/template.ts',
+          line: 1,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, rawPathDiff);
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // T022 Widened: React Query generic endpoint findings
+  // ===========================================================================
+
+  describe('T022 widened React Query patterns', () => {
+    const reactQueryDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,12 @@
++import { useQuery } from '@tanstack/react-query';
++
++export function Dashboard() {
++  const { data } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
++  return <div>{data?.length} users</div>;
++}
++
++function fetchUsers() { return fetch('/api/users').then(r => r.json()); }
++
+ export function App() {}`;
+
+    it('should suppress "verify endpoint returns format" when useQuery present', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'Potential issue — verify that the /api/users endpoint returns JSON in the expected format.',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, reactQueryDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress "ensure API error handling" when useQuery present', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'Ensure that the fetchUsers endpoint handles response errors and returns the expected format.',
+          file: 'src/Dashboard.tsx',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, reactQueryDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress "verify endpoint" without query library import', () => {
+      const noQueryDiff = `diff --git a/src/Dashboard.tsx b/src/Dashboard.tsx
+--- a/src/Dashboard.tsx
++++ b/src/Dashboard.tsx
+@@ -1,3 +1,8 @@
++export function Dashboard() {
++  const data = await fetch('/api/users').then(r => r.json());
++  return <div>{data?.length} users</div>;
++}
++
+ export function App() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Verify that the /api/users endpoint returns JSON in the expected format.',
+          file: 'src/Dashboard.tsx',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noQueryDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress verify-endpoint finding in non-React code', () => {
+      const findings = [
+        makeFinding({
+          message: 'Verify that the endpoint returns the expected response format.',
+          file: 'src/api.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, '');
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // Convention 18: Error Object XSS matcher
+  // ===========================================================================
+
+  describe('Error Object XSS matcher (Convention 18)', () => {
+    const catchErrorDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,14 @@
++export function handleRequest(): string {
++  try {
++    return processData();
++  } catch (error) {
++    return \`<div class="error">
++      <h2>Something went wrong</h2>
++      <p>\${(error as Error).message}</p>
++    </div>\`;
++  }
++}
++
+ export function errorPage() {}`;
+
+    it('should suppress XSS finding for error.message in catch clause', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message:
+            'Potential XSS vulnerability by injecting error message directly into innerHTML.',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, catchErrorDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('error-object-xss');
+    });
+
+    it('should suppress "inject error message" phrasing', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS risk: error.message injected into template literal',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, catchErrorDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should suppress "error message XSS" phrasing', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'error.message used in template could lead to XSS',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, catchErrorDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress when no catch clause visible', () => {
+      const noCatchDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,6 @@
++function showError(error: unknown): string {
++  return \`<p>\${(error as Error).message}</p>\`;
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability by injecting error message into template',
+          file: 'src/error-page.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, noCatchDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when error constructed from user input', () => {
+      const userInputErrorDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,8 @@
++try {
++  const err = new Error(req.body.text);
++  throw err;
++} catch (error) {
++  return \`<p>\${(error as Error).message}</p>\`;
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability: injecting error message into template',
+          file: 'src/error-page.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, userInputErrorDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should suppress error-severity findings when evidence confirms catch-origin safety', () => {
+      // LLM severity is arbitrary — evidence-based checks (catch clause present,
+      // no innerHTML/document.write in diff, no user-constructed error) are sufficient
+      const findings = [
+        makeFinding({
+          severity: 'error',
+          message: 'XSS vulnerability by injecting error message directly into template.',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, catchErrorDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress error-severity finding when error constructed from user input (gate 3)', () => {
+      // Proves gate 3 catches user-constructed errors even at error severity,
+      // so the removed severity gate is truly redundant (security-engineer mandate)
+      const userInputErrorDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,8 @@
++try {
++  const err = new Error(req.body.text);
++  throw err;
++} catch (error) {
++  return \`<p>\${(error as Error).message}</p>\`;
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'error',
+          message: 'XSS vulnerability: injecting error message into template',
+          file: 'src/error-page.ts',
+          line: 5,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, userInputErrorDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when error.message used in innerHTML assignment', () => {
+      const innerHTMLDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,8 @@
++try {
++  doSomething();
++} catch (error) {
++  document.getElementById('error').innerHTML = (error as Error).message;
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS: error.message injected into innerHTML',
+          file: 'src/error-page.ts',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, innerHTMLDiff);
+      expect(result.suppressed).toBe(0);
+    });
+  });
+
+  // ===========================================================================
+  // Convention 19: Thin Wrapper Stdlib matcher
+  // ===========================================================================
+
+  describe('Thin Wrapper Stdlib matcher (Convention 19)', () => {
+    const jsonParseDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,6 @@
++export function parseJSON(input: string): unknown {
++  return JSON.parse(input);
++}
++
+ export function parse() {}`;
+
+    const parseIntDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,6 @@
++export function toInt(value: string): number {
++  return parseInt(value, 10);
++}
++
+ export function parse() {}`;
+
+    const newURLDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,6 @@
++export function parseUrl(input: string): URL {
++  return new URL(input);
++}
++
+ export function parse() {}`;
+
+    it('should suppress "could throw" for JSON.parse thin wrapper', () => {
+      const findings = [
+        makeFinding({
+          message:
+            'The function parseJSON directly returns the result of JSON.parse, which could throw an error if the input is not valid JSON.',
+          file: 'src/parser.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, jsonParseDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('thin-wrapper-stdlib');
+    });
+
+    it('should suppress "missing try-catch" for parseInt thin wrapper', () => {
+      const findings = [
+        makeFinding({
+          message: 'Missing try-catch around parseInt call',
+          file: 'src/parser.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, parseIntDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should suppress "may throw" for new URL thin wrapper', () => {
+      const findings = [
+        makeFinding({
+          message: 'new URL() may throw if the input is not a valid URL',
+          file: 'src/parser.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, newURLDiff);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('should NOT suppress when wrapper has I/O operations', () => {
+      const ioDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,6 @@
++export function loadAndParse(path: string): unknown {
++  return JSON.parse(fs.readFileSync(path, 'utf-8'));
++}
++
+ export function parse() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Missing try-catch around JSON.parse call',
+          file: 'src/parser.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, ioDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when wrapper is in request handler context', () => {
+      const handlerDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,6 @@
++export function handleParse(req: Request): unknown {
++  return JSON.parse(req.body);
++}
++
+ export function parse() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Missing try-catch around JSON.parse call',
+          file: 'src/parser.ts',
+          line: 2,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, handlerDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('should NOT suppress when wrapper has conditional logic', () => {
+      const conditionalDiff = `diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,3 +1,7 @@
++export function safeParse(input: string): unknown {
++  if (input.length === 0) return null;
++  return JSON.parse(input);
++}
++
+ export function parse() {}`;
+
+      const findings = [
+        makeFinding({
+          message: 'Missing try-catch around JSON.parse',
+          file: 'src/parser.ts',
+          line: 3,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, conditionalDiff);
       expect(result.suppressed).toBe(0);
     });
   });

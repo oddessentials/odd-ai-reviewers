@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:50.293Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:04.054Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "bdcafdd7bbb1fd64e96bf6499a30fa030ebba01b22362421541bf26786ca5354",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change in src/parser.ts introduces a new regular expression for matching bracketed content, with a known limitation of not handling nested brackets as documented. There are no security, performance, logic, error-handling, or API misuse issues identified in this diff. The changes appear to be intentional and aligned with documented design decisions.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces a constant named `BRACKET_REGEX` with a documented known limitation regarding nested brackets. The code change aligns with an accepted design trade-off (ADR-007), and there are no issues related to logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling detected in the presented diff.\"\n}\n```"
   }
 }

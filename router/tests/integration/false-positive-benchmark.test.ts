@@ -8,10 +8,14 @@
  * Patterns A and E are deterministic and run via AST analysis.
  * Patterns B/C/D/F use snapshot replay (pre-recorded LLM responses).
  * TP scenarios test the VulnerabilityDetector directly.
+ *
+ * IMPORTANT: All snapshots must be recorded with the same model for consistency.
+ * Set BENCHMARK_MODEL_ID and BENCHMARK_PROVIDER in .env before running
+ * `pnpm benchmark:record`. See .env.example for defaults.
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { BenchmarkScenario } from '../../src/benchmark/scoring.js';
 import {
@@ -64,6 +68,11 @@ const xssTP = tpScenarios.filter((s) => s.category === 'xss');
 const pathTP = tpScenarios.filter((s) => s.category === 'path_traversal');
 const ssrfTP = tpScenarios.filter((s) => s.category === 'ssrf');
 const authTP = tpScenarios.filter((s) => s.category === 'auth_bypass');
+
+// Snapshot-based TP scenarios (e.g., fp-d-006 reclassified as TP, B6 remediation)
+const snapshotTP = tpScenarios.filter(
+  (s) => s.pattern === 'B' || s.pattern === 'C' || s.pattern === 'D' || s.pattern === 'F'
+);
 
 // =============================================================================
 // Snapshot Replay
@@ -131,10 +140,17 @@ if (RECORDING) {
 async function recordScenarioSnapshot(
   scenario: BenchmarkScenario,
   findings: Finding[],
-  rawOutput: string
+  rawOutput: string,
+  modelId?: string,
+  provider?: string
 ): Promise<void> {
   const response: RecordedResponse = { findings, rawOutput };
-  const metadata = buildSnapshotMetadata(currentSnapshotPromptHash, sha256(scenario.diff));
+  const metadata = buildSnapshotMetadata(
+    currentSnapshotPromptHash,
+    sha256(scenario.diff),
+    modelId,
+    provider
+  );
   await recordSnapshot(scenario.id, response, metadata, snapshotDir);
   console.log(`[benchmark:record] Recorded snapshot for ${scenario.id}`);
 }
@@ -144,6 +160,7 @@ const patternBWithSnapshots = patternB.filter((s) => hasSnapshot(s.id));
 const patternCWithSnapshots = patternC.filter((s) => hasSnapshot(s.id));
 const patternDWithSnapshots = patternD.filter((s) => hasSnapshot(s.id));
 const patternFWithSnapshots = patternF.filter((s) => hasSnapshot(s.id));
+const snapshotTPWithSnapshots = snapshotTP.filter((s) => hasSnapshot(s.id));
 
 // =============================================================================
 // Scoring Unit Tests
@@ -336,7 +353,7 @@ diff --git a/src/b.ts b/src/b.ts
     );
   });
 
-  it('rejects snapshot replay when fixture metadata drifts', async () => {
+  it('rejects snapshot replay when fixture content drifts (FR-022)', async () => {
     const scenario = patternBWithSnapshots[0];
     expect(scenario).toBeDefined();
     if (!scenario) {
@@ -350,10 +367,10 @@ diff --git a/src/b.ts b/src/b.ts
         currentSnapshotPromptHash,
         sha256(`${scenario.diff}\n`)
       )
-    ).rejects.toThrow(`Snapshot drift detected for scenario "${scenario.id}"`);
+    ).rejects.toThrow(`Fixture content changed for scenario "${scenario.id}"`);
   });
 
-  it('rejects snapshot replay when prompt metadata drifts', async () => {
+  it('rejects snapshot replay when prompt template drifts (FR-022)', async () => {
     const scenario = patternBWithSnapshots[0];
     expect(scenario).toBeDefined();
     if (!scenario) {
@@ -367,7 +384,7 @@ diff --git a/src/b.ts b/src/b.ts
         sha256(`${currentSnapshotPromptHash}:drift`),
         sha256(scenario.diff)
       )
-    ).rejects.toThrow(`Snapshot drift detected for scenario "${scenario.id}"`);
+    ).rejects.toThrow(`Prompt template changed for scenario "${scenario.id}"`);
   });
 });
 
@@ -380,8 +397,8 @@ describe('Fixture Validation', () => {
     expect(scenarios.length).toBeGreaterThanOrEqual(66);
   });
 
-  it('has 56 FP fixtures', () => {
-    expect(fpScenarios.length).toBe(56);
+  it('has 55 FP fixtures', () => {
+    expect(fpScenarios.length).toBe(55);
   });
 
   it('has 10+ TP fixtures', () => {
@@ -400,8 +417,8 @@ describe('Fixture Validation', () => {
     expect(patternC.length).toBe(6);
   });
 
-  it('has 7 Pattern D fixtures', () => {
-    expect(patternD.length).toBe(7);
+  it('has 6 Pattern D fixtures', () => {
+    expect(patternD.length).toBe(6);
   });
 
   it('has 7 Pattern E fixtures', () => {
@@ -442,6 +459,23 @@ describe('Fixture Validation', () => {
       const files = parseDiffFiles(s.diff);
       expect(files.length).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('all snapshots use the same modelId (model consistency)', () => {
+    const snapshotFiles = readdirSync(snapshotDir).filter((f) => f.endsWith('.snapshot.json'));
+    expect(snapshotFiles.length).toBeGreaterThan(0);
+    const modelIds = new Set<string>();
+    for (const file of snapshotFiles) {
+      const snapshot = JSON.parse(readFileSync(join(snapshotDir, file), 'utf-8')) as {
+        metadata: { modelId: string };
+      };
+      modelIds.add(snapshot.metadata.modelId);
+    }
+    expect(
+      modelIds.size,
+      `Snapshots recorded with multiple models: ${[...modelIds].join(', ')}. ` +
+        `Re-record all snapshots with a single model using: pnpm benchmark:record`
+    ).toBe(1);
   });
 });
 
@@ -594,6 +628,20 @@ describe('False Positive Regression Suite', () => {
         15_000
       );
     });
+
+    // B6 remediation: Snapshot-based TP scenarios (e.g., fp-d-006 reclassified as TP)
+    describe('Snapshot-based TP (snapshot replay)', () => {
+      it.skipIf(snapshotTPWithSnapshots.length === 0).each(snapshotTPWithSnapshots)(
+        'should detect: $description',
+        async (scenario) => {
+          const findings = await runFromSnapshot(scenario);
+          const result = scoreScenario(scenario, findings);
+          expect(result.passed).toBe(true);
+          expect(result.matchedCount).toBeGreaterThanOrEqual(1);
+        },
+        15_000
+      );
+    });
   });
 
   // ===========================================================================
@@ -610,7 +658,10 @@ describe('False Positive Regression Suite', () => {
       ...patternDWithSnapshots,
       ...patternFWithSnapshots,
     ];
-    const deterministicTP = tpScenarios;
+    // Deterministic TPs use runScenario() (AST analysis); snapshot TPs use runFromSnapshot()
+    const deterministicTP = tpScenarios.filter(
+      (s) => s.pattern !== 'B' && s.pattern !== 'C' && s.pattern !== 'D' && s.pattern !== 'F'
+    );
 
     /** Run an FP scenario — uses AST for A/E, snapshot for B/C/D/F */
     async function runFPScenario(scenario: BenchmarkScenario): Promise<Finding[]> {
@@ -621,7 +672,8 @@ describe('False Positive Regression Suite', () => {
     }
 
     it('Runnable scenario ratio >= 80% (prevents vacuous gate)', () => {
-      const runnableCount = allRunnableFP.length + deterministicTP.length;
+      const runnableCount =
+        allRunnableFP.length + deterministicTP.length + snapshotTPWithSnapshots.length;
       const totalCount = fpScenarios.length + tpScenarios.length;
       const ratio = runnableCount / totalCount;
       expect(
@@ -631,7 +683,40 @@ describe('False Positive Regression Suite', () => {
       ).toBeGreaterThanOrEqual(0.8);
     });
 
-    it('SC-001: FP suppression rate >= 90% (all runnable scenarios)', async () => {
+    // SC-001: Per-scenario gate — each of 11 targeted FP scenarios individually must produce 0 findings
+    const TARGETED_SCENARIO_IDS = new Set([
+      'fp-b-001',
+      'fp-b-003',
+      'fp-b-006',
+      'fp-b-007',
+      'fp-c-005',
+      'fp-c-006',
+      'fp-f-005',
+      'fp-f-007',
+      'fp-f-010',
+      'fp-f-014',
+      'fp-f-015',
+    ]);
+
+    it('SC-001: Per-scenario gate — all 11 targeted scenarios individually = 0 findings', async () => {
+      const failures: { id: string; count: number }[] = [];
+      for (const scenario of allRunnableFP) {
+        if (!TARGETED_SCENARIO_IDS.has(scenario.id)) continue;
+        const findings = await runFPScenario(scenario);
+        if (findings.length > 0) {
+          failures.push({ id: scenario.id, count: findings.length });
+        }
+      }
+      expect(
+        failures,
+        `${failures.length} targeted scenario(s) still have surviving findings:\n` +
+          failures.map((f) => `  ${f.id}: ${f.count} finding(s)`).join('\n')
+      ).toHaveLength(0);
+    }, 120_000);
+
+    // SC-004: Aggregate non-regression floor (relationship to SC-001: SC-001 gates individual
+    // targeted scenarios; SC-004 ensures the overall suppression rate doesn't regress)
+    it('SC-004: Aggregate FP suppression rate >= 90% (non-regression floor)', async () => {
       const results = [];
       for (const scenario of allRunnableFP) {
         const findings = await runFPScenario(scenario);
@@ -643,8 +728,14 @@ describe('False Positive Regression Suite', () => {
 
     it('SC-002: TP recall = 100%', async () => {
       const results = [];
+      // Deterministic TP scenarios
       for (const scenario of deterministicTP) {
         const findings = await runScenario(scenario);
+        results.push(scoreScenario(scenario, findings));
+      }
+      // Snapshot-based TP scenarios (B6 remediation)
+      for (const scenario of snapshotTPWithSnapshots) {
+        const findings = await runFromSnapshot(scenario);
         results.push(scoreScenario(scenario, findings));
       }
       const report = computeReport(results);
@@ -655,6 +746,10 @@ describe('False Positive Regression Suite', () => {
       const results = [];
       for (const scenario of deterministicTP) {
         const findings = await runScenario(scenario);
+        results.push(scoreScenario(scenario, findings));
+      }
+      for (const scenario of snapshotTPWithSnapshots) {
+        const findings = await runFromSnapshot(scenario);
         results.push(scoreScenario(scenario, findings));
       }
       const report = computeReport(results);
@@ -678,14 +773,20 @@ describe('False Positive Regression Suite', () => {
   // ===========================================================================
 
   describe.runIf(RECORDING)('Snapshot Recording', () => {
-    const snapshotScenarios = [...patternB, ...patternC, ...patternD, ...patternF];
+    const snapshotScenarios = [...patternB, ...patternC, ...patternD, ...patternF, ...snapshotTP];
 
     it.each(snapshotScenarios)(
       'record snapshot: $id — $description',
       async (scenario) => {
         const { runLiveScenario } = await import('../../src/benchmark/adapter.js');
         const response = await runLiveScenario(scenario);
-        await recordScenarioSnapshot(scenario, response.findings, response.rawOutput);
+        await recordScenarioSnapshot(
+          scenario,
+          response.findings,
+          response.rawOutput,
+          response.modelId,
+          response.provider
+        );
         // Recording always passes — we just need to capture the snapshot
         expect(true).toBe(true);
       },

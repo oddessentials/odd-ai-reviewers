@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:35.580Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:55.785Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "190fd5b443f7b626c7149216e432eba02bc3c2ce130d2cb3a3e6469a54448818",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The PR removes deprecated methods `oldMethod` and `oldHelper` from the `src/legacy.ts` file as part of a planned migration effort. No issues were identified as these changes align with the stated migration plan outlined in the PR description.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The deprecated functions oldMethod and oldHelper were removed from src/legacy.ts according to the Q1 migration plan. No logic errors, security risks, or performance issues were introduced in this change.\"\n}\n```"
   }
 }

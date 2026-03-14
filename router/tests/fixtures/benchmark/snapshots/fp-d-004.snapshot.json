@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:37.343Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:57.984Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "29e65bbdbd656e77411419faa631cd5746be40b524eeef9a090dfaafe2d24495",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a new feature flag `FEATURE_DASHBOARD` which determines the dashboard version to be used. The added logic safely checks the environment variable and uses a conditional to select the appropriate dashboard path. No issues with security, logic, performance, API misuse, or error handling are detected in the provided changes.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "info",
+        "file": "src/features.ts",
+        "line": 4,
+        "message": "Potential environment variable dependency. Ensure that the 'FEATURE_DASHBOARD' variable is properly set in all deployment environments.",
+        "suggestion": "Verify that the 'FEATURE_DASHBOARD' environment variable is defined and correctly set up in environments where this code is deployed.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/features.ts\",\n      \"line\": 4,\n      \"message\": \"Potential environment variable dependency. Ensure that the 'FEATURE_DASHBOARD' variable is properly set in all deployment environments.\",\n      \"suggestion\": \"Verify that the 'FEATURE_DASHBOARD' environment variable is defined and correctly set up in environments where this code is deployed.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"No critical issues found. Added feature flag for the new dashboard is properly controlled by the 'FEATURE_DASHBOARD' environment variable. Ensure configuration is complete in all environments.\"\n}\n```"
   }
 }

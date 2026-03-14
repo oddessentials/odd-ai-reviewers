@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:43.120Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:01.793Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "f6005533db919451574cf031d47b6213eaa49a9a2e37751ee2d372eb72ff5f5a",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce a new helper function `newHelper` without modifying any existing logic or introducing any apparent issues in the `service.ts` file. There are no logic errors, security vulnerabilities, or performance concerns identified in this diff.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in the `src/service.ts` file only include the addition of a new function `newHelper` that returns a constant value of 99. There are no logic errors, security vulnerabilities, performance issues, or API misuse in the introduced code. The existing function `oldHelper` remains unchanged. No issues related to error handling or specific edge cases are introduced as the functions are simple and without complex logic.\"\n}\n```"
   }
 }

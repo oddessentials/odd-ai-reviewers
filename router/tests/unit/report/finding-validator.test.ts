@@ -202,6 +202,10 @@ describe('Finding Validator', () => {
       'not blocking',
       'no change needed',
       'can be ignored',
+      'working as intended',
+      'no issues found',
+      'non-critical',
+      'low priority',
     ];
 
     for (const pattern of dismissivePatterns) {
@@ -257,6 +261,36 @@ describe('Finding Validator', () => {
         }),
       ];
 
+      const result = validateFindings(findings, resolver, diffFiles);
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredBySelfContradiction).toBe(0);
+    });
+
+    // FR-026: Warning severity must always pass through even with dismissive pattern
+    it('should not filter warning severity even when dismissive pattern matches', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          line: 10,
+          message: 'This is working as intended but has a security issue.',
+          suggestion: undefined,
+        }),
+      ];
+      const result = validateFindings(findings, resolver, diffFiles);
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredBySelfContradiction).toBe(0);
+    });
+
+    // FR-026: Actionable suggestion must always pass through even with dismissive pattern + info severity
+    it('should not filter info severity with dismissive pattern when suggestion is actionable', () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message: 'This is low priority.',
+          suggestion: 'Add input validation to prevent injection attacks.',
+        }),
+      ];
       const result = validateFindings(findings, resolver, diffFiles);
       expect(result.validFindings).toHaveLength(1);
       expect(result.stats.filteredBySelfContradiction).toBe(0);

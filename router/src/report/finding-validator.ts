@@ -26,7 +26,11 @@ export interface FindingValidationResult {
   classification: FindingClassification;
   valid: boolean;
   filterReason?: string;
-  filterType?: 'invalid_line' | 'self_contradicting' | 'pr_intent_contradiction';
+  filterType?:
+    | 'invalid_line'
+    | 'self_contradicting'
+    | 'cautionary_advice'
+    | 'pr_intent_contradiction';
 }
 
 export interface FindingValidationSummary {
@@ -37,6 +41,7 @@ export interface FindingValidationSummary {
     valid: number;
     filteredByLine: number;
     filteredBySelfContradiction: number;
+    filteredByCautionaryAdvice: number;
     filteredByPRIntent: number;
     byClassification: Record<FindingClassification, number>;
   };
@@ -71,13 +76,55 @@ export function normalizeUnicode(text: string): string {
   return text.replace(/[\u200B-\u200F\u2028\u2029\uFEFF]/g, '');
 }
 
+/**
+ * Patterns that indicate a finding is self-dismissing.
+ *
+ * IMPORTANT: Pattern match alone NEVER suppresses a finding.
+ * All three gates must pass for suppression:
+ *   1. Finding severity must be 'info' (NEVER warning/error)
+ *   2. Finding message must match one of these patterns
+ *   3. Finding must have NO actionable suggestion in residual text
+ *
+ * This three-gate architecture is a deliberate security boundary.
+ * Do NOT relax any gate without a spec amendment.
+ */
 const DISMISSIVE_PATTERNS: RegExp[] = [
   /\bno action required\b/i,
   /\bacceptable as[- ]is\b/i,
   /\bnot blocking\b/i,
   /\bno change needed\b/i,
   /\bcan be ignored\b/i,
+  /\bworking as intended\b/i,
+  /\bno issues found\b/i,
+  /\bnon-critical\b/i,
+  /\blow priority\b/i,
 ];
+
+/**
+ * Patterns that indicate a finding is cautionary hedging advice
+ * rather than identifying an actual defect. Common in gpt-4o outputs
+ * where the model flags code as "ensure X is properly set" or
+ * "consider Y to prevent potential issues" without a concrete bug.
+ *
+ * Suppression requires ALL gates:
+ *   1. Finding severity must be 'info'
+ *   2. Combined message+suggestion must match one of these patterns
+ *   3. Combined text must NOT contain security-related terms
+ */
+const CAUTIONARY_ADVICE_PATTERNS: RegExp[] = [
+  // "Ensure/Verify/Make sure (that) X is properly/correctly Y"
+  /\b(?:ensure|verify|make\s+sure|double[- ]?check)\s+(?:that\b|the\b|all\b)/i,
+  // "Consider X to prevent non-obvious/potential/unexpected issues"
+  /\bconsider\b.*\b(?:to\s+prevent|to\s+avoid|for\s+safety)\b/i,
+];
+
+/**
+ * Security-related terms that BLOCK cautionary advice suppression.
+ * If the combined message+suggestion contains any of these, the finding
+ * is treated as a legitimate concern, not hedging advice.
+ */
+const SECURITY_BLOCKLIST =
+  /\b(?:sql|injection|xss|cross.?site|sanitiz|escap|authenti|authoriz|csrf|ssrf|path.?traversal|command.?inject|exec\s*\(|eval\s*\(|deseria|privilege|encrypt|password|credential|secret|vulnerab|exploit|attack|malicious|buffer.?overflow|bypass)\b/i;
 
 /**
  * Check if a suggestion is actionable (contains concrete guidance beyond dismissive language).
@@ -261,6 +308,7 @@ export function validateFindingsSemantics(
     valid: 0,
     filteredByLine: 0,
     filteredBySelfContradiction: 0,
+    filteredByCautionaryAdvice: 0,
     filteredByPRIntent: 0,
     byClassification: {
       inline: 0,
@@ -322,6 +370,38 @@ export function validateFindingsSemantics(
     });
   }
 
+  // Pass 3.5: Cautionary advice detection
+  // Catches info-severity findings where the LLM hedges with "ensure/verify/consider"
+  // without identifying a concrete defect. Blocked for security-related findings.
+  for (const result of results) {
+    if (!result.valid) continue;
+
+    // Gate 1: Only info severity — NEVER filter warning/error
+    if (result.finding.severity !== 'info') continue;
+
+    const combinedText = normalizeUnicode(
+      result.finding.message + ' ' + (result.finding.suggestion ?? '')
+    );
+
+    // Gate 2: Must match a cautionary advice pattern
+    const matchedCautionary = CAUTIONARY_ADVICE_PATTERNS.find((p) => p.test(combinedText));
+    if (!matchedCautionary) continue;
+
+    // Gate 3: BLOCK suppression if security-related terms are present
+    if (SECURITY_BLOCKLIST.test(combinedText)) continue;
+
+    // All gates passed — suppress this cautionary advice finding
+    result.valid = false;
+    result.filterReason = `Cautionary advice: info severity with hedging language (${matchedCautionary.source}) and no security concern`;
+    result.filterType = 'cautionary_advice';
+    stats.filteredByCautionaryAdvice++;
+    console.log('[router] [finding-validator] [filtered:cautionary]', {
+      file: result.finding.file,
+      line: result.finding.line,
+      reason: result.filterReason,
+    });
+  }
+
   // Build final arrays
   let validFindings: Finding[] = [];
   const filtered: FindingValidationResult[] = [];
@@ -371,6 +451,7 @@ export function validateNormalizedFindings(
     valid: 0,
     filteredByLine: 0,
     filteredBySelfContradiction: 0,
+    filteredByCautionaryAdvice: 0,
     filteredByPRIntent: 0,
     byClassification: {
       inline: 0,
@@ -449,6 +530,31 @@ export function validateNormalizedFindings(
     });
   }
 
+  // Pass 3.5: Cautionary advice detection (same as in validateFindingsSemantics)
+  for (const result of results) {
+    if (!result.valid) continue;
+    if (result.finding.severity !== 'info') continue;
+
+    const combinedText = normalizeUnicode(
+      result.finding.message + ' ' + (result.finding.suggestion ?? '')
+    );
+
+    const matchedCautionary = CAUTIONARY_ADVICE_PATTERNS.find((p) => p.test(combinedText));
+    if (!matchedCautionary) continue;
+
+    if (SECURITY_BLOCKLIST.test(combinedText)) continue;
+
+    result.valid = false;
+    result.filterReason = `Cautionary advice: info severity with hedging language (${matchedCautionary.source}) and no security concern`;
+    result.filterType = 'cautionary_advice';
+    stats.filteredByCautionaryAdvice++;
+    console.log('[router] [finding-validator] [filtered:cautionary]', {
+      file: result.finding.file,
+      line: result.finding.line,
+      reason: result.filterReason,
+    });
+  }
+
   // Build final arrays
   const validFindings: Finding[] = [];
   const filtered: FindingValidationResult[] = [];
@@ -508,7 +614,8 @@ export function normalizeAndValidateFindings(
     console.log(
       `[${platform}] Stage 2 validation: ${stage2Result.stats.valid} valid, ` +
         `${stage2Result.stats.filteredByLine} filtered by line, ` +
-        `${stage2Result.stats.filteredBySelfContradiction} self-contradicting`
+        `${stage2Result.stats.filteredBySelfContradiction} self-contradicting, ` +
+        `${stage2Result.stats.filteredByCautionaryAdvice} cautionary advice`
     );
   }
 

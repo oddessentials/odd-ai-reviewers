@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-14T01:05:14.084Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
+    "fixtureHash": "938e9ca341c222fef22b51a71a227882209d62830ca098931b2dfa5a0b77c170",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "info",
+        "file": "src/theme.ts",
+        "line": 5,
+        "message": "Non-exhaustive switch statement on Theme type. The switch does not include a default case to handle unexpected 'theme' values.",
+        "suggestion": "Add a default case to the switch statement to handle any unexpected values that might enter this function due to runtime issues.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/theme.ts\",\n      \"line\": 5,\n      \"message\": \"Non-exhaustive switch statement on Theme type. The switch does not include a default case to handle unexpected 'theme' values.\",\n      \"suggestion\": \"Add a default case to the switch statement to handle any unexpected values that might enter this function due to runtime issues.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The code adds a function to get the background color based on the theme. While the current implementation relies on a TypeScript union type for theme values, adding a default case in the switch would guard against unexpected states at runtime, especially if new themes are added or if the function receives unexpected input due to external factors.\"\n}\n```"
+  }
+}

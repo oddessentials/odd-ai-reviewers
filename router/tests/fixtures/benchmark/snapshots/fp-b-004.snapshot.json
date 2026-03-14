@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:08.632Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:42.707Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "75af4df4ccd5ffc45e4b812f653e4f7a7d33f863b4ac7308242c9056b18b65ef",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The added function `onEvent` correctly logs the data with no apparent logic errors, security vulnerabilities, or API misuse. The use of TypeScript's unknown type enforces careful handling of the `data` parameter, but no immediate issues are apparent in the current usage.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The added function onEvent in src/hooks.ts logs the incoming data to the console. No security, logic, performance, or error-handling issues were found in the changes made. The function appears to be a placeholder for processing event data, with the actual logic yet to be implemented.\"\n}\n```"
   }
 }

@@ -262,12 +262,12 @@ export async function runScenario(
     return allFindings;
   };
 
-  // Apply timeout with cleanup to prevent leaked timers
+  // Apply timeout with cleanup to prevent leaked timers.
+  // Timeout REJECTS to avoid silently scoring a hung scenario as "0 findings = passed".
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<Finding[]>((resolve) => {
+  const timeoutPromise = new Promise<Finding[]>((_, reject) => {
     timer = setTimeout(() => {
-      console.log(`[benchmark] scenario ${scenario.id} timed out after ${timeout}ms`);
-      resolve([]);
+      reject(new Error(`Scenario ${scenario.id} timed out after ${timeout}ms`));
     }, timeout);
   });
 
@@ -297,6 +297,10 @@ export interface SnapshotMetadata {
 export interface RecordedResponse {
   findings: Finding[];
   rawOutput: string;
+  /** Model ID used for recording (auto-detected from SDK, FR-021) */
+  modelId?: string;
+  /** Provider name used for recording (auto-detected from SDK, FR-021) */
+  provider?: string;
 }
 
 export interface ResponseSnapshot {
@@ -393,42 +397,63 @@ export async function runWithSnapshot(
 
   const driftCheck = validateSnapshotMetadata(snapshot, currentPromptHash, currentFixtureHash);
   if (!driftCheck.valid) {
+    // FR-022: Two-part drift gate with differentiated error messages
+    const hasFixtureDrift = driftCheck.drifted.some((d) => d.field === 'fixtureHash');
+    const hasPromptDrift = driftCheck.drifted.some((d) => d.field === 'promptTemplateHash');
+
+    if (hasFixtureDrift) {
+      throw new Error(
+        `Fixture content changed for scenario "${scenarioId}": ` +
+          `diff content no longer matches the recorded snapshot. ` +
+          `Re-record with: pnpm benchmark:record`
+      );
+    }
+    if (hasPromptDrift) {
+      throw new Error(
+        `Prompt template changed for scenario "${scenarioId}": ` +
+          `prompt hash no longer matches the recorded snapshot. ` +
+          `Re-record with: pnpm benchmark:record`
+      );
+    }
+    // Fallback for other drift types (e.g., adapterVersion)
     const details = driftCheck.drifted
       .map((d) => `  ${d.field}: snapshot="${d.actual}" current="${d.expected}"`)
       .join('\n');
     throw new Error(
       `Snapshot drift detected for scenario "${scenarioId}":\n${details}\n` +
-        `Re-record with --record to update.`
+        `Re-record with: pnpm benchmark:record`
     );
   }
 
   let findings = snapshot.response.findings;
 
-  // Apply the same post-processing pipeline used in production:
-  // Stage 1: semantic validation (self-contradiction + PR intent suppression)
-  // Stage 2: diff-bound validation (line checking after normalization)
-  // Stage 3: framework-pattern-filter (deterministic framework convention matchers)
+  // Apply the same post-processing pipeline used in production (FR-018 contract order):
+  // 1. Stage 1: semantic validation (self-contradiction + PR intent suppression)
+  // 2. Framework convention filter (deterministic matcher table)
+  // 3. Stage 2: diff-bound validation (line checking after normalization)
+  //
+  // NOTE: Sanitization (HTML entity escaping) is intentionally omitted here.
+  // It is a presentation concern for platform posting (GitHub/ADO) and must run
+  // AFTER all filtering to avoid corrupting text that matcher regexes match against.
+  // Benchmark findings are only used for scoring, never posted to a platform.
   if (scenario) {
     const diffFiles = parseDiffFiles(scenario.diff);
 
-    // Stage 1: semantic filtering — includes PR-intent contradiction suppression
+    // 1. Stage 1: semantic filtering — includes PR-intent contradiction suppression
     const semanticResult = validateFindingsSemantics(findings, scenario.prDescription);
 
-    // Stage 2: line validation against diff ranges
-    const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
-    const diffFilePaths = diffFiles.map((df) => df.path);
-    const validated = validateNormalizedFindings(
-      semanticResult.validFindings,
-      lineResolver,
-      diffFilePaths
-    );
-
-    // Stage 3: framework convention matchers
+    // 2. Framework convention matchers (before diff-bound, per contract)
     const frameworkFiltered = filterFrameworkConventionFindings(
-      validated.validFindings,
+      semanticResult.validFindings,
       scenario.diff
     );
-    findings = getValidFindings(frameworkFiltered);
+    const afterFramework = getValidFindings(frameworkFiltered);
+
+    // 3. Stage 2: line validation against diff ranges
+    const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
+    const diffFilePaths = diffFiles.map((df) => df.path);
+    const validated = validateNormalizedFindings(afterFramework, lineResolver, diffFilePaths);
+    findings = validated.validFindings;
   }
 
   return findings;
@@ -458,6 +483,14 @@ export function buildSnapshotMetadata(
   modelId = process.env['BENCHMARK_MODEL_ID'] ?? 'unknown',
   provider = process.env['BENCHMARK_PROVIDER'] ?? 'unknown'
 ): SnapshotMetadata {
+  // Guard: require explicit model pinning when recording snapshots
+  if (process.env['RECORD'] === 'true' && (modelId === 'unknown' || provider === 'unknown')) {
+    throw new Error(
+      'BENCHMARK_MODEL_ID and BENCHMARK_PROVIDER must be set when recording snapshots. ' +
+        'Add them to .env or set them in the environment. See .env.example for reference.'
+    );
+  }
+
   return {
     recordedAt: new Date().toISOString(),
     promptTemplateHash: promptHash,
@@ -556,7 +589,12 @@ async function runLiveAnthropic(
   const textContent = response.content.find((c) => c.type === 'text');
   const rawOutput = textContent && textContent.type === 'text' ? textContent.text : '';
 
-  return { findings: parseLLMFindings(rawOutput), rawOutput };
+  return {
+    findings: parseLLMFindings(rawOutput),
+    rawOutput,
+    modelId: model,
+    provider: 'anthropic',
+  };
 }
 
 async function runLiveOpenAI(
@@ -578,7 +616,7 @@ async function runLiveOpenAI(
   });
 
   const rawOutput = response.choices[0]?.message?.content ?? '';
-  return { findings: parseLLMFindings(rawOutput), rawOutput };
+  return { findings: parseLLMFindings(rawOutput), rawOutput, modelId: model, provider: 'openai' };
 }
 
 /** Parse LLM JSON output into Finding[]. Tolerates code-fenced JSON. */

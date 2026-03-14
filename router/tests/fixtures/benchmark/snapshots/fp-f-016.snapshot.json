@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:14:16.750Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:21.549Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "715b39f54d29c940687e10d979a597e4b5564278126188179cc13b494e36c2b0",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces a new pre-commit hook using Husky to run lint-staged with no issues detected. The script is standard and does not present any security, performance, or logic concerns.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The new addition to the .husky/pre-commit file is standard for setting up a Husky pre-commit hook that runs lint-staged via npm. No issues were found concerning logic errors, security vulnerabilities, performance, API misuse, or error handling. The setup is consistent with typical pre-commit configurations to ensure code quality prior to commits.\"\n}\n```"
   }
 }

@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:10.707Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:43.666Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "03c9d69c529f161e6283a139281fd500cf5273066fbd9b97a7dff41fd324241c",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce a new type `Status` and a function `handleStatus` with a switch statement that handles all possible values of the `Status` type. The use of `assertNever` ensures compile-time exhaustiveness checking, preventing any runtime errors due to unhandled cases. There are no logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling in the provided code. Everything appears to be correctly implemented.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a new `Status` type and a `handleStatus` function with an exhaustive switch statement over the `Status` type. The use of the `assertNever` function ensures that any future change to the `Status` type will result in a compile-time error if not handled, maintaining type safety. No security, performance, logic, or error-handling issues are identified in this change.\"\n}\n```"
   }
 }

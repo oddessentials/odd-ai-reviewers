@@ -398,7 +398,7 @@
       "subcategory": "error-object-not-user-input",
       "description": "Flagging caught error.message as XSS risk",
       "sourceIssue": "#163.5",
-      "diff": "diff --git a/src/error-page.ts b/src/error-page.ts\n--- a/src/error-page.ts\n+++ b/src/error-page.ts\n@@ -1,3 +1,9 @@\n+function renderError(error: Error): string {\n+  return `<div class=\"error\">\n+    <h2>Something went wrong</h2>\n+    <p>${error.message}</p>\n+  </div>`;\n+}\n+\n export function errorPage() {}",
+      "diff": "diff --git a/src/error-page.ts b/src/error-page.ts\n--- a/src/error-page.ts\n+++ b/src/error-page.ts\n@@ -1,3 +1,14 @@\n+export function handleRequest(): string {\n+  try {\n+    return processData();\n+  } catch (error) {\n+    return `<div class=\"error\">\n+      <h2>Something went wrong</h2>\n+      <p>${(error as Error).message}</p>\n+    </div>`;\n+  }\n+}\n+\n export function errorPage() {}",
       "expectedFindings": [],
       "truePositive": false
     },
@@ -773,7 +773,8 @@
       "sourceIssue": "#160",
       "diff": "diff --git a/src/feature-flag.ts b/src/feature-flag.ts\n--- a/src/feature-flag.ts\n+++ b/src/feature-flag.ts\n@@ -1,3 +1,10 @@\n+// PR: \"Add environment-dependent feature flag\"\n+export function isFeatureEnabled(env: string): boolean {\n+  if (env === 'production') return false;\n+  if (env === 'staging') return true;\n+  return process.env.FEATURE_FLAG === 'true';\n+}\n+\n export function flags() {}",
       "expectedFindings": [],
-      "truePositive": false
+      "truePositive": false,
+      "prDescription": "feat: Add environment-dependent feature flag"
     },
     {
       "id": "fp-c-006",
@@ -809,11 +810,13 @@
       "id": "fp-d-006",
       "category": "pr-intent",
       "pattern": "D",
-      "description": "PR adds feature but finding suggests removing it",
+      "description": "Raw token sent in POST body — genuine security concern about token transport",
       "sourceIssue": "#160",
       "diff": "diff --git a/src/auth.ts b/src/auth.ts\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,8 @@\n+// PR: \"Add OAuth2 token refresh\"\n+export function refreshToken(token: string): Promise<string> {\n+  return fetch('/api/refresh', { method: 'POST', body: token }).then(r => r.text());\n+}\n+\n export function auth() {}",
-      "expectedFindings": [],
-      "truePositive": false,
+      "expectedFindings": [
+        { "file": "src/auth.ts", "severityAtLeast": "warning", "messageContains": "token" }
+      ],
+      "truePositive": true,
       "prDescription": "feat: Add OAuth2 token refresh endpoint"
     },
     {

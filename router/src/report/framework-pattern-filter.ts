@@ -5,7 +5,7 @@
  * using a closed, default-deny matcher table. Runs in Stage 1 validation
  * (after self-contradiction filter, before Stage 2 diff-bound validation).
  *
- * The matcher table is CLOSED: only these 5 matchers exist.
+ * The matcher table is CLOSED: only these 9 matchers exist.
  * Adding a new matcher requires a spec amendment.
  */
 
@@ -119,7 +119,7 @@ function extractLinesNearFinding(
 
 // =============================================================================
 // Closed Matcher Table — DEFAULT DENY
-// Only these 5 matchers. No additions without spec change.
+// Only these 9 matchers. No additions without spec change.
 // =============================================================================
 
 const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
@@ -127,7 +127,8 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
   {
     id: 'express-error-mw',
     name: 'Express Error Middleware',
-    messagePattern: /unused.*param/i,
+    messagePattern:
+      /unused.*param|declared\s+but\s+never\s+referenced|dead\s+code.*never\s+called|parameter\s+not\s+referenced/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const fileSection = extractFileDiffSection(finding, diffContent);
       if (!fileSection) return false;
@@ -201,11 +202,12 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       'Exhaustive switch with assertNever/throw — all cases handled at compile time',
   },
 
-  // T022: React Query Deduplication
+  // T022: React Query Advisory (dedup, error handling, data fetching concerns)
   {
     id: 'react-query-dedup',
-    name: 'React Query Dedup',
-    messagePattern: /duplicate|double.?fetch|redundant.*query|multiple.*useQuery/i,
+    name: 'React Query Advisory',
+    messagePattern:
+      /duplicate|double.?fetch|redundant.*query|multiple.*useQuery|(?:verify|ensure|validate).*(?:endpoint|api|fetch).*(?:return|format|response|error|handle)|missing.*error.*handling.*(?:fetch|query|useQuery)|error.?handling.*(?:useQuery|useSWR)/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const fileSection = extractFileDiffSection(finding, diffContent);
       if (!fileSection) return false;
@@ -230,15 +232,16 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
 
       return true;
     },
-    suppressionReason: 'Query library deduplicates by cache key — not double-fetching',
+    suppressionReason:
+      'Query library handles caching, dedup, and error state — advisory is redundant',
   },
 
-  // T023: Promise.allSettled Order Preservation
+  // T023: Promise.allSettled Convention (Order + Error Handling)
   {
     id: 'promise-allsettled-order',
-    name: 'Promise.allSettled Order',
+    name: 'Promise.allSettled Convention',
     messagePattern:
-      /allSettled.*(?:order|sequence)|(?:order|sequence).*allSettled|allSettled.*results.*not.*(?:match|correspond|align)/i,
+      /allSettled.*(?:order|sequence|reject|unhandled|error.?handling|silent)|(?:order|sequence).*allSettled|(?:unhandled|missing|silent).*(?:reject|error|exception).*(?:promise|settled)|allSettled.*results.*not.*(?:match|correspond|align)|(?:additional|need).*error.*handling.*(?:promise|fetch|request|response|processing)|verify.*(?:fetch|request).*(?:error|handling|additional|response)/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const fileSection = extractFileDiffSection(finding, diffContent);
       if (!fileSection) return false;
@@ -248,15 +251,271 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       const nearbyText = nearbyLines.join('\n');
       if (!/Promise\.allSettled\s*\(/.test(nearbyText)) return false;
 
-      // Evidence 2: Result iteration (indexed or sequential access)
-      const hasResultAccess = /\.\s*forEach|\.map\s*\(|\[(\w+|\d+)\]|for\s*\(.*\s+of\s/.test(
+      // Evidence 2: Result iteration on the allSettled output (not the input mapping)
+      // Exclude .map() that feeds INTO allSettled (e.g., urls.map(u => fetch(u)))
+      // by requiring forEach/for-of patterns or indexed access on results
+      const hasResultAccess = /\.\s*forEach\s*\(|for\s*\(.*\s+of\s|\bresults?\s*\[/.test(
         nearbyText
       );
-      if (!hasResultAccess) return false;
+
+      // Evidence 3: .status check (proves code handles settled results properly)
+      const hasStatusCheck =
+        /\.status\s*(?:===?|!==?)\s*['"](?:fulfilled|rejected)['"]|result\.status|\.status\b/.test(
+          nearbyText
+        );
+
+      // Must have EITHER result iteration OR .status check (or both)
+      if (!hasResultAccess && !hasStatusCheck) return false;
 
       return true;
     },
-    suppressionReason: 'Promise.allSettled preserves input order per ECMAScript spec',
+    suppressionReason: 'Promise.allSettled convention — results handled per ECMAScript spec',
+  },
+  // T025: Safe Local File Read
+  {
+    id: 'safe-local-file-read',
+    name: 'Safe Local File Read',
+    messagePattern:
+      /path.*traversal|directory.*traversal|local.*file.*read|file.*inclusion|readFileSync.*block|synchronous.*file.*read|block.*event.*loop.*(?:read|file)/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 10);
+
+      // Single-line only: check each line individually (per FR-011 scope limitation)
+      const canonicalPattern =
+        /path\.(join|resolve)\s*\(\s*(?:__dirname|__filename|import\.meta\.(?:dirname|filename|url))\s*(?:,\s*(['"])[^'"]*\2\s*)*\)/;
+
+      let match: RegExpExecArray | null = null;
+      for (const line of nearbyLines) {
+        match = canonicalPattern.exec(line);
+        if (match) break;
+      }
+      if (!match) return false;
+
+      // Extract the full matched path expression for safety checks
+      const matchedExpr = match[0];
+
+      // B1: Reject if any string literal segment contains '..' (path traversal)
+      const stringSegments = matchedExpr.match(/(['"])[^'"]*\1/g);
+      if (stringSegments) {
+        for (const seg of stringSegments) {
+          const content = seg.slice(1, -1);
+          if (content.includes('..')) return false;
+        }
+      }
+
+      // B2: Reject if any string literal segment starts with '/' or drive letter (absolute path)
+      if (stringSegments) {
+        for (const seg of stringSegments) {
+          const content = seg.slice(1, -1);
+          if (content.startsWith('/')) return false;
+          if (/^[a-zA-Z]:/.test(content)) return false;
+        }
+      }
+
+      // B3: Performance findings (sync I/O blocking) require module-top-level scope.
+      // Path safety only proves the read is traversal-safe, NOT that blocking I/O
+      // is acceptable. Sync reads inside functions, callbacks, or request handlers
+      // are legitimate performance concerns that must not be suppressed.
+      //
+      // Criteria: a finding is "performance-typed" if its message matches the sync-read
+      // patterns but NOT the security patterns (traversal/inclusion). For such findings:
+      //   1. The readFileSync call must be a direct module-scope declaration (const/let/var
+      //      at ≤2 leading spaces — not nested inside any function, arrow, or callback body)
+      //   2. No request-handler or event-listener context within ±10 lines
+      const isPerformanceFinding =
+        /readFileSync.*block|synchronous.*file.*read|block.*event.*loop/i.test(finding.message) &&
+        !/path.*traversal|directory.*traversal|file.*inclusion/i.test(finding.message);
+
+      if (isPerformanceFinding) {
+        // Require that at least one nearby line is a module-top-level declaration
+        // (starts with at most 2 spaces of indentation followed by const/let/var/export).
+        // Lines indented ≥4 spaces are inside a function body (not top-level).
+        const hasTopLevelDecl = nearbyLines.some((l) =>
+          /^\s{0,2}(?:export\s+)?(?:const|let|var)\s+\w+\s*=/.test(l)
+        );
+        if (!hasTopLevelDecl) return false;
+
+        // Reject if a request-handler, middleware, or event-listener pattern appears
+        // anywhere within the ±10-line window (nearbyText).
+        const nearbyText = nearbyLines.join('\n');
+        if (
+          /\b(?:app|router)\s*\.\s*(?:get|post|put|patch|delete|use|all)\s*\(/.test(nearbyText) ||
+          /\.on\s*\(\s*['"]/.test(nearbyText) ||
+          /addEventListener\s*\(/.test(nearbyText) ||
+          /(?:req|request)\s*,\s*(?:res|response)\s*[,)]/.test(nearbyText)
+        )
+          return false;
+      }
+
+      return true;
+    },
+    suppressionReason:
+      'Safe local file read — path.join/resolve with __dirname and string literals only',
+  },
+
+  // T026: Exhaustive Type-Narrowed Switch
+  {
+    id: 'exhaustive-type-narrowed-switch',
+    name: 'Exhaustive Type-Narrowed Switch',
+    messagePattern: /missing.*(?:case|default)|no.*default|add.*default|non-?exhaustive/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 10);
+      const nearbyText = nearbyLines.join('\n');
+
+      // Evidence 1: switch target must be a simple identifier (not a property access).
+      // Property-access targets like switch(node.type) or switch(event.kind) cannot
+      // have their type proven from a local annotation — fail open (do not suppress).
+      const switchTargetMatch = nearbyText.match(/\bswitch\s*\((\w+)\)/);
+      if (!switchTargetMatch) return false;
+      const varName = switchTargetMatch[1];
+
+      // Safety constraint: reject if the switch target variable is typed as string or number.
+      // A string/number-typed switch is inherently open-domain — not exhaustive.
+      // SAFETY: varName is from \w+ match — only [a-zA-Z0-9_], no regex special chars.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const varPrimitivePattern = new RegExp('\\b' + varName + '\\s*:\\s*(?:string|number)\\b');
+      if (varPrimitivePattern.test(nearbyText)) return false;
+
+      // Evidence 2: the switch variable must have a named type annotation (PascalCase),
+      // and that exact named type must be declared as a string-literal union in the
+      // visible diff/file section. Inferred types (no annotation) and imported types
+      // (not defined in the diff) MUST NOT trigger suppression — fail open.
+      //
+      // Step 2a: extract the type name from the variable's annotation in ±10 lines.
+      // e.g., `function f(theme: Theme)` → typeName = 'Theme'
+      // SAFETY: varName is from \w+ match — only [a-zA-Z0-9_], no regex special chars.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const varTypePattern = new RegExp('\\b' + varName + '\\s*:\\s*([A-Z][\\w]*)');
+      const typeNameMatch = nearbyText.match(varTypePattern);
+      if (!typeNameMatch?.[1]) return false; // no visible annotation → cannot prove union
+      const typeName = typeNameMatch[1];
+
+      // Step 2b: verify that typeName is defined as a string-literal union in the file
+      // diff section. Only string-literal unions declared in the visible diff count.
+      // e.g., `type Theme = 'light' | 'dark'`
+      // SAFETY: typeName is from [A-Z][\w]* match — only [a-zA-Z0-9_], no regex special chars.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const namedUnionPattern = new RegExp(
+        '\\btype\\s+' + typeName + '\\s*=\\s*(?:[\'"][^\'"]+[\'"]\\s*\\|)'
+      );
+      if (!namedUnionPattern.test(fileSection)) return false;
+
+      return true;
+    },
+    suppressionReason: 'Exhaustive type-narrowed switch — union type with all members covered',
+  },
+
+  // Convention 18: Error Object XSS
+  {
+    id: 'error-object-xss',
+    name: 'Error Object XSS',
+    messagePattern:
+      /(?:xss|inject).*(?:error|err)\b.*(?:message|\.message)|(?:error|err)\b.*(?:message|\.message).*(?:xss|inject|innerHTML|template)|(?:xss|inject).*error.*(?:directly|message)|error\s+message.*(?:xss|inject|innerHTML)/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 10);
+      const nearbyText = nearbyLines.join('\n');
+
+      // MANDATORY: catch clause visible (structural proof of error origin)
+      // No naming heuristics, no function-name matching (security-engineer mandate)
+      if (!/\bcatch\s*\(\s*\w+/.test(nearbyText)) return false;
+
+      // MANDATORY: error.message usage visible (the flagged construct)
+      if (!/\.\s*message\b/.test(nearbyText)) return false;
+
+      // REJECT: error constructed from user input or external API data.
+      // Errors built from req.body, query params, or external input can contain
+      // attacker-controlled data — suppression would hide real XSS.
+      if (
+        /new\s+(?:\w+)?Error\s*\(\s*(?:req\.|request\.|body\.|params\.|query\.|input\.|data\.|payload\.)/.test(
+          nearbyText
+        )
+      )
+        return false;
+
+      // REJECT: direct DOM manipulation (browser-side sinks)
+      if (
+        /\.innerHTML\s*=|\.outerHTML\s*=|document\.write\s*\(|insertAdjacentHTML\s*\(/.test(
+          nearbyText
+        )
+      )
+        return false;
+
+      // REJECT: React dangerouslySetInnerHTML (always renders raw HTML)
+      if (/dangerouslySetInnerHTML/.test(nearbyText)) return false;
+
+      // REJECT: server-side HTTP response sinks that render error.message as HTML.
+      // Only triggers when BOTH a response output call AND .message appear within
+      // the same ±10-line window (nearbyText), proving the error data flows into
+      // the response. Plain-text responses (res.send(err.message) without HTML
+      // markup) are excluded by requiring an HTML indicator (< or template literal).
+      if (/\bres\s*\.\s*(?:send|write|end)\s*\(/.test(nearbyText)) {
+        // Check for HTML evidence: template literal with tags, or string with '<'
+        const hasHtmlInResponse =
+          /\bres\s*\.\s*(?:send|write|end)\s*\(\s*`[^`]*</.test(nearbyText) ||
+          /\bres\s*\.\s*(?:send|write|end)\s*\([^)]*['"][^'"]*</.test(nearbyText) ||
+          /\bres\s*\.\s*(?:send|write|end)\s*\([^)]*\+[^)]*['"]?\s*</.test(nearbyText);
+        if (hasHtmlInResponse) return false;
+      }
+
+      // REJECT: template engine render calls (always produce HTML output)
+      if (
+        /\bres\s*\.\s*render\s*\(/.test(nearbyText) ||
+        /\b(?:ejs|pug|handlebars|hbs|nunjucks|mustache)\s*[.(]/.test(nearbyText)
+      )
+        return false;
+
+      return true;
+    },
+    suppressionReason:
+      'Error from catch clause — error.message is runtime exception, not user input',
+  },
+
+  // Convention 19: Thin Wrapper Stdlib
+  {
+    id: 'thin-wrapper-stdlib',
+    name: 'Thin Wrapper Stdlib',
+    messagePattern:
+      /(?:missing|add|no).*try.?catch|(?:could|may|might).*throw|unhandled.*(?:error|exception).*(?:JSON\.parse|parseInt|parseFloat|new\s+URL|Buffer\.from|decodeURI)|directly.*(?:return|call).*(?:JSON\.parse|parseInt|parseFloat)/i,
+    evidenceValidator(finding: Finding, diffContent: string): boolean {
+      const fileSection = extractFileDiffSection(finding, diffContent);
+      if (!fileSection) return false;
+      const nearbyLines = extractLinesNearFinding(fileSection, finding.line, 5);
+      const nearbyText = nearbyLines.join('\n');
+
+      // Evidence 1: WHITELISTED stdlib call present (no open patterns)
+      const SAFE_STDLIB =
+        /\b(?:JSON\.parse|JSON\.stringify|parseInt|parseFloat|Number\(|new\s+URL|Buffer\.from|decodeURIComponent|decodeURI|atob|btoa)\s*\(/;
+      if (!SAFE_STDLIB.test(nearbyText)) return false;
+
+      // Evidence 2: thin wrapper structure (return + stdlib)
+      if (!/\breturn\s+/.test(nearbyText)) return false;
+
+      // REJECT: I/O operations (not pure stdlib delegation)
+      if (
+        /\b(?:fs\.|fetch\s*\(|await\s|\.readFile|\.writeFile|database|\.query\s*\()/.test(
+          nearbyText
+        )
+      )
+        return false;
+
+      // REJECT: conditional logic (not a thin wrapper)
+      if (/\b(?:if\s*\(|else\b|switch\s*\()/.test(nearbyText)) return false;
+
+      // REJECT: request handler context (caller responsibility matters here)
+      if (/\b(?:req\.|request\.|res\.|response\.|app\.\w+\(|router\.\w+\()/.test(nearbyText))
+        return false;
+
+      return true;
+    },
+    suppressionReason: 'Thin wrapper around stdlib function — try-catch is caller responsibility',
   },
 ] as const;
 

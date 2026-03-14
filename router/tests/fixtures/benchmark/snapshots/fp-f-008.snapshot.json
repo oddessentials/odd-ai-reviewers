@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:59.941Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:10.931Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "c1c9531956d41940e4fb46a740d9ec31a369fbb07c36cba0af2566210089a2b6",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces exports for `UserService`, `OrderService`, and types `User` and `Order` from their respective modules. There are no logic errors, security vulnerabilities, or performance issues in this change. No further action is needed.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"No issues found in the provided diff. The change includes adding exports for UserService, OrderService, and types User and Order. There are no logic, security, performance, API misuse, or error handling issues in this change.\"\n}\n```"
   }
 }
