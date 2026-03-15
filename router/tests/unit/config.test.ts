@@ -66,29 +66,34 @@ describe('config error handling', () => {
     });
   });
 
-  // T035: Test for EACCES (permission denied) - skip on Windows
+  // T035: Test for EACCES (permission denied) - skip on Windows and root
   describe('T035: FILE_UNREADABLE for permission denied', () => {
     const isWindows = process.platform === 'win32';
+    const isRoot = process.getuid?.() === 0;
 
-    // Environment-gated: runs in Linux/macOS CI; Windows lacks Unix chmod semantics
-    it.skipIf(isWindows)('should return FILE_UNREADABLE for permission denied', async () => {
-      const repo = makeTempRepo({ initGit: false });
-      const configPath = join(repo.path, '.ai-review.yml');
+    // Environment-gated: runs in Linux/macOS CI; Windows lacks Unix chmod semantics;
+    // root bypasses file permissions so chmod(0o000) has no effect
+    it.skipIf(isWindows || isRoot)(
+      'should return FILE_UNREADABLE for permission denied',
+      async () => {
+        const repo = makeTempRepo({ initGit: false });
+        const configPath = join(repo.path, '.ai-review.yml');
 
-      // Create file with restricted permissions
-      writeFileSync(configPath, 'version: 1\n');
-      chmodSync(configPath, 0o000);
+        // Create file with restricted permissions
+        writeFileSync(configPath, 'version: 1\n');
+        chmodSync(configPath, 0o000);
 
-      try {
-        await expect(loadConfigFromPath(configPath)).rejects.toMatchObject({
-          code: ConfigErrorCode.FILE_UNREADABLE,
-          message: expect.stringContaining('permission denied'),
-        });
-      } finally {
-        // Restore permissions for cleanup
-        chmodSync(configPath, 0o644);
+        try {
+          await expect(loadConfigFromPath(configPath)).rejects.toMatchObject({
+            code: ConfigErrorCode.FILE_UNREADABLE,
+            message: expect.stringContaining('permission denied'),
+          });
+        } finally {
+          // Restore permissions for cleanup
+          chmodSync(configPath, 0o644);
+        }
       }
-    });
+    );
   });
 
   // T036: Test for malformed YAML parsing error
