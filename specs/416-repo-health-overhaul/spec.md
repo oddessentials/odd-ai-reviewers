@@ -18,7 +18,7 @@ A developer makes changes, commits, and pushes to a feature branch. The pre-comm
 **Acceptance Scenarios**:
 
 1. **Given** a developer stages files and commits, **When** the pre-commit hook runs, **Then** only formatting and linting checks execute on staged files, completing in under 30 seconds.
-2. **Given** a developer pushes to a remote branch, **When** the pre-push hook runs, **Then** type-checking, build, and tests execute (without re-running lint/format), completing in under 4 minutes.
+2. **Given** a developer pushes to a remote branch, **When** the pre-push hook runs, **Then** dependency analysis, build, and tests execute (without re-running type checking, lint, or format), completing in under 4 minutes.
 3. **Given** a developer stages a `.env.local` file containing secrets, **When** they attempt to commit, **Then** the pre-commit hook rejects the commit with a clear error message.
 4. **Given** the CI pipeline runs on the same push, **When** CI completes, **Then** it runs all checks the pre-push skipped (dependency analysis, link checking, executable modes, prompt sync, strict coverage thresholds) — ensuring nothing is missed.
 
@@ -136,7 +136,7 @@ A potential user or contributor views the project README and sees accurate, up-t
 
 - **FR-001**: The pre-commit hook MUST execute only formatting and linting on staged files, completing in under 30 seconds on average.
 - **FR-002**: The pre-commit hook MUST reject commits that include environment configuration files (except the example template) to prevent accidental secret exposure.
-- **FR-003**: The pre-push hook MUST execute type checking, project build, and test suite — without re-running formatting or linting checks already handled by pre-commit.
+- **FR-003**: The pre-push hook MUST execute dependency analysis, project build, and test suite — without re-running type checking, formatting, or linting checks already handled by pre-commit.
 - **FR-004**: The pre-push hook MUST complete in under 4 minutes on a standard developer machine.
 - **FR-005**: All test files MUST reside in a single canonical test directory, organized by domain to mirror the source code structure.
 - **FR-006**: The test runner configuration MUST include only the canonical test directory — no other directories contribute test files.

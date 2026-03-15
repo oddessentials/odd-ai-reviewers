@@ -38,7 +38,17 @@
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Update pre-commit hook to add secret file guard before lint-staged in `.husky/pre-commit` — insert `git diff --cached --name-only | grep -E '^\\.env' | grep -v '\\.env\\.example$' && echo 'ERROR: .env files must not be committed. Only .env.example is allowed.' && exit 1` as the first check, before `pnpm exec lint-staged`
+- [ ] T003 [US1] Update pre-commit hook to add secret file guard before lint-staged in `.husky/pre-commit` — insert the following as the first check, before `pnpm exec lint-staged`:
+
+```bash
+# Secret file guard: reject .env files (except .env.example)
+if git diff --cached --name-only | grep -E '^\\.env' | grep -v '\\.env\\.example$'; then
+  echo 'ERROR: .env files must not be committed. Only .env.example is allowed.'
+  echo 'If you need to force-add, document the reason in the PR description.'
+  exit 1
+fi
+```
+
 - [ ] T004 [US1] Restructure pre-push hook in `.husky/pre-push` — remove eslint (step 1, line 14), prettier (step 2, line 18), tsc (step 3, line 22), docs:linkcheck (step 5a, line 30), and spec:linkcheck (step 5b, line 33). Keep only: depcruise (step 4), build (step 6), test (step 7). Update step numbering and comments per `contracts/hook-tiers.md`
 - [ ] T005 [US1] Verify pre-commit timing: stage a file, commit, confirm hook completes in <30 seconds and runs lint-staged + tsc + secret guard
 - [ ] T006 [US1] Verify pre-push timing: push to branch, confirm hook completes in <4 minutes running only depcruise + build + test
@@ -60,7 +70,11 @@
 - [ ] T009 [US2] Create domain subdirectories in `router/tests/unit/`: `mkdir -p router/tests/unit/{agents,config,report,phases,types,cli,core}` — matching `router/src/` structure
 - [ ] T010 [US2] Inventory all 79 test files in `router/src/__tests__/` and create a migration mapping: for each `.test.ts` file, determine the target domain directory based on its primary import (e.g., `ado.test.ts` imports from `../report/` → `tests/unit/report/ado.test.ts`)
 - [ ] T011 [US2] Move test files to domain directories per the mapping from T010 — use `git mv` to preserve history. Move snapshot directories alongside their test files. Example: `git mv router/src/__tests__/opencode.test.ts router/tests/unit/agents/opencode.test.ts`
-- [ ] T012 [US2] Update relative import paths in all 79 migrated test files — change `../module.js` patterns to `../../src/module.js` patterns. Use find-and-replace: `from '../` → `from '../../src/` (then manually verify edge cases where imports reference other test utilities or fixtures)
+- [ ] T012 [US2] Update relative import paths in all 79 migrated test files using these rules:
+  - **Rule A (source imports)**: `from '../{module}.js'` → `from '../../src/{module}.js'` — applies to most files (imports reaching into `src/`)
+  - **Rule B (test utility imports)**: Imports referencing `tests/test-utils.js`, `tests/setup.ts`, or `tests/helpers/` must be rewritten relative to the new file location (e.g., a file in `tests/unit/agents/` importing `test-utils.js` needs `from '../../test-utils.js'`, while a file in `tests/unit/cli/commands/` needs `from '../../../test-utils.js'`)
+  - **Rule C (fixture imports)**: Imports referencing `tests/fixtures/` must be depth-adjusted similarly to Rule B
+  - **Verification**: After all rewrites, run `pnpm exec tsc --noEmit` to catch any broken paths before running the full test suite. Expect 6-8 files to need Rule B/C treatment based on QA audit findings
 - [ ] T013 [US2] Update `router/vitest.config.ts` test include pattern: change `include: ['src/**/*.test.ts', 'tests/**/*.test.ts']` to `include: ['tests/**/*.test.ts']`
 - [ ] T014 [US2] Update `router/vitest.config.ts` coverage exclude: change `exclude: ['src/**/*.test.ts', 'src/__tests__/**/*', 'node_modules', 'dist']` to `exclude: ['node_modules', 'dist']`
 - [ ] T015 [US2] Verify migration: run `pnpm --filter ./router test` — all 4,291+ tests must pass with zero failures
@@ -110,6 +124,15 @@ specs/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Secrets and credentials (defense-in-depth — primary boundary is .gitignore)
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*.key
+*.pem
 ```
 
 - [ ] T019 [US3] Validate every pattern in `.reviewignore` matches at least one tracked or existing file — run `git ls-files` against each pattern to confirm no dead patterns
