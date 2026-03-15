@@ -59,7 +59,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           npx tsx scripts/benchmark-adapter.ts \
-            --golden-dir /tmp/benchmark/golden \
+            --golden-dir /tmp/benchmark/offline/golden_comments \
             --output /tmp/benchmark-results/candidates.json \
             --concurrency 2 \
             --timeout-per-pr 300 \

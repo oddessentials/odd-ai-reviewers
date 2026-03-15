@@ -340,23 +340,56 @@ export function discoverTasks(goldenDir: string, projectFilter?: string): PRTask
     throw new Error(`Golden directory does not exist: ${goldenDir}`);
   }
 
-  const projects = readdirSync(goldenDir, { withFileTypes: true });
+  const entries = readdirSync(goldenDir, { withFileTypes: true });
 
-  for (const entry of projects) {
-    if (!entry.isDirectory()) continue;
-    if (allowedProjects && !allowedProjects.has(entry.name)) continue;
+  // Check if the golden dir uses the legacy layout (project subdirectories)
+  // or the new flat layout (per-project JSON files with arrays of PRs)
+  const hasSubdirs = entries.some((e) => e.isDirectory());
 
-    const projectDir = join(goldenDir, entry.name);
-    const prFiles = readdirSync(projectDir).filter((f) => f.endsWith('.json'));
+  if (hasSubdirs) {
+    // Legacy layout: <project>/<pr>.json with a single GoldenComment per file
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (allowedProjects && !allowedProjects.has(entry.name)) continue;
 
-    for (const prFile of prFiles) {
-      const prNumber = prFile.replace('.json', '');
-      const goldenPath = join(projectDir, prFile);
+      const projectDir = join(goldenDir, entry.name);
+      const prFiles = readdirSync(projectDir).filter((f) => f.endsWith('.json'));
+
+      for (const prFile of prFiles) {
+        const prNumber = prFile.replace('.json', '');
+        const goldenPath = join(projectDir, prFile);
+
+        try {
+          const content = readFileSync(goldenPath, 'utf-8');
+          const golden: GoldenComment = JSON.parse(content);
+          tasks.push({ project: entry.name, prNumber, goldenPath, golden });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          console.warn(`Warning: Skipping ${goldenPath}: ${msg}`);
+        }
+      }
+    }
+  } else {
+    // New flat layout: <project>.json with an array of GoldenComment objects
+    const jsonFiles = entries.filter((e) => e.isFile() && e.name.endsWith('.json'));
+
+    for (const file of jsonFiles) {
+      const project = file.name.replace('.json', '');
+      if (allowedProjects && !allowedProjects.has(project)) continue;
+
+      const goldenPath = join(goldenDir, file.name);
 
       try {
         const content = readFileSync(goldenPath, 'utf-8');
-        const golden: GoldenComment = JSON.parse(content);
-        tasks.push({ project: entry.name, prNumber, goldenPath, golden });
+        const parsed: unknown = JSON.parse(content);
+        const goldens: GoldenComment[] = Array.isArray(parsed) ? parsed : [parsed];
+
+        for (const golden of goldens) {
+          // Extract PR number from URL: https://github.com/owner/repo/pull/123
+          const urlMatch = golden.url?.match(/\/pull\/(\d+)/);
+          const prNumber = urlMatch?.[1] ?? `unknown-${tasks.length}`;
+          tasks.push({ project, prNumber, goldenPath, golden });
+        }
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         console.warn(`Warning: Skipping ${goldenPath}: ${msg}`);

@@ -12,7 +12,7 @@ services:
     command:
       [
         '--golden-dir',
-        '/benchmark/golden',
+        '/benchmark/offline/golden_comments',
         '--output',
         '/results',
         '--concurrency',
