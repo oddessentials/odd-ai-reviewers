@@ -51,6 +51,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - File-based (benchmark fixtures as JSON, snapshots as JSON with SHA-256 hash validation) (414-fp-reduction-and-benchmark)
 - TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.3.6 (validation), Commander 14.x (CLI), Vitest 4.0.18 (testing), Anthropic SDK 0.71.2, OpenAI SDK 6.27.0, Octokit 22.x (415-close-fp-benchmark-gaps)
 - File-based (benchmark fixtures as JSON in `router/tests/fixtures/benchmark/`, snapshots as JSON with SHA-256 hash validation) (415-close-fp-benchmark-gaps)
+- TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Vitest 4.0.18 (testing), Husky 9.x (hooks), lint-staged 16.x, Prettier 3.x, ESLint 9.x, dependency-cruiser (416-repo-health-overhaul)
+- N/A (file-based configuration only) (416-repo-health-overhaul)
 
 - TypeScript 5.x (ES2022 target, NodeNext modules), Node.js >=22.0.0 (001-control-flow-analysis)
 - N/A (ephemeral workspace per constitution) (001-control-flow-analysis)
@@ -78,9 +80,9 @@ tests/
 Markdown documentation (no code changes): Follow standard conventions
 
 ## Recent Changes
+- 416-repo-health-overhaul: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Vitest 4.0.18 (testing), Husky 9.x (hooks), lint-staged 16.x, Prettier 3.x, ESLint 9.x, dependency-cruiser
 - 415-close-fp-benchmark-gaps: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.3.6 (validation), Commander 14.x (CLI), Vitest 4.0.18 (testing), Anthropic SDK 0.71.2, OpenAI SDK 6.27.0, Octokit 22.x
 - 414-fp-reduction-and-benchmark: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + Zod 4.x (validation), Commander 14.x (CLI), Vitest 4.x (testing), Octokit 22.x (GitHub API), Anthropic SDK 0.71.x, OpenAI SDK 6.x
-- 411-fp-gap-closure: Added TypeScript 5.9.3 (ES2022 target, NodeNext modules) + TypeScript compiler API (AST parsing), Zod 4.3.6 (schema validation), Commander 14.x (CLI), Vitest 4.0.18 (testing)
 
 
 

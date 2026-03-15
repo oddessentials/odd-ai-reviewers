@@ -1,0 +1,128 @@
+# .reviewignore - Files and directories to exclude from AI code review
+# This file specifies paths that should not be analyzed by AI review systems
+# even if they are tracked in git. Use patterns compatible with gitignore syntax.
+
+# =============================================================================
+# GENERATED AND MACHINE-MAINTAINED FILES
+# =============================================================================
+
+# Semantic release generates CHANGELOG automatically — do not review
+CHANGELOG.md
+
+# Benchmark snapshots — baseline data for performance regression testing
+router/tests/fixtures/benchmark/snapshots/
+
+# Type test snapshots — generated during compilation
+*.snapshot.json
+router/src/**/*.snapshot.d.ts
+
+# =============================================================================
+# AGENT AND SYSTEM CONFIGURATION
+# =============================================================================
+
+# Project specification metadata — internal documentation
+.specify/
+
+# Claude AI agent memory and local session data
+.claude/
+
+# Local Codex session state (if used)
+.codex/
+
+# =============================================================================
+# AI REVIEW CACHE
+# =============================================================================
+
+# Cache of prior AI review runs — contains serialized agent results
+.ai-review-cache/
+
+# =============================================================================
+# DEPENDENCIES AND BUILD OUTPUTS
+# =============================================================================
+
+# Package dependencies (npm/pnpm)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# =============================================================================
+# LOCK FILES
+# =============================================================================
+
+# pnpm lock file — machine-maintained, commit conflicts common
+# Review changes via package.json instead
+pnpm-lock.yaml
+
+# =============================================================================
+# DOCUMENTATION AND METADATA
+# =============================================================================
+
+# Dynamic documentation files (generated from code/features)
+# Review the source files (e.g., feature specs) instead
+AGENTS.md
+
+# Project configuration documentation for AI systems
+# Review via CLAUDE.md in source tree for context, not as review artifact
+CODEOWNERS
+
+# =============================================================================
+# IDE AND EDITOR ARTIFACTS
+# =============================================================================
+
+# IDE configurations
+.idea/
+.vscode/
+
+# Temporary editor files
+*.swp
+*.swo
+
+# =============================================================================
+# OS AND SYSTEM ARTIFACTS
+# =============================================================================
+
+# macOS metadata
+.DS_Store
+
+# Windows metadata
+Thumbs.db
+
+# =============================================================================
+# LOGS AND TEST ARTIFACTS
+# =============================================================================
+
+# Application logs
+*.log
+npm-debug.log*
+
+# Test coverage reports
+coverage/
+
+# Test result artifacts
+test-results.json
+
+# Playwright and browser test reports
+playwright-report/
+docs/viewer/playwright-report/
+
+# =============================================================================
+# DOCKER
+# =============================================================================
+
+# Docker build artifacts and mount points
+.docker/
+
+# =============================================================================
+# CONFIGURATION PRECEDENCE
+# =============================================================================
+
+# Note: AI review tools should still parse configuration files for context
+# (e.g., package.json for dependencies, tsconfig.json for TS settings),
+# but should not flag style violations in auto-generated files.
+#
+# For tool-specific overrides:
+# - ESLint/Prettier: .eslintignore, .prettierignore (already exist)
+# - TypeScript: files excluded are handled via tsconfig.json
