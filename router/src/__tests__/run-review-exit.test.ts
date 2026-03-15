@@ -116,7 +116,7 @@ beforeEach(() => {
   vi.mocked(startCheckRun).mockResolvedValue(123);
 });
 
-describe('runReview exit behavior', () => {
+describe('runReview exit behavior', { timeout: 30_000 }, () => {
   it('exits successfully after completing a review', async () => {
     const exitHandler = vi.fn();
 

@@ -92,6 +92,10 @@ export function makeTempRepo(options: TempRepoOptions = {}): TempRepo {
     execFileSync('git', ['init'], { cwd: tempDir, stdio: 'pipe' });
     execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir, stdio: 'pipe' });
     execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tempDir, stdio: 'pipe' });
+    // Disable commit signing in test repos to avoid failures when the
+    // environment has GPG/SSH signing configured but the signing key
+    // is unavailable (e.g., CI containers, sandboxed environments)
+    execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: tempDir, stdio: 'pipe' });
   }
 
   // Initial commit
