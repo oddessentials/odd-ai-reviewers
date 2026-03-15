@@ -10,7 +10,7 @@
  * - Consistent structured format across all events
  *
  * @see FR-021, FR-022, FR-023, FR-024
- * @see specs/006-quality-enforcement/contracts/security-event.ts
+ * @see specs/archive/006-quality-enforcement/contracts/security-event.ts
  */
 
 import { createHash } from 'crypto';

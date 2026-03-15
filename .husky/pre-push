@@ -1,42 +1,21 @@
 #!/usr/bin/env sh
-# Pre-push hook: Full CI-equivalent quality gates
-# Ensures nothing is pushed that will fail CI
-#
-# Uses `pnpm exec` for node_modules/.bin binaries to ensure
-# correct PATH resolution on Windows + Git Bash.
+# Pre-push hook: Focused quality gates
+# Constitution mandate: depcruise in pre-push
+# Redundant checks removed: eslint, prettier, tsc (in pre-commit), linkcheck (CI-only)
 
 set -e
 
 echo "Running pre-push quality gates..."
 
-# 1. ESLint (zero-tolerance, matches CI)
-echo ">> Lint (strict)..."
-pnpm exec eslint . --max-warnings 0
-
-# 2. Prettier format check
-echo ">> Format check..."
-pnpm exec prettier --check .
-
-# 3. TypeScript type checking
-echo ">> TypeScript..."
-pnpm exec tsc --noEmit
-
-# 4. Circular dependency check
+# 1. Circular dependency check (constitution-required)
 echo ">> Dependency analysis..."
 pnpm exec depcruise router/src --config .dependency-cruiser.cjs
 
-# 5. Documentation link checks (matches CI quality gate)
-echo ">> Docs linkcheck..."
-pnpm run docs:linkcheck
-
-echo ">> Spec linkcheck..."
-pnpm run spec:linkcheck
-
-# 6. Build verification
+# 2. Build verification
 echo ">> Build..."
 pnpm run build
 
-# 7. Run tests
+# 3. Run tests
 echo ">> Tests..."
 pnpm --filter ./router test
 

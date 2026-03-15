@@ -68,6 +68,19 @@ jobs:
           CI: 'true'
           CI_HAS_LSOF: 'true'
 
+      - name: Validate test artifacts
+        run: |
+          echo "Validating test artifacts..."
+          if [ ! -f router/test-results.json ]; then
+            echo "ERROR: router/test-results.json not found. Tests must run before badge update."
+            exit 1
+          fi
+          if [ ! -f router/coverage/coverage-summary.json ]; then
+            echo "ERROR: router/coverage/coverage-summary.json not found. Coverage must run before badge update."
+            exit 1
+          fi
+          echo "All required test artifacts present"
+
       - name: Generate test badge data
         run: |
           PASSED=$(jq '.numPassedTests' router/test-results.json)

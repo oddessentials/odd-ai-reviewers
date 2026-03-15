@@ -1,6 +1,6 @@
 # odd-ai-reviewers Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-01-27
+Development guidelines maintained by the project team. Last updated: 2026-03-15
 
 ## Active Technologies
 - TypeScript 5.x (ESM), Node.js >=22.0.0 + typescript (compiler API for AST parsing), Zod (schema validation), Vitest (testing) (004-control-flow-hardening)

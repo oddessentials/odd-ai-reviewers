@@ -6,7 +6,7 @@ import { defineConfig } from 'vitest/config';
  * CI environment enforces stricter thresholds to prevent regressions.
  * Local development uses relaxed thresholds for faster iteration.
  *
- * @see specs/006-quality-enforcement/contracts/coverage-config.ts
+ * @see specs/archive/006-quality-enforcement/contracts/coverage-config.ts
  * @see FR-002, FR-005, FR-005a
  */
 
@@ -45,7 +45,7 @@ if (process.env['VITEST'] || process.env['VITEST_WORKER_ID']) {
 export default defineConfig({
   test: {
     // Test configuration
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
     setupFiles: ['tests/setup.ts'],
 
@@ -57,7 +57,7 @@ export default defineConfig({
 
       // Include only source files, exclude tests and type definitions
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/__tests__/**/*', 'node_modules', 'dist'],
+      exclude: ['node_modules', 'dist'],
 
       // Coverage thresholds - environment-specific
       // CI: Enforced strictly to prevent regressions

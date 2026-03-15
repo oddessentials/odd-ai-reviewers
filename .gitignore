@@ -51,5 +51,10 @@ docs/viewer/playwright-report/
 AGENTS.md
 CLAUDE.md
 
+# Specification tooling (generated data, not governance)
+.specify/features/
+.specify/templates/
+.specify/scripts/
+
 # Package manager lock files (pnpm uses pnpm-lock.yaml)
 package-lock.json
