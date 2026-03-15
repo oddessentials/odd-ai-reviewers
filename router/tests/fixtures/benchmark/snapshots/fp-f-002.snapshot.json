@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:44.472Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:03.193Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "c421129456e4ffaf90cc36fb319ad2d3dfb96476b03f4b53acffef917c64efa9",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff adds a new list of XSS payloads in the `tests/fixtures/xss-payloads.ts` file for testing purposes. There are no issues found with this change since it is contained within a test fixture file and intended for testing XSS vulnerabilities. No security risks are introduced due to this being non-production test data.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes made to the 'tests/fixtures/xss-payloads.ts' file define an array of XSS payloads as `XSS_PAYLOADS`. There are no security or logic issues because this context is a test fixture file not involved in any code execution. These payloads are likely used for testing purposes to ensure the application handles or sanitizes such input appropriately. No performance or API misuse concerns were found.\"\n}\n```"
   }
 }

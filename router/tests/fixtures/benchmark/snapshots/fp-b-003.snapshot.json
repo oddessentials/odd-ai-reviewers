@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-14T01:04:41.640Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
+    "fixtureHash": "082551b772b2b83882831250a1575598bc659fe1d0f5af7a62a0126394afed31",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "info",
+        "file": "src/batch.ts",
+        "line": 4,
+        "message": "Unhandled rejected promises in Promise.allSettled results.",
+        "suggestion": "Consider handling the rejected promises to improve error reporting or corrective action.",
+        "ruleId": "semantic/error-handling",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 4,\n      \"message\": \"Unhandled rejected promises in Promise.allSettled results.\",\n      \"suggestion\": \"Consider handling the rejected promises to improve error reporting or corrective action.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The diff introduces a new function `processBatch` that processes an array of URLs with `Promise.allSettled`. While it correctly handles fulfilled promises, it does not address rejected promises, which can be improved by including error handling for rejected cases.\"\n}\n```"
+  }
+}

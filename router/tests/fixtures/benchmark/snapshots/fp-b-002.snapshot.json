@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:02.505Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
-    "fixtureHash": "3a04e4d23ba3fe404b4d5cf67462d474477bab477ec87ba5639aee502341749b",
+    "recordedAt": "2026-03-14T01:04:40.163Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
+    "fixtureHash": "7e1b2cf2d64c372a8dd7e08b02e2bf9e6251e0a3b7c37b57af5d42fa0764b052",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code change adds a new `UserProfile` function component that uses React Query's `useQuery` to fetch user data and settings. No security, logic, performance, or API misuse issues were identified. The use of identical query keys with different queries is appropriate as React Query deduplicates based on cache keys and these keys are distinct. The component appears to be correctly fetching data for rendering user information.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "src/UserProfile.tsx",
+        "line": 11,
+        "message": "Potential issue with missing error handling when fetching data using useQuery.",
+        "suggestion": "Consider checking for errors in the returned data object from useQuery and handle any potential loading or error states to improve user experience.",
+        "ruleId": "semantic/error-handling",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/UserProfile.tsx\",\n      \"line\": 11,\n      \"message\": \"Potential issue with missing error handling when fetching data using useQuery.\",\n      \"suggestion\": \"Consider checking for errors in the returned data object from useQuery and handle any potential loading or error states to improve user experience.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The changes in `src/UserProfile.tsx` include using `useQuery` for fetching a user and their settings without error or loading state handling, which may lead to a diminished user experience if fetches fail or take time.\"\n}\n```"
   }
 }

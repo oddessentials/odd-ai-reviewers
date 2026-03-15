@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:53.241Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:05:05.443Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "a9f65defd2b4fe1b486b0de07e4a2703f75b335f681230968835fe628bbc9896",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change introduces a new function `processInput` which processes an input of type `string | null` and returns a string. If the input is `null`, it returns the default string 'default', otherwise it converts the input string to uppercase. The function implementation correctly handles the potential null input and performs the expected operation without any apparent issues. No security vulnerabilities, logic errors, performance issues, or API misuse were identified in the change.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "info",
+        "file": "src/handler.ts",
+        "line": 2,
+        "message": "Function `processInput` converts input to uppercase without trimming spaces.",
+        "suggestion": "Consider trimming whitespace from the input to prevent non-obvious issues.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/handler.ts\",\n      \"line\": 2,\n      \"message\": \"Function `processInput` converts input to uppercase without trimming spaces.\",\n      \"suggestion\": \"Consider trimming whitespace from the input to prevent non-obvious issues.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The `processInput` function was added to convert a string input to uppercase and return a default value for null inputs. Ensure input is trimmed if leading or trailing spaces could cause issues.\"\n}\n```"
   }
 }

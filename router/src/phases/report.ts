@@ -98,13 +98,15 @@ export function processFindings(
 ): ProcessedFindings {
   // Process complete findings (from successful agents)
   const deduplicated = deduplicateFindings(completeFindings);
-  // Sanitize findings before sorting/posting (defense-in-depth)
-  const sanitized = sanitizeFindings(deduplicated);
+
+  // FR-018 pipeline order: semantic → framework filter → sanitize (presentation).
+  // Sanitization is a presentation concern (HTML entity escaping for platform posting)
+  // and MUST run after filtering to avoid corrupting text that matchers regex-match against.
 
   // Stage 1 (semantic-only): Filter self-contradictions, classify findings.
   // NO line/path validation here — deferred to Stage 2 in platform reporters
   // after normalizeFindingsForDiff() has remapped renamed paths and snapped stale lines.
-  const validationResult = validateFindingsSemantics(sanitized, prDescription);
+  const validationResult = validateFindingsSemantics(deduplicated, prDescription);
   const validated = validationResult.validFindings;
 
   // Stage 1.5: Framework convention filter (FR-013, default-deny closed matcher table).
@@ -120,7 +122,9 @@ export function processFindings(
     );
   }
 
-  const sorted = sortFindings(frameworkFiltered);
+  // Sanitize after all filtering (defense-in-depth for platform posting)
+  const sanitized = sanitizeFindings(frameworkFiltered);
+  const sorted = sortFindings(sanitized);
 
   // Process partial findings (from failed agents) separately
   // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
@@ -293,6 +297,47 @@ export function getPostNormalizationFindings(
   diffFiles: DiffFile[]
 ): Finding[] {
   return normalizeAndValidateFindings(findings, diffFiles, 'router').validatedFindings;
+}
+
+/**
+ * Shared 4-stage post-processing pipeline for findings (FR-018).
+ *
+ * Applies stages in contract order:
+ *   1. Stage 1 — Semantic validation (self-contradiction filter)
+ *   2. Framework convention filter
+ *   3. Stage 2 — Diff-bound validation (line/path normalization)
+ *   4. Sanitize (presentation concern — HTML entity escaping for platform posting)
+ *
+ * Sanitization runs LAST to avoid corrupting text that matcher regexes match against.
+ *
+ * Used by CLI local review, benchmark adapter, and any code path that needs
+ * the same suppression behavior as hosted mode.
+ */
+export function applyFindingsPipeline(
+  findings: Finding[],
+  diffFiles: DiffFile[],
+  prDescription?: string
+): Finding[] {
+  // Stage 1: Semantic validation (self-contradiction filter)
+  const semanticResult = validateFindingsSemantics(findings, prDescription);
+  const validated = semanticResult.validFindings;
+
+  // Stage 1.5: Framework convention filter
+  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
+  const frameworkResult = filterFrameworkConventionFindings(validated, diffContent);
+  const frameworkFiltered = getValidFindings(frameworkResult);
+
+  if (frameworkResult.suppressed > 0) {
+    console.log(
+      `[router] [pipeline] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
+    );
+  }
+
+  // Stage 2: Diff-bound validation
+  const postNorm = normalizeAndValidateFindings(frameworkFiltered, diffFiles, 'pipeline');
+
+  // Stage 3: Sanitize (defense-in-depth for platform posting, after all filtering)
+  return sanitizeFindings(postNorm.validatedFindings);
 }
 
 /**

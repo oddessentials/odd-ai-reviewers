@@ -55,6 +55,7 @@ import {
   InvalidPathError,
 } from '../output/errors.js';
 import { reportToTerminal } from '../../report/terminal.js';
+import { applyFindingsPipeline } from '../../phases/report.js';
 import {
   setupSignalHandlers,
   setPartialResultsContext,
@@ -1073,18 +1074,25 @@ export async function runLocalReview(
   terminalContext.executionTimeMs = executionTimeMs;
   terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
 
-  // 15. Report findings to terminal
+  // 15. Post-process findings (FR-018: CLI parity — sanitize → semantic → framework → diff-bound)
+  const processedFindings = applyFindingsPipeline(
+    executeResult.completeFindings,
+    diff.files
+    // No prDescription in CLI mode — documented divergence (FR-018e)
+  );
+
+  // 16. Report findings to terminal
   const reportFn = deps.reportToTerminal ?? reportToTerminal;
   const reportResult = await reportFn(
-    executeResult.completeFindings,
+    processedFindings,
     executeResult.partialFindings,
     terminalContext,
     config,
     diff.files
   );
 
-  // 16. Determine exit code
-  const exitCode = determineExitCode(executeResult.completeFindings, config);
+  // 17. Determine exit code (uses post-processed findings for accurate gating)
+  const exitCode = determineExitCode(processedFindings, config);
 
   return {
     exitCode,

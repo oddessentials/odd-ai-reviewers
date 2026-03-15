@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:31.812Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:53.882Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "f29158c63ab74f94178f1e6ae30fa2fb7104dd120443f57bc39efbd39645a67c",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change introduces a new function `handleKeyDown` to handle the 'Enter' key behavior, preventing the default action of adding a newline and instead submitting the form. No issues such as logic errors, security vulnerabilities, or performance concerns were identified in the diff.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change introduces a `handleKeyDown` function to handle the Enter key press event by preventing the default behavior (which would add a newline) and instead triggering the `submitForm` function. No logic errors, security vulnerabilities, or performance issues were identified in this change. The implementation aligns with the PR description's intent to change the Enter key behavior.\"\n}\n```"
   }
 }

@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:39.021Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:59.064Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "725cb4d622256ce256c89ed0d817dc713d0529d3cc7b2ccc9ce4f28c9d98c236",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The refactor in `tests/user.test.ts` converts individual test cases into parameterized tests using `it.each`, improving readability and reducing code duplication. No logic errors, security vulnerabilities, or performance issues were identified. The change is consistent with common testing patterns and does not introduce any new issues.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The refactoring of individual user tests into a parameterized it.each test in 'tests/user.test.ts' seems correct. The conversion improves readability and maintainability by consolidating similar test cases into a single test block. No logic errors, security vulnerabilities, performance issues, API misuses, or missing error handling were identified in the diff.\"\n}\n```"
   }
 }

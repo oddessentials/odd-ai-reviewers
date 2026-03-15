@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-13T03:13:22.918Z",
-    "promptTemplateHash": "5b57e527c1fee943b332537111ca14a2cacfa5cdbd6f1de6d02367aaad41fd2d",
-    "modelId": "unknown",
-    "provider": "unknown",
+    "recordedAt": "2026-03-14T01:04:50.054Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
     "fixtureHash": "0aaaf0940f3264cf6e92978dcb0dea84fa0fce21de672d5cfb4b8db5f9ef3489",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in 'src/config.ts' introduce three new constants: MAX_RETRIES, TIMEOUT_MS, and BASE_URL. These are defined at module scope, consistent with the project's rules for API configuration constants. There are no issues with logic, security, performance, or API misuse in this diff.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff in 'src/config.ts' aligns with the project rule that requires all API configuration constants to be defined at module scope as const declarations. No issues were found.\"\n}\n```"
   }
 }

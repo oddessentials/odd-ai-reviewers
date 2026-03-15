@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-14T01:04:38.302Z",
+    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
+    "modelId": "gpt-4o",
+    "provider": "openai",
+    "fixtureHash": "d627f7f6dcf8f1bc8a206e9ff8bd772947e701af0dd09d722b1b72ceb0247835",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [],
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce an Express error-handling middleware function by importing necessary components from 'express' and adding an 'errorHandler' function. The middleware logs the error message to the console and sends a 500 Internal Server Error response with a generic error message in JSON format. The code follows standard Express error-handling conventions, and there are no issues related to logic errors, security vulnerabilities, performance, API misuse, or missing error handling.\"\n}\n```"
+  }
+}

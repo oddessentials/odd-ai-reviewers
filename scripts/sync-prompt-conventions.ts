@@ -145,7 +145,7 @@ function generateFallbackConstant(fragmentContent: string): string {
  */
 export const SHARED_CONVENTIONS_HASH = '${computeHash(fragmentContent)}';
 
-export const SHARED_CONVENTIONS_SUMMARY = \`${summary}\`;
+export const SHARED_CONVENTIONS_SUMMARY = \`${summary.replace(/`/g, "'")}\`;
 `;
 }
 
