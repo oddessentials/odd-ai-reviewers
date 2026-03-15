@@ -355,6 +355,95 @@ describe('discoverTasks', () => {
 
     warnSpy.mockRestore();
   });
+
+  it('discovers tasks from flat layout with per-project JSON arrays', () => {
+    mockExistsSync.mockReturnValue(true);
+
+    // Flat layout: no subdirectories, just JSON files
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isDirectory: () => false, isFile: () => true },
+      { name: 'grafana.json', isDirectory: () => false, isFile: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    mockReadFileSync.mockImplementation(((path: string) => {
+      if (path.endsWith('sentry.json')) {
+        return JSON.stringify([
+          {
+            pr_title: 'Fix bug A',
+            url: 'https://github.com/getsentry/sentry/pull/42',
+            comments: [{ comment: 'Issue found', severity: 'High' }],
+          },
+          {
+            pr_title: 'Fix bug B',
+            url: 'https://github.com/getsentry/sentry/pull/99',
+            comments: [],
+          },
+        ]);
+      }
+      return JSON.stringify([
+        {
+          pr_title: 'Grafana PR',
+          url: 'https://github.com/grafana/grafana/pull/7',
+          comments: [],
+        },
+      ]);
+    }) as typeof readFileSync);
+
+    const tasks = discoverTasks('/golden');
+
+    expect(tasks).toHaveLength(3);
+    expect(tasks[0]?.project).toBe('sentry');
+    expect(tasks[0]?.prNumber).toBe('42');
+    expect(tasks[1]?.project).toBe('sentry');
+    expect(tasks[1]?.prNumber).toBe('99');
+    expect(tasks[2]?.project).toBe('grafana');
+    expect(tasks[2]?.prNumber).toBe('7');
+  });
+
+  it('filters by project name in flat layout', () => {
+    mockExistsSync.mockReturnValue(true);
+
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isDirectory: () => false, isFile: () => true },
+      { name: 'grafana.json', isDirectory: () => false, isFile: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify([
+        {
+          pr_title: 'PR 1',
+          url: 'https://github.com/grafana/grafana/pull/1',
+          comments: [],
+        },
+      ]) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    const tasks = discoverTasks('/golden', 'grafana');
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.project).toBe('grafana');
+  });
+
+  it('handles single object (not array) in flat layout', () => {
+    mockExistsSync.mockReturnValue(true);
+
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isDirectory: () => false, isFile: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        pr_title: 'Single PR',
+        url: 'https://github.com/getsentry/sentry/pull/55',
+        comments: [],
+      }) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    const tasks = discoverTasks('/golden');
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.prNumber).toBe('55');
+  });
 });
 
 // ---------------------------------------------------------------------------
