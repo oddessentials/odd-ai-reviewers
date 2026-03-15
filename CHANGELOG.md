@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.10.0...v1.10.1) (2026-03-15)
+
+### Bug Fixes
+
+* close FP benchmark gaps — suppressor hardening, cautionary filter, T022/T023 fixes ([#170](https://github.com/oddessentials/odd-ai-reviewers/issues/170)) ([ceffbd8](https://github.com/oddessentials/odd-ai-reviewers/commit/ceffbd86339d7fdb32f83faf47c7937f2f725dd9)), closes [#168](https://github.com/oddessentials/odd-ai-reviewers/issues/168)
+
 ## [1.10.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.9.0...v1.10.0) (2026-03-13)
 
 ### Features
