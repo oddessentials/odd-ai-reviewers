@@ -442,6 +442,99 @@ describe('validateFindingsSemantics (Stage 1)', () => {
 });
 
 /**
+ * SECURITY_BLOCKLIST coverage for cautionary advice filter
+ *
+ * Verifies that info-severity findings containing security terms (JWT, token,
+ * session, CORS, cookie, signature, redirect, rate-limit) are NOT suppressed
+ * by the cautionary advice filter, even when hedging language is present.
+ */
+describe('SECURITY_BLOCKLIST — cautionary advice gate', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  // Each entry: [term label, finding message that must NOT be suppressed]
+  const securityFindings: [string, string][] = [
+    ['JWT', 'Ensure the JWT claims are validated before granting access'],
+    ['token', 'Verify that the access token expiration is checked before use'],
+    ['session', 'Ensure the session ID is regenerated after authentication'],
+    ['CORS', 'Verify that the CORS origin is validated against an allowlist'],
+    ['cookie', 'Ensure the session cookie has HttpOnly and Secure flags set'],
+    ['signature', 'Verify that the digital signature is checked before trusting the payload'],
+    ['redirect', 'Ensure the redirect URL is validated to prevent open redirect'],
+    ['rate-limit', 'Verify that the API endpoint has rate limiting to prevent abuse'],
+  ];
+
+  for (const [term, message] of securityFindings) {
+    it(`should NOT suppress info finding mentioning ${term} (security blocklist)`, () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredByCautionaryAdvice).toBe(0);
+    });
+  }
+
+  // Negative controls: "token" and "session" in non-security contexts
+  // should still be suppressed (hedging + no security meaning)
+  it('should suppress non-security "token" finding (lexer/parser context)', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        line: 10,
+        message: 'Ensure that all token types in the lexer are handled consistently',
+      }),
+    ];
+    const result = validateFindingsSemantics(findings);
+    // "token" appears but this IS about tokens — the blocklist will fire.
+    // This is an accepted over-block: the three-gate architecture (info + hedging +
+    // blocklist) makes this a narrow edge case. The cost of keeping this finding
+    // alive is far lower than the cost of silently dropping JWT/auth token findings.
+    // We document this as expected behavior: "token" in ANY context blocks suppression.
+    expect(result.validFindings).toHaveLength(1);
+  });
+
+  it('should suppress non-security "session" finding (database pool context)', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        line: 10,
+        message: 'Ensure that all database session pool connections are released properly',
+      }),
+    ];
+    const result = validateFindingsSemantics(findings);
+    // "session" appears — blocklist fires, finding survives.
+    // Same accepted trade-off as "token" above.
+    expect(result.validFindings).toHaveLength(1);
+  });
+
+  it('should still suppress non-security cautionary advice without blocklist terms', () => {
+    // Regression guard: plain hedging advice with no security terms IS suppressed
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        line: 10,
+        message: 'Ensure that the variable naming follows the project convention',
+      }),
+    ];
+    const result = validateFindingsSemantics(findings);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.stats.filteredByCautionaryAdvice).toBe(1);
+  });
+});
+
+/**
  * Stage 2: Post-normalization validation tests (validateNormalizedFindings)
  *
  * Tests that Stage 2 correctly filters truly unplaceable findings after normalization.

@@ -124,7 +124,7 @@ const CAUTIONARY_ADVICE_PATTERNS: RegExp[] = [
  * is treated as a legitimate concern, not hedging advice.
  */
 const SECURITY_BLOCKLIST =
-  /\b(?:sql|injection|xss|cross.?site|sanitiz|escap|authenti|authoriz|csrf|ssrf|path.?traversal|command.?inject|exec\s*\(|eval\s*\(|deseria|privilege|encrypt|password|credential|secret|vulnerab|exploit|attack|malicious|buffer.?overflow|bypass)\b/i;
+  /\b(?:sql|injection|xss|cross.?site|sanitiz|escap|authenti|authoriz|csrf|ssrf|path.?traversal|command.?inject|exec\s*\(|eval\s*\(|deseria|privilege|encrypt|password|credential|secret|vulnerab|exploit|attack|malicious|buffer.?overflow|bypass|jwt|token|signature|session|cors|cookie|rate.?limit(?:ing)?|redirect)\b/i;
 
 /**
  * Check if a suggestion is actionable (contains concrete guidance beyond dismissive language).
