@@ -14,6 +14,9 @@
     },
     {
       "pattern": "^https://learn.microsoft.com/.*/media/"
+    },
+    {
+      "pattern": "^mailto:"
     }
   ],
   "replacementPatterns": [],
