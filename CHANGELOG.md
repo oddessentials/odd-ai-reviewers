@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.10.1...v1.11.0) (2026-03-16)
+
+### Features
+
+* repo health overhaul — test consolidation, hook restructuring, tracking hygiene ([#188](https://github.com/oddessentials/odd-ai-reviewers/issues/188)) ([76c84ee](https://github.com/oddessentials/odd-ai-reviewers/commit/76c84ee8a17f247969ca1f9cf2008451ddc39946))
+
 ## [1.10.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.10.0...v1.10.1) (2026-03-15)
 
 ### Bug Fixes
