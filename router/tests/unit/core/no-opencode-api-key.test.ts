@@ -19,7 +19,7 @@ const BANNED_PATTERNS = ['OPENCODE_API_KEY', 'OPENCODE_APIKEY', 'OPENCODE_KEY'];
 const SCAN_PATHS = ['../.github/workflows', '../docs', '../README.md'];
 
 describe('No OPENCODE_API_KEY References', () => {
-  const routerRoot = join(import.meta.dirname, '../..');
+  const routerRoot = join(import.meta.dirname, '../../..');
 
   for (const pattern of BANNED_PATTERNS) {
     it(`should not contain '${pattern}' in workflows or docs`, () => {

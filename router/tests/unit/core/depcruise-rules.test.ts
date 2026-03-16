@@ -348,7 +348,7 @@ describe('Dependency Cruiser Rule Validation', () => {
         );
 
         expect(result.exitCode).toBe(0);
-        expect(result.output).toContain('no dependency violations found');
+        expect(result.output).toContain('0 errors');
       },
       DEPCRUISE_TIMEOUT_MS
     );
