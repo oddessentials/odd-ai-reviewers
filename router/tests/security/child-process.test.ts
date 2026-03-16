@@ -9,8 +9,8 @@
  * - exec() with user-controlled input
  * - execSync() without proper input validation
  *
- * IMPORTANT: The single allowed exception is depcruise-rules.test.ts which
- * uses shell: true for pnpm.cmd on Windows, but with hardcoded commands only.
+ * NOTE: depcruise-rules.test.ts (tests/unit/core/) uses shell: true for
+ * pnpm.cmd on Windows, but it's outside router/src/ so not scanned here.
  *
  * @module tests/security/child-process
  */
@@ -28,13 +28,9 @@ const ROUTER_SRC = join(__dirname, '..', '..', 'src');
 /**
  * Known exceptions with justification
  * Note: Use forward slashes for cross-platform matching
+ * Note: Tests moved to router/tests/ (outside ROUTER_SRC scan scope)
  */
-const ALLOWED_SHELL_TRUE_FILES = [
-  // Test file that uses shell: true for pnpm.cmd on Windows
-  // Justification: Uses hardcoded 'pnpm' command, not user input
-  '__tests__/depcruise-rules.test.ts',
-  'depcruise-rules.test.ts', // Also match just the filename
-];
+const ALLOWED_SHELL_TRUE_FILES: string[] = [];
 
 describe('T123: Child Process Security Compliance', () => {
   describe('Static Analysis: shell: true Detection', () => {
@@ -42,7 +38,7 @@ describe('T123: Child Process Security Compliance', () => {
       // Search for shell: true in src files (excluding tests and allowed files)
       const sourceFiles = await glob('**/*.ts', {
         cwd: ROUTER_SRC,
-        ignore: ['**/__tests__/**', '**/*.test.ts', '**/tests/**'],
+        ignore: ['**/*.test.ts', '**/tests/**'],
       });
 
       const violations: string[] = [];
@@ -93,7 +89,7 @@ describe('T123: Child Process Security Compliance', () => {
     it('should prefer execFileSync over execSync in production code', async () => {
       const sourceFiles = await glob('**/*.ts', {
         cwd: ROUTER_SRC,
-        ignore: ['**/__tests__/**', '**/*.test.ts', '**/tests/**'],
+        ignore: ['**/*.test.ts', '**/tests/**'],
       });
 
       const execSyncUsages: { file: string; line: number; context: string }[] = [];
@@ -143,7 +139,7 @@ describe('T123: Child Process Security Compliance', () => {
     it('should not use exec() with string interpolation', async () => {
       const sourceFiles = await glob('**/*.ts', {
         cwd: ROUTER_SRC,
-        ignore: ['**/__tests__/**', '**/*.test.ts', '**/tests/**'],
+        ignore: ['**/*.test.ts', '**/tests/**'],
       });
 
       const violations: { file: string; line: number; context: string }[] = [];

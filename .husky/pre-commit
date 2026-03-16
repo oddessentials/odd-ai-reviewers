@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Secret file guard: reject .env files (except .env.example)
-if git diff --cached --name-only | grep -E '(^|/)\.env' | grep -v '\.env\.example$'; then
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then
   echo 'ERROR: .env files must not be committed. Only .env.example is allowed.'
   echo 'If you need to force-add, document the reason in the PR description.'
   exit 1

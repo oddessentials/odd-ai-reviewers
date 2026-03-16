@@ -2,7 +2,7 @@
  * Hermetic Test Setup Utilities
  *
  * Shared test infrastructure for deterministic, isolated tests.
- * Located in __tests__/ directory which is classified as test code
+ * Located in tests/ directory which is classified as test code
  * by dependency-cruiser, allowing legitimate vitest imports.
  *
  * Provides:
