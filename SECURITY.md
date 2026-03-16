@@ -65,7 +65,7 @@ All CVE exceptions in `.trivyignore` follow a 180-day maximum lifecycle:
 3. **Expiration**: At 180 days, exception must be re-approved or removed
 4. **Removal**: When upstream fix is released, update dependencies and remove exception
 
-See `specs/001-security-cve-cleanup/SETUP-INSTRUCTIONS.md` for the full review checklist.
+See `specs/archive/001-security-cve-cleanup/SETUP-INSTRUCTIONS.md` for the full review checklist.
 
 ## Dependency Management
 

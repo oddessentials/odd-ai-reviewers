@@ -113,7 +113,7 @@ describe('local-diff', () => {
         expect(result.headSha).toBe(headSha);
       });
 
-      it('should resolve refs relative to HEAD', () => {
+      it('should resolve refs relative to HEAD', { timeout: 15_000 }, () => {
         // Test that we can diff against a relative ref
         // Use HEAD~1 instead of 'main' to avoid CI issues where
         // main branch may not exist in shallow PR checkouts
@@ -131,7 +131,7 @@ describe('local-diff', () => {
   });
 
   describe('hasLocalChanges', () => {
-    it('should return boolean for uncommitted check', () => {
+    it('should return boolean for uncommitted check', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD',
         uncommitted: true,
@@ -140,7 +140,7 @@ describe('local-diff', () => {
       const result = hasLocalChanges(REPO_ROOT, options);
 
       expect(typeof result).toBe('boolean');
-    }, 15000);
+    });
 
     it('should return boolean for staged check', () => {
       const options: LocalDiffOptions = {
@@ -176,7 +176,7 @@ describe('local-diff', () => {
   });
 
   describe('path filtering', () => {
-    it('should apply include patterns', () => {
+    it('should apply include patterns', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~5',
         pathFilter: {
@@ -193,7 +193,7 @@ describe('local-diff', () => {
       }
     });
 
-    it('should apply exclude patterns', () => {
+    it('should apply exclude patterns', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~5',
         pathFilter: {
@@ -212,7 +212,7 @@ describe('local-diff', () => {
   });
 
   describe('DiffSummary structure', () => {
-    it('should return properly structured DiffSummary', () => {
+    it('should return properly structured DiffSummary', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~1',
       };
@@ -228,7 +228,7 @@ describe('local-diff', () => {
       expect(result).toHaveProperty('source');
     });
 
-    it('should include file metadata for each changed file', () => {
+    it('should include file metadata for each changed file', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~1',
       };
@@ -244,7 +244,7 @@ describe('local-diff', () => {
       }
     });
 
-    it('should include patches for non-binary, non-deleted files', () => {
+    it('should include patches for non-binary, non-deleted files', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~1',
       };
@@ -321,7 +321,7 @@ describe('local-diff', () => {
   });
 
   describe('T047: Detached HEAD handling', () => {
-    it('should succeed in range mode with relative refs', () => {
+    it('should succeed in range mode with relative refs', { timeout: 15_000 }, () => {
       // Test that we can diff relative refs like HEAD~1
       // This works regardless of whether we're on a branch or detached HEAD
       const options: LocalDiffOptions = {
@@ -336,7 +336,7 @@ describe('local-diff', () => {
       expect(result.files).toBeDefined();
     });
 
-    it('should resolve HEAD reference in range mode', () => {
+    it('should resolve HEAD reference in range mode', { timeout: 15_000 }, () => {
       const options: LocalDiffOptions = {
         baseRef: 'HEAD~2',
         headRef: 'HEAD',

@@ -3,7 +3,7 @@
 # Patterns for external URLs that should be excluded from link validation.
 # Each entry requires a reason to ensure allowlist decisions are documented.
 #
-# @see specs/006-quality-enforcement/contracts/linkcheck-allowlist.ts
+# @see specs/archive/006-quality-enforcement/contracts/linkcheck-allowlist.ts
 # @see FR-013, FR-013a
 
 version: '1.0.0'

@@ -26,7 +26,7 @@ const specsPath = path.join(__dirname, '..', 'specs');
 // Find all spec.md files
 let specFiles;
 try {
-  specFiles = globSync('*/spec.md', { cwd: specsPath });
+  specFiles = globSync('{*/spec.md,archive/*/spec.md}', { cwd: specsPath });
 } catch (err) {
   console.error(`[spec-linkcheck] ❌ Failed to scan specs directory: ${err.message}`);
   process.exit(2);

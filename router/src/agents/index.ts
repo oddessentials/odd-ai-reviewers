@@ -15,6 +15,9 @@ export type {
   ReviewAgent,
 } from './types.js';
 
+// Re-export metadata helpers (agent environment and security metadata)
+export { getSecurityMetadata, getKnownEnv } from './metadata.js';
+
 // Import types for internal use
 import type { ReviewAgent } from './types.js';
 

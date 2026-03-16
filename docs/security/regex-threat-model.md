@@ -257,7 +257,7 @@ When Semgrep or other security tools report `detect-non-literal-regexp` findings
 
 ## References
 
-- [FR-014](../../specs/006-quality-enforcement/spec.md) - ReDoS threat model documentation
-- [FR-015](../../specs/006-quality-enforcement/spec.md) - Trust level code comments
-- [FR-016](../../specs/006-quality-enforcement/spec.md) - Data flow documentation
+- [FR-014](../../specs/archive/006-quality-enforcement/spec.md) - ReDoS threat model documentation
+- [FR-015](../../specs/archive/006-quality-enforcement/spec.md) - Trust level code comments
+- [FR-016](../../specs/archive/006-quality-enforcement/spec.md) - Data flow documentation
 - [OWASP ReDoS](https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS)

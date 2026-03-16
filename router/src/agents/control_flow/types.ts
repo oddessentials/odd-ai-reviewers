@@ -2,7 +2,7 @@
  * Control Flow Analysis Types
  *
  * Type definitions for the control flow analysis agent.
- * Based on specs/001-control-flow-analysis/contracts/control-flow-types.ts
+ * Based on specs/archive/001-control-flow-analysis/contracts/control-flow-types.ts
  */
 
 import { z } from 'zod';
