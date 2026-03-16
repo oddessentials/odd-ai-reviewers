@@ -28,7 +28,7 @@ const ALLOWED_TEST_INFRA_PATTERN = '^router/tests/';
 const DEPCRUISE_TIMEOUT_MS = 30000;
 
 function supportsDepcruise(): boolean {
-  const result = spawnSync('pnpm', ['depcruise', '--version'], {
+  const result = spawnSync('pnpm', ['exec', 'depcruise', '--version'], {
     cwd: projectRoot,
     encoding: 'utf-8',
     stdio: 'pipe',
@@ -97,7 +97,7 @@ function runDepcruise(argsString: string): { exitCode: number; output: string } 
   validateDepcruiseArgs(args);
 
   try {
-    const output = execFileSync('pnpm', ['depcruise', ...args], {
+    const output = execFileSync('pnpm', ['exec', 'depcruise', ...args], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -348,7 +348,7 @@ describe('Dependency Cruiser Rule Validation', () => {
         );
 
         expect(result.exitCode).toBe(0);
-        expect(result.output).toContain('0 errors');
+        expect(result.output).toContain('no dependency violations found');
       },
       DEPCRUISE_TIMEOUT_MS
     );
