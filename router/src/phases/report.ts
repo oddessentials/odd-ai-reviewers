@@ -129,7 +129,8 @@ function applySharedPreDiffReportingStages(
     afterSuppression = userSuppressionResult.filtered;
 
     if (userSuppressionResult.suppressed.length > 0) {
-      console.log(
+      // Diagnostics go to stderr to avoid corrupting JSON/SARIF stdout
+      console.error(
         `[router] [user-suppression] Suppressed ${userSuppressionResult.suppressed.length} finding(s) via ${suppressionRules.length} rule(s)`
       );
     }
@@ -151,7 +152,8 @@ function applySharedPreDiffReportingStages(
   const frameworkFiltered = getValidFindings(frameworkResult);
 
   if (frameworkResult.suppressed > 0) {
-    console.log(
+    // Diagnostics go to stderr to avoid corrupting JSON/SARIF stdout
+    console.error(
       `[router] [framework-filter] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
     );
   }

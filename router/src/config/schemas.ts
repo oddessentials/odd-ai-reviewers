@@ -247,17 +247,34 @@ export const SuppressionRuleSchema = z
       if (rule.message === undefined) return true;
       if (rule.message.length === 0) return false;
       // FR-022: Message patterns MUST be fully anchored (^ and $).
-      // This forces users to declare full matching intent:
-      //   "^exact match$"           — most precise
-      //   "^.*substring.*$"         — explicit substring opt-in
-      //   "^prefix"                 — rejected (ambiguous end boundary)
-      //   "error handling"          — rejected (ambiguous on both ends)
-      return rule.message.startsWith('^') && rule.message.endsWith('$');
+      if (!(rule.message.startsWith('^') && rule.message.endsWith('$'))) return false;
+      // Reject blanket patterns that match everything (^.*$, ^.+$, ^.{0,}$)
+      const blanketPatterns = ['^.*$', '^.+$', '^.{0,}$'];
+      if (blanketPatterns.includes(rule.message)) return false;
+      return true;
     },
     {
       message:
-        "Message pattern must be fully anchored (start with ^ and end with $). Use '^pattern$' for exact match or '^.*pattern.*$' for substring matching.",
+        "Message pattern must be fully anchored (^...$) and not a blanket match. Use '^specific pattern$' for exact match or '^.*specific.*$' for substring.",
     }
+  )
+  .refine(
+    (rule) => {
+      if (rule.rule === undefined) return true;
+      // Reject blanket rule globs that match all rule IDs
+      const blanketGlobs = ['*', '**', '**/*'];
+      return !blanketGlobs.includes(rule.rule);
+    },
+    { message: "Rule glob must be scoped (e.g., 'semantic/*'), not a blanket '*'." }
+  )
+  .refine(
+    (rule) => {
+      if (rule.file === undefined) return true;
+      // Reject blanket file globs that match all files
+      const blanketGlobs = ['*', '**', '**/*', '**/**'];
+      return !blanketGlobs.includes(rule.file);
+    },
+    { message: "File glob must be scoped (e.g., 'tests/**'), not a blanket '**'." }
   )
   .refine(
     (rule) => {

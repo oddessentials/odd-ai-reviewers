@@ -119,7 +119,8 @@ export function filterUserSuppressions(
         suppressed.push({ finding, rule, ruleIndex: i });
         matchCounts.set(i, (matchCounts.get(i) ?? 0) + 1);
         wasSuppressed = true;
-        console.log(
+        // Diagnostics go to stderr to avoid corrupting JSON/SARIF stdout output
+        console.error(
           `[router] [user-suppression] Suppressed: ${finding.file}:${finding.line ?? '?'} — rule: "${rule.reason}"`
         );
         break; // First matching rule wins
@@ -239,7 +240,7 @@ export function enforceBreadthLimits(
       const rule = rules[i] as SuppressionRule;
       const count = result.matchCounts.get(i) ?? 0;
       if (rule.breadth_override && count > DEFAULT_BREADTH_LIMIT) {
-        console.log(
+        console.error(
           `[router] [user-suppression] Broad suppression override: '${rule.reason}' approved by ${rule.approved_by ?? 'unknown'} — matched ${count} findings`
         );
       }
@@ -342,7 +343,7 @@ export function loadBaseBranchSuppressions(repoPath: string, baseRef: string): S
 
     const parsed = parseYaml(configContent) as Record<string, unknown>;
     if (!parsed || typeof parsed !== 'object' || !('suppressions' in parsed)) {
-      console.log('[router] [user-suppression] Base branch config has no suppressions section');
+      console.error('[router] [user-suppression] Base branch config has no suppressions section');
       return emptySuppressions;
     }
 
@@ -354,7 +355,7 @@ export function loadBaseBranchSuppressions(repoPath: string, baseRef: string): S
       return emptySuppressions;
     }
 
-    console.log(
+    console.error(
       `[router] [user-suppression] Loaded ${result.data.rules.length} suppression rule(s) from base branch (${baseRef})`
     );
     return result.data;
@@ -362,7 +363,7 @@ export function loadBaseBranchSuppressions(repoPath: string, baseRef: string): S
     // git show fails when config doesn't exist on base branch — expected
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('does not exist') || message.includes('fatal:')) {
-      console.log(
+      console.error(
         '[router] [user-suppression] No .ai-review.yml on base branch — no suppressions active'
       );
     } else {

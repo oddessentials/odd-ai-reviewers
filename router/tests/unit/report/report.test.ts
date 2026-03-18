@@ -388,7 +388,7 @@ describe('Report Module', () => {
       const processed = processFindings(findings, [], [], [], diffFiles);
 
       expect(processed.sorted).toEqual([]);
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('[framework-filter] Suppressed 1 framework convention finding(s)')
       );
     });

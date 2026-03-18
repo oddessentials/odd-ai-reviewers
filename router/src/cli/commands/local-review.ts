@@ -966,7 +966,17 @@ export async function runLocalReview(
   }
 
   if (resolvedOptions.costOnly) {
-    const costResult = await executeCostOnly(resolvedOptions, gitContext, config, deps);
+    // FR-003: Cost estimation MUST be scoped to the execution plan's passes only
+    const planFilteredConfig = {
+      ...config,
+      passes: planPasses.map((p) => ({
+        name: p.name,
+        agents: [...p.agents],
+        enabled: true,
+        required: p.required,
+      })),
+    };
+    const costResult = await executeCostOnly(resolvedOptions, gitContext, planFilteredConfig, deps);
     const output = formatCostOutput(costResult, colored);
     stdout.write(output);
     return {

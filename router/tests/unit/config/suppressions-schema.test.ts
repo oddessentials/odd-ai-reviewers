@@ -113,11 +113,58 @@ describe('SuppressionRuleSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts ^.*$ as explicit breadth acknowledgement', () => {
-    // ^.*$ is intentionally allowed — runtime breadth limits catch overly broad matches
+  it('rejects ^.*$ blanket message pattern', () => {
     const result = SuppressionRuleSchema.safeParse({
       message: '^.*$',
-      reason: 'Explicit breadth opt-in',
+      reason: 'Should fail — matches everything',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ^.+$ blanket message pattern', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      message: '^.+$',
+      reason: 'Should fail — matches everything non-empty',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects blanket rule glob *', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      rule: '*',
+      reason: 'Should fail — matches all rule IDs',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects blanket file glob **', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      file: '**',
+      reason: 'Should fail — matches all files',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects blanket file glob **/*', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      file: '**/*',
+      reason: 'Should fail — matches all files',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts scoped rule glob', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      rule: 'semantic/*',
+      reason: 'Scoped to semantic rules',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts scoped file glob', () => {
+    const result = SuppressionRuleSchema.safeParse({
+      file: 'tests/**',
+      reason: 'Scoped to tests directory',
     });
     expect(result.success).toBe(true);
   });
