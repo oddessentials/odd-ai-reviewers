@@ -15,6 +15,7 @@ import type { DiffSummary, DiffFile } from '../../../../src/diff.js';
 import type { Config } from '../../../../src/config.js';
 import type { Finding } from '../../../../src/agents/types.js';
 import type { TerminalContext } from '../../../../src/report/terminal.js';
+import { FatalExecutionError } from '../../../../src/phases/execute.js';
 
 import { runLocalReview, ExitCode } from '../../../../src/cli/commands/local-review.js';
 import { Ok, Err } from '../../../../src/types/result.js';
@@ -481,6 +482,55 @@ describe('runLocalReview', () => {
       // Fatal crash with no preserved findings → config_error (exit 2), not incomplete
       expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
       expect(result.error).toContain('Agent execution failed');
+    });
+
+    it('returns incomplete when fatal partial results exist but findings are zero', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 10,
+          deletions: 5,
+          patch: '+line\n-line',
+        },
+      ]);
+      const mockConfig = createMockConfig();
+      const reportToTerminal = vi.fn().mockResolvedValue({
+        success: true,
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+        executeAllPasses: async () => {
+          throw new FatalExecutionError('AGENT_CRASH', 'Required agent crashed', {
+            partialResults: {
+              completeFindings: [],
+              partialFindings: [],
+              allResults: [],
+              skippedAgents: [],
+            },
+          });
+        },
+        reportToTerminal,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.INCOMPLETE);
+      expect(result.status).toBe('incomplete');
+      expect(reportToTerminal).toHaveBeenCalledWith(
+        [],
+        [],
+        expect.any(Object),
+        mockConfig,
+        mockDiff.files,
+        expect.objectContaining({ status: 'incomplete' })
+      );
     });
 
     it('should exit early when required dependencies are missing', async () => {

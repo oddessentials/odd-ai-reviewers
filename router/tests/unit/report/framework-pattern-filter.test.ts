@@ -143,15 +143,20 @@ const SWITCH_DIFF_WITHOUT_ASSERT_NEVER = `diff --git a/src/handler.ts b/src/hand
 
 describe('Framework Pattern Filter (FR-013)', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* noop */
+    });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
       /* noop */
     });
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   // ===========================================================================
@@ -2931,6 +2936,23 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       const result = filterFrameworkConventionFindings(findings, '', []);
       expect(result.suppressed).toBe(1); // Normal behavior
+    });
+
+    it('writes disabled matcher diagnostics to stderr so machine-readable stdout stays clean', () => {
+      const findings = [makeFinding({ message: 'unused variable _a is never referenced' })];
+
+      const result = filterFrameworkConventionFindings(findings, '', ['ts-unused-prefix']);
+      const jsonPayload = JSON.stringify({ findings: getValidFindings(result) });
+      const sarifPayload = JSON.stringify({ runs: [{ results: getValidFindings(result) }] });
+
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[router] [framework-filter] Disabled matchers:')
+      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[router] [framework-filter] Disabled matchers: ts-unused-prefix'
+      );
+      expect(() => JSON.parse(jsonPayload)).not.toThrow();
+      expect(() => JSON.parse(sarifPayload)).not.toThrow();
     });
   });
 });

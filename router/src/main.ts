@@ -1131,12 +1131,7 @@ export async function runReview(
 
     // FR-021: When a FatalExecutionError carries partial results, report them
     // in degraded mode with a 'neutral' check run conclusion instead of 'failure'.
-    if (
-      error instanceof FatalExecutionError &&
-      error.partialResults &&
-      (error.partialResults.completeFindings.length > 0 ||
-        error.partialResults.partialFindings.length > 0)
-    ) {
+    if (error instanceof FatalExecutionError && error.partialResults) {
       console.warn(
         `[router] ⚠ Incomplete review: ${errorMsg}. ` +
           `Reporting ${error.partialResults.completeFindings.length} findings from completed agents.`

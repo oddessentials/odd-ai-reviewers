@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   processFindings,
+  processLocalReportFindings,
   dispatchReport,
   getPostNormalizationFindings,
   checkGating,
@@ -524,6 +525,84 @@ describe('Report Module', () => {
       expect(processed.summary).toContain('🤖'); // codeql uses default icon (not in mapping)
       // The section header should appear
       expect(processed.summary).toContain('Partial Findings (from failed agents)');
+    });
+
+    it('applies suppression rules to partial findings before reporting them', () => {
+      const partialFindings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/generated.ts',
+          line: 12,
+          message: 'Ignore me',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      const processed = processFindings(
+        [],
+        partialFindings,
+        [],
+        [],
+        [],
+        undefined,
+        config,
+        'local'
+      );
+
+      expect(processed.partialSorted).toEqual([]);
+      expect(processed.partial).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 1 },
+      ]);
+    });
+
+    it('applies suppression rules to partial findings in the local reporting pipeline', () => {
+      const partialFindings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/generated.ts',
+          line: 12,
+          message: 'Ignore me',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      const processed = processLocalReportFindings([], partialFindings, [], config, 'local');
+
+      expect(processed.partial).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 1 },
+      ]);
     });
   });
 

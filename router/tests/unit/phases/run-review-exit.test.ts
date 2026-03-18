@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigSchema } from '../../../src/config/schemas.js';
 import { createValidatedConfigHelpers } from '../../../src/types/branded.js';
 import type { DiffFile, DiffSummary, ResolvedReviewRefs } from '../../../src/diff.js';
+import { FatalExecutionError } from '../../../src/phases/execute.js';
 
 vi.mock('../../../src/config.js', () => ({ loadConfig: vi.fn() }));
 vi.mock('../../../src/reviewignore.js', () => ({
@@ -230,6 +231,61 @@ describe('runReview exit behavior', () => {
       expect.objectContaining({
         conclusion: 'failure',
         title: 'AI Review failed',
+      })
+    );
+  });
+
+  it('treats fatal partial results with zero findings as incomplete', async () => {
+    const exitHandler = vi.fn();
+    vi.mocked(executeAllPasses).mockRejectedValue(
+      new FatalExecutionError('AGENT_CRASH', 'Required agent crashed', {
+        partialResults: {
+          completeFindings: [],
+          partialFindings: [],
+          allResults: [],
+          skippedAgents: [],
+        },
+      })
+    );
+
+    await runReview(
+      {
+        repo: '.',
+        base: 'base',
+        head: 'head',
+        pr: 123,
+        owner: 'odd',
+        repoName: 'ai-review',
+        dryRun: false,
+      },
+      {
+        env: { GITHUB_ACTIONS: 'true', GITHUB_TOKEN: 'token' },
+        exitHandler,
+      }
+    );
+
+    expect(exitHandler).toHaveBeenCalledWith(3);
+    expect(processFindings).toHaveBeenCalledWith(
+      [],
+      [],
+      [],
+      [],
+      diffFiles,
+      undefined,
+      expect.objectContaining(baseConfig),
+      'ci'
+    );
+    expect(dispatchReport).toHaveBeenCalledWith(
+      'github',
+      [],
+      [],
+      expect.any(Object),
+      diffFiles,
+      expect.any(Object),
+      123,
+      expect.objectContaining({
+        checkRunId: 123,
+        runStatus: 'incomplete',
       })
     );
   });

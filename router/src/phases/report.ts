@@ -84,7 +84,20 @@ export interface ProcessedFindings extends SharedReportFindings {
 
 interface SharedPreDiffResult {
   findings: Finding[];
+  userSuppressionResult?: UserSuppressionResult;
   suppressionSummary?: { reason: string; matched: number }[];
+}
+
+function mergeMatchCounts(...matchCounts: Map<number, number>[]): Map<number, number> {
+  const merged = new Map<number, number>();
+
+  for (const counts of matchCounts) {
+    for (const [ruleIndex, count] of counts) {
+      merged.set(ruleIndex, (merged.get(ruleIndex) ?? 0) + count);
+    }
+  }
+
+  return merged;
 }
 
 function buildFrameworkFilterDiffContent(diffFiles: DiffFile[]): string {
@@ -162,7 +175,7 @@ function applySharedPreDiffReportingStages(
     ? buildSuppressionSummary(suppressionRules, userSuppressionResult.matchCounts)
     : undefined;
 
-  return { findings: frameworkFiltered, suppressionSummary };
+  return { findings: frameworkFiltered, userSuppressionResult, suppressionSummary };
 }
 
 /**
@@ -199,8 +212,26 @@ export function processFindings(
   // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
   // FR-011: No cross-collection deduplication - partial findings stay separate
   const partialDeduplicated = deduplicatePartialFindings(partialFindings);
-  const partialSanitized = sanitizeFindings(partialDeduplicated);
+  const partialSharedPreDiff = applySharedPreDiffReportingStages(
+    partialDeduplicated,
+    diffFiles,
+    prDescription,
+    config,
+    suppressionMode
+  );
+  const partialSanitized = sanitizeFindings(partialSharedPreDiff.findings);
   const partialSorted = sortFindings(partialSanitized);
+  const suppressionRules = config?.suppressions?.rules ?? [];
+  const suppressionSummary =
+    suppressionRules.length > 0
+      ? buildSuppressionSummary(
+          suppressionRules,
+          mergeMatchCounts(
+            sharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>(),
+            partialSharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>()
+          )
+        )
+      : sharedPreDiff.suppressionSummary;
 
   // Transform AgentResult[] to the format expected by generateFullSummaryMarkdown
   // This adapts the new discriminated union to the legacy format
@@ -262,7 +293,7 @@ export function processFindings(
     sorted,
     partialSorted,
     summary,
-    suppressionSummary: sharedPreDiff.suppressionSummary,
+    suppressionSummary,
   };
 }
 
@@ -435,11 +466,34 @@ export function processLocalReportFindings(
     suppressionMode
   );
   const postNorm = normalizeAndValidateFindings(sharedPreDiff.findings, diffFiles, 'pipeline');
+  const partialSharedPreDiff = applySharedPreDiffReportingStages(
+    deduplicatePartialFindings(partialFindings),
+    diffFiles,
+    undefined,
+    config,
+    suppressionMode
+  );
+  const partialPostNorm = normalizeAndValidateFindings(
+    partialSharedPreDiff.findings,
+    diffFiles,
+    'pipeline'
+  );
+  const suppressionRules = config?.suppressions?.rules ?? [];
+  const suppressionSummary =
+    suppressionRules.length > 0
+      ? buildSuppressionSummary(
+          suppressionRules,
+          mergeMatchCounts(
+            sharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>(),
+            partialSharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>()
+          )
+        )
+      : sharedPreDiff.suppressionSummary;
 
   return {
     complete: sanitizeFindings(postNorm.validatedFindings),
-    partial: sanitizeFindings(deduplicatePartialFindings(partialFindings)),
-    suppressionSummary: sharedPreDiff.suppressionSummary,
+    partial: sanitizeFindings(partialPostNorm.validatedFindings),
+    suppressionSummary,
   };
 }
 

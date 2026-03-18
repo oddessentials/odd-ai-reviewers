@@ -1160,12 +1160,7 @@ export async function runLocalReview(
 
     // FR-021: Extract partial results from FatalExecutionError when available.
     // If agents completed before the failure, report their findings in degraded mode.
-    if (
-      error instanceof FatalExecutionError &&
-      error.partialResults &&
-      (error.partialResults.completeFindings.length > 0 ||
-        error.partialResults.partialFindings.length > 0)
-    ) {
+    if (error instanceof FatalExecutionError && error.partialResults) {
       stderr.write(c.yellow(`\n⚠ Incomplete review: ${errorMsg}\n`));
       stderr.write(
         c.yellow(

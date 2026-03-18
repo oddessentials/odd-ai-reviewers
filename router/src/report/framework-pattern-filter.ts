@@ -726,7 +726,7 @@ export function filterFrameworkConventionFindings(
   let suppressed = 0;
 
   if (disabledSet.size > 0) {
-    console.log(`[router] [framework-filter] Disabled matchers: ${[...disabledSet].join(', ')}`);
+    console.error(`[router] [framework-filter] Disabled matchers: ${[...disabledSet].join(', ')}`);
   }
 
   for (const finding of findings) {
