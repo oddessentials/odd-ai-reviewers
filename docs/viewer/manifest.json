@@ -12,9 +12,19 @@
           "path": "../analysis/baseline-report.md"
         },
         {
+          "name": "BENCHMARK_RECORD_OPTIONS_ANALYSIS.md",
+          "type": "file",
+          "path": "../analysis/BENCHMARK_RECORD_OPTIONS_ANALYSIS.md"
+        },
+        {
           "name": "benchmark-integration-plan.md",
           "type": "file",
           "path": "../analysis/benchmark-integration-plan.md"
+        },
+        {
+          "name": "FINDING_LIFECYCLE_ANALYSIS.md",
+          "type": "file",
+          "path": "../analysis/FINDING_LIFECYCLE_ANALYSIS.md"
         },
         {
           "name": "fp-taxonomy.md",
@@ -27,9 +37,24 @@
           "path": "../analysis/gap-analysis.md"
         },
         {
+          "name": "PROMPT_ANALYSIS_FINDINGS.md",
+          "type": "file",
+          "path": "../analysis/PROMPT_ANALYSIS_FINDINGS.md"
+        },
+        {
+          "name": "PROMPT_MODIFICATION_MAP.md",
+          "type": "file",
+          "path": "../analysis/PROMPT_MODIFICATION_MAP.md"
+        },
+        {
           "name": "prompt-rule-gap-analysis.md",
           "type": "file",
           "path": "../analysis/prompt-rule-gap-analysis.md"
+        },
+        {
+          "name": "RESEARCH.md",
+          "type": "file",
+          "path": "../analysis/RESEARCH.md"
         }
       ]
     },
@@ -306,9 +331,19 @@
       "path": "../analysis/baseline-report.md"
     },
     {
+      "name": "analysis/BENCHMARK_RECORD_OPTIONS_ANALYSIS.md",
+      "type": "file",
+      "path": "../analysis/BENCHMARK_RECORD_OPTIONS_ANALYSIS.md"
+    },
+    {
       "name": "analysis/benchmark-integration-plan.md",
       "type": "file",
       "path": "../analysis/benchmark-integration-plan.md"
+    },
+    {
+      "name": "analysis/FINDING_LIFECYCLE_ANALYSIS.md",
+      "type": "file",
+      "path": "../analysis/FINDING_LIFECYCLE_ANALYSIS.md"
     },
     {
       "name": "analysis/fp-taxonomy.md",
@@ -321,9 +356,24 @@
       "path": "../analysis/gap-analysis.md"
     },
     {
+      "name": "analysis/PROMPT_ANALYSIS_FINDINGS.md",
+      "type": "file",
+      "path": "../analysis/PROMPT_ANALYSIS_FINDINGS.md"
+    },
+    {
+      "name": "analysis/PROMPT_MODIFICATION_MAP.md",
+      "type": "file",
+      "path": "../analysis/PROMPT_MODIFICATION_MAP.md"
+    },
+    {
       "name": "analysis/prompt-rule-gap-analysis.md",
       "type": "file",
       "path": "../analysis/prompt-rule-gap-analysis.md"
+    },
+    {
+      "name": "analysis/RESEARCH.md",
+      "type": "file",
+      "path": "../analysis/RESEARCH.md"
     },
     {
       "name": "architecture/index.md",

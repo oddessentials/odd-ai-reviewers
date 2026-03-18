@@ -9,6 +9,12 @@
 # This image MUST be scanned with Trivy before publishing.
 # CI should fail on high/critical CVEs.
 
+FROM golang:1.26.1-bookworm AS reviewdog-builder
+
+ARG REVIEWDOG_VERSION=0.21.0
+
+RUN CGO_ENABLED=0 go install github.com/reviewdog/reviewdog/cmd/reviewdog@v${REVIEWDOG_VERSION}
+
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -27,15 +33,10 @@ RUN apt-get update && apt-get install -y \
 ARG SEMGREP_VERSION=1.149.0
 RUN pip3 install semgrep==${SEMGREP_VERSION} --break-system-packages
 
-# Install reviewdog (direct binary download with checksum verification)
-# Version pinned and verified - no curl|bash installer
-ARG REVIEWDOG_VERSION=0.21.0
-RUN curl -fsSL -o /tmp/reviewdog.tar.gz \
-    "https://github.com/reviewdog/reviewdog/releases/download/v${REVIEWDOG_VERSION}/reviewdog_${REVIEWDOG_VERSION}_Linux_x86_64.tar.gz" && \
-    tar -xzf /tmp/reviewdog.tar.gz -C /usr/local/bin reviewdog && \
-    chmod +x /usr/local/bin/reviewdog && \
-    rm /tmp/reviewdog.tar.gz && \
-    reviewdog --version
+# Install reviewdog from source with a patched Go toolchain
+# Avoids inheriting vulnerabilities from older prebuilt release binaries
+COPY --from=reviewdog-builder /go/bin/reviewdog /usr/local/bin/reviewdog
+RUN reviewdog --version
 
 # Install OpenCode CLI
 # SECURITY: Post-CVE version (CVE-2026-22812 fixed in v0.8.0+)

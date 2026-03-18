@@ -143,15 +143,20 @@ const SWITCH_DIFF_WITHOUT_ASSERT_NEVER = `diff --git a/src/handler.ts b/src/hand
 
 describe('Framework Pattern Filter (FR-013)', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* noop */
+    });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
       /* noop */
     });
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   // ===========================================================================
@@ -2285,6 +2290,124 @@ describe('Framework Pattern Filter (FR-013)', () => {
       const result = filterFrameworkConventionFindings(findings, innerHTMLDiff);
       expect(result.suppressed).toBe(0);
     });
+
+    // FR-015: Variable-backed HTML detection tests
+    it('FR-015: should NOT suppress when variable assigned template literal with HTML is passed to res.send', () => {
+      const varTemplateDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,10 @@
++export function handleError(req: Request, res: Response) {
++  try {
++    doSomething();
++  } catch (err) {
++    const html = \`<p>\${(err as Error).message}</p>\`;
++    res.send(html);
++  }
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability: error.message injected into template',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, varTemplateDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('FR-015: should NOT suppress when variable assigned string with HTML is passed to res.send', () => {
+      const varStringDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,10 @@
++export function handleError(req: Request, res: Response) {
++  try {
++    doSomething();
++  } catch (err) {
++    const html = '<p>' + (err as Error).message + '</p>';
++    res.send(html);
++  }
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability: error.message injected into response',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, varStringDiff);
+      expect(result.suppressed).toBe(0);
+    });
+
+    it('FR-015: should still suppress when plain-text variable (no HTML) is passed to res.send', () => {
+      const plainTextDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,10 @@
++export function handleError(req: Request, res: Response) {
++  try {
++    doSomething();
++  } catch (err) {
++    const msg = (err as Error).message;
++    res.send(msg);
++  }
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability: error.message injected into response',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, plainTextDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('error-object-xss');
+    });
+
+    it('FR-015: should NOT suppress variable-backed HTML via res.write', () => {
+      const varWriteDiff = `diff --git a/src/error-page.ts b/src/error-page.ts
+--- a/src/error-page.ts
++++ b/src/error-page.ts
+@@ -1,3 +1,10 @@
++export function handleError(req: Request, res: Response) {
++  try {
++    doSomething();
++  } catch (err) {
++    const output = \`<div>\${(err as Error).message}</div>\`;
++    res.write(output);
++  }
++}
++
+ export function errorPage() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message: 'XSS vulnerability: error.message injected into template',
+          file: 'src/error-page.ts',
+          line: 6,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, varWriteDiff);
+      expect(result.suppressed).toBe(0);
+    });
   });
 
   // ===========================================================================
@@ -2776,6 +2899,60 @@ describe('Framework Pattern Filter (FR-013)', () => {
 
       expect(valid).toHaveLength(1);
       expect(valid[0]?.message).toBe('actual security issue found');
+    });
+  });
+
+  // ===========================================================================
+  // FR-022: disable_matchers
+  // ===========================================================================
+  describe('disable_matchers (FR-022)', () => {
+    it('should skip disabled matchers', () => {
+      const findings = [makeFinding({ message: 'unused variable _a is never referenced' })];
+
+      // Without disable: ts-unused-prefix would suppress this
+      const withoutDisable = filterFrameworkConventionFindings(findings, '');
+      expect(withoutDisable.suppressed).toBe(1);
+
+      // With disable: ts-unused-prefix is skipped, finding passes through
+      const withDisable = filterFrameworkConventionFindings(findings, '', ['ts-unused-prefix']);
+      expect(withDisable.suppressed).toBe(0);
+      expect(withDisable.passed).toBe(1);
+    });
+
+    it('should still apply non-disabled matchers', () => {
+      const findings = [
+        makeFinding({ message: 'unused variable _a is never referenced' }),
+        makeFinding({ message: 'actual security issue found' }),
+      ];
+
+      // Disable express-error-mw (irrelevant), ts-unused-prefix should still work
+      const result = filterFrameworkConventionFindings(findings, '', ['express-error-mw']);
+      expect(result.suppressed).toBe(1); // ts-unused-prefix still active
+      expect(result.passed).toBe(1);
+    });
+
+    it('should handle empty disable_matchers array', () => {
+      const findings = [makeFinding({ message: 'unused variable _a is never referenced' })];
+
+      const result = filterFrameworkConventionFindings(findings, '', []);
+      expect(result.suppressed).toBe(1); // Normal behavior
+    });
+
+    it('writes disabled matcher diagnostics to stderr so machine-readable stdout stays clean', () => {
+      const findings = [makeFinding({ message: 'unused variable _a is never referenced' })];
+
+      const result = filterFrameworkConventionFindings(findings, '', ['ts-unused-prefix']);
+      const jsonPayload = JSON.stringify({ findings: getValidFindings(result) });
+      const sarifPayload = JSON.stringify({ runs: [{ results: getValidFindings(result) }] });
+
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[router] [framework-filter] Disabled matchers:')
+      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[router] [framework-filter] Disabled matchers: ts-unused-prefix'
+      );
+      expect(() => JSON.parse(jsonPayload)).not.toThrow();
+      expect(() => JSON.parse(sarifPayload)).not.toThrow();
     });
   });
 });

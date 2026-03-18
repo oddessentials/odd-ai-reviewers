@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   processFindings,
+  processLocalReportFindings,
   dispatchReport,
   getPostNormalizationFindings,
   checkGating,
@@ -138,6 +139,17 @@ describe('Report Module', () => {
 
       expect(processed.summary).toBeTruthy();
       expect(typeof processed.summary).toBe('string');
+    });
+
+    it('writes summary diagnostics to stderr instead of stdout', () => {
+      processFindings([baseFinding], [], [], []);
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('AI Code Review Summary')
+      );
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('AI Code Review Summary')
+      );
     });
 
     it('should log skipped agents', () => {
@@ -388,7 +400,7 @@ describe('Report Module', () => {
       const processed = processFindings(findings, [], [], [], diffFiles);
 
       expect(processed.sorted).toEqual([]);
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('[framework-filter] Suppressed 1 framework convention finding(s)')
       );
     });
@@ -524,6 +536,180 @@ describe('Report Module', () => {
       expect(processed.summary).toContain('🤖'); // codeql uses default icon (not in mapping)
       // The section header should appear
       expect(processed.summary).toContain('Partial Findings (from failed agents)');
+    });
+
+    it('applies suppression rules to partial findings before reporting them', () => {
+      const partialFindings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/generated.ts',
+          line: 12,
+          message: 'Ignore me',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      const processed = processFindings(
+        [],
+        partialFindings,
+        [],
+        [],
+        [],
+        undefined,
+        config,
+        'local'
+      );
+
+      expect(processed.partialSorted).toEqual([]);
+      expect(processed.partial).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 1 },
+      ]);
+    });
+
+    it('does not enforce breadth limits for partial findings in CI mode', () => {
+      const partialFindings: Finding[] = Array.from({ length: 25 }, (_, index) => ({
+        severity: 'warning',
+        file: `src/generated-${index}.ts`,
+        line: index + 1,
+        message: 'Ignore me',
+        sourceAgent: 'semgrep',
+        provenance: 'partial' as const,
+      }));
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated-*.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      expect(() =>
+        processFindings([], partialFindings, [], [], [], undefined, config, 'ci')
+      ).not.toThrow();
+
+      const processed = processFindings([], partialFindings, [], [], [], undefined, config, 'ci');
+      expect(processed.partialSorted).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 25 },
+      ]);
+    });
+
+    it('still enforces breadth limits for complete findings in CI mode', () => {
+      const completeFindings: Finding[] = Array.from({ length: 21 }, (_, index) => ({
+        severity: 'warning',
+        file: `src/complete-${index}.ts`,
+        line: index + 1,
+        message: 'Ignore me',
+        sourceAgent: 'semgrep',
+        provenance: 'complete' as const,
+      }));
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known broad suppression',
+              file: 'src/complete-*.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      expect(() =>
+        processFindings(completeFindings, [], [], [], [], undefined, config, 'ci')
+      ).toThrow(/matched 21 findings/);
+    });
+
+    it('applies suppression rules to partial findings in the local reporting pipeline', () => {
+      const partialFindings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'src/generated.ts',
+          line: 12,
+          message: 'Ignore me',
+          sourceAgent: 'semgrep',
+          provenance: 'partial',
+        },
+      ];
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      const processed = processLocalReportFindings([], partialFindings, [], config, 'local');
+
+      expect(processed.partial).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 1 },
+      ]);
+    });
+
+    it('does not enforce breadth limits for partial findings in the local reporting pipeline', () => {
+      const partialFindings: Finding[] = Array.from({ length: 25 }, (_, index) => ({
+        severity: 'warning',
+        file: `src/generated-${index}.ts`,
+        line: index + 1,
+        message: 'Ignore me',
+        sourceAgent: 'semgrep',
+        provenance: 'partial' as const,
+      }));
+      const config = {
+        ...minimalConfig,
+        suppressions: {
+          rules: [
+            {
+              reason: 'Known partial false positive',
+              file: 'src/generated-*.ts',
+              message: '^Ignore me$',
+            },
+          ],
+          disable_matchers: [],
+          security_override_allowlist: [],
+        },
+      } satisfies Config;
+
+      expect(() => processLocalReportFindings([], partialFindings, [], config, 'ci')).not.toThrow();
+      const processed = processLocalReportFindings([], partialFindings, [], config, 'ci');
+      expect(processed.partial).toEqual([]);
+      expect(processed.suppressionSummary).toEqual([
+        { reason: 'Known partial false positive', matched: 25 },
+      ]);
     });
   });
 
@@ -692,7 +878,8 @@ describe('Report Module', () => {
           token: 'ghp_test',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -712,7 +899,8 @@ describe('Report Module', () => {
           headSha: 'merge-head-sha',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -758,7 +946,8 @@ describe('Report Module', () => {
           token: 'ado-token',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -779,7 +968,8 @@ describe('Report Module', () => {
           token: 'pat-token',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 

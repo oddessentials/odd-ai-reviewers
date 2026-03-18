@@ -17,6 +17,7 @@ import { assertNever } from '../types/assert-never.js';
 import type { DiffFile } from '../diff.js';
 import { reportToGitHub, type GitHubContext } from '../report/github.js';
 import { reportToADO, type ADOContext } from '../report/ado.js';
+import type { RunStatus } from '../cli/execution-plan.js';
 import {
   deduplicateFindings,
   deduplicatePartialFindings,
@@ -32,6 +33,13 @@ import {
   filterFrameworkConventionFindings,
   getValidFindings,
 } from '../report/framework-pattern-filter.js';
+import {
+  filterUserSuppressions,
+  enforceBreadthLimits,
+  buildSuppressionSummary,
+  type SuppressionMode,
+  type UserSuppressionResult,
+} from '../report/user-suppressions.js';
 import type { SkippedAgent } from './execute.js';
 
 export type Platform = 'github' | 'ado' | 'unknown';
@@ -52,13 +60,48 @@ export interface ReportOptions {
   /** Optional: use this SHA for GitHub check runs when the review head is not in the base repo */
   githubHeadSha?: string;
   checkRunId?: number;
+  /** Canonical run status — when 'incomplete', reporters MUST use neutral/pending conclusion
+   *  regardless of gating config. This is the same RunStatus used for CLI exit codes and JSON status. */
+  runStatus?: RunStatus;
 }
 
-export interface ProcessedFindings {
-  deduplicated: Finding[];
+export interface SharedReportFindings {
+  /** Complete findings after the relevant reporting pipeline */
+  complete: Finding[];
+  /** Partial findings after the relevant reporting pipeline */
+  partial: Finding[];
+  /** Per-rule suppression match counts for JSON output (FR-022) */
+  suppressionSummary?: { reason: string; matched: number }[];
+}
+
+export interface ProcessedFindings extends SharedReportFindings {
+  /** Findings after dedup + semantic validation + user suppression + framework filter + sanitization */
+  filtered: Finding[];
   sorted: Finding[];
   partialSorted: Finding[];
   summary: string;
+}
+
+interface SharedPreDiffResult {
+  findings: Finding[];
+  userSuppressionResult?: UserSuppressionResult;
+  suppressionSummary?: { reason: string; matched: number }[];
+}
+
+interface SharedPreDiffOptions {
+  enforceBreadthLimits?: boolean;
+}
+
+function mergeMatchCounts(...matchCounts: Map<number, number>[]): Map<number, number> {
+  const merged = new Map<number, number>();
+
+  for (const counts of matchCounts) {
+    for (const [ruleIndex, count] of counts) {
+      merged.set(ruleIndex, (merged.get(ruleIndex) ?? 0) + count);
+    }
+  }
+
+  return merged;
 }
 
 function buildFrameworkFilterDiffContent(diffFiles: DiffFile[]): string {
@@ -82,6 +125,66 @@ function buildFrameworkFilterDiffContent(diffFiles: DiffFile[]): string {
     .join('\n');
 }
 
+function applySharedPreDiffReportingStages(
+  findings: Finding[],
+  diffFiles: DiffFile[],
+  prDescription?: string,
+  config?: Config,
+  suppressionMode?: SuppressionMode,
+  options: SharedPreDiffOptions = {}
+): SharedPreDiffResult {
+  const semanticResult = validateFindingsSemantics(findings, prDescription);
+  const validated = semanticResult.validFindings;
+
+  const suppressionRules = config?.suppressions?.rules ?? [];
+  const disableMatchers = config?.suppressions?.disable_matchers ?? [];
+  const securityOverrideAllowlist = config?.suppressions?.security_override_allowlist ?? [];
+  let afterSuppression = validated;
+  let userSuppressionResult: UserSuppressionResult | undefined;
+
+  if (suppressionRules.length > 0) {
+    userSuppressionResult = filterUserSuppressions(validated, suppressionRules);
+    afterSuppression = userSuppressionResult.filtered;
+
+    if (userSuppressionResult.suppressed.length > 0) {
+      // Diagnostics go to stderr to avoid corrupting JSON/SARIF stdout
+      console.error(
+        `[router] [user-suppression] Suppressed ${userSuppressionResult.suppressed.length} finding(s) via ${suppressionRules.length} rule(s)`
+      );
+    }
+
+    if (options.enforceBreadthLimits ?? true) {
+      enforceBreadthLimits(
+        suppressionRules,
+        userSuppressionResult,
+        suppressionMode ?? 'local',
+        securityOverrideAllowlist
+      );
+    }
+  }
+
+  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
+  const frameworkResult = filterFrameworkConventionFindings(
+    afterSuppression,
+    diffContent,
+    disableMatchers
+  );
+  const frameworkFiltered = getValidFindings(frameworkResult);
+
+  if (frameworkResult.suppressed > 0) {
+    // Diagnostics go to stderr to avoid corrupting JSON/SARIF stdout
+    console.error(
+      `[router] [framework-filter] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
+    );
+  }
+
+  const suppressionSummary = userSuppressionResult
+    ? buildSuppressionSummary(suppressionRules, userSuppressionResult.matchCounts)
+    : undefined;
+
+  return { findings: frameworkFiltered, userSuppressionResult, suppressionSummary };
+}
+
 /**
  * Process findings: deduplicate, sanitize, sort, and generate summary.
  *
@@ -94,44 +197,49 @@ export function processFindings(
   allResults: AgentResult[],
   skippedAgents: SkippedAgent[],
   diffFiles: DiffFile[] = [],
-  prDescription?: string
+  prDescription?: string,
+  config?: Config,
+  suppressionMode?: SuppressionMode
 ): ProcessedFindings {
   // Process complete findings (from successful agents)
   const deduplicated = deduplicateFindings(completeFindings);
-
-  // FR-018 pipeline order: semantic → framework filter → sanitize (presentation).
-  // Sanitization is a presentation concern (HTML entity escaping for platform posting)
-  // and MUST run after filtering to avoid corrupting text that matchers regex-match against.
-
-  // Stage 1 (semantic-only): Filter self-contradictions, classify findings.
-  // NO line/path validation here — deferred to Stage 2 in platform reporters
-  // after normalizeFindingsForDiff() has remapped renamed paths and snapped stale lines.
-  const validationResult = validateFindingsSemantics(deduplicated, prDescription);
-  const validated = validationResult.validFindings;
-
-  // Stage 1.5: Framework convention filter (FR-013, default-deny closed matcher table).
-  // Suppresses known false positives from framework patterns (Express error middleware,
-  // TypeScript _prefix convention, exhaustive switch with assertNever).
-  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
-  const frameworkResult = filterFrameworkConventionFindings(validated, diffContent);
-  const frameworkFiltered = getValidFindings(frameworkResult);
-
-  if (frameworkResult.suppressed > 0) {
-    console.log(
-      `[router] [framework-filter] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
-    );
-  }
+  const sharedPreDiff = applySharedPreDiffReportingStages(
+    deduplicated,
+    diffFiles,
+    prDescription,
+    config,
+    suppressionMode
+  );
 
   // Sanitize after all filtering (defense-in-depth for platform posting)
-  const sanitized = sanitizeFindings(frameworkFiltered);
+  const sanitized = sanitizeFindings(sharedPreDiff.findings);
   const sorted = sortFindings(sanitized);
 
   // Process partial findings (from failed agents) separately
   // FR-010: Partial dedup uses sourceAgent in key to preserve cross-agent findings
   // FR-011: No cross-collection deduplication - partial findings stay separate
   const partialDeduplicated = deduplicatePartialFindings(partialFindings);
-  const partialSanitized = sanitizeFindings(partialDeduplicated);
+  const partialSharedPreDiff = applySharedPreDiffReportingStages(
+    partialDeduplicated,
+    diffFiles,
+    prDescription,
+    config,
+    suppressionMode,
+    { enforceBreadthLimits: false }
+  );
+  const partialSanitized = sanitizeFindings(partialSharedPreDiff.findings);
   const partialSorted = sortFindings(partialSanitized);
+  const suppressionRules = config?.suppressions?.rules ?? [];
+  const suppressionSummary =
+    suppressionRules.length > 0
+      ? buildSuppressionSummary(
+          suppressionRules,
+          mergeMatchCounts(
+            sharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>(),
+            partialSharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>()
+          )
+        )
+      : sharedPreDiff.suppressionSummary;
 
   // Transform AgentResult[] to the format expected by generateFullSummaryMarkdown
   // This adapts the new discriminated union to the legacy format
@@ -184,9 +292,17 @@ export function processFindings(
     }
   }
 
-  console.log('\n' + summary);
+  console.error('\n' + summary);
 
-  return { deduplicated: sanitized, sorted, partialSorted, summary };
+  return {
+    complete: sorted,
+    partial: partialSorted,
+    filtered: sanitized,
+    sorted,
+    partialSorted,
+    summary,
+    suppressionSummary,
+  };
 }
 
 /**
@@ -227,7 +343,8 @@ export async function dispatchReport(
       partialFindings,
       githubContext,
       config,
-      diffFiles
+      diffFiles,
+      options.runStatus
     );
 
     if (reportResult.success) {
@@ -270,7 +387,8 @@ export async function dispatchReport(
       partialFindings,
       adoContext,
       config,
-      diffFiles
+      diffFiles,
+      options.runStatus
     );
 
     if (reportResult.success) {
@@ -316,28 +434,76 @@ export function getPostNormalizationFindings(
 export function applyFindingsPipeline(
   findings: Finding[],
   diffFiles: DiffFile[],
-  prDescription?: string
+  prDescription?: string,
+  config?: Config,
+  suppressionMode?: SuppressionMode
 ): Finding[] {
-  // Stage 1: Semantic validation (self-contradiction filter)
-  const semanticResult = validateFindingsSemantics(findings, prDescription);
-  const validated = semanticResult.validFindings;
-
-  // Stage 1.5: Framework convention filter
-  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
-  const frameworkResult = filterFrameworkConventionFindings(validated, diffContent);
-  const frameworkFiltered = getValidFindings(frameworkResult);
-
-  if (frameworkResult.suppressed > 0) {
-    console.log(
-      `[router] [pipeline] Suppressed ${frameworkResult.suppressed} framework convention finding(s)`
-    );
-  }
+  const sharedPreDiff = applySharedPreDiffReportingStages(
+    findings,
+    diffFiles,
+    prDescription,
+    config,
+    suppressionMode
+  );
 
   // Stage 2: Diff-bound validation
-  const postNorm = normalizeAndValidateFindings(frameworkFiltered, diffFiles, 'pipeline');
+  const postNorm = normalizeAndValidateFindings(sharedPreDiff.findings, diffFiles, 'pipeline');
 
   // Stage 3: Sanitize (defense-in-depth for platform posting, after all filtering)
   return sanitizeFindings(postNorm.validatedFindings);
+}
+
+/**
+ * Shared local-reporting pipeline.
+ *
+ * Produces the same suppression-aware metadata contract used by hosted reporting,
+ * while applying Stage 2 diff-bound validation required for local gating/terminal output.
+ */
+export function processLocalReportFindings(
+  completeFindings: Finding[],
+  partialFindings: Finding[],
+  diffFiles: DiffFile[],
+  config?: Config,
+  suppressionMode?: SuppressionMode
+): SharedReportFindings {
+  const sharedPreDiff = applySharedPreDiffReportingStages(
+    completeFindings,
+    diffFiles,
+    undefined,
+    config,
+    suppressionMode
+  );
+  const postNorm = normalizeAndValidateFindings(sharedPreDiff.findings, diffFiles, 'pipeline');
+  const partialSharedPreDiff = applySharedPreDiffReportingStages(
+    deduplicatePartialFindings(partialFindings),
+    diffFiles,
+    undefined,
+    config,
+    suppressionMode,
+    { enforceBreadthLimits: false }
+  );
+  const partialPostNorm = normalizeAndValidateFindings(
+    partialSharedPreDiff.findings,
+    diffFiles,
+    'pipeline'
+  );
+  const suppressionRules = config?.suppressions?.rules ?? [];
+  const suppressionSummary =
+    suppressionRules.length > 0
+      ? buildSuppressionSummary(
+          suppressionRules,
+          mergeMatchCounts(
+            sharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>(),
+            partialSharedPreDiff.userSuppressionResult?.matchCounts ?? new Map<number, number>()
+          )
+        )
+      : sharedPreDiff.suppressionSummary;
+
+  return {
+    complete: sanitizeFindings(postNorm.validatedFindings),
+    partial: sanitizeFindings(partialPostNorm.validatedFindings),
+    suppressionSummary,
+  };
 }
 
 /**

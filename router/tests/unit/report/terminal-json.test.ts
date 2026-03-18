@@ -104,6 +104,38 @@ describe('JSON Output', () => {
     });
   });
 
+  describe('Run Status (FR-021)', () => {
+    it('should default status to complete when not provided', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles);
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.status).toBe('complete');
+    });
+
+    it('should include gating_failed when explicitly provided', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles, undefined, 'gating_failed');
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.status).toBe('gating_failed');
+    });
+
+    it('should include incomplete when explicitly provided', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles, undefined, 'incomplete');
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.status).toBe('incomplete');
+    });
+  });
+
   describe('Tool Version', () => {
     it('should include version from context', () => {
       const context = createTestContext({ version: '2.0.0' });
@@ -328,6 +360,45 @@ describe('JSON Output', () => {
       const output = JSON.parse(jsonStr) as JsonOutput;
 
       expect(output.findings[0]?.message).toBe('Unicode test: 日本語 🔥 émoji');
+    });
+  });
+
+  describe('FR-022: suppression summary in JSON output', () => {
+    it('should include suppressions field when summary is provided', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+      const suppressionSummary = [
+        { reason: 'Test rule A', matched: 3 },
+        { reason: 'Test rule B', matched: 1 },
+      ];
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles, suppressionSummary);
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.suppressions).toEqual([
+        { reason: 'Test rule A', matched: 3 },
+        { reason: 'Test rule B', matched: 1 },
+      ]);
+    });
+
+    it('should omit suppressions field when no summary', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles);
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.suppressions).toBeUndefined();
+    });
+
+    it('should omit suppressions field when summary is empty', () => {
+      const context = createTestContext();
+      const diffFiles = createTestDiffFiles();
+
+      const jsonStr = generateJsonOutput([], [], context, diffFiles, []);
+      const output = JSON.parse(jsonStr) as JsonOutput;
+
+      expect(output.suppressions).toBeUndefined();
     });
   });
 });

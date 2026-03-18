@@ -89,8 +89,8 @@ ai-review local [path] [options]
 | `--range <range>` | Git range (e.g., `main...HEAD`, `HEAD~3..`). See [Range Operators](#range-operators) below. |
 | `--staged` | Review only staged changes |
 | `--uncommitted` | Include uncommitted changes (default: true) |
-| `--pass <name>` | Run specific pass only |
-| `--agent <id>` | Run specific agent only |
+| `--pass <name>` | Run specific pass only (see [Pass Names](#pass-names)) |
+| `--agent <id>` | Run specific agent only (see [Agent IDs](#agent-ids)) |
 | `--format <fmt>` | Output format: `pretty`, `json`, `sarif` (default: pretty) |
 | `--no-color` | Disable colored output |
 | `--quiet` | Minimal output (errors only) |
@@ -120,6 +120,35 @@ ai-review local --dry-run
 # Output as JSON
 ai-review local --format json
 ```
+
+#### Pass Names
+
+Pass names are user-defined in your `.ai-review.yml` configuration file. Each entry in the `passes` array has a `name` field that you can use with `--pass`. To discover available passes, check your config file or run `ai-review local --dry-run`.
+
+```yaml
+# .ai-review.yml
+passes:
+  - name: static # use: --pass static
+    agents: [semgrep]
+  - name: cloud-ai # use: --pass cloud-ai
+    agents: [opencode, pr_agent]
+```
+
+#### Agent IDs
+
+The following agent IDs are valid for the `--agent` option:
+
+| ID                   | Description                               | Requires            |
+| -------------------- | ----------------------------------------- | ------------------- |
+| `semgrep`            | Static analysis via Semgrep CLI           | Semgrep installed   |
+| `reviewdog`          | Lint aggregation via Reviewdog CLI        | Reviewdog + Semgrep |
+| `opencode`           | AI code review via cloud LLM              | API key             |
+| `pr_agent`           | AI pull request analysis via cloud LLM    | API key             |
+| `local_llm`          | AI code review via local Ollama model     | Ollama running      |
+| `ai_semantic_review` | Semantic analysis via cloud LLM           | API key             |
+| `control_flow`       | Built-in TypeScript control flow analysis | Nothing (built-in)  |
+
+See also: [Agent Capability Matrix](../configuration/config-schema.md#agent-capability-matrix) in the configuration reference.
 
 #### Range Operators
 
@@ -296,6 +325,49 @@ ai-review config init --defaults --provider anthropic
 
 ---
 
+### `ai-review benchmark`
+
+Run the false-positive regression benchmark against a fixture file. Used to validate that suppression logic and finding quality meet release gate thresholds.
+
+```bash
+ai-review benchmark --fixtures <path> [options]
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--fixtures <path>` | Path to benchmark fixture JSON (required) |
+| `--output <path>` | Write report JSON to file |
+| `--verbose` | Print per-scenario pass/fail details |
+
+**Exit Codes:**
+
+- `0` - All release gates passed
+- `1` - One or more gates failed
+- `2` - Fatal error (e.g., empty fixture file)
+
+**Release Gates:**
+
+| Gate   | Metric                         | Threshold |
+| ------ | ------------------------------ | --------- |
+| SC-001 | FP suppression rate            | >= 85%    |
+| SC-002 | True positive recall           | = 100%    |
+| SC-003 | True positive precision        | >= 70%    |
+| SC-004 | False positive rate            | <= 25%    |
+| SC-007 | Self-contradiction filter rate | >= 80%    |
+
+**Example:**
+
+```bash
+# Run benchmark with verbose output
+ai-review benchmark --fixtures router/tests/fixtures/benchmark/scenarios.json --verbose
+
+# Save report to file
+ai-review benchmark --fixtures fixtures.json --output report.json
+```
+
+---
+
 ## Dependency Detection
 
 When you run `ai-review local`, the CLI automatically checks for required dependencies based on your configuration:
@@ -324,15 +396,55 @@ The semgrep pass will still run successfully.
 
 ## Environment Variables
 
-| Variable                  | Description                           |
-| ------------------------- | ------------------------------------- |
-| `ANTHROPIC_API_KEY`       | Anthropic API key (for Claude models) |
-| `OPENAI_API_KEY`          | OpenAI API key (for GPT models)       |
-| `AZURE_OPENAI_API_KEY`    | Azure OpenAI API key                  |
-| `AZURE_OPENAI_ENDPOINT`   | Azure OpenAI endpoint URL             |
-| `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI deployment name          |
-| `OLLAMA_BASE_URL`         | Ollama server URL (for local LLMs)    |
-| `MODEL`                   | Override the default model            |
+### AI Provider Keys
+
+| Variable                  | Description                                                      |
+| ------------------------- | ---------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`       | Anthropic API key (for Claude models)                            |
+| `OPENAI_API_KEY`          | OpenAI API key (for GPT models)                                  |
+| `AZURE_OPENAI_API_KEY`    | Azure OpenAI API key                                             |
+| `AZURE_OPENAI_ENDPOINT`   | Azure OpenAI endpoint URL                                        |
+| `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI deployment name                                     |
+| `OLLAMA_BASE_URL`         | Ollama server URL (default: `http://localhost:11434`)            |
+| `MODEL`                   | Override the default model for cloud AI agents                   |
+| `OLLAMA_MODEL`            | Override the model for local_llm agent (default: `codellama:7b`) |
+
+### Local LLM Tuning
+
+| Variable                | Description                                           |
+| ----------------------- | ----------------------------------------------------- |
+| `LOCAL_LLM_NUM_CTX`     | Context window size for Ollama (default: 4096)        |
+| `LOCAL_LLM_NUM_PREDICT` | Maximum tokens to generate (default: 2048)            |
+| `LOCAL_LLM_TIMEOUT`     | Request timeout in milliseconds (default: 120000)     |
+| `LOCAL_LLM_OPTIONAL`    | When `true`, skip gracefully if Ollama is unavailable |
+
+### Platform Tokens
+
+| Variable             | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `GITHUB_TOKEN`       | GitHub API token (for PR comments and check runs)       |
+| `AZURE_DEVOPS_PAT`   | Azure DevOps personal access token                      |
+| `SYSTEM_ACCESSTOKEN` | Azure DevOps pipeline token (auto-set in ADO pipelines) |
+
+### Telemetry
+
+| Variable                      | Description                                          |
+| ----------------------------- | ---------------------------------------------------- |
+| `TELEMETRY_ENABLED`           | Enable/disable telemetry (`true`/`false`)            |
+| `TELEMETRY_BACKENDS`          | Comma-separated backend list (e.g., `console,jsonl`) |
+| `TELEMETRY_JSONL_PATH`        | File path for JSONL telemetry output                 |
+| `TELEMETRY_VERBOSITY`         | Detail level: `minimal`, `standard`, `verbose`       |
+| `TELEMETRY_BUFFER_SIZE`       | Max events to buffer before flush (default: 100)     |
+| `TELEMETRY_FLUSH_INTERVAL_MS` | Flush interval in milliseconds (default: 5000)       |
+
+### Utility
+
+| Variable             | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `NO_COLOR`           | Disable colored output (standard convention, any value) |
+| `FORCE_PRETTY`       | Force pretty output format in non-TTY environments      |
+| `BENCHMARK_MODEL_ID` | Model ID for benchmark snapshot recording               |
+| `BENCHMARK_PROVIDER` | Provider for benchmark snapshot recording               |
 
 ---
 

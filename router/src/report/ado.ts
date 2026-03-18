@@ -6,6 +6,7 @@
 
 import type { Finding, Severity } from '../agents/types.js';
 import type { Config } from '../config.js';
+import type { RunStatus } from '../cli/execution-plan.js';
 import {
   deduplicateFindings,
   sortFindings,
@@ -129,7 +130,8 @@ export async function reportToADO(
   partialFindings: Finding[],
   context: ADOContext,
   config: Config,
-  diffFiles: DiffFile[]
+  diffFiles: DiffFile[],
+  runStatus?: RunStatus
 ): Promise<ReportResult> {
   const reportingConfig = config.reporting.ado ?? {
     mode: 'threads_and_status',
@@ -160,7 +162,7 @@ export async function reportToADO(
 
     // Create/update commit status if enabled
     if (reportingConfig.mode === 'status_only' || reportingConfig.mode === 'threads_and_status') {
-      statusId = await updateBuildStatus(context, sorted, counts, config);
+      statusId = await updateBuildStatus(context, sorted, counts, config, runStatus);
     }
 
     // Post PR threads if enabled
@@ -213,12 +215,16 @@ async function updateBuildStatus(
   context: ADOContext,
   findings: Finding[],
   counts: Record<Severity, number>,
-  config: Config
+  config: Config,
+  runStatus?: RunStatus
 ): Promise<number> {
-  // Determine state based on gating config
+  // FR-021: Incomplete runs MUST use 'pending' state (ADO's equivalent of neutral)
+  // regardless of gating config. This check comes FIRST.
   let state: 'pending' | 'succeeded' | 'failed' | 'error' = 'succeeded';
 
-  if (config.gating.enabled) {
+  if (runStatus === 'incomplete') {
+    state = 'pending';
+  } else if (config.gating.enabled) {
     if (config.gating.fail_on_severity === 'error' && counts.error > 0) {
       state = 'failed';
     } else if (

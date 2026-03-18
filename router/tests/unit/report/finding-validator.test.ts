@@ -532,6 +532,42 @@ describe('SECURITY_BLOCKLIST — cautionary advice gate', () => {
     expect(result.validFindings).toHaveLength(0);
     expect(result.stats.filteredByCautionaryAdvice).toBe(1);
   });
+
+  // FR-016: Inflected forms of prefix security terms must block cautionary suppression.
+  // Bug: trailing \b in the SECURITY_BLOCKLIST regex prevented prefix stems from
+  // matching their inflected forms (e.g., "sanitize", "authentication").
+  const inflectedSecurityTerms: [string, string][] = [
+    ['sanitize', 'Ensure that all inputs are sanitize before rendering'],
+    ['sanitized', 'Ensure that all inputs are sanitized before rendering'],
+    ['sanitization', 'Ensure that proper sanitization is applied to user input'],
+    ['sanitizing', 'Verify that the sanitizing function covers all edge cases'],
+    ['escaped', 'Ensure that the output is properly escaped before display'],
+    ['escaping', 'Verify that escaping is applied to prevent XSS'],
+    ['authentication', 'Ensure that authentication is required for this endpoint'],
+    ['authenticated', 'Verify that the user is authenticated before access'],
+    ['authorization', 'Ensure that proper authorization checks are in place'],
+    ['authorized', 'Verify that the request is authorized before processing'],
+    ['deserialization', 'Ensure that deserialization is safe from injection attacks'],
+    ['deserialize', 'Verify that the deserialize call validates input'],
+    ['vulnerability', 'Ensure that this vulnerability is addressed before release'],
+    ['vulnerabilities', 'Verify that all known vulnerabilities are patched'],
+    ['vulnerable', 'Ensure that the endpoint is not vulnerable to injection'],
+  ];
+
+  for (const [term, message] of inflectedSecurityTerms) {
+    it(`FR-016: should NOT suppress finding with inflected term "${term}"`, () => {
+      const findings = [
+        makeFinding({
+          severity: 'info',
+          line: 10,
+          message,
+        }),
+      ];
+      const result = validateFindingsSemantics(findings);
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredByCautionaryAdvice).toBe(0);
+    });
+  }
 });
 
 /**
@@ -608,10 +644,12 @@ describe('validateNormalizedFindings (Stage 2)', () => {
     expect(result.stats.filteredByLine).toBe(1);
   });
 
-  it('should still catch self-contradictions in Stage 2', () => {
+  it('FR-018: should NOT catch self-contradictions in Stage 2 (deferred to Stage 1)', () => {
     const resolver = createMockLineResolver(new Map([['src/app.ts', new Set([10])]]));
     const diffFiles = ['src/app.ts'];
 
+    // FR-018: Self-contradiction detection is now exclusively in Stage 1 (validateFindingsSemantics).
+    // Stage 2 only performs classification and line validation.
     const findings = [
       makeFinding({
         severity: 'info',
@@ -621,8 +659,8 @@ describe('validateNormalizedFindings (Stage 2)', () => {
       }),
     ];
     const result = validateNormalizedFindings(findings, resolver, diffFiles);
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.stats.filteredBySelfContradiction).toBe(1);
+    expect(result.validFindings).toHaveLength(1);
+    expect(result.stats.filteredBySelfContradiction).toBe(0);
   });
 });
 
@@ -829,11 +867,15 @@ describe('Unicode bypass hardening (US4)', () => {
     });
   });
 
-  describe('Stage 2 (validateNormalizedFindings)', () => {
+  describe('Stage 2 (validateNormalizedFindings) — FR-018 dedup removal', () => {
     const resolver = createMockLineResolver(new Map([['src/app.ts', new Set([10])]]));
     const diffFiles = ['src/app.ts'];
 
-    it('US4-AS1: should filter info finding with U+200B in Stage 2', () => {
+    // FR-018: Self-contradiction detection removed from Stage 2.
+    // These tests verify that Stage 2 no longer filters on self-contradiction
+    // (that responsibility is exclusively in Stage 1).
+
+    it('FR-018: should NOT filter info finding with U+200B in Stage 2 (deferred to Stage 1)', () => {
       const findings = [
         makeFinding({
           severity: 'info',
@@ -843,8 +885,8 @@ describe('Unicode bypass hardening (US4)', () => {
         }),
       ];
       const result = validateNormalizedFindings(findings, resolver, diffFiles);
-      expect(result.validFindings).toHaveLength(0);
-      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredBySelfContradiction).toBe(0);
     });
 
     it('US4-AS4: should NOT filter warning with Unicode bypass in Stage 2', () => {
@@ -860,7 +902,7 @@ describe('Unicode bypass hardening (US4)', () => {
       expect(result.validFindings).toHaveLength(1);
     });
 
-    it('should filter info finding with U+200C/U+200D/U+200E/U+200F in Stage 2', () => {
+    it('FR-018: should NOT filter info finding with U+200C/U+200D/U+200E/U+200F in Stage 2 (deferred to Stage 1)', () => {
       const findings = [
         makeFinding({
           severity: 'info',
@@ -870,8 +912,8 @@ describe('Unicode bypass hardening (US4)', () => {
         }),
       ];
       const result = validateNormalizedFindings(findings, resolver, diffFiles);
-      expect(result.validFindings).toHaveLength(0);
-      expect(result.filtered[0]?.filterType).toBe('self_contradicting');
+      expect(result.validFindings).toHaveLength(1);
+      expect(result.stats.filteredBySelfContradiction).toBe(0);
     });
   });
 });

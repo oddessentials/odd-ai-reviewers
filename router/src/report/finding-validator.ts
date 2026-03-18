@@ -124,7 +124,7 @@ const CAUTIONARY_ADVICE_PATTERNS: RegExp[] = [
  * is treated as a legitimate concern, not hedging advice.
  */
 const SECURITY_BLOCKLIST =
-  /\b(?:sql|injection|xss|cross.?site|sanitiz|escap|authenti|authoriz|csrf|ssrf|path.?traversal|command.?inject|exec\s*\(|eval\s*\(|deseria|privilege|encrypt|password|credential|secret|vulnerab|exploit|attack|malicious|buffer.?overflow|bypass|jwt|token|signature|session|cors|cookie|rate.?limit(?:ing)?|redirect)\b/i;
+  /\b(?:sql|injection|xss|cross.?site|sanitiz\w*|escap\w*|authenti\w*|authoriz\w*|csrf|ssrf|path.?traversal|command.?inject|exec\s*\(|eval\s*\(|deseria\w*|privilege|encrypt|password|credential|secret|vulnerab\w*|exploit|attack|malicious|buffer.?overflow|bypass|jwt|token|signature|session|cors|cookie|rate.?limit(?:ing)?|redirect)\b/i;
 
 /**
  * Check if a suggestion is actionable (contains concrete guidance beyond dismissive language).
@@ -503,57 +503,9 @@ export function validateNormalizedFindings(
     }
   }
 
-  // Pass 3: Self-contradiction detection (all findings that passed Pass 2)
-  for (const result of results) {
-    if (!result.valid) continue;
-
-    if (result.finding.severity !== 'info') continue;
-
-    // FR-015: Normalize Unicode before matching to prevent zero-width character bypass
-    const normalizedMessage = normalizeUnicode(result.finding.message);
-    const matchedPattern = DISMISSIVE_PATTERNS.find((p) => p.test(normalizedMessage));
-    if (!matchedPattern) continue;
-
-    const normalizedSuggestion = result.finding.suggestion
-      ? normalizeUnicode(result.finding.suggestion)
-      : undefined;
-    if (hasActionableSuggestion(normalizedSuggestion)) continue;
-
-    result.valid = false;
-    result.filterReason = `Self-contradicting: info severity with dismissive language (${matchedPattern.source})`;
-    result.filterType = 'self_contradicting';
-    stats.filteredBySelfContradiction++;
-    console.log('[router] [finding-validator] [filtered:semantic]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
-
-  // Pass 3.5: Cautionary advice detection (same as in validateFindingsSemantics)
-  for (const result of results) {
-    if (!result.valid) continue;
-    if (result.finding.severity !== 'info') continue;
-
-    const combinedText = normalizeUnicode(
-      result.finding.message + ' ' + (result.finding.suggestion ?? '')
-    );
-
-    const matchedCautionary = CAUTIONARY_ADVICE_PATTERNS.find((p) => p.test(combinedText));
-    if (!matchedCautionary) continue;
-
-    if (SECURITY_BLOCKLIST.test(combinedText)) continue;
-
-    result.valid = false;
-    result.filterReason = `Cautionary advice: info severity with hedging language (${matchedCautionary.source}) and no security concern`;
-    result.filterType = 'cautionary_advice';
-    stats.filteredByCautionaryAdvice++;
-    console.log('[router] [finding-validator] [filtered:cautionary]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
+  // FR-018: Pass 3 (self-contradiction) and Pass 3.5 (cautionary advice) REMOVED.
+  // These are now handled exclusively by validateFindingsSemantics() (Stage 1).
+  // Stage 2 only performs diff-bound validation (classification + line validation).
 
   // Build final arrays
   const validFindings: Finding[] = [];
@@ -642,10 +594,7 @@ export function normalizeAndValidateFindings(
 /**
  * Validate and classify findings, filtering out invalid lines and self-contradicting findings.
  *
- * Three-pass validation:
- * 1. Classify each finding (inline, file-level, global, cross-file)
- * 2. Validate line numbers for inline findings
- * 3. Detect self-contradicting findings (info + dismissive + no suggestion)
+ * Runs both Stage 1 (semantic validation) and Stage 2 (diff-bound validation) in sequence.
  *
  * @deprecated Use validateFindingsSemantics() in processFindings and
  * validateNormalizedFindings() in platform reporters after normalization.
@@ -661,5 +610,23 @@ export function validateFindings(
   lineResolver: FindingLineResolver,
   diffFiles?: string[]
 ): FindingValidationSummary {
-  return validateNormalizedFindings(findings, lineResolver, diffFiles);
+  // FR-018: Stage 1 semantic validation first (self-contradiction, cautionary advice),
+  // then Stage 2 diff-bound validation (classification, line validation).
+  const stage1 = validateFindingsSemantics(findings);
+  const stage2 = validateNormalizedFindings(stage1.validFindings, lineResolver, diffFiles);
+
+  // Merge stats from both stages
+  return {
+    validFindings: stage2.validFindings,
+    filtered: [...stage1.filtered, ...stage2.filtered],
+    stats: {
+      total: stage1.stats.total,
+      valid: stage2.stats.valid,
+      filteredByLine: stage2.stats.filteredByLine,
+      filteredBySelfContradiction: stage1.stats.filteredBySelfContradiction,
+      filteredByCautionaryAdvice: stage1.stats.filteredByCautionaryAdvice,
+      filteredByPRIntent: stage1.stats.filteredByPRIntent,
+      byClassification: stage2.stats.byClassification,
+    },
+  };
 }

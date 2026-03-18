@@ -7,6 +7,7 @@
 import { Octokit } from '@octokit/rest';
 import type { Finding, Severity } from '../agents/types.js';
 import type { Config } from '../config.js';
+import type { RunStatus } from '../cli/execution-plan.js';
 import {
   deduplicateFindings,
   sortFindings,
@@ -153,7 +154,8 @@ export async function reportToGitHub(
   partialFindings: Finding[],
   context: GitHubContext,
   config: Config,
-  diffFiles: DiffFile[]
+  diffFiles: DiffFile[],
+  runStatus?: RunStatus
 ): Promise<ReportResult> {
   const octokit = new Octokit({ auth: context.token });
   const reportingConfig = config.reporting.github ?? {
@@ -193,7 +195,8 @@ export async function reportToGitHub(
         counts,
         config,
         driftSignal,
-        inlineDriftSignal
+        inlineDriftSignal,
+        runStatus
       );
       checkRunCompleted = true;
     }
@@ -286,12 +289,16 @@ async function createCheckRun(
   counts: Record<Severity, number>,
   config: Config,
   driftSignal: DriftSignal,
-  inlineDriftSignal: DriftSignal
+  inlineDriftSignal: DriftSignal,
+  runStatus?: RunStatus
 ): Promise<number> {
-  // Determine conclusion based on gating config
+  // FR-021: Incomplete runs MUST use 'neutral' conclusion regardless of gating.
+  // This check comes FIRST, before gating evaluation, enforcing the spec's precedence rule.
   let conclusion: 'success' | 'failure' | 'neutral' = 'success';
 
-  if (config.gating.enabled) {
+  if (runStatus === 'incomplete') {
+    conclusion = 'neutral';
+  } else if (config.gating.enabled) {
     if (config.gating.fail_on_severity === 'error' && counts.error > 0) {
       conclusion = 'failure';
     } else if (

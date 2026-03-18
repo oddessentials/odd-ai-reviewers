@@ -49,14 +49,14 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "node -e \"const p=require('./router/package.json');p.version='${nextRelease.version}';require('fs').writeFileSync('./router/package.json',JSON.stringify(p,null,2)+'\\n')\"",
+        "prepareCmd": "node -e \"const fs=require('fs');['./router/package.json','./package.json'].forEach(f=>{const p=JSON.parse(fs.readFileSync(f,'utf8'));p.version='${nextRelease.version}';fs.writeFileSync(f,JSON.stringify(p,null,2)+'\\n')})\"",
         "publishCmd": "cd router && pnpm publish --no-git-checks --access public --provenance"
       }
     ],
     [
       "@semantic-release/git",
       {
-        "assets": ["router/package.json", "CHANGELOG.md"],
+        "assets": ["package.json", "router/package.json", "CHANGELOG.md"],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],

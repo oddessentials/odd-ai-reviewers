@@ -9,7 +9,13 @@ import { join, resolve, sep } from 'path';
 import { homedir } from 'os';
 import type { AgentResult } from '../agents/index.js';
 import { AgentResultSchema } from '../agents/types.js';
-import { AI_REVIEW_CACHE_PATH, CACHE_KEY_PREFIX, generateRestoreKeyPrefix } from './key.js';
+import {
+  AI_REVIEW_CACHE_PATH,
+  CACHE_KEY_PREFIX,
+  generateRestoreKeyPrefix,
+  parseCacheKey,
+} from './key.js';
+import { CACHE_SCHEMA_VERSION } from '../agents/types.js';
 import { buildRouterEnv } from '../agents/security.js';
 
 export interface CacheEntry {
@@ -248,7 +254,31 @@ export async function cleanupExpired(): Promise<number> {
   try {
     const files = readdirSync(dir);
     for (const file of files) {
-      if (!file.startsWith(CACHE_KEY_PREFIX) || !file.endsWith('.json')) continue;
+      if (!file.endsWith('.json')) continue;
+
+      // FR-020: Remove orphan cache files from previous schema versions.
+      // These files are inaccessible to the current system and accumulate over time.
+      if (!file.startsWith(CACHE_KEY_PREFIX) && file.startsWith('ai-review-')) {
+        const key = file.replace(/\.json$/, '');
+        const parsed = parseCacheKey(key);
+        if (parsed && parsed.version !== undefined && parsed.version !== CACHE_SCHEMA_VERSION) {
+          const filePath = join(dir, file);
+          unlinkSync(filePath);
+          cleaned++;
+          console.log(`[cache] Removed orphan from schema v${parsed.version}: ${file}`);
+          continue;
+        }
+        // Legacy files without version also count as orphans
+        if (parsed && parsed.version === undefined) {
+          const filePath = join(dir, file);
+          unlinkSync(filePath);
+          cleaned++;
+          console.log(`[cache] Removed legacy orphan: ${file}`);
+          continue;
+        }
+      }
+
+      if (!file.startsWith(CACHE_KEY_PREFIX)) continue;
 
       const filePath = join(dir, file);
       try {

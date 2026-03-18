@@ -17,6 +17,6 @@ pnpm run build
 
 # 3. Run tests
 echo ">> Tests..."
-pnpm --filter ./router test
+pnpm --filter ./router test -- --bail=1
 
 echo "All pre-push checks passed!"

@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import { VulnerabilityDetector } from '../agents/control_flow/vulnerability-detector.js';
 import {
   validateFindingsSemantics,
+  validateFindings,
   validateNormalizedFindings,
 } from '../report/finding-validator.js';
 import {
@@ -251,11 +252,13 @@ export async function runScenario(
     // Pattern E: Run finding-validator on synthetic findings (self-contradiction,
     // stale lines, etc.). The control-flow detector doesn't emit these shapes,
     // so we must inject them from the fixture to actually exercise the validator.
+    // FR-018: Uses validateFindings() which runs both Stage 1 (semantic) and
+    // Stage 2 (diff-bound) to exercise the full validation pipeline.
     if (scenario.pattern === 'E') {
       const inputFindings = scenario.syntheticFindings ?? allFindings;
       const lineResolver = createBenchmarkLineResolver(diffFiles, scenario.diff);
       const diffFilePaths = diffFiles.map((df) => df.path);
-      const summary = validateNormalizedFindings(inputFindings, lineResolver, diffFilePaths);
+      const summary = validateFindings(inputFindings, lineResolver, diffFilePaths);
       return summary.validFindings;
     }
 

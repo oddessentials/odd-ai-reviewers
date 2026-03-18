@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, unlinkSync, chmodSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTempRepo } from '../helpers/temp-repo.js';
-import { loadConfigFromPath } from '../../src/config.js';
+import { loadConfig, loadConfigFromPath } from '../../src/config.js';
 import { ConfigErrorCode } from '../../src/types/errors.js';
 
 // =============================================================================
@@ -216,6 +216,61 @@ unknown_extra_field: "should be ignored or cause error"
           code: ConfigErrorCode.INVALID_SCHEMA,
         });
       }
+    });
+  });
+
+  describe('CI trust boundary for suppressions', () => {
+    it('ignores invalid suppressions before schema validation when requested', async () => {
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, '.ai-review.yml');
+
+      writeFileSync(
+        configPath,
+        `
+version: 1
+passes:
+  - name: static
+    agents: [semgrep]
+suppressions:
+  disable_matchers:
+    - not-a-valid-matcher
+`
+      );
+
+      await expect(loadConfig(repo.path)).rejects.toMatchObject({
+        code: ConfigErrorCode.INVALID_SCHEMA,
+      });
+
+      const config = await loadConfig(repo.path, { ignoreSuppressions: true });
+      expect(config.passes).toHaveLength(1);
+      expect(config.suppressions).toBeUndefined();
+    });
+
+    it('ignores suppressions in explicit-path loads when requested', async () => {
+      const repo = makeTempRepo({ initGit: false });
+      const configPath = join(repo.path, '.ai-review.yml');
+
+      writeFileSync(
+        configPath,
+        `
+version: 1
+passes:
+  - name: static
+    agents: [semgrep]
+suppressions:
+  rules:
+    - reason: bad regex
+      message: "unterminated("
+`
+      );
+
+      await expect(loadConfigFromPath(configPath)).rejects.toMatchObject({
+        code: ConfigErrorCode.INVALID_SCHEMA,
+      });
+
+      const config = await loadConfigFromPath(configPath, { ignoreSuppressions: true });
+      expect(config.passes[0]?.name).toBe('static');
+      expect(config.suppressions).toBeUndefined();
     });
   });
 });

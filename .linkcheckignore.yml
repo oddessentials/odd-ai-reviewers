@@ -38,3 +38,9 @@ entries:
     reason: 'Microsoft documentation media assets may be reorganized'
     added_at: '2026-01-28T00:00:00Z'
     added_by: '#006-quality-enforcement'
+
+  # npm registry - returns 403 to automated link checkers
+  - pattern: 'https://www.npmjs.com/*'
+    reason: 'npm registry rate-limits or blocks automated requests with 403'
+    added_at: '2026-03-18T00:00:00Z'
+    added_by: '#417-dogfood-quality-release'

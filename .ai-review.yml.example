@@ -1,0 +1,96 @@
+# odd-ai-reviewers Configuration Example
+#
+# Copy this file to .ai-review.yml and customize for your repository.
+# Full schema reference: docs/configuration/config-schema.md
+
+version: 1
+trusted_only: true
+
+# LLM provider — optional, auto-detected from API keys if omitted.
+# Values: openai, anthropic, azure-openai, ollama
+# provider: anthropic
+
+# Model selection — optional, falls back to MODEL env var or provider default.
+# Cloud models: gpt-4o, gpt-4o-mini, claude-sonnet-4-20250514, claude-opus-4-6
+# Local models: deepseek-coder:6.7b, llama3.2:3b, codellama:7b
+# models:
+#   default: gpt-4o-mini
+
+triggers:
+  on: [pull_request]
+  branches: [main]
+
+# Review passes — executed in order.
+# Each pass groups agents that run together.
+passes:
+  # Static analysis — no API keys required
+  - name: static
+    agents: [semgrep, reviewdog]
+    enabled: true
+    required: true # Fail the check if semgrep finds issues
+
+  # Cloud AI review — requires OPENAI_API_KEY or ANTHROPIC_API_KEY
+  - name: cloud-ai
+    agents: [opencode, pr_agent]
+    enabled: true
+    required: false # Skip gracefully if API keys are missing
+
+  # Local AI review via Ollama — uncomment to enable
+  # - name: local-ai
+  #   agents: [local_llm]
+  #   enabled: true
+  #   required: false # Skip if Ollama unavailable
+
+# Resource limits
+limits:
+  max_files: 50
+  max_diff_lines: 2000
+  max_tokens_per_pr: 12000
+  max_usd_per_pr: 1.00
+  monthly_budget_usd: 100
+  # max_completion_tokens: 4000 # Max tokens for AI responses
+
+# Reporting — configure per platform
+reporting:
+  github:
+    mode: checks_and_comments # checks_only | comments_only | checks_and_comments
+    max_inline_comments: 20
+    summary: true
+  # ado:
+  #   mode: threads_and_status # threads_only | status_only | threads_and_status
+  #   max_inline_comments: 20
+  #   summary: true
+  #   thread_status: active   # active | pending
+
+# Merge gating — block merge on findings
+gating:
+  enabled: false
+  fail_on_severity: error # error | warning | info
+  # drift_gate: false # Suppress inline comments on severe line validation drift
+
+# Path filters
+# path_filters:
+#   include:
+#     - 'src/**'
+#   exclude:
+#     - '**/*.test.ts'
+#     - '**/node_modules/**'
+
+# Finding suppressions — silence specific false positives with audit trail
+# suppressions:
+#   rules:
+#     - rule: 'semantic/documentation'
+#       reason: 'We use JSDoc, not TSDoc'
+#     - message: '^missing error handling'
+#       file: 'tests/**'
+#       reason: 'Tests intentionally omit error handling'
+#   disable_matchers:          # Disable specific built-in matchers
+#     - 'ts-unused-prefix'
+#   security_override_allowlist: []  # Rule reasons allowed to suppress error-severity
+
+# Control flow analysis — built-in TypeScript vulnerability scanner
+# control_flow:
+#   enabled: true
+#   maxCallDepth: 5
+#   timeBudgetMs: 300000
+#   sizeBudgetLines: 10000

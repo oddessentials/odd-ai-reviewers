@@ -508,6 +508,60 @@ describe('Summary Generation', () => {
       expect(summary).not.toContain('-$');
       expect(summary).not.toContain('$-');
     });
+
+    // === Mandatory regression test: suppression counts in pretty output (FR-022) ===
+
+    it('should show suppression counts when rules match', () => {
+      const findings = [
+        createTestFinding({ severity: 'error' }),
+        createTestFinding({ severity: 'warning' }),
+      ];
+      const context = createTestContext();
+      const stats = {
+        filesAnalyzed: 5,
+        linesChanged: 100,
+        executionTimeMs: 1000,
+        estimatedCostUsd: 0.01,
+      };
+      const suppressionSummary = [
+        { reason: 'Legacy auth module', matched: 2 },
+        { reason: 'Test helpers', matched: 1 },
+      ];
+
+      const summary = generateSummary(findings, stats, context, suppressionSummary);
+
+      expect(summary).toContain('Suppressed:');
+      expect(summary).toContain('3');
+      expect(summary).toContain('2 rule');
+    });
+
+    it('should NOT show suppression line when no suppressions active', () => {
+      const context = createTestContext();
+      const stats = {
+        filesAnalyzed: 5,
+        linesChanged: 100,
+        executionTimeMs: 1000,
+        estimatedCostUsd: 0.01,
+      };
+
+      const summary = generateSummary([], stats, context);
+
+      expect(summary).not.toContain('Suppressed');
+    });
+
+    it('should NOT show suppression line when summary is empty array', () => {
+      const context = createTestContext();
+      const stats = {
+        filesAnalyzed: 5,
+        linesChanged: 100,
+        executionTimeMs: 1000,
+        estimatedCostUsd: 0.01,
+      };
+
+      const summary = generateSummary([], stats, context, []);
+
+      expect(summary).not.toContain('Suppressed');
+    });
   });
 
   describe('generateTerminalSummary', () => {
@@ -712,5 +766,23 @@ describe('reportToTerminal Integration', () => {
 
     expect(result.findingsCount).toBe(1);
     expect(result.partialFindingsCount).toBe(1);
+  });
+
+  it('should forward status and suppression summary into JSON output', async () => {
+    const findings = [createTestFinding()];
+    const context = createTestContext({ format: 'json' });
+    const config = {} as Config;
+    const diffFiles: DiffFile[] = [];
+
+    await reportToTerminal(findings, [], context, config, diffFiles, {
+      status: 'gating_failed',
+      suppressionSummary: [{ reason: 'Suppressed style noise', matched: 2 }],
+    });
+
+    const written = stdoutSpy.mock.calls.map(([chunk]: [unknown]) => String(chunk)).join('');
+    const output = JSON.parse(written.trim());
+
+    expect(output.status).toBe('gating_failed');
+    expect(output.suppressions).toEqual([{ reason: 'Suppressed style noise', matched: 2 }]);
   });
 });
