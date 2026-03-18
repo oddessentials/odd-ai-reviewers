@@ -1181,10 +1181,12 @@ export async function runReview(
       return;
     }
 
+    // Fatal failure with no preserved findings — this is a hard crash, not a degraded run.
+    // Use config_error (exit 2) to distinguish from incomplete (exit 3, which has reportable findings).
     console.error(`[router] ❌ Review failed: ${errorMsg}`);
     const summary = 'The AI review failed before reporting results.\n' + `Error: ${errorMsg}`;
     await finalizeCheckRun('failure', 'AI Review failed', summary);
-    exitHandler(exitCodeFromStatus('incomplete'));
+    exitHandler(exitCodeFromStatus('config_error'));
   }
 }
 

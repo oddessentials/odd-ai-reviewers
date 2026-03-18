@@ -257,6 +257,8 @@ export interface SarifRun {
     };
   };
   results: SarifResult[];
+  /** Custom properties for run-level metadata (SARIF 2.1.0 extension point) */
+  properties?: Record<string, unknown>;
 }
 
 export interface SarifRule {
@@ -1046,7 +1048,11 @@ function mapSeverityToSarifLevel(severity: Severity): 'error' | 'warning' | 'not
  * @param context - Terminal context
  * @returns SARIF JSON string
  */
-export function generateSarifOutput(findings: Finding[], context: TerminalContext): string {
+export function generateSarifOutput(
+  findings: Finding[],
+  context: TerminalContext,
+  status: RunStatus = 'complete'
+): string {
   const results: SarifResult[] = findings.map((finding) => {
     const result: SarifResult = {
       ruleId: finding.ruleId ?? finding.sourceAgent,
@@ -1094,6 +1100,10 @@ export function generateSarifOutput(findings: Finding[], context: TerminalContex
           },
         },
         results,
+        // FR-021: Machine-readable status in SARIF via properties extension point
+        properties: {
+          status,
+        },
       },
     ],
   };
@@ -1267,7 +1277,7 @@ export async function reportToTerminal(
         break;
 
       case 'sarif':
-        output = generateSarifOutput(sortedComplete, context);
+        output = generateSarifOutput(sortedComplete, context, options.status ?? 'complete');
         break;
 
       case 'pretty':

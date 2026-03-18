@@ -223,7 +223,7 @@ describe('runReview exit behavior', () => {
       }
     );
 
-    expect(exitHandler).toHaveBeenCalledWith(3); // incomplete — execution crash
+    expect(exitHandler).toHaveBeenCalledWith(2); // config_error — fatal crash with no findings
     expect(startCheckRun).toHaveBeenCalled();
     expect(completeCheckRun).toHaveBeenCalledWith(
       expect.objectContaining({ checkRunId: 123 }),

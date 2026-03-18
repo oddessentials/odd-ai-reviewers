@@ -1217,10 +1217,12 @@ export async function runLocalReview(
       };
     }
 
+    // Fatal failure with no preserved findings — hard crash, not a degraded run.
+    // Use config_error (exit 2) to distinguish from incomplete (exit 3, which has findings).
     stderr.write(c.red(`\nExecution error: ${errorMsg}\n`));
     return {
-      exitCode: exitCodeFromStatus('incomplete'),
-      status: 'incomplete',
+      exitCode: exitCodeFromStatus('config_error'),
+      status: 'config_error',
       findingsCount: 0,
       partialFindingsCount: 0,
       error: errorMsg,

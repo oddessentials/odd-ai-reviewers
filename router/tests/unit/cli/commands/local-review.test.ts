@@ -478,8 +478,8 @@ describe('runLocalReview', () => {
 
       const result = await runLocalReview({ path: '/test/repo' }, deps);
 
-      // FR-021: Execution errors without partial results use exit code 3 (incomplete)
-      expect(result.exitCode).toBe(ExitCode.INCOMPLETE);
+      // Fatal crash with no preserved findings → config_error (exit 2), not incomplete
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
       expect(result.error).toContain('Agent execution failed');
     });
 
