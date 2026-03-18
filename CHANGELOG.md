@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.11.0...v1.12.0) (2026-03-18)
+
+### Features
+
+* dogfood quality release — CLI filtering, suppressor fixes, architecture improvements ([#189](https://github.com/oddessentials/odd-ai-reviewers/issues/189)) ([8ebdd19](https://github.com/oddessentials/odd-ai-reviewers/commit/8ebdd19f2b70b2cf45cfa5cb1c698bedbf450d2a)), closes [171-#175](https://github.com/oddessentials/171-/issues/175) [#172](https://github.com/oddessentials/odd-ai-reviewers/issues/172) [#171](https://github.com/oddessentials/odd-ai-reviewers/issues/171) [#175](https://github.com/oddessentials/odd-ai-reviewers/issues/175) [#172](https://github.com/oddessentials/odd-ai-reviewers/issues/172) [#173](https://github.com/oddessentials/odd-ai-reviewers/issues/173) [#174](https://github.com/oddessentials/odd-ai-reviewers/issues/174)
+
 ## [1.11.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.10.1...v1.11.0) (2026-03-16)
 
 ### Features
