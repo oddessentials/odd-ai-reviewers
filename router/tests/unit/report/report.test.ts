@@ -692,7 +692,8 @@ describe('Report Module', () => {
           token: 'ghp_test',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -712,7 +713,8 @@ describe('Report Module', () => {
           headSha: 'merge-head-sha',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -758,7 +760,8 @@ describe('Report Module', () => {
           token: 'ado-token',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 
@@ -779,7 +782,8 @@ describe('Report Module', () => {
           token: 'pat-token',
         }),
         minimalConfig,
-        []
+        [],
+        undefined
       );
     });
 

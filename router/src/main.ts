@@ -48,6 +48,7 @@ import { hashConfig } from './cache/key.js';
 import {
   runPreflightChecks,
   executeAllPasses,
+  FatalExecutionError,
   processFindings,
   dispatchReport,
   getPostNormalizationFindings,
@@ -56,6 +57,9 @@ import {
   type Platform,
 } from './phases/index.js';
 import type { AgentId } from './config/schemas.js';
+import { loadBaseBranchSuppressions } from './report/user-suppressions.js';
+import { exitCodeFromStatus } from './cli/execution-plan.js';
+import { ConfigError } from './types/errors.js';
 
 // =============================================================================
 // Exit Handler (for testability)
@@ -1019,7 +1023,7 @@ export async function runReview(
       'Preflight checks failed. Review did not run.\n' +
       preflightResult.errors.map((error) => `- ${error}`).join('\n');
     await finalizeCheckRun('failure', 'AI Review preflight failed', summary);
-    exitHandler(1);
+    exitHandler(exitCodeFromStatus('config_error'));
     return; // For type safety when exitHandler doesn't terminate
   }
 
@@ -1037,6 +1041,20 @@ export async function runReview(
     agentContext.effectiveModel = preflightResult.resolved.model;
   }
 
+  // FR-022: Load suppressions from base branch in CI mode (security constraint).
+  // In CI, suppression rules ALWAYS come from the BASE branch config, never from the PR branch.
+  // This prevents attackers from smuggling suppressions into fork PRs to hide vulnerabilities.
+  // Any suppressions in the PR branch config are unconditionally replaced.
+  const isCIMode = platform === 'github' || platform === 'ado';
+  let ciConfig = config;
+  if (isCIMode) {
+    const baseBranchSuppressions = loadBaseBranchSuppressions(options.repo, reviewRefs.baseSha);
+    // Always override PR-branch suppressions with base-branch suppressions.
+    // If base branch has no suppressions, this clears any PR-branch suppressions too —
+    // that's intentional: untrusted PR branches must not control suppression rules.
+    ciConfig = { ...config, suppressions: baseBranchSuppressions };
+  }
+
   try {
     // === PHASE 5: Execute Agent Passes ===
     const executeResult = await executeAllPasses(config, agentContext, routerEnv, budgetCheck, {
@@ -1047,13 +1065,16 @@ export async function runReview(
 
     // === PHASE 6: Process & Report Findings ===
     // (012-fix-agent-result-regressions) - Now passing completeFindings and partialFindings separately
+    // FR-022: Pass config with suppressions and CI mode for breadth enforcement
     const { sorted, partialSorted } = processFindings(
       executeResult.completeFindings,
       executeResult.partialFindings,
       executeResult.allResults,
       executeResult.skippedAgents,
       diff.files,
-      agentContext.prDescription
+      agentContext.prDescription,
+      ciConfig,
+      isCIMode ? 'ci' : 'local'
     );
 
     const reportResult = await dispatchReport(
@@ -1072,6 +1093,7 @@ export async function runReview(
         head: reviewRefs.headSha,
         githubHeadSha,
         checkRunId,
+        runStatus: 'complete',
       }
     );
     if (platform === 'github' && reportResult?.checkRunCompleted) {
@@ -1090,14 +1112,79 @@ export async function runReview(
     exitSuccess(exitHandler);
   } catch (error) {
     if (error instanceof GatingError) {
-      exitHandler(1);
+      exitHandler(exitCodeFromStatus('gating_failed'));
       return;
     }
+
+    // FR-022: Suppression breadth/allowlist violations throw ConfigError from processFindings().
+    // These are config-level errors, not execution failures — exit with config_error (2).
+    if (error instanceof ConfigError) {
+      const configErrorMsg = error.message;
+      console.error(`[router] ❌ Configuration error: ${configErrorMsg}`);
+      const summary = `Configuration error during review.\n\nError: ${configErrorMsg}`;
+      await finalizeCheckRun('failure', 'AI Review config error', summary);
+      exitHandler(exitCodeFromStatus('config_error'));
+      return;
+    }
+
     const errorMsg = error instanceof Error ? error.message : String(error);
+
+    // FR-021: When a FatalExecutionError carries partial results, report them
+    // in degraded mode with a 'neutral' check run conclusion instead of 'failure'.
+    if (
+      error instanceof FatalExecutionError &&
+      error.partialResults &&
+      (error.partialResults.completeFindings.length > 0 ||
+        error.partialResults.partialFindings.length > 0)
+    ) {
+      console.warn(
+        `[router] ⚠ Incomplete review: ${errorMsg}. ` +
+          `Reporting ${error.partialResults.completeFindings.length} findings from completed agents.`
+      );
+
+      // Process and report partial findings through the standard pipeline
+      const { sorted, partialSorted } = processFindings(
+        error.partialResults.completeFindings,
+        error.partialResults.partialFindings,
+        error.partialResults.allResults,
+        error.partialResults.skippedAgents,
+        diff.files,
+        agentContext.prDescription,
+        ciConfig,
+        isCIMode ? 'ci' : 'local'
+      );
+
+      // FR-021: Pass runStatus: 'incomplete' so reporters use neutral/pending conclusion.
+      // The reporter handles the conclusion directly — no separate finalizeCheckRun override needed.
+      await dispatchReport(
+        platform,
+        sorted,
+        partialSorted,
+        config,
+        diff.files,
+        routerEnv,
+        prContext.number,
+        {
+          dryRun: options.dryRun,
+          owner: options.owner,
+          repoName: options.repoName,
+          pr: options.pr,
+          head: reviewRefs.headSha,
+          githubHeadSha,
+          checkRunId,
+          runStatus: 'incomplete',
+        }
+      );
+
+      // FR-021: Exit code 3 for incomplete reviews — gating is NOT evaluated
+      exitHandler(exitCodeFromStatus('incomplete'));
+      return;
+    }
+
     console.error(`[router] ❌ Review failed: ${errorMsg}`);
     const summary = 'The AI review failed before reporting results.\n' + `Error: ${errorMsg}`;
     await finalizeCheckRun('failure', 'AI Review failed', summary);
-    exitHandler(1);
+    exitHandler(exitCodeFromStatus('incomplete'));
   }
 }
 

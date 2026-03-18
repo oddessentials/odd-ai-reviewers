@@ -9,6 +9,7 @@
  * Follows the same processing pipeline as GitHub/ADO reporters.
  */
 
+import type { RunStatus } from '../cli/execution-plan.js';
 import type { Finding, Severity } from '../agents/types.js';
 import type { DiffFile, CanonicalDiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
@@ -105,6 +106,13 @@ export interface TerminalReportResult {
   error?: string;
 }
 
+export interface TerminalReportOptions {
+  /** Canonical run status for machine-readable output */
+  status?: RunStatus;
+  /** Per-rule suppression match counts for JSON output */
+  suppressionSummary?: { reason: string; matched: number }[];
+}
+
 /**
  * Code snippet for display
  */
@@ -197,6 +205,8 @@ export interface AgentSummary {
 export interface JsonOutput {
   /** Output format version for consumer compatibility */
   schema_version: string;
+  /** Canonical run status (FR-021) */
+  status: RunStatus;
   /** Tool version from package.json */
   version: string;
   /** ISO 8601 timestamp, always UTC */
@@ -217,11 +227,15 @@ export interface JsonOutput {
   partialFindings: Finding[];
   /** Per-pass results */
   passes: PassSummary[];
+  /** Skipped passes with reasons (FR-009: empty-pass rule) */
+  skipped_passes?: { name: string; reason: string }[];
   /** Config source info */
   config: {
     source: 'file' | 'zero-config';
     path?: string;
   };
+  /** User suppression match counts (FR-022) — only present when suppressions are active */
+  suppressions?: { reason: string; matched: number }[];
 }
 
 /**
@@ -801,6 +815,24 @@ export function formatFindingsList(
  * @param context - Terminal context
  * @returns Formatted summary string
  */
+/**
+ * Format a suppression summary line for display across all output paths.
+ * Returns null when no suppressions are active (caller should omit the line).
+ */
+export function formatSuppressionLine(
+  summary: { reason: string; matched: number }[] | undefined,
+  colored: boolean
+): string | null {
+  if (!summary || summary.length === 0) return null;
+  const totalSuppressed = summary.reduce((sum, s) => sum + s.matched, 0);
+  if (totalSuppressed === 0) return null;
+  const ruleCount = summary.length;
+  const c = createColorizer(colored);
+  return c.yellow(
+    `   Suppressed:  ${totalSuppressed} (by ${ruleCount} rule${ruleCount !== 1 ? 's' : ''})`
+  );
+}
+
 export function generateSummary(
   findings: Finding[],
   stats: {
@@ -809,7 +841,8 @@ export function generateSummary(
     executionTimeMs: number;
     estimatedCostUsd: number;
   },
-  context: TerminalContext
+  context: TerminalContext,
+  suppressionSummary?: { reason: string; matched: number }[]
 ): string {
   const c = createColorizer(context.colored);
   const counts = countBySeverity(findings);
@@ -834,6 +867,13 @@ export function generateSummary(
   lines.push(errorLabel);
   lines.push(warningLabel);
   lines.push(context.colored ? c.blue(infoLabel) : infoLabel);
+
+  // FR-022: Show suppression counts in pretty summary when active
+  const suppressionLine = formatSuppressionLine(suppressionSummary, context.colored);
+  if (suppressionLine) {
+    lines.push(suppressionLine);
+  }
+
   lines.push('');
 
   // Stats section
@@ -946,13 +986,16 @@ export function generateJsonOutput(
   findings: Finding[],
   partialFindings: Finding[],
   context: TerminalContext,
-  diffFiles: CanonicalDiffFile[]
+  diffFiles: CanonicalDiffFile[],
+  suppressionSummary?: { reason: string; matched: number }[],
+  status: RunStatus = 'complete'
 ): string {
   const counts = countBySeverity(findings);
   const totalLines = diffFiles.reduce((sum, f) => sum + f.additions + f.deletions, 0);
 
   const output: JsonOutput = {
     schema_version: JSON_SCHEMA_VERSION,
+    status,
     version: context.version ?? '0.0.0',
     timestamp: new Date().toISOString(),
     summary: {
@@ -970,6 +1013,11 @@ export function generateJsonOutput(
     passes: [], // Would need pass information from execution context
     config: context.configSource ?? { source: 'file' },
   };
+
+  // FR-022: Include suppression match counts when active
+  if (suppressionSummary && suppressionSummary.length > 0) {
+    output.suppressions = suppressionSummary;
+  }
 
   // Single-line JSON output (no pretty-printing)
   return JSON.stringify(output);
@@ -1165,7 +1213,8 @@ export async function reportToTerminal(
   partialFindings: Finding[],
   context: TerminalContext,
   config: Config,
-  diffFiles: DiffFile[]
+  diffFiles: DiffFile[],
+  options: TerminalReportOptions = {}
 ): Promise<TerminalReportResult> {
   try {
     // 1. Canonicalize diff files
@@ -1207,7 +1256,14 @@ export async function reportToTerminal(
 
     switch (context.format) {
       case 'json':
-        output = generateJsonOutput(sortedComplete, sortedPartial, context, canonicalFiles);
+        output = generateJsonOutput(
+          sortedComplete,
+          sortedPartial,
+          context,
+          canonicalFiles,
+          options.suppressionSummary,
+          options.status ?? 'complete'
+        );
         break;
 
       case 'sarif':
@@ -1245,8 +1301,8 @@ export async function reportToTerminal(
             parts.push(formatFindingsList(sortedPartial, context, canonicalFiles));
           }
 
-          // Summary
-          parts.push(generateSummary(sortedComplete, stats, context));
+          // Summary (FR-022: thread suppression counts into pretty output)
+          parts.push(generateSummary(sortedComplete, stats, context, options.suppressionSummary));
 
           output = parts.join('\n');
         }

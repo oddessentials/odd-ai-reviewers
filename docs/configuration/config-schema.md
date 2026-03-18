@@ -8,6 +8,11 @@ The `.ai-review.yml` file controls how AI review runs in your repository.
 version: 1 # Schema version (required: 1)
 trusted_only: true # Only run on non-fork PRs
 
+provider: anthropic # openai | anthropic | azure-openai | ollama
+
+models:
+  default: claude-sonnet-4-20250514 # Default model for AI agents
+
 triggers:
   on: [pull_request, push] # When to trigger
   branches: [main, develop] # Which branches to review
@@ -28,6 +33,7 @@ limits:
   max_tokens_per_pr: 12000 # Max LLM tokens
   max_usd_per_pr: 1.00 # Max cost per PR
   monthly_budget_usd: 100 # Monthly budget
+  max_completion_tokens: 4000 # Max tokens for AI completion responses
 
 reporting:
   github:
@@ -43,6 +49,25 @@ reporting:
 gating:
   enabled: false # Block merge on findings
   fail_on_severity: error # error | warning | info
+  drift_gate: false # Suppress inline comments on severe line validation drift
+
+control_flow: # Built-in TypeScript control flow analysis
+  enabled: true
+  maxCallDepth: 5
+  timeBudgetMs: 300000
+  sizeBudgetLines: 10000
+
+suppressions:
+  rules:
+    - rule: 'semantic/documentation'
+      reason: 'We use JSDoc, not TSDoc'
+    - message: '^missing error handling'
+      file: 'tests/**'
+      reason: 'Tests intentionally omit error handling'
+  disable_matchers:
+    - 'ts-unused-prefix'
+  security_override_allowlist:
+    - 'legacy auth module - tracked in JIRA-1234'
 
 path_filters:
   include: # Only review these paths
@@ -62,6 +87,22 @@ Schema version. Currently only `1` is supported.
 ### `trusted_only`
 
 When `true` (default), AI review only runs on PRs from the same repository. Fork PRs are skipped.
+
+### `provider`
+
+Explicit LLM provider selection. When set, overrides automatic provider detection based on API key precedence.
+
+Values: `openai`, `anthropic`, `azure-openai`, `ollama`
+
+When omitted, the provider is auto-detected from available API keys (Anthropic > Azure OpenAI > OpenAI). Required when multiple provider keys are present and `MODEL` is set, to prevent ambiguity.
+
+### `models`
+
+Model configuration for AI agents.
+
+- `default`: Default model name used when the `MODEL` environment variable is not set
+
+When omitted, the model is determined by the `MODEL` environment variable or the provider's default.
 
 ### `triggers`
 
@@ -105,34 +146,93 @@ Available agents:
 
 Budget controls to prevent runaway costs:
 
-| Property             | Default | Description                       |
-| -------------------- | ------- | --------------------------------- |
-| `max_files`          | 50      | Skip review if more files changed |
-| `max_diff_lines`     | 2000    | Truncate diff at this limit       |
-| `max_tokens_per_pr`  | 12000   | Max LLM input tokens              |
-| `max_usd_per_pr`     | 1.00    | Max estimated cost per PR         |
-| `monthly_budget_usd` | 100     | Monthly spending cap              |
+| Property                | Default | Description                            |
+| ----------------------- | ------- | -------------------------------------- |
+| `max_files`             | 50      | Skip review if more files changed      |
+| `max_diff_lines`        | 2000    | Truncate diff at this limit            |
+| `max_tokens_per_pr`     | 12000   | Max LLM input tokens                   |
+| `max_usd_per_pr`        | 1.00    | Max estimated cost per PR              |
+| `monthly_budget_usd`    | 100     | Monthly spending cap                   |
+| `max_completion_tokens` | 4000    | Max tokens for AI completion responses |
 
 ### `reporting`
 
-GitHub-specific reporting options:
+Platform-specific reporting options. Configure `github`, `ado`, or both.
+
+#### `reporting.github`
+
+GitHub reporting options:
 
 - `mode`: How to report findings
   - `checks_only`: Only create check runs
   - `comments_only`: Only post PR comments
   - `checks_and_comments`: Both (default)
-- `max_inline_comments`: Limit inline comment spam
-- `summary`: Post a summary comment
+- `max_inline_comments`: Limit inline comment spam (default: 20)
+- `summary`: Post a summary comment (default: true)
+
+#### `reporting.ado`
+
+Azure DevOps reporting options:
+
+- `mode`: How to report findings
+  - `threads_only`: Only create PR comment threads
+  - `status_only`: Only update build status
+  - `threads_and_status`: Both (default)
+- `max_inline_comments`: Limit inline comment spam (default: 20)
+- `summary`: Post a summary thread (default: true)
+- `thread_status`: Status for new finding threads — `active` (default) or `pending`
 
 ### `gating`
 
 Optional merge blocking:
 
-- `enabled`: If `true`, set check status based on findings
-- `fail_on_severity`: Minimum severity to fail
+- `enabled`: If `true`, set check status based on findings (default: false)
+- `fail_on_severity`: Minimum severity to fail (default: error)
   - `error`: Only fail on errors
   - `warning`: Fail on warnings or errors
   - `info`: Fail on any finding
+- `drift_gate`: When `true`, suppresses inline comments when line validation drift reaches a critical level (default: false)
+
+### `suppressions`
+
+User-configurable rules for suppressing specific findings. All suppressions are logged for auditability.
+
+#### `suppressions.rules`
+
+Array of suppression rules (maximum 50). Each rule must specify at least one of `rule`, `message`, or `file`, plus a mandatory `reason`.
+
+| Field                     | Type    | Required | Description                                        |
+| ------------------------- | ------- | -------- | -------------------------------------------------- |
+| `rule`                    | string  | No\*     | Glob pattern matched against finding rule ID       |
+| `message`                 | string  | No\*     | Anchored regex matched against finding message     |
+| `file`                    | string  | No\*     | Glob pattern matched against finding file path     |
+| `severity`                | string  | No       | Exact match: `error`, `warning`, or `info`         |
+| `reason`                  | string  | Yes      | Audit reason for this suppression                  |
+| `breadth_override`        | boolean | No       | Allow >20 matches in CI mode (raises limit to 200) |
+| `breadth_override_reason` | string  | No\*\*   | Justification for broad suppression                |
+| `approved_by`             | string  | No\*\*   | Person or team who approved the override           |
+
+\* At least one of `rule`, `message`, or `file` is required.
+\*\* Required when `breadth_override: true`.
+
+**Validation constraints:**
+
+- `message` patterns must be anchored (bare `.*` is rejected)
+- `rule` patterns use glob syntax only (e.g., `semantic/*`)
+- In CI mode, a rule matching >20 findings fails unless `breadth_override` is set
+- Breadth overrides matching error-severity findings require the rule's `reason` to be listed in `security_override_allowlist`
+
+**CI security:** In CI mode (GitHub/ADO), suppression rules are loaded from the base branch configuration only, never from the PR branch. This prevents attackers from smuggling suppressions into fork PRs.
+
+#### `suppressions.disable_matchers`
+
+Array of built-in matcher IDs to disable in the framework convention filter. Valid IDs:
+
+`express-error-mw`, `ts-unused-prefix`, `exhaustive-switch`, `react-query-dedup`, `promise-allsettled-order`, `safe-local-file-read`, `exhaustive-type-narrowed-switch`, `error-object-xss`, `thin-wrapper-stdlib`
+
+#### `suppressions.security_override_allowlist`
+
+Array of rule `reason` strings (exact match) that are authorized to suppress error-severity findings when using breadth overrides.
 
 ### `path_filters`
 
@@ -140,6 +240,23 @@ Glob patterns to include/exclude files:
 
 - `include`: Only review matching files
 - `exclude`: Skip matching files
+
+### `control_flow`
+
+Configuration for the built-in TypeScript control flow analysis agent. All fields are optional with sensible defaults.
+
+| Property              | Default | Description                                            |
+| --------------------- | ------- | ------------------------------------------------------ |
+| `enabled`             | true    | Enable/disable control flow analysis                   |
+| `maxCallDepth`        | 5       | Maximum call chain depth for cross-function analysis   |
+| `timeBudgetMs`        | 300000  | Maximum analysis time in milliseconds (5 minutes)      |
+| `sizeBudgetLines`     | 10000   | Maximum source lines to analyze per file               |
+| `mitigationPatterns`  | []      | Custom mitigation patterns to recognize                |
+| `patternOverrides`    | []      | Override confidence/severity of built-in patterns      |
+| `disabledPatterns`    | []      | Pattern IDs to skip during analysis                    |
+| `patternTimeoutMs`    | 100     | Maximum time per regex pattern evaluation (10-1000ms)  |
+| `validationTimeoutMs` | 10      | Maximum time for pattern validation (1-100ms)          |
+| `rejectionThreshold`  | medium  | Minimum ReDoS risk level that causes pattern rejection |
 
 ## `.reviewignore` File
 

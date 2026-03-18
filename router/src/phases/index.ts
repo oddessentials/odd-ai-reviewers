@@ -7,6 +7,7 @@
 export { runPreflightChecks, type PreflightResult } from './preflight.js';
 export {
   executeAllPasses,
+  FatalExecutionError,
   type ExecuteOptions,
   type ExecuteResult,
   type SkippedAgent,

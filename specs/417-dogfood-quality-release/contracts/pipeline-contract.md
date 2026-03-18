@@ -42,7 +42,7 @@ Update to call `validateFindingsSemantics()` before `validateNormalizedFindings(
 
 - `filtered: Finding[]` (findings not matched by any rule)
 - `suppressed: SuppressionMatchResult[]` (matched findings with rule details)
-- `matchCounts: Map<string, number>` (per-rule match count for breadth enforcement)
+- `matchCounts: Map<number, number>` (per-rule-index match count for breadth enforcement; translated to reason strings by `buildSuppressionSummary()` for output)
 
 ### Matching Logic
 

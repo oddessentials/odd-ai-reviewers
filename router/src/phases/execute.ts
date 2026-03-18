@@ -25,11 +25,18 @@ export interface SkippedAgent {
 
 export class FatalExecutionError extends Error {
   readonly code: 'BUDGET_EXCEEDED' | 'POLICY_VIOLATION' | 'AGENT_FAILURE' | 'AGENT_CRASH';
+  /** Accumulated findings from agents that completed before the failure (FR-021) */
+  readonly partialResults?: ExecuteResult;
 
-  constructor(code: FatalExecutionError['code'], message: string, options?: { cause?: Error }) {
-    super(message, options);
+  constructor(
+    code: FatalExecutionError['code'],
+    message: string,
+    options?: { cause?: Error; partialResults?: ExecuteResult }
+  ) {
+    super(message, options?.cause ? { cause: options.cause } : undefined);
     this.name = 'FatalExecutionError';
     this.code = code;
+    this.partialResults = options?.partialResults;
   }
 }
 
@@ -111,7 +118,9 @@ export async function executeAllPasses(
       if (pass.required) {
         const message = `Required pass ${pass.name} blocked by budget limit`;
         console.error(`[router] ❌ ${message}`);
-        throw new FatalExecutionError('BUDGET_EXCEEDED', message);
+        throw new FatalExecutionError('BUDGET_EXCEEDED', message, {
+          partialResults: { completeFindings, partialFindings, allResults, skippedAgents },
+        });
       }
       console.log(`[router] Skipping optional paid LLM pass due to budget: ${pass.name}`);
       for (const agent of agents) {
@@ -133,7 +142,9 @@ export async function executeAllPasses(
         if (isMainBranchPush(routerEnv) && isAgentForbiddenOnMain(agent.id)) {
           const message = `Policy violation: in-process LLM agent "${agent.id}" is forbidden on direct main push`;
           console.error(`[router] ${message}`);
-          throw new FatalExecutionError('POLICY_VIOLATION', message);
+          throw new FatalExecutionError('POLICY_VIOLATION', message, {
+            partialResults: { completeFindings, partialFindings, allResults, skippedAgents },
+          });
         }
 
         const scopedContext: AgentContext = {
@@ -200,7 +211,9 @@ export async function executeAllPasses(
           if (pass.required) {
             const message = `Required agent ${agent.name} failed: ${result.error}`;
             console.error(`[router] ❌ ${message}`);
-            throw new FatalExecutionError('AGENT_FAILURE', message);
+            throw new FatalExecutionError('AGENT_FAILURE', message, {
+              partialResults: { completeFindings, partialFindings, allResults, skippedAgents },
+            });
           }
           // Optional agent failed - log skip reason and continue
           console.log(`[router] ⏭️  Optional agent ${agent.name} skipped: ${result.error}`);
@@ -229,11 +242,10 @@ export async function executeAllPasses(
         if (pass.required) {
           const message = `Required agent ${agent.name} crashed: ${errorMsg}`;
           console.error(`[router] ❌ ${message}`);
-          throw new FatalExecutionError(
-            'AGENT_CRASH',
-            message,
-            error instanceof Error ? { cause: error } : undefined
-          );
+          throw new FatalExecutionError('AGENT_CRASH', message, {
+            cause: error instanceof Error ? error : undefined,
+            partialResults: { completeFindings, partialFindings, allResults, skippedAgents },
+          });
         }
         console.error(`[router] ⏭️  Optional agent ${agent.name} crashed: ${errorMsg}`);
         skippedAgents.push({ id: agent.id, name: agent.name, reason: errorMsg });

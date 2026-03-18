@@ -254,6 +254,111 @@ describe('runLocalReview', () => {
       expect(result.exitCode).toBe(ExitCode.FAILURE);
       expect(result.findingsCount).toBe(1);
     });
+
+    it('should pass gating_failed status to terminal JSON output', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 10,
+          deletions: 5,
+          patch: '+line\n-line',
+        },
+      ]);
+      const mockConfig = createMockConfig({
+        gating: { enabled: true, fail_on_severity: 'error', drift_gate: false },
+      });
+      const reportToTerminalMock = vi.fn().mockResolvedValue({
+        success: true,
+        findingsCount: 1,
+        partialFindingsCount: 0,
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+        executeAllPasses: async () => ({
+          completeFindings: [
+            {
+              severity: 'error',
+              file: 'src/test.ts',
+              line: 1,
+              message: 'Blocking finding',
+              sourceAgent: 'semgrep',
+            },
+          ],
+          partialFindings: [],
+          allResults: [],
+          skippedAgents: [],
+        }),
+        reportToTerminal: reportToTerminalMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', format: 'json' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.FAILURE);
+      expect(result.status).toBe('gating_failed');
+      expect(reportToTerminalMock).toHaveBeenCalled();
+      expect(reportToTerminalMock.mock.calls[0]?.[5]).toEqual(
+        expect.objectContaining({ status: 'gating_failed' })
+      );
+    });
+
+    it('should pass suppression summary to terminal JSON output from the shared pipeline', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 10,
+          deletions: 5,
+          patch: '+line\n-line',
+        },
+      ]);
+      const mockConfig = createMockConfig({
+        suppressions: {
+          rules: [{ rule: 'semantic/*', reason: 'Known semantic noise' }],
+        },
+      } as Partial<Config>);
+      const reportToTerminalMock = vi.fn().mockResolvedValue({
+        success: true,
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      });
+
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+        executeAllPasses: async () => ({
+          completeFindings: [
+            {
+              severity: 'warning',
+              file: 'src/test.ts',
+              line: 1,
+              message: 'Suppressed finding',
+              sourceAgent: 'opencode',
+              ruleId: 'semantic/error-handling',
+            },
+          ],
+          partialFindings: [],
+          allResults: [],
+          skippedAgents: [],
+        }),
+        reportToTerminal: reportToTerminalMock,
+      });
+
+      await runLocalReview({ path: '/test/repo', format: 'json' }, deps);
+
+      expect(reportToTerminalMock).toHaveBeenCalled();
+      expect(reportToTerminalMock.mock.calls[0]?.[5]).toEqual(
+        expect.objectContaining({
+          suppressionSummary: [{ reason: 'Known semantic noise', matched: 1 }],
+        })
+      );
+    });
   });
 
   describe('error handling', () => {
@@ -373,7 +478,8 @@ describe('runLocalReview', () => {
 
       const result = await runLocalReview({ path: '/test/repo' }, deps);
 
-      expect(result.exitCode).toBe(ExitCode.FAILURE);
+      // FR-021: Execution errors without partial results use exit code 3 (incomplete)
+      expect(result.exitCode).toBe(ExitCode.INCOMPLETE);
       expect(result.error).toContain('Agent execution failed');
     });
 
@@ -416,7 +522,8 @@ describe('runLocalReview', () => {
 
       const result = await runLocalReview({ path: '/test/repo' }, deps);
 
-      expect(result.exitCode).toBe(ExitCode.FAILURE);
+      // Missing required dependencies is a config/setup error (exit code 2)
+      expect(result.exitCode).toBe(ExitCode.INVALID_ARGS);
       expect(result.error).toBe('Missing required dependencies');
       expect(result.findingsCount).toBe(0);
     });

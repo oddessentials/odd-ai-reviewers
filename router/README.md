@@ -100,7 +100,9 @@ ai-review validate --repo .
 Create `.ai-review.yml` in your repository root:
 
 ```yaml
-# AI Provider configuration
+version: 1
+
+# AI Provider (optional — auto-detected from API keys if omitted)
 provider: openai
 
 # Model selection
@@ -109,10 +111,14 @@ models:
 
 # Review passes
 passes:
-  - name: ai-review
+  - name: static
+    agents: [semgrep]
     enabled: true
-    agents:
-      - opencode
+    required: true # Fail if semgrep is missing
+  - name: cloud-ai
+    agents: [opencode, pr_agent]
+    enabled: true
+    required: false # Skip if API keys are missing
 
 # Resource limits
 limits:
@@ -151,11 +157,12 @@ Run AI review on local changes.
 
 ### Exit Codes
 
-| Code | Meaning                                        |
-| ---- | ---------------------------------------------- |
-| 0    | Success (no blocking findings)                 |
-| 1    | Failure (blocking findings or execution error) |
-| 2    | Invalid arguments or configuration             |
+| Code | Meaning                                                 |
+| ---- | ------------------------------------------------------- |
+| 0    | Complete review, gating passed (or gating disabled)     |
+| 1    | Complete review, gating failure (findings exceeded)     |
+| 2    | Fatal error (invalid config or arguments)               |
+| 3    | Incomplete review (partial results, some agents failed) |
 
 ## Pre-commit Hook Integration
 

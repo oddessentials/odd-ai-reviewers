@@ -322,7 +322,7 @@ The configuration schema MUST support user-defined suppression rules with mandat
 - Message patterns MUST be anchored (no bare `.*` or empty patterns) — reject patterns that match every possible string at config validation time
 - Rule ID patterns support glob syntax only (no arbitrary regex) — e.g., `semantic/*` is valid, `.*` is not
 - A maximum of 50 suppression rules per configuration (enforced at config validation, not runtime)
-- Exact rule-ID match takes precedence over glob patterns when multiple rules match the same finding
+- First matching rule wins (rules are evaluated in config order; no multi-rule accumulation)
 
 **Hard CI breadth enforcement**:
 

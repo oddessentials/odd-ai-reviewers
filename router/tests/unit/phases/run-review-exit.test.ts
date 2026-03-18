@@ -106,7 +106,9 @@ beforeEach(() => {
     skippedAgents: [],
   });
   vi.mocked(processFindings).mockReturnValue({
-    deduplicated: [],
+    complete: [],
+    partial: [],
+    filtered: [],
     sorted: [],
     partialSorted: [],
     summary: '',
@@ -190,7 +192,7 @@ describe('runReview exit behavior', () => {
       }
     );
 
-    expect(exitHandler).toHaveBeenCalledWith(1);
+    expect(exitHandler).toHaveBeenCalledWith(2); // config_error — preflight failure
     expect(startCheckRun).toHaveBeenCalled();
     expect(completeCheckRun).toHaveBeenCalledWith(
       expect.objectContaining({ checkRunId: 123 }),
@@ -221,7 +223,7 @@ describe('runReview exit behavior', () => {
       }
     );
 
-    expect(exitHandler).toHaveBeenCalledWith(1);
+    expect(exitHandler).toHaveBeenCalledWith(3); // incomplete — execution crash
     expect(startCheckRun).toHaveBeenCalled();
     expect(completeCheckRun).toHaveBeenCalledWith(
       expect.objectContaining({ checkRunId: 123 }),
