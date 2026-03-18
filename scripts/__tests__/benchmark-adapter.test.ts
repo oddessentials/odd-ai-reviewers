@@ -10,6 +10,7 @@ import {
   transformFinding,
   discoverTasks,
   processPR,
+  updateBenchmarkData,
   type CLIFinding,
   type BenchmarkCandidate,
   type AdapterOptions,
@@ -47,13 +48,14 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 
 const mockExecFile = vi.mocked(execFile);
 const mockExistsSync = vi.mocked(existsSync);
 const mockReadFileSync = vi.mocked(readFileSync);
 const mockReaddirSync = vi.mocked(readdirSync);
 const mockRmSync = vi.mocked(rmSync);
+const mockWriteFileSync = vi.mocked(writeFileSync);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,6 +75,8 @@ function makeOptions(overrides: Partial<AdapterOptions> = {}): AdapterOptions {
   return {
     goldenDir: '/tmp/golden',
     output: '/tmp/output/results.json',
+    benchmarkData: '/tmp/benchmark/results/benchmark_data.json',
+    toolName: 'odd-ai-reviewers',
     concurrency: 1,
     timeoutPerPr: 300,
     maxRetries: 1,
@@ -305,6 +309,71 @@ describe('discoverTasks', () => {
     expect(tasks[0]?.project).toBe('project-b');
   });
 
+  it('discovers PR tasks from flat golden_comments files', () => {
+    mockExistsSync.mockReturnValue(true);
+
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isFile: () => true, isDirectory: () => false },
+      { name: 'grafana.json', isFile: () => true, isDirectory: () => false },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    mockReadFileSync.mockImplementation(((path: string) => {
+      if (path.endsWith('sentry.json')) {
+        return JSON.stringify([
+          {
+            pr_title: 'Fix sentry bug',
+            url: 'https://github.com/getsentry/sentry/pull/67876',
+            comments: [],
+          },
+          {
+            pr_title: 'Fix sentry bug 2',
+            url: 'https://github.com/ai-code-review-evaluation/sentry-greptile/pull/5',
+            comments: [],
+          },
+        ]);
+      }
+
+      return JSON.stringify([
+        {
+          pr_title: 'Fix grafana bug',
+          url: 'https://github.com/grafana/grafana/pull/101',
+          comments: [],
+        },
+      ]);
+    }) as typeof readFileSync);
+
+    const tasks = discoverTasks('/golden');
+
+    expect(tasks).toHaveLength(3);
+    expect(tasks[0]).toMatchObject({ project: 'sentry', prNumber: '67876' });
+    expect(tasks[1]).toMatchObject({ project: 'sentry', prNumber: '5' });
+    expect(tasks[2]).toMatchObject({ project: 'grafana', prNumber: '101' });
+  });
+
+  it('filters flat golden_comments files by project name', () => {
+    mockExistsSync.mockReturnValue(true);
+
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isFile: () => true, isDirectory: () => false },
+      { name: 'grafana.json', isFile: () => true, isDirectory: () => false },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify([
+        {
+          pr_title: 'Fix bug',
+          url: 'https://github.com/grafana/grafana/pull/101',
+          comments: [],
+        },
+      ]) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    const tasks = discoverTasks('/golden', 'grafana');
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.project).toBe('grafana');
+  });
+
   it('skips non-directory entries', () => {
     mockExistsSync.mockReturnValue(true);
 
@@ -354,6 +423,102 @@ describe('discoverTasks', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping'));
 
     warnSpy.mockRestore();
+  });
+
+  it('warns and skips flat entries with invalid PR URLs', () => {
+    mockExistsSync.mockReturnValue(true);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    mockReaddirSync.mockReturnValue([
+      { name: 'sentry.json', isFile: () => true, isDirectory: () => false },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify([
+        { pr_title: 'Bad url', url: 'https://github.com/getsentry/sentry', comments: [] },
+      ]) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    const tasks = discoverTasks('/golden');
+
+    expect(tasks).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('invalid PR URL'));
+
+    warnSpy.mockRestore();
+  });
+});
+
+describe('updateBenchmarkData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('injects odd-ai-reviewers review stubs into benchmark data', () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        'https://github.com/getsentry/sentry/pull/67876': {
+          pr_title: 'Existing title',
+          source_repo: 'sentry',
+          golden_comments: [{ comment: 'Issue', severity: 'High' }],
+          reviews: [
+            {
+              tool: 'claude',
+              repo_name: 'sentry__claude',
+              pr_url: 'https://example.com',
+              review_comments: [],
+            },
+          ],
+        },
+      }) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    updateBenchmarkData('/tmp/benchmark/results/benchmark_data.json', [makeTask()], makeOptions());
+
+    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(String(mockWriteFileSync.mock.calls[0]?.[1]));
+    const reviews = written['https://github.com/test-org/test-repo/pull/123'].reviews;
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({
+      tool: 'odd-ai-reviewers',
+      repo_name: 'odd-ai-reviewers__generated',
+      pr_url: 'https://github.com/test-org/test-repo/pull/123',
+    });
+  });
+
+  it('replaces an existing odd-ai-reviewers stub without duplicating it', () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        'https://github.com/test-org/test-repo/pull/123': {
+          pr_title: 'Existing title',
+          source_repo: 'test-org/test-repo',
+          golden_comments: [{ comment: 'Issue', severity: 'High' }],
+          reviews: [
+            {
+              tool: 'claude',
+              repo_name: 'claude__generated',
+              pr_url: 'https://example.com',
+              review_comments: [],
+            },
+            {
+              tool: 'odd-ai-reviewers',
+              repo_name: 'stale',
+              pr_url: 'https://stale.example.com',
+              review_comments: [{ body: 'stale' }],
+            },
+          ],
+        },
+      }) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    updateBenchmarkData('/tmp/benchmark/results/benchmark_data.json', [makeTask()], makeOptions());
+
+    const written = JSON.parse(String(mockWriteFileSync.mock.calls[0]?.[1]));
+    const reviews = written['https://github.com/test-org/test-repo/pull/123'].reviews;
+    expect(reviews).toHaveLength(2);
+    expect(
+      reviews.filter((review: { tool: string }) => review.tool === 'odd-ai-reviewers')
+    ).toHaveLength(1);
   });
 });
 

@@ -51,8 +51,29 @@ export interface BenchmarkCandidate {
 interface GoldenComment {
   pr_title: string;
   url: string;
+  original_url?: string;
+  az_comment?: string;
   comments: { comment: string; severity: string }[];
 }
+
+interface BenchmarkReview {
+  tool: string;
+  repo_name: string;
+  pr_url: string;
+  review_comments: Record<string, unknown>[];
+}
+
+interface BenchmarkDataEntry {
+  pr_title?: string;
+  original_url?: string;
+  source_repo?: string;
+  golden_comments: GoldenComment['comments'];
+  golden_source_file?: string;
+  az_comment?: string;
+  reviews: BenchmarkReview[];
+}
+
+type BenchmarkData = Record<string, BenchmarkDataEntry>;
 
 export interface CLIFinding {
   message: string;
@@ -70,6 +91,8 @@ interface CLIOutput {
 export interface AdapterOptions {
   goldenDir: string;
   output: string;
+  benchmarkData?: string;
+  toolName: string;
   projects?: string;
   concurrency: number;
   timeoutPerPr: number;
@@ -101,10 +124,12 @@ function printUsage(): void {
   console.log(`Usage: npx tsx scripts/benchmark-adapter.ts [options]
 
 Required:
-  --golden-dir <path>          Directory with golden comment files (<project>/<pr>.json)
+  --golden-dir <path>          Directory with golden comment files
   --output <path>              Output file path for benchmark results
 
 Optional:
+  --benchmark-data <path>      Benchmark data JSON to update for judge compatibility
+  --tool-name <name>           Tool name to register (default: odd-ai-reviewers)
   --projects <list>            Comma-separated project names (default: all)
   --concurrency <1-5>          Concurrent PR reviews (default: 1)
   --timeout-per-pr <seconds>   Timeout per PR in seconds (default: 300)
@@ -121,6 +146,8 @@ function parseCliArgs(): AdapterOptions {
     options: {
       'golden-dir': { type: 'string' },
       output: { type: 'string' },
+      'benchmark-data': { type: 'string' },
+      'tool-name': { type: 'string', default: 'odd-ai-reviewers' },
       projects: { type: 'string' },
       concurrency: { type: 'string', default: '1' },
       'timeout-per-pr': { type: 'string', default: '300' },
@@ -165,6 +192,8 @@ function parseCliArgs(): AdapterOptions {
   return {
     goldenDir: resolve(values['golden-dir']),
     output: resolve(values.output),
+    benchmarkData: values['benchmark-data'] ? resolve(values['benchmark-data']) : undefined,
+    toolName: values['tool-name'] ?? 'odd-ai-reviewers',
     projects: values.projects,
     concurrency,
     timeoutPerPr,
@@ -340,10 +369,59 @@ export function discoverTasks(goldenDir: string, projectFilter?: string): PRTask
     throw new Error(`Golden directory does not exist: ${goldenDir}`);
   }
 
-  const projects = readdirSync(goldenDir, { withFileTypes: true });
+  const entries = readdirSync(goldenDir, { withFileTypes: true });
+  const isDirectoryEntry = (entry: { isDirectory?: () => boolean }) =>
+    typeof entry.isDirectory === 'function' && entry.isDirectory();
+  const isFileEntry = (entry: { isFile?: () => boolean; isDirectory?: () => boolean }) =>
+    typeof entry.isFile === 'function' ? entry.isFile() : !isDirectoryEntry(entry);
+  const hasFlatJsonLayout = entries.some(
+    (entry) => isFileEntry(entry) && entry.name.endsWith('.json')
+  );
 
-  for (const entry of projects) {
-    if (!entry.isDirectory()) continue;
+  if (hasFlatJsonLayout) {
+    for (const entry of entries) {
+      if (!isFileEntry(entry) || !entry.name.endsWith('.json')) continue;
+
+      const project = entry.name.replace(/\.json$/i, '');
+      if (allowedProjects && !allowedProjects.has(project)) continue;
+
+      const goldenPath = join(goldenDir, entry.name);
+
+      try {
+        const content = readFileSync(goldenPath, 'utf-8');
+        const goldenEntries: GoldenComment[] = JSON.parse(content);
+
+        if (!Array.isArray(goldenEntries)) {
+          throw new Error('expected a JSON array of PR entries');
+        }
+
+        for (const [index, golden] of goldenEntries.entries()) {
+          const prMatch = golden.url.match(/\/pull\/(\d+)$/);
+          if (!prMatch?.[1]) {
+            console.warn(
+              `Warning: Skipping ${goldenPath} entry ${index}: invalid PR URL ${golden.url}`
+            );
+            continue;
+          }
+
+          tasks.push({
+            project,
+            prNumber: prMatch[1],
+            goldenPath,
+            golden,
+          });
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.warn(`Warning: Skipping ${goldenPath}: ${msg}`);
+      }
+    }
+
+    return tasks;
+  }
+
+  for (const entry of entries) {
+    if (!isDirectoryEntry(entry)) continue;
     if (allowedProjects && !allowedProjects.has(entry.name)) continue;
 
     const projectDir = join(goldenDir, entry.name);
@@ -365,6 +443,43 @@ export function discoverTasks(goldenDir: string, projectFilter?: string): PRTask
   }
 
   return tasks;
+}
+
+export function updateBenchmarkData(
+  benchmarkDataPath: string,
+  tasks: PRTask[],
+  options: AdapterOptions
+): void {
+  const benchmarkData: BenchmarkData = existsSync(benchmarkDataPath)
+    ? (JSON.parse(readFileSync(benchmarkDataPath, 'utf-8')) as BenchmarkData)
+    : {};
+
+  for (const task of tasks) {
+    const goldenUrl = task.golden.url;
+    const existingEntry = benchmarkData[goldenUrl];
+    const reviews = (existingEntry?.reviews ?? []).filter(
+      (review) => review.tool !== options.toolName
+    );
+
+    reviews.push({
+      tool: options.toolName,
+      repo_name: `${options.toolName}__generated`,
+      pr_url: goldenUrl,
+      review_comments: [],
+    });
+
+    benchmarkData[goldenUrl] = {
+      pr_title: existingEntry?.pr_title ?? task.golden.pr_title,
+      original_url: existingEntry?.original_url ?? task.golden.original_url,
+      source_repo: existingEntry?.source_repo ?? task.project,
+      golden_comments: existingEntry?.golden_comments ?? task.golden.comments,
+      golden_source_file: existingEntry?.golden_source_file ?? task.goldenPath.split(/[\\/]/).pop(),
+      az_comment: existingEntry?.az_comment ?? task.golden.az_comment,
+      reviews,
+    };
+  }
+
+  writeFileSync(benchmarkDataPath, JSON.stringify(benchmarkData, null, 2), 'utf-8');
 }
 
 // =============================================================================
@@ -475,7 +590,7 @@ async function main(): Promise<void> {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
   // Build output
-  const output: Record<string, { 'odd-ai-reviewers': BenchmarkCandidate[] }> = {};
+  const output: Record<string, Record<string, BenchmarkCandidate[]>> = {};
   let successCount = 0;
   let failCount = 0;
   let totalCandidates = 0;
@@ -487,13 +602,19 @@ async function main(): Promise<void> {
       successCount++;
       totalCandidates += result.candidates.length;
     }
-    output[result.prUrl] = { 'odd-ai-reviewers': result.candidates };
+    output[result.prUrl] = { [options.toolName]: result.candidates };
   }
 
   // Write output
   const outputDir = resolve(options.output, '..');
   mkdirSync(outputDir, { recursive: true });
   writeFileSync(options.output, JSON.stringify(output, null, 2), 'utf-8');
+
+  if (options.benchmarkData) {
+    const benchmarkDir = resolve(options.benchmarkData, '..');
+    mkdirSync(benchmarkDir, { recursive: true });
+    updateBenchmarkData(options.benchmarkData, tasks, options);
+  }
 
   // Summary
   console.log('\n--- Summary ---');
