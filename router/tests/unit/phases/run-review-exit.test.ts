@@ -3,6 +3,7 @@ import { ConfigSchema } from '../../../src/config/schemas.js';
 import { createValidatedConfigHelpers } from '../../../src/types/branded.js';
 import type { DiffFile, DiffSummary, ResolvedReviewRefs } from '../../../src/diff.js';
 import { FatalExecutionError } from '../../../src/phases/execute.js';
+import { ConfigError, ConfigErrorCode } from '../../../src/types/errors.js';
 
 vi.mock('../../../src/config.js', () => ({ loadConfig: vi.fn() }));
 vi.mock('../../../src/reviewignore.js', () => ({
@@ -142,6 +143,7 @@ describe('runReview exit behavior', () => {
       }
     );
 
+    expect(loadConfig).toHaveBeenCalledWith('.', { ignoreSuppressions: true });
     expect(exitHandler).toHaveBeenCalledWith(0);
   });
 
@@ -286,6 +288,53 @@ describe('runReview exit behavior', () => {
       expect.objectContaining({
         checkRunId: 123,
         runStatus: 'incomplete',
+      })
+    );
+  });
+
+  it('handles ConfigError from incomplete-run processing as config_error', async () => {
+    const exitHandler = vi.fn();
+    vi.mocked(executeAllPasses).mockRejectedValue(
+      new FatalExecutionError('AGENT_CRASH', 'Required agent crashed', {
+        partialResults: {
+          completeFindings: [],
+          partialFindings: [],
+          allResults: [],
+          skippedAgents: [],
+        },
+      })
+    );
+    vi.mocked(processFindings).mockImplementation(() => {
+      throw new ConfigError(
+        'Suppression rule matched too many findings',
+        ConfigErrorCode.INVALID_VALUE,
+        { field: 'suppressions.rules' }
+      );
+    });
+
+    await runReview(
+      {
+        repo: '.',
+        base: 'base',
+        head: 'head',
+        pr: 123,
+        owner: 'odd',
+        repoName: 'ai-review',
+        dryRun: false,
+      },
+      {
+        env: { GITHUB_ACTIONS: 'true', GITHUB_TOKEN: 'token' },
+        exitHandler,
+      }
+    );
+
+    expect(exitHandler).toHaveBeenCalledWith(2);
+    expect(dispatchReport).not.toHaveBeenCalled();
+    expect(completeCheckRun).toHaveBeenCalledWith(
+      expect.objectContaining({ checkRunId: 123 }),
+      expect.objectContaining({
+        conclusion: 'failure',
+        title: 'AI Review config error',
       })
     );
   });

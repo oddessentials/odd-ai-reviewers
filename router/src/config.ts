@@ -66,20 +66,41 @@ export type ValidatedReviewConfig = ValidatedConfig<Config>;
 const CONFIG_FILENAME = '.ai-review.yml';
 const DEFAULTS_PATH = join(import.meta.dirname, '../../config/defaults.ai-review.yml');
 
+export interface LoadConfigOptions {
+  /** Ignore repository-defined suppressions before schema validation. Used in CI to
+   * prevent untrusted PR branches from influencing suppression parsing/validation. */
+  ignoreSuppressions?: boolean;
+}
+
+function maybeStripSuppressions(
+  config: Record<string, unknown>,
+  options?: LoadConfigOptions
+): Record<string, unknown> {
+  if (!options?.ignoreSuppressions || !('suppressions' in config)) {
+    return config;
+  }
+
+  const { suppressions: _ignoredSuppressions, ...rest } = config;
+  return rest;
+}
+
 /**
  * Load configuration from the target repository
  * Falls back to defaults if no config file exists
  *
  * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
  */
-export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Config>> {
+export async function loadConfig(
+  repoRoot: string,
+  options?: LoadConfigOptions
+): Promise<ValidatedConfig<Config>> {
   const configPath = join(repoRoot, CONFIG_FILENAME);
 
   let userConfig: Record<string, unknown> = {};
 
   if (existsSync(configPath)) {
     const content = await readFile(configPath, 'utf-8');
-    userConfig = parseYaml(content) as Record<string, unknown>;
+    userConfig = maybeStripSuppressions(parseYaml(content) as Record<string, unknown>, options);
     console.log(`[config] Loaded ${CONFIG_FILENAME} from repository`);
   } else {
     // Enterprise-grade warning: explicit opt-in for AI agents
@@ -126,7 +147,10 @@ export async function loadConfig(repoRoot: string): Promise<ValidatedConfig<Conf
  * @param configPath - Absolute or relative path to a config file
  * @returns ValidatedConfig<Config> - Configuration validated through Zod schema
  */
-export async function loadConfigFromPath(configPath: string): Promise<ValidatedConfig<Config>> {
+export async function loadConfigFromPath(
+  configPath: string,
+  options?: LoadConfigOptions
+): Promise<ValidatedConfig<Config>> {
   let content: string;
   try {
     content = await readFile(configPath, 'utf-8');
@@ -165,7 +189,9 @@ export async function loadConfigFromPath(configPath: string): Promise<ValidatedC
     );
   }
   const userConfig =
-    parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    parsed && typeof parsed === 'object'
+      ? maybeStripSuppressions(parsed as Record<string, unknown>, options)
+      : {};
 
   // Load defaults and merge with user config
   let defaults: Record<string, unknown> = {};
@@ -203,10 +229,11 @@ export async function loadConfigFromPath(configPath: string): Promise<ValidatedC
  * @returns Result<ValidatedConfig<Config>, ConfigError>
  */
 export async function loadConfigResult(
-  repoRoot: string
+  repoRoot: string,
+  options?: LoadConfigOptions
 ): Promise<Result<ValidatedConfig<Config>, ConfigError>> {
   try {
-    const config = await loadConfig(repoRoot);
+    const config = await loadConfig(repoRoot, options);
     return { ok: true, value: config };
   } catch (error) {
     if (error instanceof ConfigError) {

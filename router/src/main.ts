@@ -775,13 +775,17 @@ export async function runReview(
 ): Promise<void> {
   const env = deps.env ?? (process.env as Record<string, string | undefined>);
   const exitHandler = deps.exitHandler ?? defaultExitHandler;
+  const routerEnv = buildRouterEnv(env);
+  const platform = detectPlatform(routerEnv);
   console.log('[router] Starting AI Review');
   console.log(`[router] Repository: ${options.repo}`);
   console.log(`[router] Diff: ${options.base}...${options.head}`);
 
   // === PHASE 1: Setup & Context Building ===
-  const routerEnv = buildRouterEnv(env);
-  const config = await loadConfig(options.repo);
+  const isCIMode = platform === 'github' || platform === 'ado';
+  const config = await loadConfig(options.repo, {
+    ignoreSuppressions: isCIMode,
+  });
   console.log(`[router] Loaded config with ${config.passes.length} passes`);
   const configHash = hashConfig(config);
 
@@ -789,7 +793,6 @@ export async function runReview(
   const reviewIgnoreResult = await loadReviewIgnore(options.repo);
   const reviewIgnorePatterns = reviewIgnoreResult.patterns;
 
-  const platform = detectPlatform(routerEnv);
   console.log(`[router] Detected platform: ${platform}`);
 
   let checkRunId: number | undefined;
@@ -804,6 +807,14 @@ export async function runReview(
     if (!checkRunId || !checkRunContext || checkRunFinalized) return;
     await completeCheckRun({ ...checkRunContext, checkRunId }, { conclusion, title, summary });
     checkRunFinalized = true;
+  };
+
+  const handleConfigError = async (configError: ConfigError): Promise<void> => {
+    const configErrorMsg = configError.message;
+    console.error(`[router] ❌ Configuration error: ${configErrorMsg}`);
+    const summary = `Configuration error during review.\n\nError: ${configErrorMsg}`;
+    await finalizeCheckRun('failure', 'AI Review config error', summary);
+    exitHandler(exitCodeFromStatus('config_error'));
   };
 
   const shouldHandleSignals = platform === 'github' && deps.exitHandler === undefined;
@@ -1045,7 +1056,6 @@ export async function runReview(
   // In CI, suppression rules ALWAYS come from the BASE branch config, never from the PR branch.
   // This prevents attackers from smuggling suppressions into fork PRs to hide vulnerabilities.
   // Any suppressions in the PR branch config are unconditionally replaced.
-  const isCIMode = platform === 'github' || platform === 'ado';
   let ciConfig = config;
   if (isCIMode) {
     const baseBranchSuppressions = loadBaseBranchSuppressions(options.repo, reviewRefs.baseSha);
@@ -1119,11 +1129,7 @@ export async function runReview(
     // FR-022: Suppression breadth/allowlist violations throw ConfigError from processFindings().
     // These are config-level errors, not execution failures — exit with config_error (2).
     if (error instanceof ConfigError) {
-      const configErrorMsg = error.message;
-      console.error(`[router] ❌ Configuration error: ${configErrorMsg}`);
-      const summary = `Configuration error during review.\n\nError: ${configErrorMsg}`;
-      await finalizeCheckRun('failure', 'AI Review config error', summary);
-      exitHandler(exitCodeFromStatus('config_error'));
+      await handleConfigError(error);
       return;
     }
 
@@ -1138,16 +1144,28 @@ export async function runReview(
       );
 
       // Process and report partial findings through the standard pipeline
-      const { sorted, partialSorted } = processFindings(
-        error.partialResults.completeFindings,
-        error.partialResults.partialFindings,
-        error.partialResults.allResults,
-        error.partialResults.skippedAgents,
-        diff.files,
-        agentContext.prDescription,
-        ciConfig,
-        isCIMode ? 'ci' : 'local'
-      );
+      let sorted = error.partialResults.completeFindings;
+      let partialSorted = error.partialResults.partialFindings;
+      try {
+        const processed = processFindings(
+          error.partialResults.completeFindings,
+          error.partialResults.partialFindings,
+          error.partialResults.allResults,
+          error.partialResults.skippedAgents,
+          diff.files,
+          agentContext.prDescription,
+          ciConfig,
+          isCIMode ? 'ci' : 'local'
+        );
+        sorted = processed.sorted;
+        partialSorted = processed.partialSorted;
+      } catch (processingError) {
+        if (processingError instanceof ConfigError) {
+          await handleConfigError(processingError);
+          return;
+        }
+        throw processingError;
+      }
 
       // FR-021: Pass runStatus: 'incomplete' so reporters use neutral/pending conclusion.
       // The reporter handles the conclusion directly — no separate finalizeCheckRun override needed.
