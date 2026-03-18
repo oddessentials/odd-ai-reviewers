@@ -88,6 +88,10 @@ interface SharedPreDiffResult {
   suppressionSummary?: { reason: string; matched: number }[];
 }
 
+interface SharedPreDiffOptions {
+  enforceBreadthLimits?: boolean;
+}
+
 function mergeMatchCounts(...matchCounts: Map<number, number>[]): Map<number, number> {
   const merged = new Map<number, number>();
 
@@ -126,7 +130,8 @@ function applySharedPreDiffReportingStages(
   diffFiles: DiffFile[],
   prDescription?: string,
   config?: Config,
-  suppressionMode?: SuppressionMode
+  suppressionMode?: SuppressionMode,
+  options: SharedPreDiffOptions = {}
 ): SharedPreDiffResult {
   const semanticResult = validateFindingsSemantics(findings, prDescription);
   const validated = semanticResult.validFindings;
@@ -148,12 +153,14 @@ function applySharedPreDiffReportingStages(
       );
     }
 
-    enforceBreadthLimits(
-      suppressionRules,
-      userSuppressionResult,
-      suppressionMode ?? 'local',
-      securityOverrideAllowlist
-    );
+    if (options.enforceBreadthLimits ?? true) {
+      enforceBreadthLimits(
+        suppressionRules,
+        userSuppressionResult,
+        suppressionMode ?? 'local',
+        securityOverrideAllowlist
+      );
+    }
   }
 
   const diffContent = buildFrameworkFilterDiffContent(diffFiles);
@@ -217,7 +224,8 @@ export function processFindings(
     diffFiles,
     prDescription,
     config,
-    suppressionMode
+    suppressionMode,
+    { enforceBreadthLimits: false }
   );
   const partialSanitized = sanitizeFindings(partialSharedPreDiff.findings);
   const partialSorted = sortFindings(partialSanitized);
@@ -284,7 +292,7 @@ export function processFindings(
     }
   }
 
-  console.log('\n' + summary);
+  console.error('\n' + summary);
 
   return {
     complete: sorted,
@@ -471,7 +479,8 @@ export function processLocalReportFindings(
     diffFiles,
     undefined,
     config,
-    suppressionMode
+    suppressionMode,
+    { enforceBreadthLimits: false }
   );
   const partialPostNorm = normalizeAndValidateFindings(
     partialSharedPreDiff.findings,
