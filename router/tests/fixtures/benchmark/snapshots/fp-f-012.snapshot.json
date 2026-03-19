@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:16.171Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:15.377Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "375da8ff96d24711832323e91e932ea59003a712179c445ab124dbae3fc2811e",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in src/format.ts introduce two new constant declarations that use string concatenation and a template literal, both of which are syntactically correct and pose no security or logic issues. No further action is required.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Added two constant declarations with hardcoded string concatenation and template literal. No semantic issues detected - these are safe hardcoded values with no user input or security concerns.\"\n}\n```"
   }
 }

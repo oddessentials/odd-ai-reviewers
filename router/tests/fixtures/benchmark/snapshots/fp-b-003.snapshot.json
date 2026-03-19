@@ -1,24 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:41.640Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:09.591Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "082551b772b2b83882831250a1575598bc659fe1d0f5af7a62a0126394afed31",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [
       {
+        "severity": "warning",
+        "file": "src/batch.ts",
+        "line": 5,
+        "message": "Response objects from fetch() are not automatically consumed. The response body remains open, potentially causing resource leaks with many concurrent requests.",
+        "suggestion": "Add response.body handling: either call response.text()/json() to consume the body, or explicitly close it with response.body?.cancel() if the response data is not needed.",
+        "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
         "severity": "info",
         "file": "src/batch.ts",
-        "line": 4,
-        "message": "Unhandled rejected promises in Promise.allSettled results.",
-        "suggestion": "Consider handling the rejected promises to improve error reporting or corrective action.",
+        "line": 3,
+        "message": "Rejected fetch promises are silently ignored. Failed requests provide no visibility into network errors or HTTP error status codes.",
+        "suggestion": "Add handling for rejected results: `if (result.status === 'rejected') { console.error('Fetch failed:', result.reason); }` to log network failures and help with debugging.",
         "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 4,\n      \"message\": \"Unhandled rejected promises in Promise.allSettled results.\",\n      \"suggestion\": \"Consider handling the rejected promises to improve error reporting or corrective action.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The diff introduces a new function `processBatch` that processes an array of URLs with `Promise.allSettled`. While it correctly handles fulfilled promises, it does not address rejected promises, which can be improved by including error handling for rejected cases.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 5,\n      \"message\": \"Response objects from fetch() are not automatically consumed. The response body remains open, potentially causing resource leaks with many concurrent requests.\",\n      \"suggestion\": \"Add response.body handling: either call response.text()/json() to consume the body, or explicitly close it with response.body?.cancel() if the response data is not needed.\",\n      \"category\": \"performance\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 3,\n      \"message\": \"Rejected fetch promises are silently ignored. Failed requests provide no visibility into network errors or HTTP error status codes.\",\n      \"suggestion\": \"Add handling for rejected results: `if (result.status === 'rejected') { console.error('Fetch failed:', result.reason); }` to log network failures and help with debugging.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The batch processing function has resource management issues with unclosed fetch response bodies and lacks error visibility for failed requests.\"\n}\n```"
   }
 }

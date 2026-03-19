@@ -9,6 +9,7 @@
 import type { Finding } from '../agents/types.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
+import { normalizeUnicode } from './text-normalization.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -62,22 +63,6 @@ interface FindingLineResolver {
 
 /**
  * Patterns that indicate a finding is self-dismissing.
- * When combined with info severity and no actionable suggestion,
- * the finding is likely a false positive.
- */
-/**
- * Strip zero-width and invisible Unicode characters that can bypass word-boundary regex matching.
- * Only strips invisible characters — visible non-Latin characters are preserved.
- *
- * Characters stripped: U+200B (ZWSP), U+200C (ZWNJ), U+200D (ZWJ), U+200E (LRM),
- * U+200F (RLM), U+2028 (Line Sep), U+2029 (Para Sep), U+FEFF (BOM/ZWNBS)
- */
-export function normalizeUnicode(text: string): string {
-  return text.replace(/[\u200B-\u200F\u2028\u2029\uFEFF]/g, '');
-}
-
-/**
- * Patterns that indicate a finding is self-dismissing.
  *
  * IMPORTANT: Pattern match alone NEVER suppresses a finding.
  * All three gates must pass for suppression:
@@ -113,10 +98,49 @@ const DISMISSIVE_PATTERNS: RegExp[] = [
  */
 const CAUTIONARY_ADVICE_PATTERNS: RegExp[] = [
   // "Ensure/Verify/Make sure (that) X is properly/correctly Y"
-  /\b(?:ensure|verify|make\s+sure|double[- ]?check)\s+(?:that\b|the\b|all\b)/i,
+  /\b(?:ensure|verify|make\s+sure|double[- ]?check)\s+(?:that\b|the\b|all\b|this\b|these\b)/i,
   // "Consider X to prevent non-obvious/potential/unexpected issues"
   /\bconsider\b.*\b(?:to\s+prevent|to\s+avoid|for\s+safety)\b/i,
 ];
+
+const SPECULATIVE_SQL_INJECTION_PATTERN =
+  /\b(?:sql injection|injection vulnerability|prevent injection)\b/i;
+const NUMERIC_ID_CONTEXT_PATTERN =
+  /\b(?:\[\]int64|make\(\[\]int64|ids\s*\[\]int64|for\s+_,\s*v\s*:=\s*range\s+ids|%d|rowsaffected)\b/i;
+const EXTERNAL_INPUT_CONTEXT_PATTERN =
+  /\b(?:req(?:uest)?\.|query(?:string)?|params?\b|body\b|header\b|cookie\b|user input|external input|json\b|unmarshal|form\b|url\b|path\b)\b/i;
+const MICRO_OPTIMIZATION_PATTERN =
+  /\b(?:strings\.builder|pre-allocat\w*|slice capacity|comma-separated values string)\b/i;
+
+function isSpeculativeSqlInjectionFinding(finding: Finding, rawDiff: string | undefined): boolean {
+  if (finding.severity !== 'info') {
+    return false;
+  }
+
+  if (!rawDiff) {
+    return false;
+  }
+
+  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
+  if (!SPECULATIVE_SQL_INJECTION_PATTERN.test(combinedText)) {
+    return false;
+  }
+
+  if (EXTERNAL_INPUT_CONTEXT_PATTERN.test(rawDiff)) {
+    return false;
+  }
+
+  return NUMERIC_ID_CONTEXT_PATTERN.test(rawDiff);
+}
+
+function isMicroOptimizationAdvice(finding: Finding): boolean {
+  if (finding.severity !== 'info') {
+    return false;
+  }
+
+  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
+  return MICRO_OPTIMIZATION_PATTERN.test(combinedText);
+}
 
 /**
  * Security-related terms that BLOCK cautionary advice suppression.
@@ -300,7 +324,8 @@ export function filterPRIntentContradictions(
  */
 export function validateFindingsSemantics(
   findings: Finding[],
-  prDescription?: string
+  prDescription?: string,
+  rawDiff?: string
 ): FindingValidationSummary {
   const results: FindingValidationResult[] = [];
   const stats = {
@@ -370,7 +395,47 @@ export function validateFindingsSemantics(
     });
   }
 
-  // Pass 3.5: Cautionary advice detection
+  // Pass 3.5: Suppress info-level micro-optimization advice.
+  for (const result of results) {
+    if (!result.valid) continue;
+
+    if (!isMicroOptimizationAdvice(result.finding)) {
+      continue;
+    }
+
+    result.valid = false;
+    result.filterReason = 'Micro-optimization advice without a concrete performance defect';
+    result.filterType = 'cautionary_advice';
+    stats.filteredByCautionaryAdvice++;
+    console.log('[router] [finding-validator] [filtered:micro-optimization]', {
+      file: result.finding.file,
+      line: result.finding.line,
+      reason: result.filterReason,
+    });
+  }
+
+  // Pass 3.6: Suppress speculative SQL injection findings when the visible diff only shows
+  // bounded numeric IDs and no external input source.
+  for (const result of results) {
+    if (!result.valid) continue;
+
+    if (!isSpeculativeSqlInjectionFinding(result.finding, rawDiff)) {
+      continue;
+    }
+
+    result.valid = false;
+    result.filterReason =
+      'Speculative SQL injection: visible diff shows bounded numeric ID interpolation without external input';
+    result.filterType = 'cautionary_advice';
+    stats.filteredByCautionaryAdvice++;
+    console.log('[router] [finding-validator] [filtered:speculative-sql]', {
+      file: result.finding.file,
+      line: result.finding.line,
+      reason: result.filterReason,
+    });
+  }
+
+  // Pass 3.7: Cautionary advice detection
   // Catches info-severity findings where the LLM hedges with "ensure/verify/consider"
   // without identifying a concrete defect. Blocked for security-related findings.
   for (const result of results) {

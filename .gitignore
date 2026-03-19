@@ -50,6 +50,8 @@ docs/viewer/playwright-report/
 .benchmark-cache/
 .external-benchmark/
 benchmark-results/
+tmp-pr-*.json
+tmp-*-files.json
 
 AGENTS.md
 CLAUDE.md

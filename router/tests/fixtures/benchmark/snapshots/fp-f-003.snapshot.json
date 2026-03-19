@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:04.054Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:33.156Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "bdcafdd7bbb1fd64e96bf6499a30fa030ebba01b22362421541bf26786ca5354",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The diff introduces a constant named `BRACKET_REGEX` with a documented known limitation regarding nested brackets. The code change aligns with an accepted design trade-off (ADR-007), and there are no issues related to logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling detected in the presented diff.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"No issues found. The code adds a well-documented regex constant with explicit acknowledgment of its limitations, following project documentation standards.\"\n}\n```"
   }
 }

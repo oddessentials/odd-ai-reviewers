@@ -1,24 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:14.084Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:10.261Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "938e9ca341c222fef22b51a71a227882209d62830ca098931b2dfa5a0b77c170",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [
       {
-        "severity": "info",
+        "severity": "warning",
         "file": "src/theme.ts",
-        "line": 5,
-        "message": "Non-exhaustive switch statement on Theme type. The switch does not include a default case to handle unexpected 'theme' values.",
-        "suggestion": "Add a default case to the switch statement to handle any unexpected values that might enter this function due to runtime issues.",
+        "line": 3,
+        "message": "Switch statement lacks exhaustive handling - missing default case or return statement after switch",
+        "suggestion": "Add a default case with assertNever(theme) or add a return statement after the switch to ensure all code paths return a value",
         "ruleId": "semantic/logic",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/theme.ts\",\n      \"line\": 5,\n      \"message\": \"Non-exhaustive switch statement on Theme type. The switch does not include a default case to handle unexpected 'theme' values.\",\n      \"suggestion\": \"Add a default case to the switch statement to handle any unexpected values that might enter this function due to runtime issues.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The code adds a function to get the background color based on the theme. While the current implementation relies on a TypeScript union type for theme values, adding a default case in the switch would guard against unexpected states at runtime, especially if new themes are added or if the function receives unexpected input due to external factors.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/theme.ts\",\n      \"line\": 3,\n      \"message\": \"Switch statement lacks exhaustive handling - missing default case or return statement after switch\",\n      \"suggestion\": \"Add a default case with assertNever(theme) or add a return statement after the switch to ensure all code paths return a value\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Found one logic issue with incomplete switch statement handling in theme function\"\n}\n```"
   }
 }

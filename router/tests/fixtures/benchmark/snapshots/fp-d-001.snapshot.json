@@ -1,14 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:53.882Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:07.031Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "f29158c63ab74f94178f1e6ae30fa2fb7104dd120443f57bc39efbd39645a67c",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change introduces a `handleKeyDown` function to handle the Enter key press event by preventing the default behavior (which would add a newline) and instead triggering the `submitForm` function. No logic errors, security vulnerabilities, or performance issues were identified in this change. The implementation aligns with the PR description's intent to change the Enter key behavior.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "error",
+        "file": "src/input.ts",
+        "line": 4,
+        "message": "Function `submitForm()` is called but not defined or imported",
+        "suggestion": "Either define the `submitForm` function in this file or import it from another module",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "src/input.ts",
+        "line": 1,
+        "message": "Function `handleKeyDown` is defined but never used or exported",
+        "suggestion": "Either export this function for external use or attach it as an event listener within the module",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"src/input.ts\",\n      \"line\": 4,\n      \"message\": \"Function `submitForm()` is called but not defined or imported\",\n      \"suggestion\": \"Either define the `submitForm` function in this file or import it from another module\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/input.ts\",\n      \"line\": 1,\n      \"message\": \"Function `handleKeyDown` is defined but never used or exported\",\n      \"suggestion\": \"Either export this function for external use or attach it as an event listener within the module\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The code adds a keyboard event handler for Enter key submission but has two issues: the `submitForm` function is undefined, and the `handleKeyDown` function is not connected to any event or exported for use.\"\n}\n```"
   }
 }

@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-19T17:03:53.030Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "fixtureHash": "5f78ad1876ccf4a7b15597c446a9ac0abef18c6bf210842a07f4197f14b8b9c2",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "error",
+        "file": "pkg/api/webassets/webassets.go",
+        "line": 47,
+        "message": "Race condition in double-checked locking pattern. After acquiring the write lock, the cache is not re-checked before proceeding with expensive initialization work.",
+        "suggestion": "Add a second check after acquiring the write lock: `if entryPointAssetsCache != nil { return entryPointAssetsCache, nil }` before proceeding with the expensive asset loading logic.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"pkg/api/webassets/webassets.go\",\n      \"line\": 47,\n      \"message\": \"Race condition in double-checked locking pattern. After acquiring the write lock, the cache is not re-checked before proceeding with expensive initialization work.\",\n      \"suggestion\": \"Add a second check after acquiring the write lock: `if entryPointAssetsCache != nil { return entryPointAssetsCache, nil }` before proceeding with the expensive asset loading logic.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The diff adds proper synchronization to a global cache but has an incomplete double-checked locking implementation that could lead to redundant expensive work when multiple goroutines race to initialize the cache.\"\n}\n```"
+  }
+}

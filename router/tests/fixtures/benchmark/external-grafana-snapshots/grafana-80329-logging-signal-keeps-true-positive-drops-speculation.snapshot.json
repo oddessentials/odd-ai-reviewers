@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-19T17:04:19.955Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "fixtureHash": "078fce83f7152aa7fbc31e1fd700cb76b6758fc3464f528dca95a02eff440fdf",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+        "line": 530,
+        "message": "Error-level logging used for normal operational cleanup counts and IDs",
+        "suggestion": "Change 'r.log.Error' to 'r.log.Info' or 'r.log.Debug' for successful cleanup operations, as these are expected operational events, not errors",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+        "line": 534,
+        "message": "Error-level logging used for successful cleanup operation reporting",
+        "suggestion": "Change 'r.log.Error' to 'r.log.Info' for successful cleanup completion, reserving Error level for actual failures",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+        "line": 658,
+        "message": "String concatenation in loop for building SQL values list",
+        "suggestion": "Consider using strings.Builder or pre-allocating slice capacity for better performance when building the comma-separated values string",
+        "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "pkg/services/cleanup/cleanup.go",
+        "line": 77,
+        "message": "Cleanup job interval reduced from 10 minutes to 1 minute",
+        "suggestion": "Verify this frequency increase is intentional and won't cause excessive load, especially with the new two-phase cleanup approach",
+        "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/annotations/annotationsimpl/xorm_store.go\",\n      \"line\": 530,\n      \"message\": \"Error-level logging used for normal operational cleanup counts and IDs\",\n      \"suggestion\": \"Change 'r.log.Error' to 'r.log.Info' or 'r.log.Debug' for successful cleanup operations, as these are expected operational events, not errors\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/annotations/annotationsimpl/xorm_store.go\",\n      \"line\": 534,\n      \"message\": \"Error-level logging used for successful cleanup operation reporting\",\n      \"suggestion\": \"Change 'r.log.Error' to 'r.log.Info' for successful cleanup completion, reserving Error level for actual failures\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"pkg/services/annotations/annotationsimpl/xorm_store.go\",\n      \"line\": 658,\n      \"message\": \"String concatenation in loop for building SQL values list\",\n      \"suggestion\": \"Consider using strings.Builder or pre-allocating slice capacity for better performance when building the comma-separated values string\",\n      \"category\": \"performance\"\n    },\n    {\n      \"severity\": \"info\",\n      \"file\": \"pkg/services/cleanup/cleanup.go\",\n      \"line\": 77,\n      \"message\": \"Cleanup job interval reduced from 10 minutes to 1 minute\",\n      \"suggestion\": \"Verify this frequency increase is intentional and won't cause excessive load, especially with the new two-phase cleanup approach\",\n      \"category\": \"performance\"\n    }\n  ],\n  \"summary\": \"The deadlock mitigation approach is sound, splitting SELECT and DELETE operations to allow lock flushing. Main issues are inappropriate error-level logging for successful operations and a minor performance optimization opportunity in SQL string building.\"\n}\n```"
+  }
+}

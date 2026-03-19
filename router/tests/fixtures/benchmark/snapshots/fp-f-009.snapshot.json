@@ -1,14 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:12.047Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:04.884Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "5bdfb0b8cd426e445b8328282ed1c2dda424198705667210ebdfbae8ddd3d100",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce mocks for authentication and verification functions using Vitest in the test file 'auth.test.ts'. No logic errors, security concerns, performance issues, API misuse, or missing error handling were identified in the provided diff. The changes are limited to setting up mock functions for tests.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "tests/auth.test.ts",
+        "line": 6,
+        "message": "Mock module path './auth' may not resolve correctly from test file location",
+        "suggestion": "Verify the relative path './auth' correctly points to the auth module. Consider using an absolute import or check if the path should be '../src/auth' or similar based on project structure.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "tests/auth.test.ts",
+        "line": 11,
+        "message": "Empty test function provides no validation of mocked authentication behavior",
+        "suggestion": "Add test cases to verify the mocked authenticate and verify functions work as expected, such as testing return values and call parameters.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"tests/auth.test.ts\",\n      \"line\": 6,\n      \"message\": \"Mock module path './auth' may not resolve correctly from test file location\",\n      \"suggestion\": \"Verify the relative path './auth' correctly points to the auth module. Consider using an absolute import or check if the path should be '../src/auth' or similar based on project structure.\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"tests/auth.test.ts\",\n      \"line\": 11,\n      \"message\": \"Empty test function provides no validation of mocked authentication behavior\",\n      \"suggestion\": \"Add test cases to verify the mocked authenticate and verify functions work as expected, such as testing return values and call parameters.\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Test file sets up authentication mocks but contains no actual test cases. The mock module path should be verified for correctness.\"\n}\n```"
   }
 }

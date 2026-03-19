@@ -289,6 +289,76 @@ describe('Report Module', () => {
       expect(processed.sorted[0]?.file).toBe('src/old-name.ts');
     });
 
+    it('production reporting keeps undefined-symbol findings in newly added code', () => {
+      const findings: Finding[] = [
+        {
+          severity: 'error',
+          file: 'src/input.ts',
+          line: 4,
+          message: 'Function `submitForm()` is called but not defined or imported',
+          suggestion:
+            'Either define the `submitForm` function in this file or import it from another module',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'src/input.ts',
+          status: 'added' as const,
+          additions: 6,
+          deletions: 0,
+          patch:
+            "@@ -0,0 +1,6 @@\n+function handleKeyDown(event: KeyboardEvent): void {\n+  if (event.key === 'Enter') {\n+    event.preventDefault();\n+    submitForm();\n+  }\n+}\n",
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+      expect(processed.sorted).toHaveLength(1);
+      expect(processed.sorted[0]?.message).toContain('submitForm');
+    });
+
+    it('production reporting keeps mock-path and empty-test advisories in test files', () => {
+      const findings: Finding[] = [
+        {
+          severity: 'warning',
+          file: 'tests/auth.test.ts',
+          line: 6,
+          message: "Mock module path './auth' may not resolve correctly from test file location",
+          sourceAgent: 'test-agent',
+        },
+        {
+          severity: 'info',
+          file: 'tests/auth.test.ts',
+          line: 11,
+          message: 'Empty test function provides no validation of mocked authentication behavior',
+          sourceAgent: 'test-agent',
+        },
+      ];
+
+      const diffFiles = [
+        {
+          path: 'tests/auth.test.ts',
+          status: 'modified' as const,
+          additions: 3,
+          deletions: 0,
+          patch:
+            "@@ -1,3 +1,6 @@\n+vi.mock('./auth', () => ({ authenticate: vi.fn(), verify: vi.fn() }));\n+\n+it('smoke', () => {});\n",
+        },
+      ];
+
+      const processed = processFindings(findings, [], [], [], diffFiles);
+      expect(processed.sorted).toHaveLength(2);
+      expect(processed.sorted.some((finding) => finding.message.includes('Mock module path'))).toBe(
+        true
+      );
+      expect(
+        processed.sorted.some((finding) =>
+          finding.message.includes('Empty test function provides no validation')
+        )
+      ).toBe(true);
+    });
+
     it('self-contradicting finding is still filtered in processFindings', () => {
       // Self-contradiction detection is semantic, so it still works in Stage 1.
       const findings: Finding[] = [

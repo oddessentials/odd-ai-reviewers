@@ -1,24 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:47.173Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:28.634Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "3dc54477270f6bf06f697ca30c2e5a6cdc739fe45ec59ed51611bcdd95adf4ab",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [
       {
-        "severity": "info",
+        "severity": "warning",
         "file": "src/batch.ts",
         "line": 3,
-        "message": "Potential issue — verify that the fetch requests do not need any additional error handling or response processing.",
-        "suggestion": "Consider inspecting the `result.reason` for rejected promises to understand why a fetch might have failed, and handle it appropriately based on use case requirements.",
+        "message": "Promise.allSettled results are not handled properly - rejected promises will log 'rejected' status but their error details are ignored",
+        "suggestion": "Check result.status and handle both 'fulfilled' and 'rejected' cases appropriately. For rejected promises, access result.reason for error details.",
         "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 3,\n      \"message\": \"Potential issue — verify that the fetch requests do not need any additional error handling or response processing.\",\n      \"suggestion\": \"Consider inspecting the `result.reason` for rejected promises to understand why a fetch might have failed, and handle it appropriately based on use case requirements.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The batchProcess function uses Promise.allSettled to handle multiple fetch requests, which ensures that all promises are settled before continuing. However, it merely logs the status of each promise without inspecting or handling rejected promises further. This could be improved by inspecting `result.reason` for better error insight and handling based on use case requirements.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/batch.ts\",\n      \"line\": 3,\n      \"message\": \"Promise.allSettled results are not handled properly - rejected promises will log 'rejected' status but their error details are ignored\",\n      \"suggestion\": \"Check result.status and handle both 'fulfilled' and 'rejected' cases appropriately. For rejected promises, access result.reason for error details.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"Found one issue with incomplete Promise.allSettled result handling that ignores error details from rejected promises.\"\n}\n```"
   }
 }

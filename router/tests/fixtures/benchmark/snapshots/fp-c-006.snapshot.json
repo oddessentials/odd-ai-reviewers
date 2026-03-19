@@ -1,14 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:52.809Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:01.814Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "a82feeeb7b75fcb217f16c64592cab919ec77db638717dbc6e498b08f1a1563f",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a lazy-initialization singleton pattern for a DatabaseConnection instance, which is a typical design choice for managing a shared database connection across a module. The changes are correct, and no issues regarding logic errors, security vulnerabilities, or performance problems were detected. The pattern follows standard practices without introducing any errors or misusage of APIs.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "src/db.ts",
+        "line": 4,
+        "message": "Singleton database connection creation lacks concurrency protection. If getConnection() is called simultaneously from multiple async contexts, multiple DatabaseConnection instances could be created before the first assignment completes.",
+        "suggestion": "Add a promise-based guard or mutex to ensure only one DatabaseConnection is created even under concurrent access patterns.",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "src/db.ts",
+        "line": 10,
+        "message": "DatabaseConnection interface defines a very generic query method that accepts any SQL string. This could make it difficult to track SQL injection vulnerabilities at call sites.",
+        "suggestion": "Consider adding typed query methods or parameter binding support to the interface to encourage safer SQL construction patterns.",
+        "ruleId": "semantic/security",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/db.ts\",\n      \"line\": 4,\n      \"message\": \"Singleton database connection creation lacks concurrency protection. If getConnection() is called simultaneously from multiple async contexts, multiple DatabaseConnection instances could be created before the first assignment completes.\",\n      \"suggestion\": \"Add a promise-based guard or mutex to ensure only one DatabaseConnection is created even under concurrent access patterns.\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/db.ts\",\n      \"line\": 10,\n      \"message\": \"DatabaseConnection interface defines a very generic query method that accepts any SQL string. This could make it difficult to track SQL injection vulnerabilities at call sites.\",\n      \"suggestion\": \"Consider adding typed query methods or parameter binding support to the interface to encourage safer SQL construction patterns.\",\n      \"category\": \"security\"\n    }\n  ],\n  \"summary\": \"Added singleton database connection pattern with potential concurrency issue during initialization and a generic SQL interface that may need safer query patterns.\"\n}\n```"
   }
 }

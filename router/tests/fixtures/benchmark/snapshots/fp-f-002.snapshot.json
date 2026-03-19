@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:03.193Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:30.727Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "c421129456e4ffaf90cc36fb319ad2d3dfb96476b03f4b53acffef917c64efa9",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes made to the 'tests/fixtures/xss-payloads.ts' file define an array of XSS payloads as `XSS_PAYLOADS`. There are no security or logic issues because this context is a test fixture file not involved in any code execution. These payloads are likely used for testing purposes to ensure the application handles or sanitizes such input appropriately. No performance or API misuse concerns were found.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "info",
+        "file": "tests/fixtures/xss-payloads.ts",
+        "line": 1,
+        "message": "XSS_PAYLOADS constant is defined but not exported or used",
+        "suggestion": "Export the constant if it's intended for use in tests, or remove it if unused",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"low\",\n      \"file\": \"tests/fixtures/xss-payloads.ts\",\n      \"line\": 1,\n      \"message\": \"XSS_PAYLOADS constant is defined but not exported or used\",\n      \"suggestion\": \"Export the constant if it's intended for use in tests, or remove it if unused\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Found one unused constant definition in test fixtures file\"\n}\n```"
   }
 }

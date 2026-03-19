@@ -1,24 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:45.368Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:22.070Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "b6054b70c3cda04765b55b035eac9a2096f3b4463f26a035c18b1db6f17b96f4",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [
       {
-        "severity": "info",
+        "severity": "warning",
         "file": "src/Dashboard.tsx",
-        "line": 5,
-        "message": "Potential issue — verify that the `/api/users` endpoint returns JSON in the expected format.",
-        "suggestion": "Ensure that the `fetchUsers` function correctly handles any errors or unexpected data structures returned from the API.",
+        "line": 4,
+        "message": "Missing error and loading state handling in useQuery destructuring. Component will show 'undefined users' during loading and may show stale data on errors.",
+        "suggestion": "Destructure error and isLoading from useQuery: `const { data, error, isLoading } = useQuery(...)` and handle these states in the render logic.",
+        "ruleId": "semantic/error-handling",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "src/Dashboard.tsx",
+        "line": 8,
+        "message": "fetchUsers function lacks error handling for failed HTTP responses. fetch() does not reject on 4xx/5xx status codes, only on network errors.",
+        "suggestion": "Add response status validation: `return fetch('/api/users').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })`",
         "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/Dashboard.tsx\",\n      \"line\": 5,\n      \"message\": \"Potential issue — verify that the `/api/users` endpoint returns JSON in the expected format.\",\n      \"suggestion\": \"Ensure that the `fetchUsers` function correctly handles any errors or unexpected data structures returned from the API.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The code introduces a new React component `Dashboard` that uses React Query to fetch user data from `/api/users`. There is a potential need for error handling in `fetchUsers` to handle errors or unexpected API responses gracefully.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/Dashboard.tsx\",\n      \"line\": 4,\n      \"message\": \"Missing error and loading state handling in useQuery destructuring. Component will show 'undefined users' during loading and may show stale data on errors.\",\n      \"suggestion\": \"Destructure error and isLoading from useQuery: `const { data, error, isLoading } = useQuery(...)` and handle these states in the render logic.\",\n      \"category\": \"error-handling\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/Dashboard.tsx\",\n      \"line\": 8,\n      \"message\": \"fetchUsers function lacks error handling for failed HTTP responses. fetch() does not reject on 4xx/5xx status codes, only on network errors.\",\n      \"suggestion\": \"Add response status validation: `return fetch('/api/users').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })`\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"Dashboard component uses React Query but lacks proper error and loading state handling. The fetch function also needs HTTP error validation.\"\n}\n```"
   }
 }

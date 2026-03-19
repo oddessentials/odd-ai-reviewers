@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:07.196Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:42.982Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "1cfe0e3872b565e28954d42b2b534921f5553a82c3956f6e6f4275193d276ecb",
     "adapterVersion": "1.0.0"
   },
@@ -12,13 +12,22 @@
       {
         "severity": "error",
         "file": "src/error-page.ts",
-        "line": 6,
-        "message": "Potential XSS vulnerability by injecting error message directly into innerHTML.",
-        "suggestion": "Sanitize the error message or use a safer method to output it, such as escaping HTML special characters.",
+        "line": 7,
+        "message": "XSS vulnerability: Error message is inserted into HTML template literal without escaping. Error messages can contain user-controlled data from upstream systems or validation failures.",
+        "suggestion": "HTML-escape the error message before inserting it into the template, or use a safe DOM API like textContent. Example: `<p>${escapeHtml((error as Error).message)}</p>`",
         "ruleId": "semantic/security",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "src/error-page.ts",
+        "line": 3,
+        "message": "Missing error handling: processData() function call is not defined in the diff and may throw unhandled exceptions that bypass the catch block if it's an async function or has other error modes.",
+        "suggestion": "Verify that processData() is properly defined and handles all error cases. If it's async, ensure proper await/Promise handling.",
+        "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"src/error-page.ts\",\n      \"line\": 6,\n      \"message\": \"Potential XSS vulnerability by injecting error message directly into innerHTML.\",\n      \"suggestion\": \"Sanitize the error message or use a safer method to output it, such as escaping HTML special characters.\",\n      \"category\": \"security\"\n    }\n  ],\n  \"summary\": \"The code in `src/error-page.ts` introduces a potential XSS vulnerability by directly inserting the error message into HTML without any escaping or sanitization. Refactor the error handling to prevent injection attacks.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"src/error-page.ts\",\n      \"line\": 7,\n      \"message\": \"XSS vulnerability: Error message is inserted into HTML template literal without escaping. Error messages can contain user-controlled data from upstream systems or validation failures.\",\n      \"suggestion\": \"HTML-escape the error message before inserting it into the template, or use a safe DOM API like textContent. Example: `<p>${escapeHtml((error as Error).message)}</p>`\",\n      \"category\": \"security\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/error-page.ts\",\n      \"line\": 3,\n      \"message\": \"Missing error handling: processData() function call is not defined in the diff and may throw unhandled exceptions that bypass the catch block if it's an async function or has other error modes.\",\n      \"suggestion\": \"Verify that processData() is properly defined and handles all error cases. If it's async, ensure proper await/Promise handling.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"Found XSS vulnerability from unescaped error message in HTML template and potential missing error handling for undefined function call.\"\n}\n```"
   }
 }

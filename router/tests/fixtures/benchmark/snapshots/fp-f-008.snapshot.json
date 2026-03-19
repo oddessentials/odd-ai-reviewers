@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:10.931Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:58.786Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "c1c9531956d41940e4fb46a740d9ec31a369fbb07c36cba0af2566210089a2b6",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"No issues found in the provided diff. The change includes adding exports for UserService, OrderService, and types User and Order. There are no logic, security, performance, API misuse, or error handling issues in this change.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Clean addition of public API exports for services and types. No issues identified - the changes follow standard TypeScript module export patterns with proper file extensions for ES modules.\"\n}\n```"
   }
 }

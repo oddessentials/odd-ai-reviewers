@@ -12,7 +12,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync, spawnSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 // Project root (four levels up from tests/unit/core/)
@@ -27,16 +28,12 @@ const ALLOWED_TEST_FILE_PATTERN = '[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|c
 const ALLOWED_TEST_INFRA_PATTERN = '^router/tests/';
 const DEPCRUISE_TIMEOUT_MS = 30000;
 
+function getDepcruiseEntrypoint(): string {
+  return join(projectRoot, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruise.mjs');
+}
+
 function supportsDepcruise(): boolean {
-  const result = spawnSync('pnpm', ['exec', 'depcruise', '--version'], {
-    cwd: projectRoot,
-    encoding: 'utf-8',
-    stdio: 'pipe',
-  });
-  if (result.error) return false;
-  if (result.status !== 0) return false;
-  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
-  return stdout.trim().length > 0;
+  return existsSync(getDepcruiseEntrypoint());
 }
 
 const depcruiseIt = supportsDepcruise() ? it : it.skip;
@@ -90,6 +87,7 @@ function validateDepcruiseArgs(args: string[]): void {
  * still passed as array (not string-interpolated) so injection is blocked.
  */
 function runDepcruise(argsString: string): { exitCode: number; output: string } {
+  const entrypoint = getDepcruiseEntrypoint();
   // Parse args string into array (simple split - no shell interpolation)
   const args = argsString.split(/\s+/).filter(Boolean);
 
@@ -97,11 +95,10 @@ function runDepcruise(argsString: string): { exitCode: number; output: string } 
   validateDepcruiseArgs(args);
 
   try {
-    const output = execFileSync('pnpm', ['exec', 'depcruise', ...args], {
+    const output = execFileSync(process.execPath, [entrypoint, ...args], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: process.platform === 'win32', // Required on Windows for pnpm.cmd
     });
     return { exitCode: 0, output };
   } catch (error) {

@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:59.064Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:19.712Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "725cb4d622256ce256c89ed0d817dc713d0529d3cc7b2ccc9ce4f28c9d98c236",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The refactoring of individual user tests into a parameterized it.each test in 'tests/user.test.ts' seems correct. The conversion improves readability and maintainability by consolidating similar test cases into a single test block. No logic errors, security vulnerabilities, performance issues, API misuses, or missing error handling were identified in the diff.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "tests/user.test.ts",
+        "line": 4,
+        "message": "Test assertion changed from exact property check to partial object matching, potentially reducing test coverage",
+        "suggestion": "Consider using expect(user.name).toBe('Alice') and expect(user.role).toBe('admin') for exact property validation, or ensure expected objects include all relevant properties",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"tests/user.test.ts\",\n      \"line\": 4,\n      \"message\": \"Test assertion changed from exact property check to partial object matching, potentially reducing test coverage\",\n      \"suggestion\": \"Consider using expect(user.name).toBe('Alice') and expect(user.role).toBe('admin') for exact property validation, or ensure expected objects include all relevant properties\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Test refactoring introduces potential coverage reduction by changing from exact property assertions to partial object matching\"\n}\n```"
   }
 }

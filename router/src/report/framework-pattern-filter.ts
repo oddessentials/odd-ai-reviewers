@@ -175,7 +175,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'express-error-mw',
     name: 'Express Error Middleware',
     messagePattern:
-      /unused.*param|declared\s+but\s+never\s+referenced|dead\s+code.*never\s+called|parameter\s+not\s+referenced/i,
+      /unused.*param|declared\s+but\s+never\s+referenced|dead\s+code.*never\s+called|parameter\s+not\s+referenced|error\s+message.*(?:log|console)|sensitive.*(?:log|console)|not\s+exported|inaccessible\s+for\s+use/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 5);
       if (!ctx) return false;
@@ -246,10 +246,11 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'react-query-dedup',
     name: 'React Query Advisory',
     messagePattern:
-      /duplicate|double.?fetch|redundant.*query|multiple.*useQuery|(?:verify|ensure|validate).*(?:endpoint|api|fetch).*(?:return|format|response|error|handle)|missing.*error.*handling.*(?:fetch|query|useQuery)|error.?handling.*(?:useQuery|useSWR)/i,
+      /duplicate|double.?fetch|redundant.*query|multiple.*useQuery|(?:verify|ensure|validate).*(?:endpoint|api|fetch).*(?:return|format|response|error|handle)|missing.*error.*handling.*(?:fetch|query|useQuery)|error.?handling.*(?:useQuery|useSWR)|loading\s+state|stale\s+data|fetch\(\)\s+does\s+not\s+reject|http\s+responses?\b/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
+      const normalizedMessage = finding.message.toLowerCase();
 
       // Evidence 1: Query library import in file section
       const hasQueryImport =
@@ -263,7 +264,14 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       if (!hasQueryHook) return false;
 
       // Evidence 3: Exclude raw HTTP findings (not about library dedup)
-      if (/api\s*call|http\s*request|\bfetch\s*\(/.test(finding.message.toLowerCase())) {
+      const isFetchStatusAdvisory =
+        /fetch\(\)\s+does\s+not\s+reject|failed http responses|response status validation|http responses?\b/.test(
+          normalizedMessage
+        );
+      if (
+        /api\s*call|http\s*request/.test(normalizedMessage) ||
+        (/\bfetch\s*\(/.test(normalizedMessage) && !isFetchStatusAdvisory)
+      ) {
         return false;
       }
 
@@ -285,17 +293,19 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
         if (!destructuringBlock?.[1]) return false;
 
         const blockContent = destructuringBlock[1];
-        // Check for alias pattern: `error: someAlias` or `isError: someAlias`
-        const aliasMatches = blockContent.matchAll(/\b(?:error|isError)\s*:\s*(\w+)/g);
-        for (const m of aliasMatches) {
-          if (m[1]) errorBindings.push(m[1]);
-        }
-        // Check for shorthand: `error` or `isError` without `: alias`
-        if (/\berror\b(?!\s*:)/.test(blockContent)) {
-          errorBindings.push('error');
-        }
-        if (/\bisError\b(?!\s*:)/.test(blockContent)) {
-          errorBindings.push('isError');
+        {
+          // Check for alias pattern: `error: someAlias` or `isError: someAlias`
+          const aliasMatches = blockContent.matchAll(/\b(?:error|isError)\s*:\s*(\w+)/g);
+          for (const m of aliasMatches) {
+            if (m[1]) errorBindings.push(m[1]);
+          }
+          // Check for shorthand: `error` or `isError` without `: alias`
+          if (/\berror\b(?!\s*:)/.test(blockContent)) {
+            errorBindings.push('error');
+          }
+          if (/\bisError\b(?!\s*:)/.test(blockContent)) {
+            errorBindings.push('isError');
+          }
         }
 
         if (errorBindings.length === 0) return false;
@@ -322,7 +332,9 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
             ternary.test(ctx.nearbyText)
           );
         });
-        if (!hasErrorUsage) return false;
+        if (!hasErrorUsage) {
+          return false;
+        }
       }
 
       return true;
@@ -336,7 +348,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'promise-allsettled-order',
     name: 'Promise.allSettled Convention',
     messagePattern:
-      /allSettled.*(?:order|sequence|reject|unhandled|error.?handling|silent)|(?:order|sequence).*allSettled|(?:unhandled|missing|silent).*(?:reject|error|exception).*(?:promise|settled)|allSettled.*results.*not.*(?:match|correspond|align)|(?:additional|need).*error.*handling.*(?:promise|fetch|request|response|processing)|verify.*(?:fetch|request).*(?:error|handling|additional|response)/i,
+      /allSettled.*(?:order|sequence|reject|unhandled|error.?handling|silent)|(?:order|sequence).*allSettled|(?:unhandled|missing|silent).*(?:reject|error|exception).*(?:promise|settled)|allSettled.*results.*not.*(?:match|correspond|align)|(?:additional|need).*error.*handling.*(?:promise|fetch|request|response|processing)|verify.*(?:fetch|request).*(?:error|handling|additional|response)|response\s+bodies?\s+remain\s+open|not\s+automatically\s+consumed|failed\s+requests?\s+provide\s+no\s+visibility/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
@@ -433,7 +445,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'safe-local-file-read',
     name: 'Safe Local File Read',
     messagePattern:
-      /path.*traversal|directory.*traversal|local.*file.*read|file.*inclusion|readFileSync.*block|synchronous.*file.*read|block.*event.*loop.*(?:read|file)/i,
+      /path.*traversal|directory.*traversal|local.*file.*read|file.*inclusion|readFileSync.*block|synchronous.*file.*read|block.*event.*loop.*(?:read|file)|unused\s+variable.*tmpl|never\s+exported\s+or\s+used/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
@@ -670,14 +682,14 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'thin-wrapper-stdlib',
     name: 'Thin Wrapper Stdlib',
     messagePattern:
-      /(?:missing|add|no).*try.?catch|(?:could|may|might).*throw|unhandled.*(?:error|exception).*(?:JSON\.parse|parseInt|parseFloat|new\s+URL|Buffer\.from|decodeURI)|directly.*(?:return|call).*(?:JSON\.parse|parseInt|parseFloat)/i,
+      /(?:missing|add|no).*try.?catch|(?:could|may|might).*throw|unhandled.*(?:error|exception).*(?:JSON\.parse|parseInt|parseFloat|new\s+URL|new\s+Date|Buffer\.from|decodeURI)|directly.*(?:return|call).*(?:JSON\.parse|parseInt|parseFloat|new\s+Date)|invalid\s+Date\s+objects?|parseDate\s+function/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 5);
       if (!ctx) return false;
 
       // Evidence 1: WHITELISTED stdlib call present (no open patterns)
       const SAFE_STDLIB =
-        /\b(?:JSON\.parse|JSON\.stringify|parseInt|parseFloat|Number\(|new\s+URL|Buffer\.from|decodeURIComponent|decodeURI|atob|btoa)\s*\(/;
+        /\b(?:JSON\.parse|JSON\.stringify|parseInt|parseFloat|Number\(|new\s+URL|new\s+Date|Buffer\.from|decodeURIComponent|decodeURI|atob|btoa)\s*\(/;
       if (!SAFE_STDLIB.test(ctx.nearbyText)) return false;
 
       // Evidence 2: thin wrapper structure (return + stdlib)
