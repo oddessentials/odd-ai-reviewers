@@ -4,7 +4,7 @@
  * Tests T044-T046: Local diff generation (working tree, staged, base ref)
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
@@ -275,6 +275,18 @@ describe('local-diff', () => {
       };
 
       expect(() => getLocalDiff('/nonexistent/path/12345', options)).toThrow();
+    });
+
+    it('should not leak raw git fatal stderr for invalid refs', () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const options: LocalDiffOptions = {
+        baseRef: 'nonexistent-branch-12345',
+      };
+
+      expect(() => getLocalDiff(REPO_ROOT, options)).toThrow();
+      expect(stderrSpy).not.toHaveBeenCalled();
+
+      stderrSpy.mockRestore();
     });
   });
 
