@@ -13,6 +13,7 @@ import { createReadStream, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { filterSafePaths } from './path-filter.js';
+import { withAugmentedToolPath } from '../runtime/tool-paths.js';
 import type { ReviewAgent, AgentContext, AgentResult, Finding, Severity } from './types.js';
 import { AgentSuccess, AgentFailure, AgentSkipped } from './types.js';
 import type { DiffFile } from '../diff.js';
@@ -58,7 +59,11 @@ export function isReviewdogAvailable(): boolean {
  */
 export function isSemgrepAvailable(): boolean {
   try {
-    execFileSync('semgrep', ['--version'], { stdio: 'ignore', shell: false });
+    execFileSync('semgrep', ['--version'], {
+      stdio: 'ignore',
+      shell: false,
+      env: withAugmentedToolPath(process.env),
+    });
     return true;
   } catch {
     return false;

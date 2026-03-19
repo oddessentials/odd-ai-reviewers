@@ -113,7 +113,7 @@ passes:
 
 # Model configuration
 models:
-  default: gpt-4o-mini # Cost-effective default
+  default: gpt-4.1
   # Alternatives:
   # default: gpt-4o                      # More capable, higher cost
   # default: claude-sonnet-4-20250514    # Anthropic (requires ANTHROPIC_API_KEY)
@@ -175,7 +175,7 @@ gating:
 
 ```yaml
 models:
-  default: gpt-4o-mini # Best value
+  default: gpt-4.1
   # default: gpt-4o     # More capable
   # default: o1-mini    # Reasoning model
 ```
@@ -218,14 +218,14 @@ You can set multiple API keys. The router selects providers with this priority:
 
 ### Estimated Costs
 
-| Model            | Approx. Cost/PR | Notes               |
-| ---------------- | --------------- | ------------------- |
-| gpt-4o-mini      | $0.05-0.15      | Best value          |
-| gpt-4o           | $0.15-0.50      | More thorough       |
-| claude-3-5-haiku | $0.05-0.15      | Fast Anthropic      |
-| claude-sonnet-4  | $0.10-0.40      | Best quality        |
-| claude-opus-4-6  | $0.15-0.60      | Flagship model      |
-| local_llm        | $0.00           | Self-hosted compute |
+| Model            | Approx. Cost/PR      | Notes                  |
+| ---------------- | -------------------- | ---------------------- |
+| gpt-4.1          | Higher than 4.1-mini | Strong default quality |
+| gpt-4o           | $0.15-0.50           | More thorough          |
+| claude-3-5-haiku | $0.05-0.15           | Fast Anthropic         |
+| claude-sonnet-4  | $0.10-0.40           | Best quality           |
+| claude-opus-4-6  | $0.15-0.60           | Flagship model         |
+| local_llm        | $0.00                | Self-hosted compute    |
 
 ### Budget Controls
 

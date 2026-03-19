@@ -144,7 +144,7 @@ env:
 ```yaml
 # .ai-review.yml
 models:
-  default: gpt-4o-mini
+  default: gpt-4.1
 ```
 
 ## See Also

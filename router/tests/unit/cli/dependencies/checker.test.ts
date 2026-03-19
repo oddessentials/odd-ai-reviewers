@@ -4,6 +4,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import { existsSync, readdirSync } from 'fs';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -19,11 +20,21 @@ vi.mock('child_process', () => ({
   execFileSync: vi.fn(),
 }));
 
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  readdirSync: vi.fn(),
+}));
+
 const mockExecFileSync = vi.mocked(execFileSync);
+const mockExistsSync = vi.mocked(existsSync);
+const mockReaddirSync = vi.mocked(readdirSync);
 
 describe('dependency checker', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
+    mockExistsSync.mockReturnValue(false);
+    mockReaddirSync.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -62,7 +73,38 @@ describe('dependency checker', () => {
         expect(mockExecFileSync).toHaveBeenCalledWith('semgrep', ['--version'], {
           timeout: 5000,
           encoding: 'utf8',
+          env: expect.any(Object),
         });
+      });
+
+      it('adds Windows Python Scripts fallback PATH for semgrep when APPDATA install exists', () => {
+        const originalPlatform = process.platform;
+        vi.stubEnv('APPDATA', 'C:\\Users\\petep\\AppData\\Roaming');
+        mockExistsSync.mockImplementation((path) => {
+          const value = String(path);
+          return (
+            value === 'C:\\Users\\petep\\AppData\\Roaming\\Python' ||
+            value === 'C:\\Users\\petep\\AppData\\Roaming\\Python\\Python314\\Scripts'
+          );
+        });
+        mockReaddirSync.mockReturnValue([{ isDirectory: () => true, name: 'Python314' }] as never);
+        mockExecFileSync.mockReturnValue('semgrep 1.155.0');
+
+        vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+
+        checkDependency('semgrep');
+
+        expect(mockExecFileSync).toHaveBeenCalledWith('semgrep', ['--version'], {
+          timeout: 5000,
+          encoding: 'utf8',
+          env: expect.objectContaining({
+            PATH: expect.stringContaining(
+              'C:\\Users\\petep\\AppData\\Roaming\\Python\\Python314\\Scripts'
+            ),
+          }),
+        });
+
+        vi.spyOn(process, 'platform', 'get').mockReturnValue(originalPlatform);
       });
 
       it('calls execFileSync with correct arguments for reviewdog', () => {

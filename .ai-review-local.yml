@@ -1,17 +1,27 @@
-# Example: AI-only local review config (skips static analysis tools)
+# Local convenience config kept intentionally aligned with .ai-review.yml.
 # Usage: ai-review local --config .ai-review-local.yml --range main...HEAD .
-# Requires: OPENAI_API_KEY environment variable
+# Keep active settings in parity with .ai-review.yml.
+# If you need a temporary local-only override while debugging, uncomment it explicitly,
+# verify the behavior you need, then re-comment it before committing.
+# Example local-only overrides:
+# provider: anthropic
+# models:
+#   default: claude-sonnet-4-20250514
 
 version: 1
-trusted_only: false
+trusted_only: true
 
 provider: openai
 
 passes:
-  - name: cloud-ai
-    agents: [opencode]
+  - name: static
+    agents: [semgrep, reviewdog]
     enabled: true
-    required: false
+    required: true
+
+  - name: cloud-ai
+    agents: [opencode, pr_agent]
+    enabled: true
 
 models:
   default: gpt-4.1
