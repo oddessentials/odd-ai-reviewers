@@ -30,9 +30,7 @@ export interface FindingValidationResult {
     | 'invalid_line'
     | 'self_contradicting'
     | 'cautionary_advice'
-    | 'pr_intent_contradiction'
-    | 'partial_diff_symbol'
-    | 'project_context';
+    | 'pr_intent_contradiction';
 }
 
 export interface FindingValidationSummary {
@@ -120,60 +118,14 @@ const CAUTIONARY_ADVICE_PATTERNS: RegExp[] = [
   /\bconsider\b.*\b(?:to\s+prevent|to\s+avoid|for\s+safety)\b/i,
 ];
 
-const PARTIAL_DIFF_SYMBOL_PATTERNS: RegExp[] = [
-  /\bundefined constant\b/i,
-  /\bnot defined in the diff\b/i,
-  /\bnot defined in the visible code\b/i,
-  /\bfunction call is not defined in the diff\b/i,
-  /\breference to undefined constant\b/i,
-  /\bnot defined in (?:the )?(?:visible|shown|new) code\b/i,
-  /\bmissing import\b/i,
-  /\bmissing declaration\b/i,
-];
-
 const SPECULATIVE_SQL_INJECTION_PATTERN =
   /\b(?:sql injection|injection vulnerability|prevent injection)\b/i;
 const NUMERIC_ID_CONTEXT_PATTERN =
-  /\b(?:\[\]int64|make\(\[\]int64|ids\s*\[\]int64|for\s+_,\s*v\s*:=\s*range\s+ids|%d|rowsaffected|annotation_id|tag_id)\b/i;
+  /\b(?:\[\]int64|make\(\[\]int64|ids\s*\[\]int64|for\s+_,\s*v\s*:=\s*range\s+ids|%d|rowsaffected)\b/i;
 const EXTERNAL_INPUT_CONTEXT_PATTERN =
   /\b(?:req(?:uest)?\.|query(?:string)?|params?\b|body\b|header\b|cookie\b|user input|external input|json\b|unmarshal|form\b|url\b|path\b)\b/i;
 const MICRO_OPTIMIZATION_PATTERN =
   /\b(?:strings\.builder|pre-allocat\w*|slice capacity|comma-separated values string)\b/i;
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function extractReferencedSymbol(text: string): string | undefined {
-  const quoted = text.match(/[`'"]([A-Za-z_][A-Za-z0-9_]*)[`'"]/);
-  if (quoted?.[1]) {
-    return quoted[1];
-  }
-
-  const bare = text.match(/\b(?:constant|symbol|import|declaration)\s+([A-Za-z_][A-Za-z0-9_]*)\b/i);
-  return bare?.[1];
-}
-
-function diffShowsSymbolRemoval(rawDiff: string | undefined, symbol: string | undefined): boolean {
-  if (!rawDiff || !symbol) {
-    return false;
-  }
-
-  const escaped = escapeRegExp(symbol);
-  const removalPatterns = [
-    // SAFETY: `escaped` is derived from escapeRegExp(symbol), so the interpolated pattern is literal-safe.
-    // eslint-disable-next-line security/detect-non-literal-regexp
-    new RegExp(`^-.*\\b${escaped}\\b`, 'm'),
-    // SAFETY: `escaped` is derived from escapeRegExp(symbol), so the interpolated pattern is literal-safe.
-    // eslint-disable-next-line security/detect-non-literal-regexp
-    new RegExp(`^-\\s*(?:const|var|let|type|class|interface|func)\\s+${escaped}\\b`, 'm'),
-    // SAFETY: `escaped` is derived from escapeRegExp(symbol), so the interpolated pattern is literal-safe.
-    // eslint-disable-next-line security/detect-non-literal-regexp
-    new RegExp(`^-\\s*import .*\\b${escaped}\\b`, 'm'),
-  ];
-
-  return removalPatterns.some((pattern) => pattern.test(rawDiff));
-}
 
 function isSpeculativeSqlInjectionFinding(finding: Finding, rawDiff: string | undefined): boolean {
   if (finding.severity !== 'info') {
@@ -203,171 +155,6 @@ function isMicroOptimizationAdvice(finding: Finding): boolean {
 
   const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
   return MICRO_OPTIMIZATION_PATTERN.test(combinedText);
-}
-
-function isEnvironmentFeatureFlagAdvisory(
-  finding: Finding,
-  prDescription: string | undefined
-): boolean {
-  if (!prDescription) return false;
-
-  const normalizedPr = prDescription.toLowerCase();
-  if (!normalizedPr.includes('environment-dependent feature flag')) {
-    return false;
-  }
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  return (
-    /\bhard-?coded environment strings\b/i.test(combinedText) ||
-    /\bprocess\.env\.feature_flag\b/i.test(combinedText) ||
-    /\bunknown environments?\b/i.test(combinedText)
-  );
-}
-
-function isSpeculativeCssLayoutAdvisory(
-  finding: Finding,
-  rawDiff: string | undefined,
-  projectRules: string | undefined
-): boolean {
-  if (!rawDiff || !projectRules) return false;
-
-  const normalizedRules = projectRules.toLowerCase();
-  if (
-    !normalizedRules.includes('single global css file') &&
-    !normalizedRules.includes('styles.css')
-  ) {
-    return false;
-  }
-
-  if (!/\.css\b/.test(finding.file ?? '') && !/diff --git a\/.*\.css b\/.*\.css/.test(rawDiff)) {
-    return false;
-  }
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  return (
-    (/\b(?:may|might|could)\b/.test(combinedText) ||
-      /\bstacking order is unpredictable\b/i.test(combinedText)) &&
-    /\b(?:overflow|horizontal scrolling|layout breaks|z-index|stacking order|appear behind)\b/i.test(
-      combinedText
-    )
-  );
-}
-
-function isCanonicalSeedScaffoldingAdvisory(
-  finding: Finding,
-  rawDiff: string | undefined,
-  projectRules: string | undefined
-): boolean {
-  if (!rawDiff || !projectRules) return false;
-
-  if (!projectRules.toLowerCase().includes('canonical seed value')) {
-    return false;
-  }
-
-  if (!/\bseedRandom\s*\(/.test(rawDiff)) {
-    return false;
-  }
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  if (/\bseedRandom\(\)\s+function\s+is\s+defined\s+but\s+never\s+used\b/i.test(combinedText)) {
-    return true;
-  }
-
-  return (
-    /\bempty function body in random\(\) export\b/i.test(combinedText) &&
-    /\bfunction provides no functionality\b/i.test(combinedText) &&
-    /\bexport function random\(\)\s*\{\}/.test(rawDiff)
-  );
-}
-
-function isEnterKeyHandlerIntentAdvisory(
-  finding: Finding,
-  prDescription: string | undefined,
-  rawDiff: string | undefined
-): boolean {
-  if (!prDescription || !rawDiff) return false;
-
-  const normalizedPr = prDescription.toLowerCase();
-  if (!normalizedPr.includes('enter key') || !normalizedPr.includes('submit form')) {
-    return false;
-  }
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  return (
-    /\bsubmitForm\(\)\b/i.test(combinedText) ||
-    /\bhandleKeyDown\b/i.test(combinedText) ||
-    /\bnot defined or imported\b/i.test(combinedText) ||
-    /\bnever used or exported\b/i.test(combinedText)
-  );
-}
-
-function isParameterizedTestRefactorAdvisory(
-  finding: Finding,
-  prDescription: string | undefined,
-  rawDiff: string | undefined
-): boolean {
-  if (!prDescription || !rawDiff) return false;
-
-  const normalizedPr = prDescription.toLowerCase();
-  if (!normalizedPr.includes('parameterized') && !normalizedPr.includes('it.each')) {
-    return false;
-  }
-
-  if (!/\.test\.[jt]sx?$/.test(finding.file ?? '')) {
-    return false;
-  }
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  return (
-    /\bpartial object matching\b/i.test(combinedText) ||
-    /\breducing test coverage\b/i.test(combinedText)
-  );
-}
-
-function isTestArtifactAdvisory(finding: Finding): boolean {
-  const file = finding.file ?? '';
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-
-  if (/^tests\/fixtures\//.test(file)) {
-    return /\bnot exported or used\b/i.test(combinedText);
-  }
-
-  if (/\.test\.[jt]sx?$/.test(file)) {
-    return (
-      /\bmock module path\b/i.test(combinedText) ||
-      /\bempty test function provides no validation\b/i.test(combinedText)
-    );
-  }
-
-  return false;
-}
-
-function isSynchronousSingletonAdvisory(finding: Finding, rawDiff: string | undefined): boolean {
-  if (!rawDiff) return false;
-
-  const combinedText = normalizeUnicode(finding.message + ' ' + (finding.suggestion ?? ''));
-  const mentionsSingletonConcern =
-    /\bsingleton\b/i.test(combinedText) ||
-    /\bmultiple .*instances\b/i.test(combinedText) ||
-    /\bconcurrency protection\b/i.test(combinedText) ||
-    /\bquery method.*sql injection\b/i.test(combinedText) ||
-    /\bsql injection vulnerabilities?.*query method\b/i.test(combinedText) ||
-    /\baccepts any sql string\b/i.test(combinedText);
-  if (!mentionsSingletonConcern) return false;
-
-  const hasSingletonShape =
-    /let\s+\w+[^=]*=\s*null/.test(rawDiff) &&
-    /if\s*\(\s*!\w+\s*\)/.test(rawDiff) &&
-    /\w+\s*=\s*new\s+\w+\s*\(/.test(rawDiff) &&
-    !/\bawait\b|=\s*(?:new\s+)?Promise\s*[<(]/.test(rawDiff);
-
-  if (!hasSingletonShape) return false;
-
-  if (/\bquery method.*sql injection\b/i.test(combinedText)) {
-    return /\binterface\b[\s\S]*\bquery\s*\(\s*sql\s*:\s*string\s*\)/i.test(rawDiff);
-  }
-
-  return true;
 }
 
 /**
@@ -553,8 +340,7 @@ export function filterPRIntentContradictions(
 export function validateFindingsSemantics(
   findings: Finding[],
   prDescription?: string,
-  rawDiff?: string,
-  projectRules?: string
+  rawDiff?: string
 ): FindingValidationSummary {
   const results: FindingValidationResult[] = [];
   const stats = {
@@ -624,73 +410,7 @@ export function validateFindingsSemantics(
     });
   }
 
-  // Pass 3.85: Suppress PR-described environment-dependent feature-flag advisories.
-  for (const result of results) {
-    if (!result.valid) continue;
-
-    if (!isEnvironmentFeatureFlagAdvisory(result.finding, prDescription)) {
-      continue;
-    }
-
-    result.valid = false;
-    result.filterReason =
-      'PR-described environment-dependent feature flag — advisory repeats intended behavior';
-    result.filterType = 'pr_intent_contradiction';
-    stats.filteredByPRIntent++;
-    console.log('[router] [finding-validator] [filtered:env-feature-flag]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
-
-  // Pass 3.855: Suppress project-rule-backed context advisories in replayed benchmark cases.
-  for (const result of results) {
-    if (!result.valid) continue;
-
-    const isProjectContextAdvisory =
-      isSpeculativeCssLayoutAdvisory(result.finding, rawDiff, projectRules) ||
-      isCanonicalSeedScaffoldingAdvisory(result.finding, rawDiff, projectRules) ||
-      isEnterKeyHandlerIntentAdvisory(result.finding, prDescription, rawDiff) ||
-      isParameterizedTestRefactorAdvisory(result.finding, prDescription, rawDiff) ||
-      isTestArtifactAdvisory(result.finding);
-    if (!isProjectContextAdvisory) {
-      continue;
-    }
-
-    result.valid = false;
-    result.filterReason = 'Project context and local rules make this advisory non-actionable';
-    result.filterType = 'project_context';
-    stats.filteredByPRIntent++;
-    console.log('[router] [finding-validator] [filtered:project-context]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
-
-  // Pass 3.86: Suppress synchronous singleton advisories when the diff shows a standard
-  // lazy singleton pattern rather than async or multi-step initialization.
-  for (const result of results) {
-    if (!result.valid) continue;
-
-    if (!isSynchronousSingletonAdvisory(result.finding, rawDiff)) {
-      continue;
-    }
-
-    result.valid = false;
-    result.filterReason =
-      'Synchronous lazy singleton convention — no async concurrency hazard shown';
-    result.filterType = 'cautionary_advice';
-    stats.filteredByCautionaryAdvice++;
-    console.log('[router] [finding-validator] [filtered:singleton-convention]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
-
-  // Pass 3.95: Suppress info-level micro-optimization advice.
+  // Pass 3.5: Suppress info-level micro-optimization advice.
   for (const result of results) {
     if (!result.valid) continue;
 
@@ -709,7 +429,7 @@ export function validateFindingsSemantics(
     });
   }
 
-  // Pass 3.9: Suppress speculative SQL injection findings when the visible diff only shows
+  // Pass 3.6: Suppress speculative SQL injection findings when the visible diff only shows
   // bounded numeric IDs and no external input source.
   for (const result of results) {
     if (!result.valid) continue;
@@ -730,7 +450,7 @@ export function validateFindingsSemantics(
     });
   }
 
-  // Pass 3.5: Cautionary advice detection
+  // Pass 3.7: Cautionary advice detection
   // Catches info-severity findings where the LLM hedges with "ensure/verify/consider"
   // without identifying a concrete defect. Blocked for security-related findings.
   for (const result of results) {
@@ -758,32 +478,6 @@ export function validateFindingsSemantics(
     console.log('[router] [finding-validator] [filtered:cautionary]', {
       file: result.finding.file,
       line: result.finding.line,
-      reason: result.filterReason,
-    });
-  }
-
-  // Pass 3.75: Partial-diff symbol hallucination suppression
-  for (const result of results) {
-    if (!result.valid) continue;
-
-    const combinedText = normalizeUnicode(
-      result.finding.message + ' ' + (result.finding.suggestion ?? '')
-    );
-    const matchedPattern = PARTIAL_DIFF_SYMBOL_PATTERNS.find((p) => p.test(combinedText));
-    if (!matchedPattern) continue;
-
-    const symbol = extractReferencedSymbol(combinedText);
-    if (diffShowsSymbolRemoval(rawDiff, symbol)) {
-      continue;
-    }
-
-    result.valid = false;
-    result.filterReason = `Partial-diff symbol reference: finding depends on missing visibility (${matchedPattern.source})`;
-    result.filterType = 'partial_diff_symbol';
-    console.log('[router] [finding-validator] [filtered:partial-diff-symbol]', {
-      file: result.finding.file,
-      line: result.finding.line,
-      symbol,
       reason: result.filterReason,
     });
   }

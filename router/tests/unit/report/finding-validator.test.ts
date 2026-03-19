@@ -440,7 +440,7 @@ describe('validateFindingsSemantics (Stage 1)', () => {
     expect(result.stats.total).toBe(0);
   });
 
-  it('suppresses partial-diff undefined symbol findings when the diff does not remove the symbol', () => {
+  it('does not suppress undefined symbol findings in new code just because the diff is partial', () => {
     const findings = [
       makeFinding({
         severity: 'error',
@@ -459,32 +459,6 @@ describe('validateFindingsSemantics (Stage 1)', () => {
 +func example() {
 +  endpointQueryData()
 +}`;
-
-    const result = validateFindingsSemantics(findings, undefined, diff);
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered[0]?.filterType).toBe('partial_diff_symbol');
-  });
-
-  it('does not suppress undefined symbol findings when the diff visibly removes the symbol', () => {
-    const findings = [
-      makeFinding({
-        severity: 'error',
-        file: 'pkg/example/file.go',
-        line: 20,
-        message:
-          'Reference to undefined constant `endpointQueryData` - this constant is not defined in the visible code',
-        suggestion: 'Define the endpoint constants or import them from the appropriate package',
-      }),
-    ];
-
-    const diff = `diff --git a/pkg/example/file.go b/pkg/example/file.go
---- a/pkg/example/file.go
-+++ b/pkg/example/file.go
-@@ -1,4 +1,3 @@
--const endpointQueryData = "query"
- func example() {
-   endpointQueryData()
- }`;
 
     const result = validateFindingsSemantics(findings, undefined, diff);
     expect(result.validFindings).toHaveLength(1);
@@ -573,7 +547,7 @@ describe('validateFindingsSemantics (Stage 1)', () => {
     expect(result.stats.filteredByCautionaryAdvice).toBe(1);
   });
 
-  it('suppresses project-rule-backed CSS layout speculation for single global CSS files', () => {
+  it('does not suppress project-context advisories in production semantic validation', () => {
     const findings = [
       makeFinding({
         severity: 'warning',
@@ -603,18 +577,11 @@ describe('validateFindingsSemantics (Stage 1)', () => {
 +.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 +.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }`;
 
-    const result = validateFindingsSemantics(
-      findings,
-      undefined,
-      diff,
-      'This project uses a single global CSS file (styles.css). Do not flag large CSS files.'
-    );
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered).toHaveLength(2);
-    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(2);
   });
 
-  it('suppresses canonical-seed scaffolding findings when project rules explain the seed helper', () => {
+  it('does not suppress benchmark-only canonical seed scaffolding advisories in production semantic validation', () => {
     const findings = [
       makeFinding({
         severity: 'info',
@@ -644,18 +611,11 @@ describe('validateFindingsSemantics (Stage 1)', () => {
 +
  export function random() {}`;
 
-    const result = validateFindingsSemantics(
-      findings,
-      undefined,
-      diff,
-      'The number 42 is the canonical seed value used across all random generators. Do not flag it.'
-    );
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered).toHaveLength(2);
-    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(2);
   });
 
-  it('suppresses synchronous singleton convention findings for non-async lazy initialization', () => {
+  it('does not suppress synchronous singleton advisories in production semantic validation', () => {
     const findings = [
       makeFinding({
         severity: 'warning',
@@ -693,11 +653,10 @@ describe('validateFindingsSemantics (Stage 1)', () => {
 +interface DatabaseConnection { query(sql: string): Promise<unknown[]> }`;
 
     const result = validateFindingsSemantics(findings, undefined, diff);
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.stats.filteredByCautionaryAdvice).toBe(2);
+    expect(result.validFindings).toHaveLength(2);
   });
 
-  it('suppresses Enter-key handler partial-diff advisories when PR intent explains the handler change', () => {
+  it('does not suppress PR-intent-specific handler advisories in production semantic validation', () => {
     const findings = [
       makeFinding({
         severity: 'error',
@@ -735,11 +694,10 @@ describe('validateFindingsSemantics (Stage 1)', () => {
       'fix: Change Enter key to submit form instead of adding newline',
       diff
     );
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+    expect(result.validFindings).toHaveLength(2);
   });
 
-  it('suppresses parameterized-test refactor coverage advice when PR intent explains the refactor', () => {
+  it('does not suppress parameterized-test refactor advisories in production semantic validation', () => {
     const findings = [
       makeFinding({
         severity: 'warning',
@@ -774,11 +732,10 @@ describe('validateFindingsSemantics (Stage 1)', () => {
       'refactor: Convert individual user tests to parameterized it.each tests',
       diff
     );
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered[0]?.filterType).toBe('project_context');
+    expect(result.validFindings).toHaveLength(1);
   });
 
-  it('suppresses test-artifact advisories for fixtures, mock wiring, and placeholder test bodies', () => {
+  it('does not suppress mock-path or empty-test advisories in test files', () => {
     const findings = [
       makeFinding({
         severity: 'info',
@@ -806,9 +763,7 @@ describe('validateFindingsSemantics (Stage 1)', () => {
     ];
 
     const result = validateFindingsSemantics(findings);
-    expect(result.validFindings).toHaveLength(0);
-    expect(result.filtered).toHaveLength(3);
-    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+    expect(result.validFindings).toHaveLength(3);
   });
 });
 

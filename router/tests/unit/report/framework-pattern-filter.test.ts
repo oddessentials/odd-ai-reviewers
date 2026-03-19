@@ -2102,7 +2102,7 @@ describe('Framework Pattern Filter (FR-013)', () => {
       expect(result.suppressed).toBe(1);
     });
 
-    it('should suppress fp-b-006 snapshot loading-state advisory when the render is null-safe', () => {
+    it('should not suppress fp-b-006 snapshot loading-state advisory in production just because the render is null-safe', () => {
       const findings = [
         makeFinding({
           severity: 'warning',
@@ -2116,11 +2116,11 @@ describe('Framework Pattern Filter (FR-013)', () => {
       ];
 
       const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
-      expect(result.suppressed).toBe(1);
-      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+      expect(result.suppressed).toBe(0);
+      expect(result.results[0]?.suppressed).toBe(false);
     });
 
-    it('should suppress fp-b-006 snapshot fetch-status advisory for a simple React Query fetch wrapper', () => {
+    it('should not suppress fetch-status advisories in production for a simple React Query fetch wrapper', () => {
       const findings = [
         makeFinding({
           severity: 'warning',
@@ -2134,11 +2134,11 @@ describe('Framework Pattern Filter (FR-013)', () => {
       ];
 
       const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
-      expect(result.suppressed).toBe(1);
-      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+      expect(result.suppressed).toBe(0);
+      expect(result.results[0]?.suppressed).toBe(false);
     });
 
-    it('should suppress fp-b-002 snapshot secondary-query error advice when the queried data is unused', () => {
+    it('should not suppress fp-b-002 snapshot secondary-query error advice in production when the queried data is unused', () => {
       const multiQueryDiff = `diff --git a/src/UserProfile.tsx b/src/UserProfile.tsx
 --- a/src/UserProfile.tsx
 +++ b/src/UserProfile.tsx
@@ -2173,8 +2173,8 @@ describe('Framework Pattern Filter (FR-013)', () => {
       ];
 
       const result = filterFrameworkConventionFindings(findings, multiQueryDiff);
-      expect(result.suppressed).toBe(1);
-      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+      expect(result.suppressed).toBe(0);
+      expect(result.results[0]?.suppressed).toBe(false);
     });
   });
 
