@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.12.1...v1.13.0) (2026-03-19)
+
+### Features
+
+* harden external benchmark execution and docs ([#191](https://github.com/oddessentials/odd-ai-reviewers/issues/191)) ([3c3829c](https://github.com/oddessentials/odd-ai-reviewers/commit/3c3829ca2d1260ab81476dd4a17a863a866733d8))
+
 ## [1.12.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.12.0...v1.12.1) (2026-03-19)
 
 ### Bug Fixes
