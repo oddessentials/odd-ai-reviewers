@@ -181,8 +181,24 @@ function main(): void {
     process.exit(2);
   }
 
-  const benchmarkData = JSON.parse(readFileSync(benchmarkDataPath, 'utf-8')) as BenchmarkData;
-  const evaluations = JSON.parse(readFileSync(evaluationsPath, 'utf-8')) as EvaluationFile;
+  let benchmarkData: BenchmarkData;
+  try {
+    benchmarkData = JSON.parse(readFileSync(benchmarkDataPath, 'utf-8')) as BenchmarkData;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`Error: failed to read benchmark data JSON at ${benchmarkDataPath}: ${msg}`);
+    process.exit(2);
+  }
+
+  let evaluations: EvaluationFile;
+  try {
+    evaluations = JSON.parse(readFileSync(evaluationsPath, 'utf-8')) as EvaluationFile;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`Error: failed to read evaluations JSON at ${evaluationsPath}: ${msg}`);
+    process.exit(2);
+  }
+
   const summary = buildSummary(
     benchmarkData,
     evaluations,
