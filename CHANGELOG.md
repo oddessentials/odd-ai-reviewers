@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.12.0...v1.12.1) (2026-03-19)
+
+### Bug Fixes
+
+* **benchmark:** align workflow with offline dataset ([#190](https://github.com/oddessentials/odd-ai-reviewers/issues/190)) ([dec3750](https://github.com/oddessentials/odd-ai-reviewers/commit/dec3750070946cb5540e23f21e7535002868f77e))
+
 ## [1.12.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.11.0...v1.12.0) (2026-03-18)
 
 ### Features
