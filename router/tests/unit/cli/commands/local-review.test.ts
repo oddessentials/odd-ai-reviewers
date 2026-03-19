@@ -17,7 +17,11 @@ import type { Finding } from '../../../../src/agents/types.js';
 import type { TerminalContext } from '../../../../src/report/terminal.js';
 import { FatalExecutionError } from '../../../../src/phases/execute.js';
 
-import { runLocalReview, ExitCode } from '../../../../src/cli/commands/local-review.js';
+import {
+  runLocalReview,
+  ExitCode,
+  createDefaultDependencies,
+} from '../../../../src/cli/commands/local-review.js';
 import { Ok, Err } from '../../../../src/types/result.js';
 import { GitContextErrorCode } from '../../../../src/cli/git-context.js';
 
@@ -359,6 +363,46 @@ describe('runLocalReview', () => {
           suppressionSummary: [{ reason: 'Known semantic noise', matched: 1 }],
         })
       );
+    });
+
+    it('does not write zero-config guidance to stdout in JSON mode', async () => {
+      const mockGitContext = createMockGitContext();
+      const mockDiff = createMockDiff([
+        {
+          path: 'src/test.ts',
+          status: 'modified',
+          additions: 10,
+          deletions: 5,
+          patch: '+line\n-line',
+        },
+      ]);
+      const mockConfig = createMockConfig();
+      const reportToTerminalMock = vi.fn().mockResolvedValue({
+        success: true,
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      });
+      const deps = createMockDeps({
+        inferGitContext: () => Ok(mockGitContext),
+        generateZeroConfig: createZeroConfigMock(mockConfig),
+        getLocalDiff: () => mockDiff,
+        executeAllPasses: async () => ({
+          completeFindings: [],
+          partialFindings: [],
+          allResults: [],
+          skippedAgents: [],
+        }),
+        reportToTerminal: reportToTerminalMock,
+      });
+
+      const result = await runLocalReview({ path: '/test/repo', format: 'json' }, deps);
+
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+      const stdoutOutput = (deps.stdout.write as ReturnType<typeof vi.fn>).mock.calls
+        .map((call) => call[0])
+        .join('');
+      expect(stdoutOutput).not.toContain('Using anthropic');
+      expect(stdoutOutput).not.toContain('Tip: Create .ai-review.yml');
     });
   });
 
@@ -1588,5 +1632,24 @@ describe('runLocalReview', () => {
       // Clean up
       resetShutdownState();
     });
+  });
+});
+
+describe('createDefaultDependencies', () => {
+  it('sets process.exitCode without calling process.exit', () => {
+    const originalExitCode = process.exitCode;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('process.exit should not be called');
+    }) as never);
+
+    try {
+      const deps = createDefaultDependencies();
+      deps.exitHandler(3);
+      expect(process.exitCode).toBe(3);
+      expect(exitSpy).not.toHaveBeenCalled();
+    } finally {
+      process.exitCode = originalExitCode;
+      exitSpy.mockRestore();
+    }
   });
 });

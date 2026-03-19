@@ -73,6 +73,7 @@ import {
 import { countBySeverity } from '../../report/formats.js';
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
+import { format as formatConsoleArgs } from 'util';
 import {
   checkDependenciesForPasses,
   displayDependencyErrors,
@@ -198,29 +199,6 @@ export function createDefaultDependencies(): LocalReviewDependencies {
     env: process.env as Record<string, string | undefined>,
     exitHandler: (code: number) => {
       process.exitCode = code;
-      const exit = () => process.exit(code);
-
-      const drainingStreams = [process.stdout, process.stderr].filter(
-        (stream) => stream.writableNeedDrain
-      );
-
-      if (drainingStreams.length === 0) {
-        exit();
-        return;
-      }
-
-      let remaining = drainingStreams.length;
-      for (const stream of drainingStreams) {
-        stream.once('drain', () => {
-          remaining -= 1;
-          if (remaining === 0) {
-            exit();
-          }
-        });
-      }
-
-      // Safety: avoid hanging if drain never fires
-      setTimeout(exit, 100);
     },
     stdout: process.stdout,
     stderr: process.stderr,
@@ -250,6 +228,35 @@ export const ExitCode = {
   /** Incomplete review (partial results available) */
   INCOMPLETE: 3,
 } as const;
+
+async function withConsoleRedirectToStderr<T>(
+  enabled: boolean,
+  stderr: { write: (text: string) => void },
+  fn: () => Promise<T>
+): Promise<T> {
+  if (!enabled) {
+    return fn();
+  }
+
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalInfo = console.info;
+  const redirect = (...args: unknown[]) => {
+    stderr.write(formatConsoleArgs(...args) + '\n');
+  };
+
+  console.log = redirect as typeof console.log;
+  console.warn = redirect as typeof console.warn;
+  console.info = redirect as typeof console.info;
+
+  try {
+    return await fn();
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+    console.info = originalInfo;
+  }
+}
 
 // =============================================================================
 // Helper Functions
@@ -799,58 +806,25 @@ export async function runLocalReview(
   }
 
   const { options, warnings } = parseResult.value;
+  const isMachineReadableFormat = options.format === 'json' || options.format === 'sarif';
 
-  // Print warnings
-  for (const warning of warnings) {
-    stderr.write(c.yellow(`Warning: ${warning}`) + '\n');
-  }
+  return withConsoleRedirectToStderr(isMachineReadableFormat, stderr, async () => {
+    // Print warnings
+    for (const warning of warnings) {
+      stderr.write(c.yellow(`Warning: ${warning}`) + '\n');
+    }
 
-  // 2. Infer git context
-  const inferFn = deps.inferGitContext ?? inferGitContext;
-  const gitResult = inferFn(resolve(options.path));
+    // 2. Infer git context
+    const inferFn = deps.inferGitContext ?? inferGitContext;
+    const gitResult = inferFn(resolve(options.path));
 
-  if (!isOk(gitResult)) {
-    const error =
-      gitResult.error.code === GitContextErrorCode.GIT_NOT_FOUND
-        ? new GitNotFoundError(gitResult.error.message)
-        : gitResult.error.code === GitContextErrorCode.INVALID_PATH
-          ? new InvalidPathError(gitResult.error.message, gitResult.error.path)
-          : new NotAGitRepoError(gitResult.error.path ?? options.path);
-    stderr.write(formatCLIError(error, colored) + '\n');
-    return {
-      exitCode: ExitCode.INVALID_ARGS,
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      error: error.message,
-    };
-  }
-
-  const gitContext = gitResult.value;
-
-  // Apply defaults from git context
-  const resolvedOptions = applyOptionDefaults(options, gitContext);
-  const diffRange = resolveDiffRange(resolvedOptions, gitContext);
-  const baseRef = diffRange.baseRef;
-
-  // 3. Load configuration (with zero-config fallback)
-  let config: Config;
-  let configSource: 'file' | 'zero-config';
-  let configPath: string | undefined;
-  let zeroConfigResult: ZeroConfigResult | undefined;
-
-  try {
-    const configResult = await loadConfigWithFallback(
-      gitContext.repoRoot,
-      env,
-      deps,
-      resolvedOptions.config
-    );
-    config = configResult.config;
-    configSource = configResult.source;
-    configPath = configResult.path;
-    zeroConfigResult = configResult.zeroConfigResult;
-  } catch (error) {
-    if (error instanceof NoCredentialsError) {
+    if (!isOk(gitResult)) {
+      const error =
+        gitResult.error.code === GitContextErrorCode.GIT_NOT_FOUND
+          ? new GitNotFoundError(gitResult.error.message)
+          : gitResult.error.code === GitContextErrorCode.INVALID_PATH
+            ? new InvalidPathError(gitResult.error.message, gitResult.error.path)
+            : new NotAGitRepoError(gitResult.error.path ?? options.path);
       stderr.write(formatCLIError(error, colored) + '\n');
       return {
         exitCode: ExitCode.INVALID_ARGS,
@@ -859,423 +833,471 @@ export async function runLocalReview(
         error: error.message,
       };
     }
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    const configError = new InvalidConfigError(resolvedOptions.config ?? '.ai-review.yml', [
-      errorMsg,
-    ]);
-    stderr.write(formatCLIError(configError, colored) + '\n');
-    return {
-      exitCode: ExitCode.INVALID_ARGS,
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      error: errorMsg,
-    };
-  }
 
-  // Show zero-config message if applicable
-  if (configSource === 'zero-config' && zeroConfigResult && !resolvedOptions.quiet) {
-    stdout.write(
-      c.yellow(`\nUsing ${zeroConfigResult.provider} (${zeroConfigResult.keySource} found)\n`)
-    );
-    if (zeroConfigResult.ignoredProviders.length > 0) {
-      for (const ignored of zeroConfigResult.ignoredProviders) {
-        stdout.write(
-          c.gray(`Note: ${ignored.keySource} also set but ignored due to priority order\n`)
-        );
-      }
-    }
-    stdout.write(c.gray('Tip: Create .ai-review.yml to customize settings\n\n'));
-  }
+    const gitContext = gitResult.value;
 
-  // 4. Build execution plan (FR-001 through FR-007)
-  // The plan is the single source of truth for all downstream code paths.
-  // No downstream consumer may read raw CLI flags — they operate on the plan.
-  let executionPlan: DeepReadonly<ExecutionPlan>;
-  try {
-    const planMode: ExecutionMode = resolvedOptions.dryRun
-      ? 'dry-run'
-      : resolvedOptions.costOnly
-        ? 'cost-only'
-        : 'execute';
+    // Apply defaults from git context
+    const resolvedOptions = applyOptionDefaults(options, gitContext);
+    const diffRange = resolveDiffRange(resolvedOptions, gitContext);
+    const baseRef = diffRange.baseRef;
 
-    executionPlan = buildExecutionPlan({
-      config,
-      mode: planMode,
-      passFilter: resolvedOptions.pass,
-      agentFilter: resolvedOptions.agent,
-      provider: zeroConfigResult?.provider ?? config.provider ?? null,
-      model: config.models?.default ?? null,
-      configSource:
-        configSource === 'zero-config' ? 'zero-config' : (configPath ?? '.ai-review.yml'),
-    });
-  } catch (error) {
-    if (error instanceof ConfigError) {
-      stderr.write(
-        formatCLIError(
-          new InvalidConfigError(resolvedOptions.config ?? '.ai-review.yml', [error.message]),
-          colored
-        ) + '\n'
+    // 3. Load configuration (with zero-config fallback)
+    let config: Config;
+    let configSource: 'file' | 'zero-config';
+    let configPath: string | undefined;
+    let zeroConfigResult: ZeroConfigResult | undefined;
+
+    try {
+      const configResult = await loadConfigWithFallback(
+        gitContext.repoRoot,
+        env,
+        deps,
+        resolvedOptions.config
       );
+      config = configResult.config;
+      configSource = configResult.source;
+      configPath = configResult.path;
+      zeroConfigResult = configResult.zeroConfigResult;
+    } catch (error) {
+      if (error instanceof NoCredentialsError) {
+        stderr.write(formatCLIError(error, colored) + '\n');
+        return {
+          exitCode: ExitCode.INVALID_ARGS,
+          findingsCount: 0,
+          partialFindingsCount: 0,
+          error: error.message,
+        };
+      }
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const configError = new InvalidConfigError(resolvedOptions.config ?? '.ai-review.yml', [
+        errorMsg,
+      ]);
+      stderr.write(formatCLIError(configError, colored) + '\n');
+      return {
+        exitCode: ExitCode.INVALID_ARGS,
+        findingsCount: 0,
+        partialFindingsCount: 0,
+        error: errorMsg,
+      };
+    }
+
+    // Show zero-config guidance only for human-readable terminal output.
+    // Machine-readable modes must reserve stdout exclusively for the payload.
+    if (
+      configSource === 'zero-config' &&
+      zeroConfigResult &&
+      !resolvedOptions.quiet &&
+      !isMachineReadableFormat
+    ) {
+      stdout.write(
+        c.yellow(`\nUsing ${zeroConfigResult.provider} (${zeroConfigResult.keySource} found)\n`)
+      );
+      if (zeroConfigResult.ignoredProviders.length > 0) {
+        for (const ignored of zeroConfigResult.ignoredProviders) {
+          stdout.write(
+            c.gray(`Note: ${ignored.keySource} also set but ignored due to priority order\n`)
+          );
+        }
+      }
+      stdout.write(c.gray('Tip: Create .ai-review.yml to customize settings\n\n'));
+    }
+
+    // 4. Build execution plan (FR-001 through FR-007)
+    // The plan is the single source of truth for all downstream code paths.
+    // No downstream consumer may read raw CLI flags — they operate on the plan.
+    let executionPlan: DeepReadonly<ExecutionPlan>;
+    try {
+      const planMode: ExecutionMode = resolvedOptions.dryRun
+        ? 'dry-run'
+        : resolvedOptions.costOnly
+          ? 'cost-only'
+          : 'execute';
+
+      executionPlan = buildExecutionPlan({
+        config,
+        mode: planMode,
+        passFilter: resolvedOptions.pass,
+        agentFilter: resolvedOptions.agent,
+        provider: zeroConfigResult?.provider ?? config.provider ?? null,
+        model: config.models?.default ?? null,
+        configSource:
+          configSource === 'zero-config' ? 'zero-config' : (configPath ?? '.ai-review.yml'),
+      });
+    } catch (error) {
+      if (error instanceof ConfigError) {
+        stderr.write(
+          formatCLIError(
+            new InvalidConfigError(resolvedOptions.config ?? '.ai-review.yml', [error.message]),
+            colored
+          ) + '\n'
+        );
+        return {
+          exitCode: exitCodeFromStatus('config_error'),
+          status: 'config_error',
+          findingsCount: 0,
+          partialFindingsCount: 0,
+          error: error.message,
+        };
+      }
+      throw error;
+    }
+
+    // Emit plan in verbose mode for debugging
+    if (resolvedOptions.verbose && !resolvedOptions.quiet) {
+      stderr.write(c.gray('Execution plan:\n'));
+      stderr.write(c.gray(serializeExecutionPlan(executionPlan)));
+      stderr.write('\n');
+    }
+
+    // Build a config-like passes array from the execution plan for downstream compatibility
+    const planPasses: Pass[] = executionPlan.passes.map((p) => ({
+      name: p.name,
+      agents: [...p.agents],
+      enabled: true,
+      required: p.required,
+    }));
+
+    // 5. Handle special modes (dry-run and cost-only) - before dependency check
+    // These modes don't execute agents, so dependencies are not required
+    if (resolvedOptions.dryRun) {
+      const dryRunResult = await executeDryRun(
+        resolvedOptions,
+        gitContext,
+        config,
+        configSource,
+        configPath,
+        deps
+      );
+      // Override agents to match the execution plan (FR-002: dry-run shows only plan agents)
+      dryRunResult.agents = [...new Set(executionPlan.passes.flatMap((p) => [...p.agents]))];
+      const output = formatDryRunOutput(dryRunResult, colored, resolvedOptions.format);
+      stdout.write(output);
+      return {
+        exitCode: ExitCode.SUCCESS,
+        status: 'complete',
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      };
+    }
+
+    if (resolvedOptions.costOnly) {
+      // FR-003: Cost estimation MUST be scoped to the execution plan's passes only
+      const planFilteredConfig = {
+        ...config,
+        passes: planPasses.map((p) => ({
+          name: p.name,
+          agents: [...p.agents],
+          enabled: true,
+          required: p.required,
+        })),
+      };
+      const costResult = await executeCostOnly(
+        resolvedOptions,
+        gitContext,
+        planFilteredConfig,
+        deps
+      );
+      const output = formatCostOutput(costResult, colored);
+      stdout.write(output);
+      return {
+        exitCode: ExitCode.SUCCESS,
+        status: 'complete',
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      };
+    }
+
+    // 6. Dependency preflight check — scoped to execution plan's passes only (FR-001)
+    const checkDepsFn = deps.checkDependenciesForPasses ?? checkDependenciesForPasses;
+    const depSummary = checkDepsFn(planPasses);
+    if (depSummary.hasBlockingIssues) {
+      displayDependencyErrors(depSummary, stderr);
       return {
         exitCode: exitCodeFromStatus('config_error'),
         status: 'config_error',
         findingsCount: 0,
         partialFindingsCount: 0,
-        error: error.message,
+        error: 'Missing required dependencies',
       };
     }
-    throw error;
-  }
 
-  // Emit plan in verbose mode for debugging
-  if (resolvedOptions.verbose && !resolvedOptions.quiet) {
-    stderr.write(c.gray('Execution plan:\n'));
-    stderr.write(c.gray(serializeExecutionPlan(executionPlan)));
-    stderr.write('\n');
-  }
+    // Build skipped pass info for warnings (using plan passes, not raw config)
+    const skippedPassInfo = buildSkippedPassInfo(planPasses, depSummary);
 
-  // Build a config-like passes array from the execution plan for downstream compatibility
-  const planPasses: Pass[] = executionPlan.passes.map((p) => ({
-    name: p.name,
-    agents: [...p.agents],
-    enabled: true,
-    required: p.required,
-  }));
-
-  // 5. Handle special modes (dry-run and cost-only) - before dependency check
-  // These modes don't execute agents, so dependencies are not required
-  if (resolvedOptions.dryRun) {
-    const dryRunResult = await executeDryRun(
-      resolvedOptions,
-      gitContext,
-      config,
-      configSource,
-      configPath,
-      deps
-    );
-    // Override agents to match the execution plan (FR-002: dry-run shows only plan agents)
-    dryRunResult.agents = [...new Set(executionPlan.passes.flatMap((p) => [...p.agents]))];
-    const output = formatDryRunOutput(dryRunResult, colored, resolvedOptions.format);
-    stdout.write(output);
-    return {
-      exitCode: ExitCode.SUCCESS,
-      status: 'complete',
-      findingsCount: 0,
-      partialFindingsCount: 0,
-    };
-  }
-
-  if (resolvedOptions.costOnly) {
-    // FR-003: Cost estimation MUST be scoped to the execution plan's passes only
-    const planFilteredConfig = {
-      ...config,
-      passes: planPasses.map((p) => ({
-        name: p.name,
-        agents: [...p.agents],
-        enabled: true,
-        required: p.required,
-      })),
-    };
-    const costResult = await executeCostOnly(resolvedOptions, gitContext, planFilteredConfig, deps);
-    const output = formatCostOutput(costResult, colored);
-    stdout.write(output);
-    return {
-      exitCode: ExitCode.SUCCESS,
-      status: 'complete',
-      findingsCount: 0,
-      partialFindingsCount: 0,
-    };
-  }
-
-  // 6. Dependency preflight check — scoped to execution plan's passes only (FR-001)
-  const checkDepsFn = deps.checkDependenciesForPasses ?? checkDependenciesForPasses;
-  const depSummary = checkDepsFn(planPasses);
-  if (depSummary.hasBlockingIssues) {
-    displayDependencyErrors(depSummary, stderr);
-    return {
-      exitCode: exitCodeFromStatus('config_error'),
-      status: 'config_error',
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      error: 'Missing required dependencies',
-    };
-  }
-
-  // Build skipped pass info for warnings (using plan passes, not raw config)
-  const skippedPassInfo = buildSkippedPassInfo(planPasses, depSummary);
-
-  // Show warnings for skipped passes (graceful degradation)
-  if (skippedPassInfo.length > 0 && !resolvedOptions.quiet) {
-    displaySkippedPassWarnings(skippedPassInfo, stderr);
-  }
-
-  // Show execution plan's skipped passes
-  if (executionPlan.skippedPasses.length > 0 && !resolvedOptions.quiet) {
-    for (const sp of executionPlan.skippedPasses) {
-      stderr.write(c.yellow(`Note: ${sp.reason}\n`));
+    // Show warnings for skipped passes (graceful degradation)
+    if (skippedPassInfo.length > 0 && !resolvedOptions.quiet) {
+      displaySkippedPassWarnings(skippedPassInfo, stderr);
     }
-  }
 
-  // Filter config to only include runnable passes from the execution plan
-  const runnableConfig = filterToRunnablePasses(
-    { ...config, passes: planPasses },
-    depSummary.runnablePasses
-  );
-
-  // Check if all passes were filtered out (all optional, all missing dependencies)
-  const enabledRunnablePasses = runnableConfig.passes.filter((p) => p.enabled);
-  if (enabledRunnablePasses.length === 0) {
-    const warnMsg = colored
-      ? `${c.yellow('⚠')} All review passes were skipped due to missing dependencies.\n` +
-        `  Run 'ai-review check' to see what's missing.\n` +
-        `  No review will be performed.\n`
-      : `Warning: All review passes were skipped due to missing dependencies.\n` +
-        `  Run 'ai-review check' to see what's missing.\n` +
-        `  No review will be performed.\n`;
-    stderr.write(warnMsg);
-    return {
-      exitCode: ExitCode.SUCCESS,
-      status: 'complete',
-      findingsCount: 0,
-      partialFindingsCount: 0,
-    };
-  }
-
-  // Show warnings for other optional missing dependencies
-  if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {
-    displayDependencyErrors(depSummary, stderr);
-  }
-
-  // 7. Load .reviewignore patterns (before diff to filter early)
-  const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
-
-  // 7. Generate diff once with reviewignore filtering applied
-  const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
-  const diff = getDiffFn(gitContext.repoRoot, {
-    baseRef,
-    headRef: diffRange.headRef,
-    rangeOperator: diffRange.rangeOperator,
-    stagedOnly: resolvedOptions.staged,
-    uncommitted: resolvedOptions.uncommitted,
-    pathFilter:
-      reviewIgnoreResult.patterns.length > 0
-        ? { reviewIgnorePatterns: reviewIgnoreResult.patterns }
-        : undefined,
-  });
-
-  // 8. Check for changes (using already-generated diff)
-  if (diff.files.length === 0) {
-    // No changes to review - could be no changes or all filtered by .reviewignore
-    const headLabel = resolvedOptions.staged
-      ? 'STAGED'
-      : resolvedOptions.uncommitted
-        ? 'WORKTREE'
-        : diffRange.headRef;
-    const output = colored
-      ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`
-      : `No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`;
-    stdout.write(output);
-    return {
-      exitCode: ExitCode.SUCCESS,
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      status: 'complete' as const,
-    };
-  }
-
-  // 9. Build agent context (using runnableConfig with filtered passes)
-  const routerEnv = buildRouterEnv(env);
-  const agentContext = buildAgentContext(gitContext.repoRoot, diff, runnableConfig, routerEnv);
-  const configHash = hashConfig(config); // Use original config for consistent cache key
-
-  // 10. Check budget
-  const diffContent = buildCombinedDiff(diff.files, config.limits?.max_diff_lines ?? 5000);
-  const estimatedTokensCount = estimateTokens(diffContent);
-  const budgetContext: BudgetContext = {
-    fileCount: diff.files.length,
-    diffLines: diff.totalAdditions + diff.totalDeletions,
-    estimatedTokens: estimatedTokensCount,
-  };
-  const budgetCheck = checkBudget(
-    budgetContext,
-    config.limits ?? {
-      max_files: 50,
-      max_diff_lines: 2000,
-      max_tokens_per_pr: 50000,
-      max_usd_per_pr: 0.1,
-      monthly_budget_usd: 10,
-    }
-  );
-
-  // 11. Setup signal handlers for graceful shutdown
-  // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
-  // This is the correct behavior for CLI tools to avoid runaway costs
-  setupSignalHandlers({
-    // Cleanup must be SYNCHRONOUS to guarantee completion before process.exit()
-    // Only uses stdout.write() which is sync - no async I/O allowed here
-    cleanup: () => {
-      // Log partial results context if available
-      const ctx = getPartialResultsContext();
-      if (ctx && ctx.completedAgents > 0) {
-        const lines = formatPartialResultsMessage(ctx);
-        for (const line of lines) {
-          stdout.write(line + '\n');
-        }
+    // Show execution plan's skipped passes
+    if (executionPlan.skippedPasses.length > 0 && !resolvedOptions.quiet) {
+      for (const sp of executionPlan.skippedPasses) {
+        stderr.write(c.yellow(`Note: ${sp.reason}\n`));
       }
-    },
-    showPartialResultsMessage: true,
-    // exitOnSignal: true (default) - process.exit() called on first signal
-    exitOnSignal: true,
-    logger: {
-      log: (msg) => stdout.write(msg + '\n'),
-      warn: (msg) => stderr.write(msg + '\n'),
-    },
-  });
+    }
 
-  // 12. Execute agent passes
-  let executeResult: ExecuteResult;
-
-  try {
-    // Set up partial results tracking (using runnableConfig which excludes skipped passes)
-    const totalAgents = runnableConfig.passes.reduce(
-      (sum, p) => (p.enabled ? sum + p.agents.length : sum),
-      0
+    // Filter config to only include runnable passes from the execution plan
+    const runnableConfig = filterToRunnablePasses(
+      { ...config, passes: planPasses },
+      depSummary.runnablePasses
     );
-    setPartialResultsContext({
-      totalAgents,
-      completedAgents: 0,
-      completedAgentNames: [],
-      currentAgent: undefined,
+
+    // Check if all passes were filtered out (all optional, all missing dependencies)
+    const enabledRunnablePasses = runnableConfig.passes.filter((p) => p.enabled);
+    if (enabledRunnablePasses.length === 0) {
+      const warnMsg = colored
+        ? `${c.yellow('⚠')} All review passes were skipped due to missing dependencies.\n` +
+          `  Run 'ai-review check' to see what's missing.\n` +
+          `  No review will be performed.\n`
+        : `Warning: All review passes were skipped due to missing dependencies.\n` +
+          `  Run 'ai-review check' to see what's missing.\n` +
+          `  No review will be performed.\n`;
+      stderr.write(warnMsg);
+      return {
+        exitCode: ExitCode.SUCCESS,
+        status: 'complete',
+        findingsCount: 0,
+        partialFindingsCount: 0,
+      };
+    }
+
+    // Show warnings for other optional missing dependencies
+    if (depSummary.hasWarnings && !resolvedOptions.quiet && skippedPassInfo.length === 0) {
+      displayDependencyErrors(depSummary, stderr);
+    }
+
+    // 7. Load .reviewignore patterns (before diff to filter early)
+    const reviewIgnoreResult = await loadReviewIgnore(gitContext.repoRoot);
+
+    // 7. Generate diff once with reviewignore filtering applied
+    const getDiffFn = deps.getLocalDiff ?? getLocalDiff;
+    const diff = getDiffFn(gitContext.repoRoot, {
+      baseRef,
+      headRef: diffRange.headRef,
+      rangeOperator: diffRange.rangeOperator,
+      stagedOnly: resolvedOptions.staged,
+      uncommitted: resolvedOptions.uncommitted,
+      pathFilter:
+        reviewIgnoreResult.patterns.length > 0
+          ? { reviewIgnorePatterns: reviewIgnoreResult.patterns }
+          : undefined,
     });
 
-    const executeFn = deps.executeAllPasses ?? executeAllPasses;
-    executeResult = await executeFn(runnableConfig, agentContext, routerEnv, budgetCheck, {
-      configHash,
-      head: diff.headSha,
-    });
-  } catch (error) {
-    clearPartialResultsContext();
+    // 8. Check for changes (using already-generated diff)
+    if (diff.files.length === 0) {
+      // No changes to review - could be no changes or all filtered by .reviewignore
+      const headLabel = resolvedOptions.staged
+        ? 'STAGED'
+        : resolvedOptions.uncommitted
+          ? 'WORKTREE'
+          : diffRange.headRef;
+      const output = colored
+        ? `${c.green('✓')} No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`
+        : `No changes to review\n\n  Base: ${baseRef}\n  Head: ${headLabel}\n\n  No uncommitted or staged changes found.\n`;
+      stdout.write(output);
+      return {
+        exitCode: ExitCode.SUCCESS,
+        findingsCount: 0,
+        partialFindingsCount: 0,
+        status: 'complete' as const,
+      };
+    }
 
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    // 9. Build agent context (using runnableConfig with filtered passes)
+    const routerEnv = buildRouterEnv(env);
+    const agentContext = buildAgentContext(gitContext.repoRoot, diff, runnableConfig, routerEnv);
+    const configHash = hashConfig(config); // Use original config for consistent cache key
 
-    // FR-021: Extract partial results from FatalExecutionError when available.
-    // If agents completed before the failure, report their findings in degraded mode.
-    if (error instanceof FatalExecutionError && error.partialResults) {
-      stderr.write(c.yellow(`\n⚠ Incomplete review: ${errorMsg}\n`));
-      stderr.write(
-        c.yellow(
-          `  ${error.partialResults.completeFindings.length} findings from completed agents preserved\n`
-        )
-      );
+    // 10. Check budget
+    const diffContent = buildCombinedDiff(diff.files, config.limits?.max_diff_lines ?? 5000);
+    const estimatedTokensCount = estimateTokens(diffContent);
+    const budgetContext: BudgetContext = {
+      fileCount: diff.files.length,
+      diffLines: diff.totalAdditions + diff.totalDeletions,
+      estimatedTokens: estimatedTokensCount,
+    };
+    const budgetCheck = checkBudget(
+      budgetContext,
+      config.limits ?? {
+        max_files: 50,
+        max_diff_lines: 2000,
+        max_tokens_per_pr: 50000,
+        max_usd_per_pr: 0.1,
+        monthly_budget_usd: 10,
+      }
+    );
 
-      // Process partial results through the standard pipeline
-      const executionTimeMs = Date.now() - startTime;
-      const estimatedCostUsd = error.partialResults.allResults.reduce((sum, r) => {
-        if ('metrics' in r && r.metrics?.estimatedCostUsd) {
-          return sum + r.metrics.estimatedCostUsd;
+    // 11. Setup signal handlers for graceful shutdown
+    // exitOnSignal defaults to true - first Ctrl+C stops execution immediately
+    // This is the correct behavior for CLI tools to avoid runaway costs
+    setupSignalHandlers({
+      // Cleanup must be SYNCHRONOUS to guarantee completion before process.exit()
+      // Only uses stdout.write() which is sync - no async I/O allowed here
+      cleanup: () => {
+        // Log partial results context if available
+        const ctx = getPartialResultsContext();
+        if (ctx && ctx.completedAgents > 0) {
+          const lines = formatPartialResultsMessage(ctx);
+          for (const line of lines) {
+            stdout.write(line + '\n');
+          }
         }
-        return sum;
-      }, 0);
+      },
+      showPartialResultsMessage: true,
+      // exitOnSignal: true (default) - process.exit() called on first signal
+      exitOnSignal: true,
+      logger: {
+        log: (msg) =>
+          isMachineReadableFormat ? stderr.write(msg + '\n') : stdout.write(msg + '\n'),
+        warn: (msg) => stderr.write(msg + '\n'),
+      },
+    });
 
-      const terminalContext = buildTerminalContext(
-        resolvedOptions,
-        gitContext,
-        configSource,
-        configPath,
-        getPackageVersion()
+    // 12. Execute agent passes
+    let executeResult: ExecuteResult;
+
+    try {
+      // Set up partial results tracking (using runnableConfig which excludes skipped passes)
+      const totalAgents = runnableConfig.passes.reduce(
+        (sum, p) => (p.enabled ? sum + p.agents.length : sum),
+        0
       );
-      terminalContext.executionTimeMs = executionTimeMs;
-      terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd);
-
-      const processed = processLocalReportFindings(
-        error.partialResults.completeFindings,
-        error.partialResults.partialFindings,
-        diff.files,
-        config,
-        'local'
-      );
-      const incompleteStatus: RunStatus = 'incomplete';
-
-      const reportFn = deps.reportToTerminal ?? reportToTerminal;
-      await reportFn(processed.complete, processed.partial, terminalContext, config, diff.files, {
-        status: incompleteStatus,
-        suppressionSummary: processed.suppressionSummary,
+      setPartialResultsContext({
+        totalAgents,
+        completedAgents: 0,
+        completedAgentNames: [],
+        currentAgent: undefined,
       });
 
-      // FR-021: Exit code 3 for incomplete review — partial results are NOT used for gating
+      const executeFn = deps.executeAllPasses ?? executeAllPasses;
+      executeResult = await executeFn(runnableConfig, agentContext, routerEnv, budgetCheck, {
+        configHash,
+        head: diff.headSha,
+      });
+    } catch (error) {
+      clearPartialResultsContext();
+
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // FR-021: Extract partial results from FatalExecutionError when available.
+      // If agents completed before the failure, report their findings in degraded mode.
+      if (error instanceof FatalExecutionError && error.partialResults) {
+        stderr.write(c.yellow(`\n⚠ Incomplete review: ${errorMsg}\n`));
+        stderr.write(
+          c.yellow(
+            `  ${error.partialResults.completeFindings.length} findings from completed agents preserved\n`
+          )
+        );
+
+        // Process partial results through the standard pipeline
+        const executionTimeMs = Date.now() - startTime;
+        const estimatedCostUsd = error.partialResults.allResults.reduce((sum, r) => {
+          if ('metrics' in r && r.metrics?.estimatedCostUsd) {
+            return sum + r.metrics.estimatedCostUsd;
+          }
+          return sum;
+        }, 0);
+
+        const terminalContext = buildTerminalContext(
+          resolvedOptions,
+          gitContext,
+          configSource,
+          configPath,
+          getPackageVersion()
+        );
+        terminalContext.executionTimeMs = executionTimeMs;
+        terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd);
+
+        const processed = processLocalReportFindings(
+          error.partialResults.completeFindings,
+          error.partialResults.partialFindings,
+          diff.files,
+          config,
+          'local'
+        );
+        const incompleteStatus: RunStatus = 'incomplete';
+
+        const reportFn = deps.reportToTerminal ?? reportToTerminal;
+        await reportFn(processed.complete, processed.partial, terminalContext, config, diff.files, {
+          status: incompleteStatus,
+          suppressionSummary: processed.suppressionSummary,
+        });
+
+        // FR-021: Exit code 3 for incomplete review — partial results are NOT used for gating
+        return {
+          exitCode: exitCodeFromStatus(incompleteStatus),
+          status: incompleteStatus,
+          findingsCount: processed.complete.length,
+          partialFindingsCount: processed.partial.length,
+          error: errorMsg,
+        };
+      }
+
+      // Fatal failure with no preserved findings — hard crash, not a degraded run.
+      // Use config_error (exit 2) to distinguish from incomplete (exit 3, which has findings).
+      stderr.write(c.red(`\nExecution error: ${errorMsg}\n`));
       return {
-        exitCode: exitCodeFromStatus(incompleteStatus),
-        status: incompleteStatus,
-        findingsCount: processed.complete.length,
-        partialFindingsCount: processed.partial.length,
+        exitCode: exitCodeFromStatus('config_error'),
+        status: 'config_error',
+        findingsCount: 0,
+        partialFindingsCount: 0,
         error: errorMsg,
       };
     }
 
-    // Fatal failure with no preserved findings — hard crash, not a degraded run.
-    // Use config_error (exit 2) to distinguish from incomplete (exit 3, which has findings).
-    stderr.write(c.red(`\nExecution error: ${errorMsg}\n`));
+    clearPartialResultsContext();
+
+    // 13. Calculate execution time and cost
+    const executionTimeMs = Date.now() - startTime;
+    const estimatedCostUsd = executeResult.allResults.reduce((sum, r) => {
+      if ('metrics' in r && r.metrics?.estimatedCostUsd) {
+        return sum + r.metrics.estimatedCostUsd;
+      }
+      return sum;
+    }, 0);
+
+    // 14. Build terminal context with execution info
+    const terminalContext = buildTerminalContext(
+      resolvedOptions,
+      gitContext,
+      configSource,
+      configPath,
+      getPackageVersion()
+    );
+    terminalContext.executionTimeMs = executionTimeMs;
+    terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
+
+    // 15. Post-process findings (FR-018: CLI parity — sanitize → semantic → framework → diff-bound)
+    // FR-022: Local mode uses working tree config for suppressions (developer trusted)
+    const processed = processLocalReportFindings(
+      executeResult.completeFindings,
+      executeResult.partialFindings,
+      diff.files,
+      config,
+      'local'
+    );
+    const runStatus = determineRunStatus(processed.complete, config);
+    const exitCode = exitCodeFromStatus(runStatus);
+
+    // 16. Report findings to terminal
+    const reportFn = deps.reportToTerminal ?? reportToTerminal;
+    const reportResult = await reportFn(
+      processed.complete,
+      processed.partial,
+      terminalContext,
+      config,
+      diff.files,
+      {
+        status: runStatus,
+        suppressionSummary: processed.suppressionSummary,
+      }
+    );
+
     return {
-      exitCode: exitCodeFromStatus('config_error'),
-      status: 'config_error',
-      findingsCount: 0,
-      partialFindingsCount: 0,
-      error: errorMsg,
-    };
-  }
-
-  clearPartialResultsContext();
-
-  // 13. Calculate execution time and cost
-  const executionTimeMs = Date.now() - startTime;
-  const estimatedCostUsd = executeResult.allResults.reduce((sum, r) => {
-    if ('metrics' in r && r.metrics?.estimatedCostUsd) {
-      return sum + r.metrics.estimatedCostUsd;
-    }
-    return sum;
-  }, 0);
-
-  // 14. Build terminal context with execution info
-  const terminalContext = buildTerminalContext(
-    resolvedOptions,
-    gitContext,
-    configSource,
-    configPath,
-    getPackageVersion()
-  );
-  terminalContext.executionTimeMs = executionTimeMs;
-  terminalContext.estimatedCostUsd = Math.max(0, estimatedCostUsd); // Clamp to non-negative (FR-REL-002)
-
-  // 15. Post-process findings (FR-018: CLI parity — sanitize → semantic → framework → diff-bound)
-  // FR-022: Local mode uses working tree config for suppressions (developer trusted)
-  const processed = processLocalReportFindings(
-    executeResult.completeFindings,
-    executeResult.partialFindings,
-    diff.files,
-    config,
-    'local'
-  );
-  const runStatus = determineRunStatus(processed.complete, config);
-  const exitCode = exitCodeFromStatus(runStatus);
-
-  // 16. Report findings to terminal
-  const reportFn = deps.reportToTerminal ?? reportToTerminal;
-  const reportResult = await reportFn(
-    processed.complete,
-    processed.partial,
-    terminalContext,
-    config,
-    diff.files,
-    {
+      exitCode,
       status: runStatus,
-      suppressionSummary: processed.suppressionSummary,
-    }
-  );
-
-  return {
-    exitCode,
-    status: runStatus,
-    findingsCount: reportResult.findingsCount,
-    partialFindingsCount: reportResult.partialFindingsCount,
-  };
+      findingsCount: reportResult.findingsCount,
+      partialFindingsCount: reportResult.partialFindingsCount,
+    };
+  });
 }
