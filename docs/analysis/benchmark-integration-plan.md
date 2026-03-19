@@ -2,6 +2,16 @@
 
 Integration plan for [withmartian/code-review-benchmark](https://github.com/withmartian/code-review-benchmark) with odd-ai-reviewers.
 
+> [!IMPORTANT]
+> This document is historical analysis and design context.
+>
+> The current operational source of truth for running the external benchmark is:
+> [docs/reference/external-benchmark.md](../reference/external-benchmark.md)
+>
+> In particular, do not rely on older inline examples here that call upstream shims like
+> `judge-comments`; the supported path is the repo-owned orchestrator:
+> `node --experimental-strip-types scripts/run-external-benchmark.ts`
+
 ---
 
 ## 1. Benchmark Architecture

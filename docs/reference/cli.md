@@ -443,6 +443,8 @@ The semgrep pass will still run successfully.
 | -------------------- | ------------------------------------------------------- |
 | `NO_COLOR`           | Disable colored output (standard convention, any value) |
 | `FORCE_PRETTY`       | Force pretty output format in non-TTY environments      |
+| `MARTIAN_API_KEY`    | Judge API key for the external benchmark                |
+| `MARTIAN_MODEL`      | Judge model for the external benchmark                  |
 | `BENCHMARK_MODEL_ID` | Model ID for benchmark snapshot recording               |
 | `BENCHMARK_PROVIDER` | Provider for benchmark snapshot recording               |
 
@@ -490,3 +492,4 @@ brew upgrade reviewdog
 - [Configuration Schema](../configuration/config-schema.md) - Full YAML configuration options
 - [Cost Controls](../configuration/cost-controls.md) - Budget management
 - [GitHub Setup](../platforms/github/setup.md) - CI/CD integration
+- [External Benchmark](external-benchmark.md) - Deterministic withmartian benchmark runner

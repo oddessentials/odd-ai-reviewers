@@ -116,6 +116,9 @@ export interface PRResult {
   error?: string;
 }
 
+const INITIAL_CLONE_DEPTH = 50;
+const MERGE_BASE_DEEPEN_STEPS = [200, 500, 1000, 5000] as const;
+
 // =============================================================================
 // CLI Argument Parsing
 // =============================================================================
@@ -246,6 +249,16 @@ export function transformFinding(finding: CLIFinding): BenchmarkCandidate {
 // PR Processing
 // =============================================================================
 
+function withLongPathGitArgs(args: string[]): string[] {
+  if (process.platform !== 'win32') {
+    return args;
+  }
+
+  // Windows clones of large repos like grafana can fail checkout on long paths
+  // unless Git is invoked with core.longpaths enabled.
+  return ['-c', 'core.longpaths=true', ...args];
+}
+
 async function cloneRepo(repoUrl: string, targetDir: string, timeoutMs: number): Promise<void> {
   // Extract clone URL and PR number from PR URL: https://github.com/owner/repo/pull/123
   const match = repoUrl.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/);
@@ -257,43 +270,151 @@ async function cloneRepo(repoUrl: string, targetDir: string, timeoutMs: number):
   const prNumber = match[2];
 
   // Clone with enough depth for merge-base computation against the default branch
-  await execFile('git', ['clone', '--depth', '50', cloneUrl, targetDir], {
-    timeout: timeoutMs,
-    encoding: 'utf-8',
-  });
+  await execFile(
+    'git',
+    withLongPathGitArgs(['clone', '--depth', String(INITIAL_CLONE_DEPTH), cloneUrl, targetDir]),
+    {
+      timeout: timeoutMs,
+      encoding: 'utf-8',
+    }
+  );
 
   // Fetch the PR head ref so we review the actual PR diff, not the default branch
-  await execFile('git', ['fetch', 'origin', `pull/${prNumber}/head:pr-head`, '--depth', '50'], {
-    timeout: timeoutMs,
-    encoding: 'utf-8',
-    cwd: targetDir,
-  });
+  await execFile(
+    'git',
+    withLongPathGitArgs([
+      'fetch',
+      'origin',
+      `pull/${prNumber}/head:pr-head`,
+      '--depth',
+      String(INITIAL_CLONE_DEPTH),
+    ]),
+    {
+      timeout: timeoutMs,
+      encoding: 'utf-8',
+      cwd: targetDir,
+    }
+  );
 
   // Checkout the PR branch
-  await execFile('git', ['checkout', 'pr-head'], {
+  await execFile('git', withLongPathGitArgs(['checkout', 'pr-head']), {
     timeout: timeoutMs,
     encoding: 'utf-8',
     cwd: targetDir,
   });
 }
 
-async function runLocalReview(repoDir: string, timeoutMs: number): Promise<CLIFinding[]> {
+async function detectDefaultBranch(repoDir: string, timeoutMs: number): Promise<string> {
+  try {
+    const branchResult = await execFile('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
+      cwd: repoDir,
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+    });
+    return branchResult.stdout.trim();
+  } catch {
+    return 'origin/main';
+  }
+}
+
+async function hasMergeBase(
+  repoDir: string,
+  baseBranch: string,
+  timeoutMs: number
+): Promise<boolean> {
+  try {
+    await execFile('git', ['merge-base', baseBranch, 'HEAD'], {
+      cwd: repoDir,
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isShallowRepository(repoDir: string, timeoutMs: number): Promise<boolean> {
+  try {
+    const result = await execFile('git', ['rev-parse', '--is-shallow-repository'], {
+      cwd: repoDir,
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+    });
+    return result.stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function getBaseBranchName(baseBranch: string): string {
+  return baseBranch.startsWith('origin/') ? baseBranch.slice('origin/'.length) : baseBranch;
+}
+
+async function deepenHistoryForMergeBase(
+  repoDir: string,
+  baseBranch: string,
+  prNumber: string,
+  timeoutMs: number
+): Promise<void> {
+  const branchName = getBaseBranchName(baseBranch);
+  const fetchRefs = [
+    `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
+    `+refs/pull/${prNumber}/head`,
+  ];
+
+  for (const deepenBy of MERGE_BASE_DEEPEN_STEPS) {
+    await execFile(
+      'git',
+      withLongPathGitArgs(['fetch', 'origin', ...fetchRefs, '--deepen', String(deepenBy)]),
+      {
+        cwd: repoDir,
+        encoding: 'utf-8',
+        timeout: timeoutMs,
+      }
+    );
+
+    if (await hasMergeBase(repoDir, baseBranch, timeoutMs)) {
+      return;
+    }
+  }
+
+  if (await isShallowRepository(repoDir, timeoutMs)) {
+    await execFile('git', withLongPathGitArgs(['fetch', '--unshallow', 'origin', ...fetchRefs]), {
+      cwd: repoDir,
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+    });
+
+    if (await hasMergeBase(repoDir, baseBranch, timeoutMs)) {
+      return;
+    }
+  }
+
+  throw new Error(
+    `Could not determine merge base between ${baseBranch} and HEAD for PR #${prNumber}`
+  );
+}
+
+async function runLocalReview(
+  repoDir: string,
+  prNumber: string,
+  timeoutMs: number
+): Promise<CLIFinding[]> {
   // Use the locally built CLI, not npx (which would resolve a published
   // package from npm instead of the code built from this branch)
   const __dirname = import.meta.dirname ?? dirname(fileURLToPath(import.meta.url));
   const cliPath = resolve(__dirname, '..', 'router', 'dist', 'main.js');
 
-  // Detect the default branch for diff comparison
-  let baseBranch: string;
-  try {
-    const branchResult = await execFile('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
-      cwd: repoDir,
-      encoding: 'utf-8',
-      timeout: 10_000,
-    });
-    baseBranch = branchResult.stdout.trim();
-  } catch {
-    baseBranch = 'origin/main';
+  const baseBranch = await detectDefaultBranch(repoDir, 10_000);
+
+  if (!(await hasMergeBase(repoDir, baseBranch, timeoutMs))) {
+    if (!(await isShallowRepository(repoDir, timeoutMs))) {
+      throw new Error(`No merge base found between ${baseBranch} and HEAD`);
+    }
+
+    console.log(`  [git] Deepening history for PR #${prNumber} to recover merge base`);
+    await deepenHistoryForMergeBase(repoDir, baseBranch, prNumber, timeoutMs);
   }
 
   const result = await execFile(
@@ -336,7 +457,7 @@ export async function processPR(
     }
 
     // Run review
-    const findings = await runLocalReview(cloneDir, timeoutMs);
+    const findings = await runLocalReview(cloneDir, task.prNumber, timeoutMs);
     const candidates = findings.map(transformFinding);
 
     return { prUrl, candidates };

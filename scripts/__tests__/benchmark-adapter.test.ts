@@ -115,7 +115,7 @@ function execFail(message: string): ReturnType<typeof execFile> {
 /**
  * Set up mocks for a full clone + review sequence:
  *   Clone: 3 calls (git clone, git fetch PR head, git checkout pr-head)
- *   Review: 2 calls (git rev-parse origin/HEAD, node <cli> local)
+ *   Review: 3 calls (git rev-parse origin/HEAD, git merge-base, node <cli> local)
  */
 function mockFullSequence(cliOutput: object): void {
   mockExistsSync.mockReturnValue(false);
@@ -124,6 +124,7 @@ function mockFullSequence(cliOutput: object): void {
     .mockReturnValueOnce(execOk()) // git fetch PR ref
     .mockReturnValueOnce(execOk()) // git checkout pr-head
     .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+    .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
     .mockReturnValueOnce(execOk(JSON.stringify(cliOutput))); // node <cli> local
 }
 
@@ -613,6 +614,7 @@ describe('processPR', () => {
       .mockReturnValueOnce(execOk()) // git fetch PR ref
       .mockReturnValueOnce(execOk()) // git checkout pr-head
       .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
       .mockReturnValueOnce(execFail('CLI process exited with code 1')); // CLI fails
 
     const result = await processPR(task, options, '/tmp/work');
@@ -666,14 +668,14 @@ describe('processPR', () => {
 
     // Verify git fetch was called with the PR ref
     const fetchCall = mockExecFile.mock.calls.find(
-      (call) => call[0] === 'git' && (call[1] as string[])?.[0] === 'fetch'
+      (call) => call[0] === 'git' && ((call[1] as string[])?.includes('fetch') ?? false)
     );
     expect(fetchCall).toBeDefined();
     expect(fetchCall?.[1]).toContain('pull/123/head:pr-head');
 
     // Verify git checkout was called for the PR branch
     const checkoutCall = mockExecFile.mock.calls.find(
-      (call) => call[0] === 'git' && (call[1] as string[])?.[0] === 'checkout'
+      (call) => call[0] === 'git' && ((call[1] as string[])?.includes('checkout') ?? false)
     );
     expect(checkoutCall).toBeDefined();
     expect(checkoutCall?.[1]).toContain('pr-head');
@@ -711,6 +713,7 @@ describe('processPR', () => {
       .mockReturnValueOnce(execOk()) // fetch
       .mockReturnValueOnce(execOk()) // checkout
       .mockReturnValueOnce(execOk('origin/develop')) // detect default branch → origin/develop
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
       .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
     await processPR(task, options, '/tmp/work');
@@ -733,6 +736,7 @@ describe('processPR', () => {
       .mockReturnValueOnce(execOk()) // fetch
       .mockReturnValueOnce(execOk()) // checkout
       .mockReturnValueOnce(execFail('Not a symbolic ref')) // detect default branch fails
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists on fallback branch
       .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
     await processPR(task, options, '/tmp/work');
@@ -789,6 +793,7 @@ describe('processPR', () => {
       .mockReturnValueOnce(execOk()) // git fetch PR ref
       .mockReturnValueOnce(execOk()) // git checkout pr-head
       .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
       .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
     await processPR(task, options, '/tmp/work');
@@ -806,6 +811,7 @@ describe('processPR', () => {
       .mockReturnValueOnce(execOk()) // git fetch PR ref
       .mockReturnValueOnce(execOk()) // git checkout pr-head
       .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
       .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
     await processPR(task, options, '/tmp/work');
@@ -834,11 +840,47 @@ describe('processPR', () => {
 
     mockExecFile
       .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists
       .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
 
     await processPR(task, options, '/tmp/work');
 
-    // Only 2 calls (detect branch + review), not 5 (clone + fetch + checkout + detect + review)
-    expect(mockExecFile).toHaveBeenCalledTimes(2);
+    // Only 3 calls (detect branch + merge-base + review), not 6 with clone/fetch/checkout
+    expect(mockExecFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('deepens shallow history when the initial merge base is missing', async () => {
+    const task = makeTask();
+    const options = makeOptions();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    mockExistsSync.mockReturnValue(false);
+    mockExecFile
+      .mockReturnValueOnce(execOk()) // git clone
+      .mockReturnValueOnce(execOk()) // git fetch PR ref
+      .mockReturnValueOnce(execOk()) // git checkout pr-head
+      .mockReturnValueOnce(execOk('origin/main')) // detect default branch
+      .mockReturnValueOnce(execFail('no merge base')) // initial merge-base check
+      .mockReturnValueOnce(execOk('true')) // shallow repository
+      .mockReturnValueOnce(execOk()) // deepen fetch
+      .mockReturnValueOnce(execOk('merge-base-sha')) // merge base exists after deepening
+      .mockReturnValueOnce(execOk(JSON.stringify({ findings: [] }))); // CLI
+
+    const result = await processPR(task, options, '/tmp/work');
+
+    expect(result.error).toBeUndefined();
+    const deepenFetchCall = mockExecFile.mock.calls.find(
+      (call) =>
+        call[0] === 'git' &&
+        ((call[1] as string[])?.includes('fetch') ?? false) &&
+        ((call[1] as string[])?.includes('--deepen') ?? false)
+    );
+    expect(deepenFetchCall).toBeDefined();
+    expect(deepenFetchCall?.[1]).toContain('+refs/pull/123/head');
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Deepening history for PR #123 to recover merge base')
+    );
+
+    logSpy.mockRestore();
   });
 });
