@@ -1,13 +1,9 @@
-# Benchmark Runner - Multi-stage Dockerfile
-#
-# Runs the code-review-benchmark suite against odd-ai-reviewers.
-# NOT for production use — includes Python, gh CLI, and benchmark tooling.
+# Benchmark Runner - deterministic external benchmark environment
 #
 # Usage:
 #   docker compose -f docker-compose.benchmark.yml up --build
-#   docker run --env-file .env -v ./benchmark-results:/results benchmark-runner
+#   docker run --env-file .env -v ./benchmark-results:/results odd-ai-benchmark
 
-# Stage 1: Build odd-ai-reviewers
 FROM node:22-bookworm-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
@@ -20,10 +16,8 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-# Stage 2: Runtime with Python + benchmark tools
 FROM node:22-bookworm-slim
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
@@ -33,30 +27,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install gh CLI
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y gh \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
 WORKDIR /app
-
-# Copy built application from builder
 COPY --from=builder /app /app
 
-# Clone benchmark repo
-RUN git clone --depth 1 https://github.com/withmartian/code-review-benchmark.git /benchmark
+VOLUME ["/results"]
 
-# NO secrets baked in — pass at runtime via --env-file
-# Volume mount for results
-VOLUME /results
-
-ENTRYPOINT ["npx", "tsx", "scripts/benchmark-adapter.ts"]
+ENTRYPOINT ["node", "--experimental-strip-types", "scripts/run-external-benchmark.ts"]
+CMD ["--benchmark-root", "/benchmark", "--results-dir", "/results"]

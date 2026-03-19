@@ -69,61 +69,19 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Clone benchmark repo
-        run: git clone --depth 1 https://github.com/withmartian/code-review-benchmark.git /tmp/benchmark
-
-      - name: Prepare benchmark environment
-        run: |
-          mkdir -p /tmp/benchmark-results
-          cd /tmp/benchmark/offline
-          uv sync --frozen
-
-      - name: Run adapter
+      - name: Run external benchmark
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
+          MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
+          MARTIAN_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
         run: |
-          MODEL_DIR="${JUDGE_MODEL//\//_}"
-          npx tsx scripts/benchmark-adapter.ts \
-            --golden-dir /tmp/benchmark/offline/golden_comments \
-            --benchmark-data /tmp/benchmark/offline/results/benchmark_data.json \
-            --output "/tmp/benchmark/offline/results/${MODEL_DIR}/candidates.json" \
+          node --experimental-strip-types scripts/run-external-benchmark.ts \
+            --benchmark-root /tmp/benchmark \
+            --results-dir /tmp/benchmark-results \
+            --judge-model "$MARTIAN_MODEL" \
             --concurrency 2 \
             --timeout-per-pr 300 \
             --max-runtime 6000
-
-      - name: Run judge
-        env:
-          MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
-          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
-          MARTIAN_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
-        run: |
-          cd /tmp/benchmark/offline
-          uv run judge-comments --tool odd-ai-reviewers --force
-
-      - name: Summarize results
-        env:
-          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
-        run: |
-          MODEL_DIR="${JUDGE_MODEL//\//_}"
-          npx tsx scripts/benchmark-summarize.ts \
-            --benchmark-data /tmp/benchmark/offline/results/benchmark_data.json \
-            --evaluations "/tmp/benchmark/offline/results/${MODEL_DIR}/evaluations.json" \
-            --output /tmp/benchmark-results/summary.json \
-            --tool odd-ai-reviewers \
-            --judge-model "$JUDGE_MODEL"
-          cp "/tmp/benchmark/offline/results/${MODEL_DIR}/candidates.json" /tmp/benchmark-results/candidates.json
-          cp "/tmp/benchmark/offline/results/${MODEL_DIR}/evaluations.json" /tmp/benchmark-results/evaluations.json
-          cp /tmp/benchmark/offline/results/benchmark_data.json /tmp/benchmark-results/benchmark_data.json
-
-      - name: Check regression
-        run: |
-          npx tsx scripts/benchmark-check.ts \
-            --results /tmp/benchmark-results \
-            --min-precision 0.40 \
-            --min-recall 0.30 \
-            --min-f1 0.35
 
       - name: Upload results
         if: always()

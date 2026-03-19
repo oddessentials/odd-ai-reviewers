@@ -5,18 +5,22 @@ services:
       dockerfile: Dockerfile.benchmark
     env_file:
       - .env
+    environment:
+      MARTIAN_MODEL: ${MARTIAN_MODEL:-openai/gpt-4.1-mini}
     volumes:
       - ./benchmark-results:/results
-    tmpfs:
-      - /tmp:size=2G
     command:
       [
-        '--golden-dir',
-        '/benchmark/golden',
-        '--output',
+        '--benchmark-root',
+        '/benchmark',
+        '--results-dir',
         '/results',
+        '--judge-model',
+        '${MARTIAN_MODEL:-openai/gpt-4.1-mini}',
         '--concurrency',
         '2',
         '--timeout-per-pr',
         '300',
+        '--max-runtime',
+        '6000',
       ]
