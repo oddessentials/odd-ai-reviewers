@@ -47,6 +47,9 @@ docs/viewer/playwright-report/
 
 # AI review cache
 .ai-review-cache/
+.benchmark-cache/
+.external-benchmark/
+benchmark-results/
 
 AGENTS.md
 CLAUDE.md
