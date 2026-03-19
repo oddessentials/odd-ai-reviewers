@@ -229,6 +229,7 @@ ai-review check --verbose
 
 - [Configuration Schema](docs/configuration/config-schema.md) — Passes, agents, limits, path filters, `.reviewignore`
 - [Cost Controls](docs/configuration/cost-controls.md) — Budget management
+- [External Benchmark](docs/reference/external-benchmark.md) — Deterministic local/CI benchmark runs against the withmartian corpus
 
 ### Architecture & Security
 

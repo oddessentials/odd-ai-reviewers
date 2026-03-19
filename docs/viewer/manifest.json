@@ -280,6 +280,11 @@
           "path": "../reference/custom-badges.md"
         },
         {
+          "name": "external-benchmark.md",
+          "type": "file",
+          "path": "../reference/external-benchmark.md"
+        },
+        {
           "name": "index.md",
           "type": "file",
           "path": "../reference/index.md"
@@ -534,6 +539,11 @@
       "name": "reference/custom-badges.md",
       "type": "file",
       "path": "../reference/custom-badges.md"
+    },
+    {
+      "name": "reference/external-benchmark.md",
+      "type": "file",
+      "path": "../reference/external-benchmark.md"
     },
     {
       "name": "reference/index.md",
