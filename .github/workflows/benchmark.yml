@@ -23,6 +23,25 @@ jobs:
     if: github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
+      - name: Preflight secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
+        run: |
+          missing=()
+          [ -n "${ANTHROPIC_API_KEY}" ] || missing+=("ANTHROPIC_API_KEY")
+          [ -n "${MARTIAN_API_KEY}" ] || missing+=("MARTIAN_API_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error title=Missing benchmark secrets::Missing required benchmark secrets: ${missing[*]}"
+            echo "Benchmark preflight failed."
+            echo "Missing required secrets:"
+            for key in "${missing[@]}"; do
+              echo "  - ${key}"
+            done
+            exit 1
+          fi
+          echo "Benchmark preflight passed. All required secrets are configured."
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -53,14 +72,23 @@ jobs:
       - name: Clone benchmark repo
         run: git clone --depth 1 https://github.com/withmartian/code-review-benchmark.git /tmp/benchmark
 
+      - name: Prepare benchmark environment
+        run: |
+          mkdir -p /tmp/benchmark-results
+          cd /tmp/benchmark/offline
+          uv sync --frozen
+
       - name: Run adapter
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
         run: |
+          MODEL_DIR="${JUDGE_MODEL//\//_}"
           npx tsx scripts/benchmark-adapter.ts \
-            --golden-dir /tmp/benchmark/golden \
-            --output /tmp/benchmark-results/candidates.json \
+            --golden-dir /tmp/benchmark/offline/golden_comments \
+            --benchmark-data /tmp/benchmark/offline/results/benchmark_data.json \
+            --output "/tmp/benchmark/offline/results/${MODEL_DIR}/candidates.json" \
             --concurrency 2 \
             --timeout-per-pr 300 \
             --max-runtime 6000
@@ -69,12 +97,25 @@ jobs:
         env:
           MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
           JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
+          MARTIAN_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
         run: |
-          cd /tmp/benchmark
-          uv run judge \
-            --candidates /tmp/benchmark-results/candidates.json \
-            --model "$JUDGE_MODEL" \
-            --output /tmp/benchmark-results
+          cd /tmp/benchmark/offline
+          uv run judge-comments --tool odd-ai-reviewers --force
+
+      - name: Summarize results
+        env:
+          JUDGE_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
+        run: |
+          MODEL_DIR="${JUDGE_MODEL//\//_}"
+          npx tsx scripts/benchmark-summarize.ts \
+            --benchmark-data /tmp/benchmark/offline/results/benchmark_data.json \
+            --evaluations "/tmp/benchmark/offline/results/${MODEL_DIR}/evaluations.json" \
+            --output /tmp/benchmark-results/summary.json \
+            --tool odd-ai-reviewers \
+            --judge-model "$JUDGE_MODEL"
+          cp "/tmp/benchmark/offline/results/${MODEL_DIR}/candidates.json" /tmp/benchmark-results/candidates.json
+          cp "/tmp/benchmark/offline/results/${MODEL_DIR}/evaluations.json" /tmp/benchmark-results/evaluations.json
+          cp /tmp/benchmark/offline/results/benchmark_data.json /tmp/benchmark-results/benchmark_data.json
 
       - name: Check regression
         run: |

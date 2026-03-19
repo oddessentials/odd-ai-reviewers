@@ -10,7 +10,6 @@
  */
 
 import { Command } from 'commander';
-import type { BenchmarkScenario } from './benchmark/scoring.js';
 import { fileURLToPath } from 'url';
 import { realpathSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
@@ -60,6 +59,7 @@ import type { AgentId } from './config/schemas.js';
 import { loadBaseBranchSuppressions } from './report/user-suppressions.js';
 import { exitCodeFromStatus } from './cli/execution-plan.js';
 import { ConfigError } from './types/errors.js';
+import { runBenchmarkCommand } from './cli/commands/benchmark.js';
 
 // =============================================================================
 // Exit Handler (for testability)
@@ -495,106 +495,12 @@ program
   .option('--output <path>', 'Write report JSON to file')
   .option('--verbose', 'Print per-scenario details')
   .action(async (options) => {
-    try {
-      const { readFileSync: readFile, writeFileSync: writeFile } = await import('fs');
-
-      const scoring = await import('./benchmark/scoring.js');
-      const adapter = await import('./benchmark/adapter.js');
-
-      // Load fixtures
-      const data = JSON.parse(readFile(options.fixtures as string, 'utf-8')) as {
-        scenarios: BenchmarkScenario[];
-      };
-      const benchmarkScenarios = data.scenarios;
-
-      if (benchmarkScenarios.length === 0) {
-        throw new Error('Fixture file contains no scenarios');
-      }
-
-      console.log(`[benchmark] Running ${benchmarkScenarios.length} scenarios...`);
-
-      // Run each scenario, skipping unsupported patterns
-      const results = [];
-      let skippedCount = 0;
-      for (const scenario of benchmarkScenarios) {
-        const unsupportedReason = adapter.getUnsupportedScenarioReason(scenario);
-        if (unsupportedReason) {
-          skippedCount++;
-          if (options.verbose) {
-            console.log(`  [SKIP] ${scenario.id}: ${unsupportedReason}`);
-          }
-          continue;
-        }
-        const findings = await adapter.runScenario(scenario);
-        const result = scoring.scoreScenario(scenario, findings);
-        results.push(result);
-        if (options.verbose) {
-          console.log(
-            `  [${result.passed ? 'PASS' : 'FAIL'}] ${scenario.id}: ${scenario.description}`
-          );
-        }
-      }
-
-      if (results.length === 0 && skippedCount > 0) {
-        throw new Error(
-          'All benchmark scenarios were skipped as unsupported by the deterministic benchmark adapter'
-        );
-      }
-
-      // Compute report
-      const report = scoring.computeReport(results);
-
-      // Output
-      const reportJson = JSON.stringify(report, null, 2);
-      if (options.output) {
-        writeFile(options.output as string, reportJson);
-        console.log(`[benchmark] Report written to ${options.output}`);
-      } else {
-        console.log(reportJson);
-      }
-
-      // Summary
-      const suppression = (report.pool1.suppressionRate * 100).toFixed(1);
-      const recall = (report.pool2.recall * 100).toFixed(1);
-      const precision = (report.pool2.precision * 100).toFixed(1);
-      if (skippedCount > 0) {
-        console.log(
-          `\n[benchmark] ${results.length} scored, ${skippedCount} skipped (unsupported patterns)`
-        );
-      }
-      console.log(`\n[benchmark] Pool 1 (FP): suppression=${suppression}%`);
-      console.log(`[benchmark] Pool 2 (TP): recall=${recall}%, precision=${precision}%`);
-      // SC-007: Pattern E self-contradiction filter rate
-      const patternEScenarios = report.scenarios.filter((s) => s.pattern === 'E');
-      const patternEPassed = patternEScenarios.filter((s) => s.passed).length;
-      const patternERate =
-        patternEScenarios.length > 0 ? patternEPassed / patternEScenarios.length : 1;
-      console.log(
-        `[benchmark] SC-007: Pattern E self-contradiction=${(patternERate * 100).toFixed(1)}%`
-      );
-
-      // Exit code — all release gate metrics must pass (SC-001 through SC-004, SC-007)
-      const suppressionGate = report.pool1.suppressionRate >= 0.85; // SC-001
-      const recallGate = report.pool2.recall === 1.0; // SC-002
-      const precisionGate = report.pool2.precision >= 0.7; // SC-003
-      const fprGate = report.pool1.fpRate <= 0.25; // SC-004
-      const selfContradictionGate = patternERate >= 0.8; // SC-007
-      if (!suppressionGate) console.log('[benchmark] FAIL: SC-001 suppression rate < 85%');
-      if (!recallGate) console.log('[benchmark] FAIL: SC-002 TP recall < 100%');
-      if (!precisionGate) console.log('[benchmark] FAIL: SC-003 TP precision < 70%');
-      if (!fprGate) console.log('[benchmark] FAIL: SC-004 FP rate > 25%');
-      if (!selfContradictionGate)
-        console.log(
-          `[benchmark] FAIL: SC-007 Pattern E self-contradiction filter ${(patternERate * 100).toFixed(1)}% < 80%`
-        );
-      const gatesPassed =
-        suppressionGate && recallGate && precisionGate && fprGate && selfContradictionGate;
-      defaultExitHandler(gatesPassed ? 0 : 1);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[benchmark] Fatal error: ${msg}`);
-      defaultExitHandler(2);
-    }
+    const exitCode = await runBenchmarkCommand({
+      fixtures: options.fixtures as string,
+      output: options.output as string | undefined,
+      verbose: options.verbose as boolean | undefined,
+    });
+    defaultExitHandler(exitCode);
   });
 
 // =============================================================================

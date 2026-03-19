@@ -938,6 +938,7 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
       cwd: repoPath,
       encoding: 'utf-8',
       maxBuffer: MAX_OUTPUT_BYTES,
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     // Hard guard: output size
@@ -966,6 +967,7 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
     const nameStatus = execFileSync('git', statusArgs, {
       cwd: repoPath,
       encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     const { statusMap } = parseNameStatus(nameStatus);
@@ -1020,6 +1022,7 @@ export function getLocalDiff(repoPath: string, options: LocalDiffOptions): DiffS
           cwd: repoPath,
           encoding: 'utf-8',
           maxBuffer: 1024 * 1024,
+          stdio: ['pipe', 'pipe', 'pipe'],
         });
       } catch {
         // Skip files that fail to get patch
