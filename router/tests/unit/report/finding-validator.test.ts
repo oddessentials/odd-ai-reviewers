@@ -9,9 +9,9 @@ import {
   validateFindings,
   validateFindingsSemantics,
   validateNormalizedFindings,
-  normalizeUnicode,
   filterPRIntentContradictions,
 } from '../../../src/report/finding-validator.js';
+import { normalizeUnicode } from '../../../src/report/text-normalization.js';
 import type { Finding } from '../../../src/agents/types.js';
 
 /** Create a mock line resolver that controls validation per-call */

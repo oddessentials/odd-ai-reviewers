@@ -19,8 +19,8 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { VulnerabilityDetector } from '../agents/control_flow/vulnerability-detector.js';
+import { normalizeUnicode } from '../report/text-normalization.js';
 import {
-  normalizeUnicode,
   validateFindingsSemantics,
   validateFindings,
   validateNormalizedFindings,

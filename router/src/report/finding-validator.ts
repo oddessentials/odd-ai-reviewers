@@ -9,6 +9,7 @@
 import type { Finding } from '../agents/types.js';
 import type { DiffFile } from '../diff.js';
 import { canonicalizeDiffFiles } from '../diff.js';
+import { normalizeUnicode } from './text-normalization.js';
 import {
   buildLineResolver,
   normalizeFindingsForDiff,
@@ -58,22 +59,6 @@ interface FindingLineResolver {
     line: number | undefined,
     options?: { suggestNearest?: boolean }
   ): { valid: boolean };
-}
-
-/**
- * Patterns that indicate a finding is self-dismissing.
- * When combined with info severity and no actionable suggestion,
- * the finding is likely a false positive.
- */
-/**
- * Strip zero-width and invisible Unicode characters that can bypass word-boundary regex matching.
- * Only strips invisible characters — visible non-Latin characters are preserved.
- *
- * Characters stripped: U+200B (ZWSP), U+200C (ZWNJ), U+200D (ZWJ), U+200E (LRM),
- * U+200F (RLM), U+2028 (Line Sep), U+2029 (Para Sep), U+FEFF (BOM/ZWNBS)
- */
-export function normalizeUnicode(text: string): string {
-  return text.replace(/[\u200B-\u200F\u2028\u2029\uFEFF]/g, '');
 }
 
 /**
