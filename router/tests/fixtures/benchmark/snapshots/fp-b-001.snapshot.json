@@ -1,14 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:38.302Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:11:55.905Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "d627f7f6dcf8f1bc8a206e9ff8bd772947e701af0dd09d722b1b72ceb0247835",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes introduce an Express error-handling middleware function by importing necessary components from 'express' and adding an 'errorHandler' function. The middleware logs the error message to the console and sends a 500 Internal Server Error response with a generic error message in JSON format. The code follows standard Express error-handling conventions, and there are no issues related to logic errors, security vulnerabilities, performance, API misuse, or missing error handling.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "src/middleware.ts",
+        "line": 4,
+        "message": "Error message logged to console may expose sensitive information in production logs",
+        "suggestion": "Consider sanitizing error messages or using structured logging with appropriate log levels for production vs development",
+        "ruleId": "semantic/security",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "src/middleware.ts",
+        "line": 3,
+        "message": "Error handler function is defined but not exported, making it inaccessible for use",
+        "suggestion": "Export the errorHandler function or register it within the setup() function if intended for use",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/middleware.ts\",\n      \"line\": 4,\n      \"message\": \"Error message logged to console may expose sensitive information in production logs\",\n      \"suggestion\": \"Consider sanitizing error messages or using structured logging with appropriate log levels for production vs development\",\n      \"category\": \"security\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/middleware.ts\",\n      \"line\": 3,\n      \"message\": \"Error handler function is defined but not exported, making it inaccessible for use\",\n      \"suggestion\": \"Export the errorHandler function or register it within the setup() function if intended for use\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Added Express error handler with potential information disclosure through error logging and accessibility issue due to missing export\"\n}\n```"
   }
 }

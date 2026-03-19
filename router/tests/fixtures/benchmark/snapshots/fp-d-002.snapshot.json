@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:54.865Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:09.660Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "0abf54dd33308ec476c00349aaa53d8ebda4dca5923c7d3ff22848a595f7cd94",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The PR changes the API endpoint from '/api/users' to '/api/v2/users' in the 'src/routes.ts' file. No logic errors, security vulnerabilities, or performance issues are introduced by this change. The modification aligns with the stated intent in the PR description to rename API endpoints to version 2.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Clean refactor renaming API endpoint from /api/users to /api/v2/users. No security, performance, or logic issues detected. The change aligns with the stated PR purpose of moving endpoints to v2 namespace.\"\n}\n```"
   }
 }

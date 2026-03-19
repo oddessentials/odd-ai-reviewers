@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:17.184Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:18.149Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "3216254891772007540da958b87e36d8d1f78e17ecec3411bf0098d7d9bc5339",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The change in `src/startup.ts` introduces a new function `logStartup` that logs the server start information, including server port and environment. There are no security, performance, or logic issues identified with this change. The environment variables are used with fallback defaults which is a standard practice. Overall, the function addition appears safe and correctly scoped.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Added a simple logging function that outputs server startup information using environment variables with safe defaults. No issues found - the function uses template literals with environment variables (not user input) and includes appropriate fallback values.\"\n}\n```"
   }
 }

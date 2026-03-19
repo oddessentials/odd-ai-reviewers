@@ -158,6 +158,27 @@ function boundedVarPattern(varName: string, suffix: string): RegExp {
   return new RegExp('\\b' + varName + suffix);
 }
 
+function bindingHasMeaningfulUsage(binding: string, text: string): boolean {
+  const usagePatterns = [
+    boundedVarPattern(binding, '\\?\\.'),
+    boundedVarPattern(binding, '\\.'),
+    boundedVarPattern(binding, '\\s*&&'),
+    boundedVarPattern(binding, '\\s*\\?(?!\\.)'),
+    boundedVarPattern(binding, '\\s*\\?\\?'),
+    // SAFETY: `binding` is extracted from \w+ matcher output, so only identifier characters are interpolated.
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    new RegExp('\\{\\s*' + binding + '\\b'),
+    // SAFETY: `binding` is extracted from \w+ matcher output, so only identifier characters are interpolated.
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    new RegExp('\\(' + binding + '\\b'),
+    // SAFETY: `binding` is extracted from \w+ matcher output, so only identifier characters are interpolated.
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    new RegExp('\\breturn\\s+' + binding + '\\b'),
+  ];
+
+  return usagePatterns.some((pattern) => pattern.test(text));
+}
+
 /**
  * Matches server-side HTTP response output calls: res.send(), res.write(), res.end().
  * Extracted from 4 duplicate inline regexes across the error-object-xss matcher.
@@ -175,7 +196,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'express-error-mw',
     name: 'Express Error Middleware',
     messagePattern:
-      /unused.*param|declared\s+but\s+never\s+referenced|dead\s+code.*never\s+called|parameter\s+not\s+referenced/i,
+      /unused.*param|declared\s+but\s+never\s+referenced|dead\s+code.*never\s+called|parameter\s+not\s+referenced|error\s+message.*(?:log|console)|sensitive.*(?:log|console)|not\s+exported|inaccessible\s+for\s+use/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 5);
       if (!ctx) return false;
@@ -246,10 +267,11 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'react-query-dedup',
     name: 'React Query Advisory',
     messagePattern:
-      /duplicate|double.?fetch|redundant.*query|multiple.*useQuery|(?:verify|ensure|validate).*(?:endpoint|api|fetch).*(?:return|format|response|error|handle)|missing.*error.*handling.*(?:fetch|query|useQuery)|error.?handling.*(?:useQuery|useSWR)/i,
+      /duplicate|double.?fetch|redundant.*query|multiple.*useQuery|(?:verify|ensure|validate).*(?:endpoint|api|fetch).*(?:return|format|response|error|handle)|missing.*error.*handling.*(?:fetch|query|useQuery)|error.?handling.*(?:useQuery|useSWR)|(?:query|settings)\s+error\s+is\s+not\s+handled|loading\s+state|stale\s+data|fetch\(\)\s+does\s+not\s+reject|http\s+responses?\b/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
+      const normalizedMessage = finding.message.toLowerCase();
 
       // Evidence 1: Query library import in file section
       const hasQueryImport =
@@ -263,9 +285,47 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       if (!hasQueryHook) return false;
 
       // Evidence 3: Exclude raw HTTP findings (not about library dedup)
-      if (/api\s*call|http\s*request|\bfetch\s*\(/.test(finding.message.toLowerCase())) {
+      const isFetchStatusAdvisory =
+        /fetch\(\)\s+does\s+not\s+reject|failed http responses|response status validation|http responses?\b/.test(
+          normalizedMessage
+        );
+      if (
+        /api\s*call|http\s*request/.test(normalizedMessage) ||
+        (/\bfetch\s*\(/.test(normalizedMessage) && !isFetchStatusAdvisory)
+      ) {
         return false;
       }
+
+      const queryBlocks = [
+        ...ctx.fileSection.matchAll(
+          /const\s*\{\s*([^}]*)\}\s*=\s*use(?:Query|SWR|InfiniteQuery)\s*\(/g
+        ),
+      ].map((match) => match[1] ?? '');
+      const fileSectionWithoutQueryDecls = ctx.fileSection
+        .split('\n')
+        .filter((line) => !/const\s*\{.*\}\s*=\s*use(?:Query|SWR|InfiniteQuery)\s*\(/.test(line))
+        .join('\n');
+      const dataBindings: string[] = [];
+      for (const block of queryBlocks) {
+        const dataAliasMatches = block.matchAll(/\bdata\s*:\s*(\w+)/g);
+        for (const match of dataAliasMatches) {
+          if (match[1]) dataBindings.push(match[1]);
+        }
+        if (/\bdata\b(?!\s*:)/.test(block)) {
+          dataBindings.push('data');
+        }
+      }
+      const uniqueDataBindings = [...new Set(dataBindings)];
+      const hasNullSafeDataRender = uniqueDataBindings.some(
+        (binding) =>
+          boundedVarPattern(binding, '\\?\\.').test(ctx.fileSection) ||
+          boundedVarPattern(binding, '\\s*\\?\\?').test(ctx.fileSection)
+      );
+      const hasUnusedQueriedDataBinding =
+        uniqueDataBindings.length > 0 &&
+        uniqueDataBindings.some(
+          (binding) => !bindingHasMeaningfulUsage(binding, fileSectionWithoutQueryDecls)
+        );
 
       // Evidence 4: When the finding is about missing error handling, require BOTH:
       //   (a) error/isError is destructured from the hook result, AND
@@ -273,32 +333,46 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
       //       (if-check, short-circuit, ternary). Property access alone (error?.message)
       //       is NOT sufficient — logging or rendering a field without branching does
       //       not prove the component handles the error for the user.
-      const isErrorHandlingFinding = /missing.*error|error.*handling/i.test(finding.message);
+      const isErrorHandlingFinding =
+        /missing.*error|error.*handling|error\s+is\s+not\s+handled/i.test(finding.message);
+      const isHookStateAdvisory =
+        /loading state|stale data|undefined .* during loading|missing settings data/i.test(
+          normalizedMessage
+        );
       if (isErrorHandlingFinding) {
+        if (hasUnusedQueriedDataBinding) {
+          return true;
+        }
+
         // Step (a): error/isError must appear in a destructuring pattern.
         // Extract the actual binding name (handles aliases like { error: queryError }).
         const errorBindings: string[] = [];
 
         // Match shorthand `{ ..., error, ... }` or `{ ..., isError, ... }`
         // and aliased `{ ..., error: NAME, ... }` or `{ ..., isError: NAME, ... }`
-        const destructuringBlock = ctx.nearbyText.match(/\{\s*([^}]*\b(?:error|isError)\b[^}]*)\}/);
-        if (!destructuringBlock?.[1]) return false;
+        if (queryBlocks.length === 0) return false;
 
-        const blockContent = destructuringBlock[1];
-        // Check for alias pattern: `error: someAlias` or `isError: someAlias`
-        const aliasMatches = blockContent.matchAll(/\b(?:error|isError)\s*:\s*(\w+)/g);
-        for (const m of aliasMatches) {
-          if (m[1]) errorBindings.push(m[1]);
-        }
-        // Check for shorthand: `error` or `isError` without `: alias`
-        if (/\berror\b(?!\s*:)/.test(blockContent)) {
-          errorBindings.push('error');
-        }
-        if (/\bisError\b(?!\s*:)/.test(blockContent)) {
-          errorBindings.push('isError');
+        for (const blockContent of queryBlocks) {
+          // Check for alias pattern: `error: someAlias` or `isError: someAlias`
+          const aliasMatches = blockContent.matchAll(/\b(?:error|isError)\s*:\s*(\w+)/g);
+          for (const m of aliasMatches) {
+            if (m[1]) errorBindings.push(m[1]);
+          }
+          // Check for shorthand: `error` or `isError` without `: alias`
+          if (/\berror\b(?!\s*:)/.test(blockContent)) {
+            errorBindings.push('error');
+          }
+          if (/\bisError\b(?!\s*:)/.test(blockContent)) {
+            errorBindings.push('isError');
+          }
         }
 
-        if (errorBindings.length === 0) return false;
+        if (errorBindings.length === 0) {
+          if ((isHookStateAdvisory || isFetchStatusAdvisory) && hasNullSafeDataRender) {
+            return true;
+          }
+          return false;
+        }
 
         // Step (b): At least one extracted binding must appear in a conditional branch
         // on error state: if-check, short-circuit (&&), or ternary (?).
@@ -322,7 +396,9 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
             ternary.test(ctx.nearbyText)
           );
         });
-        if (!hasErrorUsage) return false;
+        if (!hasErrorUsage) {
+          return false;
+        }
       }
 
       return true;
@@ -336,7 +412,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'promise-allsettled-order',
     name: 'Promise.allSettled Convention',
     messagePattern:
-      /allSettled.*(?:order|sequence|reject|unhandled|error.?handling|silent)|(?:order|sequence).*allSettled|(?:unhandled|missing|silent).*(?:reject|error|exception).*(?:promise|settled)|allSettled.*results.*not.*(?:match|correspond|align)|(?:additional|need).*error.*handling.*(?:promise|fetch|request|response|processing)|verify.*(?:fetch|request).*(?:error|handling|additional|response)/i,
+      /allSettled.*(?:order|sequence|reject|unhandled|error.?handling|silent)|(?:order|sequence).*allSettled|(?:unhandled|missing|silent).*(?:reject|error|exception).*(?:promise|settled)|allSettled.*results.*not.*(?:match|correspond|align)|(?:additional|need).*error.*handling.*(?:promise|fetch|request|response|processing)|verify.*(?:fetch|request).*(?:error|handling|additional|response)|response\s+bodies?\s+remain\s+open|not\s+automatically\s+consumed|failed\s+requests?\s+provide\s+no\s+visibility/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
@@ -433,7 +509,7 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'safe-local-file-read',
     name: 'Safe Local File Read',
     messagePattern:
-      /path.*traversal|directory.*traversal|local.*file.*read|file.*inclusion|readFileSync.*block|synchronous.*file.*read|block.*event.*loop.*(?:read|file)/i,
+      /path.*traversal|directory.*traversal|local.*file.*read|file.*inclusion|readFileSync.*block|synchronous.*file.*read|block.*event.*loop.*(?:read|file)|unused\s+variable.*tmpl|never\s+exported\s+or\s+used/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 10);
       if (!ctx) return false;
@@ -670,14 +746,14 @@ const FRAMEWORK_MATCHERS: readonly FrameworkPatternMatcher[] = [
     id: 'thin-wrapper-stdlib',
     name: 'Thin Wrapper Stdlib',
     messagePattern:
-      /(?:missing|add|no).*try.?catch|(?:could|may|might).*throw|unhandled.*(?:error|exception).*(?:JSON\.parse|parseInt|parseFloat|new\s+URL|Buffer\.from|decodeURI)|directly.*(?:return|call).*(?:JSON\.parse|parseInt|parseFloat)/i,
+      /(?:missing|add|no).*try.?catch|(?:could|may|might).*throw|unhandled.*(?:error|exception).*(?:JSON\.parse|parseInt|parseFloat|new\s+URL|new\s+Date|Buffer\.from|decodeURI)|directly.*(?:return|call).*(?:JSON\.parse|parseInt|parseFloat|new\s+Date)|invalid\s+Date\s+objects?|parseDate\s+function/i,
     evidenceValidator(finding: Finding, diffContent: string): boolean {
       const ctx = extractNearbyContext(finding, diffContent, 5);
       if (!ctx) return false;
 
       // Evidence 1: WHITELISTED stdlib call present (no open patterns)
       const SAFE_STDLIB =
-        /\b(?:JSON\.parse|JSON\.stringify|parseInt|parseFloat|Number\(|new\s+URL|Buffer\.from|decodeURIComponent|decodeURI|atob|btoa)\s*\(/;
+        /\b(?:JSON\.parse|JSON\.stringify|parseInt|parseFloat|Number\(|new\s+URL|new\s+Date|Buffer\.from|decodeURIComponent|decodeURI|atob|btoa)\s*\(/;
       if (!SAFE_STDLIB.test(ctx.nearbyText)) return false;
 
       // Evidence 2: thin wrapper structure (return + stdlib)

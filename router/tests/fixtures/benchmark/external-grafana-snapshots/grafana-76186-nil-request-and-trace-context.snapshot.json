@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-19T17:04:03.035Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "fixtureHash": "17ffb476c7914f387e291d587bd3ec01609d2e4b85c07319e3db6167baa72881",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "error",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go",
+        "line": 24,
+        "message": "Potential nil pointer dereference on req parameter before validation",
+        "suggestion": "Add nil checks for req parameter before accessing req.PluginContext in instrumentContext function",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go",
+        "line": 37,
+        "message": "Undefined constant 'endpointQueryData' - symbol not found in diff",
+        "suggestion": "Ensure endpointQueryData constant is defined or imported properly",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go",
+        "line": 42,
+        "message": "Undefined constant 'endpointCallResource' - symbol not found in diff",
+        "suggestion": "Ensure endpointCallResource constant is defined or imported properly",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go",
+        "line": 47,
+        "message": "Undefined constant 'endpointCheckHealth' - symbol not found in diff",
+        "suggestion": "Ensure endpointCheckHealth constant is defined or imported properly",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "warning",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go",
+        "line": 52,
+        "message": "Undefined constant 'endpointCollectMetrics' - symbol not found in diff",
+        "suggestion": "Ensure endpointCollectMetrics constant is defined or imported properly",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "pkg/services/pluginsintegration/clientmiddleware/logger_middleware.go",
+        "line": 57,
+        "message": "Trace ID logging removed from request logging - potential observability regression",
+        "suggestion": "Consider whether trace ID should still be logged for request correlation, or if it's now handled by contextual logging",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go\",\n      \"line\": 24,\n      \"message\": \"Potential nil pointer dereference on req parameter before validation\",\n      \"suggestion\": \"Add nil checks for req parameter before accessing req.PluginContext in instrumentContext function\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go\",\n      \"line\": 37,\n      \"message\": \"Undefined constant 'endpointQueryData' - symbol not found in diff\",\n      \"suggestion\": \"Ensure endpointQueryData constant is defined or imported properly\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go\",\n      \"line\": 42,\n      \"message\": \"Undefined constant 'endpointCallResource' - symbol not found in diff\",\n      \"suggestion\": \"Ensure endpointCallResource constant is defined or imported properly\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go\",\n      \"line\": 47,\n      \"message\": \"Undefined constant 'endpointCheckHealth' - symbol not found in diff\",\n      \"suggestion\": \"Ensure endpointCheckHealth constant is defined or imported properly\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/contextual_logger_middleware.go\",\n      \"line\": 52,\n      \"message\": \"Undefined constant 'endpointCollectMetrics' - symbol not found in diff\",\n      \"suggestion\": \"Ensure endpointCollectMetrics constant is defined or imported properly\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"info\",\n      \"file\": \"pkg/services/pluginsintegration/clientmiddleware/logger_middleware.go\",\n      \"line\": 57,\n      \"message\": \"Trace ID logging removed from request logging - potential observability regression\",\n      \"suggestion\": \"Consider whether trace ID should still be logged for request correlation, or if it's now handled by contextual logging\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"The refactor moves contextual logging from metrics middleware to a dedicated logger middleware. Main concerns are undefined endpoint constants and potential nil pointer access in the new middleware, plus removal of trace ID from logging which may impact observability.\"\n}\n```"
+  }
+}

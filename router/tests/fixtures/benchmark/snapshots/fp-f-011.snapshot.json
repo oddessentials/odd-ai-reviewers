@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:15.073Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:12.544Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "1763de0ed9470920950e337d0c762baa853e5081a865e49abf59e66dafb10cf7",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in `src/lookup.ts` introduce a new function `getUser` that returns a user object with a name based on the provided ID. No potential issues such as logic errors, security vulnerabilities, or performance concerns were found in the diff. The code is straightforward, with no further improvements needed.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Clean addition of a simple user lookup function with hardcoded string interpolation. No security, performance, or logic issues detected.\"\n}\n```"
   }
 }

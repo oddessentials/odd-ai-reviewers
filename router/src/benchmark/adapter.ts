@@ -443,7 +443,12 @@ export async function runWithSnapshot(
     const diffFiles = parseDiffFiles(scenario.diff);
 
     // 1. Stage 1: semantic filtering — includes PR-intent contradiction suppression
-    const semanticResult = validateFindingsSemantics(findings, scenario.prDescription);
+    const semanticResult = validateFindingsSemantics(
+      findings,
+      scenario.prDescription,
+      scenario.diff,
+      scenario.projectRules
+    );
 
     // 2. Framework convention matchers (before diff-bound, per contract)
     const frameworkFiltered = filterFrameworkConventionFindings(

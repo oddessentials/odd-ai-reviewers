@@ -1,14 +1,33 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:51.844Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:55.621Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "7438c3fd838240460012f7a6db12562862199c55fdf1cdfc2b0888bf40285735",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a new function `isFeatureEnabled` that checks feature flag availability based on environment variables. No issues such as logic errors, security vulnerabilities, performance issues, API misuse, or missing error handling are identified in the provided diff.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "src/feature-flag.ts",
+        "line": 5,
+        "message": "Default fallback relies on process.env.FEATURE_FLAG without validation, which could be undefined or contain unexpected values",
+        "suggestion": "Add explicit validation: `return Boolean(process.env.FEATURE_FLAG) && process.env.FEATURE_FLAG.toLowerCase() === 'true'` or define a clear default value for unknown environments",
+        "ruleId": "semantic/logic",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "src/feature-flag.ts",
+        "line": 3,
+        "message": "Hard-coded environment strings could lead to inconsistencies if environment naming changes",
+        "suggestion": "Consider defining environment constants: `const ENVIRONMENTS = { PRODUCTION: 'production', STAGING: 'staging' } as const` and use those instead of string literals",
+        "ruleId": "semantic/api-misuse",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/feature-flag.ts\",\n      \"line\": 5,\n      \"message\": \"Default fallback relies on process.env.FEATURE_FLAG without validation, which could be undefined or contain unexpected values\",\n      \"suggestion\": \"Add explicit validation: `return Boolean(process.env.FEATURE_FLAG) && process.env.FEATURE_FLAG.toLowerCase() === 'true'` or define a clear default value for unknown environments\",\n      \"category\": \"logic\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/feature-flag.ts\",\n      \"line\": 3,\n      \"message\": \"Hard-coded environment strings could lead to inconsistencies if environment naming changes\",\n      \"suggestion\": \"Consider defining environment constants: `const ENVIRONMENTS = { PRODUCTION: 'production', STAGING: 'staging' } as const` and use those instead of string literals\",\n      \"category\": \"api-misuse\"\n    }\n  ],\n  \"summary\": \"Added environment-dependent feature flag function with basic conditional logic. Main concern is the unvalidated fallback to process.env which could cause unexpected behavior in unknown environments.\"\n}\n```"
   }
 }

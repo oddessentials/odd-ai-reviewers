@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:25.559Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:39.353Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "94c642d2e2cacaa87d993ce346bf43022b920c6914981d230f6377a71b11dc56",
     "adapterVersion": "1.0.0"
   },
@@ -13,21 +13,30 @@
         "severity": "error",
         "file": "src/auth.ts",
         "line": 3,
-        "message": "User-provided token is sent in the request body directly without using a secure method.",
-        "suggestion": "Ensure that the token in the request body is encrypted or sent over a secure channel (e.g., HTTPS). Validate and sanitize the token before using it.",
-        "ruleId": "semantic/security",
+        "message": "Missing error handling for token refresh network request. Failed refresh requests will throw unhandled promise rejections.",
+        "suggestion": "Add error handling: check response.ok before calling .text(), or wrap in try-catch to handle network failures gracefully",
+        "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       },
       {
         "severity": "warning",
         "file": "src/auth.ts",
         "line": 3,
-        "message": "No error handling for network or HTTP errors in the refreshToken function.",
-        "suggestion": "Add error handling to manage situations where the network request fails or the server returns an error status.",
+        "message": "Token sent in request body without Content-Type header. Server may not parse the token correctly.",
+        "suggestion": "Add Content-Type header: { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: token } or send as JSON if server expects structured data",
+        "ruleId": "semantic/api-misuse",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "src/auth.ts",
+        "line": 3,
+        "message": "Response assumed to be text without validation. Server errors or non-text responses will cause parsing issues.",
+        "suggestion": "Validate response before parsing: check response.ok and Content-Type header, or handle potential JSON error responses",
         "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"src/auth.ts\",\n      \"line\": 3,\n      \"message\": \"User-provided token is sent in the request body directly without using a secure method.\",\n      \"suggestion\": \"Ensure that the token in the request body is encrypted or sent over a secure channel (e.g., HTTPS). Validate and sanitize the token before using it.\",\n      \"category\": \"security\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/auth.ts\",\n      \"line\": 3,\n      \"message\": \"No error handling for network or HTTP errors in the refreshToken function.\",\n      \"suggestion\": \"Add error handling to manage situations where the network request fails or the server returns an error status.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The new refreshToken function introduces a potential security risk by sending a token without encryption in the request body. Moreover, it lacks error handling for network failures or server errors.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"src/auth.ts\",\n      \"line\": 3,\n      \"message\": \"Missing error handling for token refresh network request. Failed refresh requests will throw unhandled promise rejections.\",\n      \"suggestion\": \"Add error handling: check response.ok before calling .text(), or wrap in try-catch to handle network failures gracefully\",\n      \"category\": \"error-handling\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/auth.ts\",\n      \"line\": 3,\n      \"message\": \"Token sent in request body without Content-Type header. Server may not parse the token correctly.\",\n      \"suggestion\": \"Add Content-Type header: { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: token } or send as JSON if server expects structured data\",\n      \"category\": \"api-misuse\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/auth.ts\",\n      \"line\": 3,\n      \"message\": \"Response assumed to be text without validation. Server errors or non-text responses will cause parsing issues.\",\n      \"suggestion\": \"Validate response before parsing: check response.ok and Content-Type header, or handle potential JSON error responses\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"OAuth2 token refresh endpoint added but lacks error handling, proper Content-Type headers, and response validation. The implementation will fail silently on network errors or server failures.\"\n}\n```"
   }
 }

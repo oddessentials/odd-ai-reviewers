@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "recordedAt": "2026-03-19T17:04:10.596Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "fixtureHash": "20d7fc8bd27e58497653d3282cdefba8e6f092897616b4efef6a3caffd6598f9",
+    "adapterVersion": "1.0.0"
+  },
+  "response": {
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "pkg/storage/unified/search/bleve.go",
+        "line": 137,
+        "message": "Concurrent BuildIndex calls can race and duplicate expensive index construction for the same cache key",
+        "suggestion": "Add a check-lock-check pattern or use sync.Once/singleflight to prevent duplicate index building when multiple goroutines request the same key simultaneously",
+        "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "pkg/storage/unified/resource/server.go",
+        "line": 259,
+        "message": "Init() is called synchronously during NewResourceServer construction, which may block server startup if index building takes significant time",
+        "suggestion": "Consider moving Init() to a separate Start() method or making it asynchronous with proper health checks to avoid blocking the constructor",
+        "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"pkg/storage/unified/search/bleve.go\",\n      \"line\": 137,\n      \"message\": \"Concurrent BuildIndex calls can race and duplicate expensive index construction for the same cache key\",\n      \"suggestion\": \"Add a check-lock-check pattern or use sync.Once/singleflight to prevent duplicate index building when multiple goroutines request the same key simultaneously\",\n      \"category\": \"performance\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"pkg/storage/unified/resource/server.go\",\n      \"line\": 259,\n      \"message\": \"Init() is called synchronously during NewResourceServer construction, which may block server startup if index building takes significant time\",\n      \"suggestion\": \"Consider moving Init() to a separate Start() method or making it asynchronous with proper health checks to avoid blocking the constructor\",\n      \"category\": \"performance\"\n    }\n  ],\n  \"summary\": \"The refactor successfully moves initialization earlier and improves concurrency by narrowing the lock scope in BuildIndex. However, this creates a race condition where multiple goroutines can build the same expensive index simultaneously, and the synchronous Init() call may still block startup despite moving it out of the gRPC context.\"\n}\n```"
+  }
+}

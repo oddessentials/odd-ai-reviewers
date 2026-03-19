@@ -439,6 +439,377 @@ describe('validateFindingsSemantics (Stage 1)', () => {
     expect(result.validFindings).toHaveLength(0);
     expect(result.stats.total).toBe(0);
   });
+
+  it('suppresses partial-diff undefined symbol findings when the diff does not remove the symbol', () => {
+    const findings = [
+      makeFinding({
+        severity: 'error',
+        file: 'pkg/example/new_file.go',
+        line: 12,
+        message:
+          'Reference to undefined constant `endpointQueryData` - this constant is not defined in the visible code',
+        suggestion: 'Define the endpoint constants or import them from the appropriate package',
+      }),
+    ];
+
+    const diff = `diff --git a/pkg/example/new_file.go b/pkg/example/new_file.go
+--- /dev/null
++++ b/pkg/example/new_file.go
+@@ -0,0 +1,3 @@
++func example() {
++  endpointQueryData()
++}`;
+
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered[0]?.filterType).toBe('partial_diff_symbol');
+  });
+
+  it('does not suppress undefined symbol findings when the diff visibly removes the symbol', () => {
+    const findings = [
+      makeFinding({
+        severity: 'error',
+        file: 'pkg/example/file.go',
+        line: 20,
+        message:
+          'Reference to undefined constant `endpointQueryData` - this constant is not defined in the visible code',
+        suggestion: 'Define the endpoint constants or import them from the appropriate package',
+      }),
+    ];
+
+    const diff = `diff --git a/pkg/example/file.go b/pkg/example/file.go
+--- a/pkg/example/file.go
++++ b/pkg/example/file.go
+@@ -1,4 +1,3 @@
+-const endpointQueryData = "query"
+ func example() {
+   endpointQueryData()
+ }`;
+
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(1);
+  });
+
+  it('suppresses cautionary verify-this advice with no concrete defect', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        line: 10,
+        message:
+          'Cleanup interval reduced from 10 minutes to 1 minute - verify this frequency is appropriate for production load',
+        suggestion:
+          'Consider making this configurable or document why the frequency increase is needed',
+      }),
+    ];
+
+    const result = validateFindingsSemantics(findings);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.stats.filteredByCautionaryAdvice).toBe(1);
+  });
+
+  it('suppresses speculative SQL injection findings when the diff only shows numeric IDs', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        file: 'pkg/services/example/store.go',
+        line: 40,
+        message: 'Manual string building for SQL IN clause on SQLite',
+        suggestion:
+          'Consider using a parameterized query builder or verifying that all values in `ids` are validated integers to prevent injection',
+      }),
+    ];
+
+    const diff = `diff --git a/pkg/services/example/store.go b/pkg/services/example/store.go
+--- a/pkg/services/example/store.go
++++ b/pkg/services/example/store.go
+@@ -1,6 +1,10 @@
++ids := make([]int64, 0)
++for _, v := range ids {
++  values = fmt.Sprintf("%s, %d", values, v)
++}
++sql = fmt.Sprintf("DELETE FROM annotation WHERE id IN (%s)", values)`;
+
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.stats.filteredByCautionaryAdvice).toBe(1);
+  });
+
+  it('does not suppress SQL injection findings when the diff shows request input', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        file: 'pkg/services/example/store.go',
+        line: 40,
+        message: 'SQL injection vulnerability in direct string concatenation',
+        suggestion: 'Use parameterized queries to prevent injection',
+      }),
+    ];
+
+    const diff = `diff --git a/pkg/services/example/store.go b/pkg/services/example/store.go
+--- a/pkg/services/example/store.go
++++ b/pkg/services/example/store.go
+@@ -1,4 +1,4 @@
++values := req.URL.Query().Get("ids")
++sql = fmt.Sprintf("DELETE FROM annotation WHERE id IN (%s)", values)`;
+
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(1);
+  });
+
+  it('suppresses info-level strings.Builder micro-optimization advice', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        file: 'pkg/services/example/store.go',
+        line: 12,
+        message: 'String concatenation in loop for building SQL values list',
+        suggestion:
+          'Consider using strings.Builder or pre-allocating slice capacity for better performance when building the comma-separated values string',
+      }),
+    ];
+
+    const result = validateFindingsSemantics(findings);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.stats.filteredByCautionaryAdvice).toBe(1);
+  });
+
+  it('suppresses project-rule-backed CSS layout speculation for single global CSS files', () => {
+    const findings = [
+      makeFinding({
+        severity: 'warning',
+        file: 'src/styles.css',
+        line: 12,
+        message:
+          'Input field with 100% width may overflow its container due to padding. The total width becomes 100% + 1rem, which can cause horizontal scrolling or layout breaks.',
+        suggestion:
+          'Use box-sizing: border-box on the input or change width to calc(100% - 1rem) to account for padding.',
+      }),
+      makeFinding({
+        severity: 'info',
+        file: 'src/styles.css',
+        line: 15,
+        message:
+          'Overlay has z-index ordering issue - it should appear behind the modal but above other content. Without explicit z-index values, stacking order is unpredictable.',
+        suggestion:
+          'Add z-index: 999 to overlay and z-index: 1000 to modal to establish proper layering.',
+      }),
+    ];
+
+    const diff = `diff --git a/src/styles.css b/src/styles.css
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -1,3 +1,20 @@
++.input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; }
++.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
++.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }`;
+
+    const result = validateFindingsSemantics(
+      findings,
+      undefined,
+      diff,
+      'This project uses a single global CSS file (styles.css). Do not flag large CSS files.'
+    );
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered).toHaveLength(2);
+    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+  });
+
+  it('suppresses canonical-seed scaffolding findings when project rules explain the seed helper', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        file: 'src/random.ts',
+        line: 1,
+        message: 'seedRandom() function is defined but never used',
+        suggestion:
+          'Either use this function in the random() implementation or remove it if not needed',
+      }),
+      makeFinding({
+        severity: 'warning',
+        file: 'src/random.ts',
+        line: 5,
+        message: 'Empty function body in random() export - function provides no functionality',
+        suggestion:
+          'Implement the random number generation logic, potentially using the seedRandom() function',
+      }),
+    ];
+
+    const diff = `diff --git a/src/random.ts b/src/random.ts
+--- a/src/random.ts
++++ b/src/random.ts
+@@ -1,3 +1,7 @@
++function seedRandom(): number {
++  return 42;
++}
++
+ export function random() {}`;
+
+    const result = validateFindingsSemantics(
+      findings,
+      undefined,
+      diff,
+      'The number 42 is the canonical seed value used across all random generators. Do not flag it.'
+    );
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered).toHaveLength(2);
+    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+  });
+
+  it('suppresses synchronous singleton convention findings for non-async lazy initialization', () => {
+    const findings = [
+      makeFinding({
+        severity: 'warning',
+        file: 'src/db.ts',
+        line: 4,
+        message:
+          'Singleton database connection creation lacks concurrency protection. If getConnection() is called simultaneously from multiple async contexts, multiple DatabaseConnection instances could be created before the first assignment completes.',
+        suggestion:
+          'Add a promise-based guard or mutex to ensure only one DatabaseConnection is created even under concurrent access patterns.',
+      }),
+      makeFinding({
+        severity: 'info',
+        file: 'src/db.ts',
+        line: 10,
+        message:
+          'DatabaseConnection interface defines a very generic query method that accepts any SQL string. This could make it difficult to track SQL injection vulnerabilities at call sites.',
+        suggestion:
+          'Consider adding typed query methods or parameter binding support to the interface to encourage safer SQL construction patterns.',
+      }),
+    ];
+
+    const diff = `diff --git a/src/db.ts b/src/db.ts
+--- a/src/db.ts
++++ b/src/db.ts
+@@ -1,3 +1,12 @@
++let instance: DatabaseConnection | null = null;
++
++export function getConnection(): DatabaseConnection {
++  if (!instance) {
++    instance = new DatabaseConnection();
++  }
++  return instance;
++}
++
++interface DatabaseConnection { query(sql: string): Promise<unknown[]> }`;
+
+    const result = validateFindingsSemantics(findings, undefined, diff);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.stats.filteredByCautionaryAdvice).toBe(2);
+  });
+
+  it('suppresses Enter-key handler partial-diff advisories when PR intent explains the handler change', () => {
+    const findings = [
+      makeFinding({
+        severity: 'error',
+        file: 'src/input.ts',
+        line: 4,
+        message: 'Function `submitForm()` is called but not defined or imported',
+        suggestion:
+          'Either define the `submitForm` function in this file or import it from another module',
+      }),
+      makeFinding({
+        severity: 'warning',
+        file: 'src/input.ts',
+        line: 1,
+        message: 'Function `handleKeyDown` is defined but never used or exported',
+        suggestion:
+          'Either export this function for external use or attach it as an event listener within the module',
+      }),
+    ];
+
+    const diff = `diff --git a/src/input.ts b/src/input.ts
+--- a/src/input.ts
++++ b/src/input.ts
+@@ -1,3 +1,8 @@
++function handleKeyDown(event: KeyboardEvent): void {
++  if (event.key === 'Enter') {
++    event.preventDefault();
++    submitForm();
++  }
++}
++
+ export function setup() {}`;
+
+    const result = validateFindingsSemantics(
+      findings,
+      'fix: Change Enter key to submit form instead of adding newline',
+      diff
+    );
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+  });
+
+  it('suppresses parameterized-test refactor coverage advice when PR intent explains the refactor', () => {
+    const findings = [
+      makeFinding({
+        severity: 'warning',
+        file: 'tests/user.test.ts',
+        line: 4,
+        message:
+          'Test assertion changed from exact property check to partial object matching, potentially reducing test coverage',
+        suggestion:
+          "Consider using expect(user.name).toBe('Alice') and expect(user.role).toBe('admin') for exact property validation, or ensure expected objects include all relevant properties",
+      }),
+    ];
+
+    const diff = `diff --git a/tests/user.test.ts b/tests/user.test.ts
+--- a/tests/user.test.ts
++++ b/tests/user.test.ts
+@@ -1,8 +1,6 @@
+-test('should create user', () => {
+-  const user = createUser({ name: 'Alice' });
+-  expect(user.name).toBe('Alice');
+-});
++describe('User creation', () => {
++  it.each([
++    { input: { name: 'Alice' }, expected: { name: 'Alice' } },
++  ])('creates user with $input.name', ({ input, expected }) => {
++    const user = createUser(input);
++    expect(user).toMatchObject(expected);
++  });
++});`;
+
+    const result = validateFindingsSemantics(
+      findings,
+      'refactor: Convert individual user tests to parameterized it.each tests',
+      diff
+    );
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered[0]?.filterType).toBe('project_context');
+  });
+
+  it('suppresses test-artifact advisories for fixtures, mock wiring, and placeholder test bodies', () => {
+    const findings = [
+      makeFinding({
+        severity: 'info',
+        file: 'tests/fixtures/xss-payloads.ts',
+        line: 1,
+        message: 'XSS_PAYLOADS constant is defined but not exported or used',
+        suggestion: "Export the constant if it's intended for use in tests, or remove it if unused",
+      }),
+      makeFinding({
+        severity: 'warning',
+        file: 'tests/auth.test.ts',
+        line: 6,
+        message: "Mock module path './auth' may not resolve correctly from test file location",
+        suggestion:
+          "Verify the relative path './auth' correctly points to the auth module. Consider using an absolute import or check if the path should be '../src/auth' or similar based on project structure.",
+      }),
+      makeFinding({
+        severity: 'info',
+        file: 'tests/auth.test.ts',
+        line: 11,
+        message: 'Empty test function provides no validation of mocked authentication behavior',
+        suggestion:
+          'Add test cases to verify the mocked authenticate and verify functions work as expected, such as testing return values and call parameters.',
+      }),
+    ];
+
+    const result = validateFindingsSemantics(findings);
+    expect(result.validFindings).toHaveLength(0);
+    expect(result.filtered).toHaveLength(3);
+    expect(result.filtered.every((entry) => entry.filterType === 'project_context')).toBe(true);
+  });
 });
 
 /**

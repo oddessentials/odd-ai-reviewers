@@ -1,14 +1,24 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:18.241Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:22.013Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "b61a121c1d3b1a84afdc4dddd8807ae0d16e3367342cf4f24437e81f24483a55",
     "adapterVersion": "1.0.0"
   },
   "response": {
-    "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The changes in `src/utils.ts` introduce two new functions: `formatDate` and `parseDate`. The `formatDate` function converts a Date object to a string in YYYY-MM-DD format, and `parseDate` converts a string to a Date object. No logic errors, security vulnerabilities, or performance issues were identified in these functions.\"\n}\n```"
+    "findings": [
+      {
+        "severity": "warning",
+        "file": "src/utils.ts",
+        "line": 5,
+        "message": "parseDate function can return invalid Date objects for malformed input strings without validation",
+        "suggestion": "Add input validation or consider using a date parsing library that throws on invalid input. Example: if (isNaN(date.getTime())) throw new Error('Invalid date string')",
+        "ruleId": "semantic/error-handling",
+        "sourceAgent": "ai_semantic_review"
+      }
+    ],
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/utils.ts\",\n      \"line\": 5,\n      \"message\": \"parseDate function can return invalid Date objects for malformed input strings without validation\",\n      \"suggestion\": \"Add input validation or consider using a date parsing library that throws on invalid input. Example: if (isNaN(date.getTime())) throw new Error('Invalid date string')\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"Added utility functions for date formatting and parsing. The parseDate function lacks input validation which could lead to invalid Date objects being returned for malformed strings.\"\n}\n```"
   }
 }

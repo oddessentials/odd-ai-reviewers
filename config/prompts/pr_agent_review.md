@@ -201,6 +201,84 @@ Do NOT flag the following well-known patterns as issues:
     does NOT exist in the diff at the line you cite, you MUST omit the finding entirely.
     Do NOT generate findings about code that is not present in the reviewed diff.
 
+21. **Cache trust symmetry**: When a change introduces or rewrites a cache fast path,
+    compare how cached "allow", cached "deny", and cache-miss paths behave.
+    - DO flag: Asymmetric trust where a cached grant is returned immediately but a cached deny
+      is ignored or bypassed, stale authorization entries that can widen access, or negative-cache
+      entries that are written but never consulted
+    - DO flag: Test/code mismatches where comments or assertions say a cached permission "allows"
+      access but the actual literal value is `false`
+    - Do NOT stop at "cache added" — inspect the exact boolean values and control-flow branches
+
+22. **Error-path cache assignment**: When shared cache/state is updated from a function that can
+    fail, verify that the assignment only happens on success.
+    - DO flag: Writing `result` into a cache even when `err != nil`, overwriting a previously valid
+      cache entry with `nil`, or populating shared state before validating the fetch/build succeeded
+    - Do NOT treat "uses caching" alone as a finding; the defect is the unguarded error-path write
+
+23. **Nil-safe middleware and adapter refactors**: When middleware or client wrappers are refactored,
+    check whether request objects are dereferenced before nil validation.
+    - DO flag: Direct access to `req.PluginContext`, `req.Context`, or similar request fields when
+      a nil request would panic, especially if the previous implementation tolerated nil requests
+    - DO still check multiple entrypoints (`QueryData`, `CallResource`, `CheckHealth`, `CollectMetrics`)
+      if the same helper is reused across them
+
+24. **Logging and tracing context preservation**: When a refactor moves logging to contextual loggers
+    or new middleware, verify that previously logged identifiers are still attached.
+    - DO flag: Explicit removal of trace IDs, plugin IDs, datasource IDs, user IDs, or endpoint names
+      from structured logs when the diff shows they were logged before and are not restored elsewhere
+    - Do NOT invent missing telemetry. Only report this when the removed fields are visible in the diff
+
+25. **No speculative operational findings**: Do NOT report theoretical performance or operational
+    concerns unless the diff shows a concrete defect, unbounded work, broken error handling, or a
+    user-visible regression.
+    - Do NOT flag: "may block startup", "could increase load 10x", "count query on every call",
+      or "less flexible" style advice without direct evidence of failure in the changed code
+    - DO flag: Concrete deadlocks, dropped error handling, nil overwrites, races, panics, or
+      observability regressions that are directly visible in the diff
+
+26. **Partial diff symbol resolution**: The reviewed diff is often incomplete. Do NOT report
+    "undefined constant", "missing import", "missing declaration", or "symbol not found"
+    findings unless the diff itself shows the symbol's definition was removed, renamed, or broken.
+    - Do NOT flag: A new call site referencing `endpointQueryData`, `SomeHelper`, or an import not
+      shown in the hunk — unchanged files may still define it
+    - DO flag: The diff visibly removes an import/const/function and still references it afterward
+
+27. **Concurrency regression prioritization**: When a diff narrows or removes locking around shared
+    caches, maps, or index construction, prioritize concrete concurrency analysis over hypothetical
+    nil/value speculation.
+    - DO flag: Lock scope moved off a shared map write, shared cache assignment now occurs outside
+      the previous critical section, or expensive work can now race and publish conflicting results
+    - Do NOT replace a visible race with speculative "builder may return nil" advice unless the diff
+      itself shows nil is an accepted success value
+    - Example: If `cacheMu.Lock()`/`defer Unlock()` is removed from the top of `BuildIndex` and only
+      reintroduced around `cache[key] = idx`, treat the change as a concurrency/race review, not a
+      nil-index or init-ordering review
+    - In that pattern, prefer findings such as "concurrent BuildIndex calls can race/duplicate
+      initialization for the same key" or "shared cache publication is no longer serialized"
+      instead of speculative notes about nil builders, constructor timing, or API ergonomics
+
+28. **Internal numeric IDs are not SQL injection by default**: SQL/string interpolation is only a
+    security issue when user-controlled text reaches the query. If the diff shows values are numeric
+    IDs loaded from the database or strongly typed internal identifiers, do NOT report SQL injection.
+    - Do NOT flag: `fmt.Sprintf("... IN (%s)", values)` where `values` is assembled from `[]int64`
+      IDs fetched from the database in the same diff
+    - DO flag: String-built SQL from request params, query strings, form fields, headers, JSON bodies,
+      or any unvalidated external text
+
+29. **Logging level misuse over speculation**: When normal operational paths log counts, conditions,
+    IDs, or affected rows with `Error`/`logger.Error`, prefer the concrete logging-severity finding.
+    - DO flag: Error-level logs on successful cleanup, reporting, or batch bookkeeping code
+    - Do NOT crowd out that signal with speculative load, throughput, or "10x" performance claims
+
+30. **Authorization cache invalidation symmetry**: For permission and auth caches, inspect whether
+    positive and negative results are reused and invalidated consistently.
+    - DO flag: Cached "allow" results returned immediately while cached "deny" results are ignored,
+      stale denial/grant entries that can survive permission updates, or mixed sources where one branch
+      trusts cache and the opposite branch falls through to live authorization state
+    - Do NOT downgrade this to a generic TTL/performance comment when the diff shows a concrete
+      authorization correctness asymmetry
+
 ### Active Context Directives
 
 Before generating any findings:

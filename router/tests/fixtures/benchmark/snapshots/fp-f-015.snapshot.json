@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:19.805Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:14:26.535Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "2f0bc2f33d36095ea4cbc1d3685db29416774b1f0ff081aedbd9408036a2691b",
     "adapterVersion": "1.0.0"
   },
@@ -13,12 +13,12 @@
         "severity": "info",
         "file": "src/parser.ts",
         "line": 2,
-        "message": "The function parseJSON directly returns the result of JSON.parse, which could throw an error if the input is not valid JSON.",
-        "suggestion": "Consider adding a try-catch block to handle any potential errors from JSON.parse.",
+        "message": "Potential issue — verify that parseJSON handles invalid JSON input appropriately for its use case",
+        "suggestion": "Consider adding try-catch if this function will be called with untrusted input, or document that callers are responsible for error handling",
         "ruleId": "semantic/error-handling",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/parser.ts\",\n      \"line\": 2,\n      \"message\": \"The function parseJSON directly returns the result of JSON.parse, which could throw an error if the input is not valid JSON.\",\n      \"suggestion\": \"Consider adding a try-catch block to handle any potential errors from JSON.parse.\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"The newly added function parseJSON in src/parser.ts could benefit from error handling to manage potential exceptions thrown by JSON.parse when parsing invalid JSON input.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"info\",\n      \"file\": \"src/parser.ts\",\n      \"line\": 2,\n      \"message\": \"Potential issue — verify that parseJSON handles invalid JSON input appropriately for its use case\",\n      \"suggestion\": \"Consider adding try-catch if this function will be called with untrusted input, or document that callers are responsible for error handling\",\n      \"category\": \"error-handling\"\n    }\n  ],\n  \"summary\": \"Added a thin wrapper around JSON.parse. The function delegates directly to the standard library, which will throw on invalid JSON. Consider whether error handling should be added based on the intended usage context.\"\n}\n```"
   }
 }

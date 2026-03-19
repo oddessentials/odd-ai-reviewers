@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:05:09.678Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:13:53.402Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "23effa06a2d22d19ab265956a1d6dceb63cf5eb9099f8b1edee9c94d113122e5",
     "adapterVersion": "1.0.0"
   },
@@ -13,12 +13,21 @@
         "severity": "warning",
         "file": "src/template.ts",
         "line": 4,
-        "message": "Synchronous file read operation detected with `fs.readFileSync`. This can block the event loop.",
-        "suggestion": "Use asynchronous file reading `fs.promises.readFile` instead to prevent blocking.",
+        "message": "Synchronous file read at module initialization time blocks the event loop during startup. If template.html is missing, this will throw an uncaught exception and crash the application.",
+        "suggestion": "Use fs.readFileSync inside the template() function for lazy loading, or use fs.promises.readFile with proper error handling at startup",
         "ruleId": "semantic/performance",
+        "sourceAgent": "ai_semantic_review"
+      },
+      {
+        "severity": "info",
+        "file": "src/template.ts",
+        "line": 4,
+        "message": "Unused variable 'tmpl' - template content is loaded but never exported or used",
+        "suggestion": "Either export the tmpl variable or move the file read operation to where it's actually needed",
+        "ruleId": "semantic/logic",
         "sourceAgent": "ai_semantic_review"
       }
     ],
-    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/template.ts\",\n      \"line\": 4,\n      \"message\": \"Synchronous file read operation detected with `fs.readFileSync`. This can block the event loop.\",\n      \"suggestion\": \"Use asynchronous file reading `fs.promises.readFile` instead to prevent blocking.\",\n      \"category\": \"performance\"\n    }\n  ],\n  \"summary\": \"A synchronous file read operation was introduced, potentially blocking the event loop. Consider using asynchronous methods to improve performance.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \"src/template.ts\",\n      \"line\": 4,\n      \"message\": \"Synchronous file read at module initialization time blocks the event loop during startup. If template.html is missing, this will throw an uncaught exception and crash the application.\",\n      \"suggestion\": \"Use fs.readFileSync inside the template() function for lazy loading, or use fs.promises.readFile with proper error handling at startup\",\n      \"category\": \"performance\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"src/template.ts\",\n      \"line\": 4,\n      \"message\": \"Unused variable 'tmpl' - template content is loaded but never exported or used\",\n      \"suggestion\": \"Either export the tmpl variable or move the file read operation to where it's actually needed\",\n      \"category\": \"logic\"\n    }\n  ],\n  \"summary\": \"Template file adds synchronous file I/O at module load time with an unused variable. Consider lazy loading or proper export of the template content.\"\n}\n```"
   }
 }

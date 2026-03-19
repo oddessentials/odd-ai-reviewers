@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:51.015Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:49.403Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "1b918f7e15f1b53566d599a3c154bb09a3ef72ba4b9f05be5c3bd9ac87d2145f",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The added Card component in src/Card.tsx defines a simple component with inline styles. No logic errors, security vulnerabilities, performance issues, or API misuse are present in this change. Project rules allow inline styles, so no issues with style usage.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"New Card component added with inline styles following project conventions. No issues found - the component properly types its props, uses inline styles as per project rules, and safely renders the title prop without XSS concerns since JSX automatically escapes string content.\"\n}\n```"
   }
 }

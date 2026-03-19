@@ -498,7 +498,7 @@ describe('False Positive Regression Suite', () => {
 
     // Pattern B uses snapshot replay for framework convention detection
     describe('Pattern B: Framework Conventions (snapshot replay)', () => {
-      it.skipIf(patternBWithSnapshots.length === 0).each(patternBWithSnapshots)(
+      it.skipIf(RECORDING || patternBWithSnapshots.length === 0).each(patternBWithSnapshots)(
         'should not flag: $description',
         async (scenario) => {
           const findings = await runFromSnapshot(scenario);
@@ -510,7 +510,7 @@ describe('False Positive Regression Suite', () => {
 
     // Pattern C uses snapshot replay for project context understanding
     describe('Pattern C: Project Context (snapshot replay)', () => {
-      it.skipIf(patternCWithSnapshots.length === 0).each(patternCWithSnapshots)(
+      it.skipIf(RECORDING || patternCWithSnapshots.length === 0).each(patternCWithSnapshots)(
         'should not flag: $description',
         async (scenario) => {
           const findings = await runFromSnapshot(scenario);
@@ -522,7 +522,7 @@ describe('False Positive Regression Suite', () => {
 
     // Pattern D uses snapshot replay for PR description analysis
     describe('Pattern D: PR Description (snapshot replay)', () => {
-      it.skipIf(patternDWithSnapshots.length === 0).each(patternDWithSnapshots)(
+      it.skipIf(RECORDING || patternDWithSnapshots.length === 0).each(patternDWithSnapshots)(
         'should not flag: $description',
         async (scenario) => {
           const findings = await runFromSnapshot(scenario);
@@ -548,7 +548,7 @@ describe('False Positive Regression Suite', () => {
 
     // Pattern F uses snapshot replay for mixed/LLM-dependent scenarios
     describe('Pattern F: Mixed (snapshot replay)', () => {
-      it.skipIf(patternFWithSnapshots.length === 0).each(patternFWithSnapshots)(
+      it.skipIf(RECORDING || patternFWithSnapshots.length === 0).each(patternFWithSnapshots)(
         'should not flag: $description',
         async (scenario) => {
           const findings = await runFromSnapshot(scenario);
@@ -631,7 +631,7 @@ describe('False Positive Regression Suite', () => {
 
     // B6 remediation: Snapshot-based TP scenarios (e.g., fp-d-006 reclassified as TP)
     describe('Snapshot-based TP (snapshot replay)', () => {
-      it.skipIf(snapshotTPWithSnapshots.length === 0).each(snapshotTPWithSnapshots)(
+      it.skipIf(RECORDING || snapshotTPWithSnapshots.length === 0).each(snapshotTPWithSnapshots)(
         'should detect: $description',
         async (scenario) => {
           const findings = await runFromSnapshot(scenario);
@@ -648,7 +648,7 @@ describe('False Positive Regression Suite', () => {
   // Release Gate Metrics
   // ===========================================================================
 
-  describe('Release Gate Metrics', () => {
+  describe.skipIf(RECORDING)('Release Gate Metrics', () => {
     // Deterministic (AST-based) + snapshot-replayed FP scenarios
     const allRunnableFP = [
       ...patternA,

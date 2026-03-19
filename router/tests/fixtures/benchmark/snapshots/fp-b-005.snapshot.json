@@ -1,14 +1,14 @@
 {
   "metadata": {
-    "recordedAt": "2026-03-14T01:04:43.666Z",
-    "promptTemplateHash": "d8c5161e4478dc3605c4b63f4c1f46f4ffa4ddf1b540d50b836cffbcec66e2e5",
-    "modelId": "gpt-4o",
-    "provider": "openai",
+    "recordedAt": "2026-03-19T17:12:15.270Z",
+    "promptTemplateHash": "885bbc571ab5dbbbd0c423ac3a2394aba54e48bd1a4f79337b169efc818eaf07",
+    "modelId": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
     "fixtureHash": "03c9d69c529f161e6283a139281fd500cf5273066fbd9b97a7dff41fd324241c",
     "adapterVersion": "1.0.0"
   },
   "response": {
     "findings": [],
-    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"The code introduces a new `Status` type and a `handleStatus` function with an exhaustive switch statement over the `Status` type. The use of the `assertNever` function ensures that any future change to the `Status` type will result in a compile-time error if not handled, maintaining type safety. No security, performance, logic, or error-handling issues are identified in this change.\"\n}\n```"
+    "rawOutput": "```json\n{\n  \"findings\": [],\n  \"summary\": \"Clean implementation of exhaustive switch pattern with proper TypeScript union type handling. The assertNever function correctly enforces compile-time exhaustiveness checking, and all Status union members are handled appropriately.\"\n}\n```"
   }
 }

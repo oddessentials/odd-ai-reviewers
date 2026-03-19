@@ -133,7 +133,8 @@ function applySharedPreDiffReportingStages(
   suppressionMode?: SuppressionMode,
   options: SharedPreDiffOptions = {}
 ): SharedPreDiffResult {
-  const semanticResult = validateFindingsSemantics(findings, prDescription);
+  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
+  const semanticResult = validateFindingsSemantics(findings, prDescription, diffContent);
   const validated = semanticResult.validFindings;
 
   const suppressionRules = config?.suppressions?.rules ?? [];
@@ -163,7 +164,6 @@ function applySharedPreDiffReportingStages(
     }
   }
 
-  const diffContent = buildFrameworkFilterDiffContent(diffFiles);
   const frameworkResult = filterFrameworkConventionFindings(
     afterSuppression,
     diffContent,

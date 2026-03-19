@@ -2101,6 +2101,81 @@ describe('Framework Pattern Filter (FR-013)', () => {
       const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
       expect(result.suppressed).toBe(1);
     });
+
+    it('should suppress fp-b-006 snapshot loading-state advisory when the render is null-safe', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message:
+            "Missing error and loading state handling in useQuery destructuring. Component will show 'undefined users' during loading and may show stale data on errors.",
+          suggestion:
+            'Destructure error and isLoading from useQuery: `const { data, error, isLoading } = useQuery(...)` and handle these states in the render logic.',
+          file: 'src/Dashboard.tsx',
+          line: 4,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress fp-b-006 snapshot fetch-status advisory for a simple React Query fetch wrapper', () => {
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message:
+            'fetchUsers function lacks error handling for failed HTTP responses. fetch() does not reject on 4xx/5xx status codes, only on network errors.',
+          suggestion:
+            "Add response status validation: `return fetch('/api/users').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })`",
+          file: 'src/Dashboard.tsx',
+          line: 8,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, queryDataOnlyDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
+
+    it('should suppress fp-b-002 snapshot secondary-query error advice when the queried data is unused', () => {
+      const multiQueryDiff = `diff --git a/src/UserProfile.tsx b/src/UserProfile.tsx
+--- a/src/UserProfile.tsx
++++ b/src/UserProfile.tsx
+@@ -1,3 +1,14 @@
++import { useQuery } from '@tanstack/react-query';
++
++function UserProfile({ userId }: { userId: string }) {
++  const { data: user, error } = useQuery({
++    queryKey: ['user', userId],
++    queryFn: () => fetchUser(userId),
++  });
++  const { data: settings } = useQuery({
++    queryKey: ['user', userId, 'settings'],
++    queryFn: () => fetchUserSettings(userId),
++  });
++  if (error) return <div>Error loading profile</div>;
++  return <div>{user?.name}</div>;
++}
++
+ export function App() {}`;
+
+      const findings = [
+        makeFinding({
+          severity: 'warning',
+          message:
+            'Settings query error is not handled. If fetchUserSettings fails, the user will see a successful profile load but missing settings data with no indication of the error.',
+          suggestion:
+            'Destructure error from the settings query (e.g., `error: settingsError`) and display appropriate error state or fallback UI when settings fail to load.',
+          file: 'src/UserProfile.tsx',
+          line: 8,
+        }),
+      ];
+
+      const result = filterFrameworkConventionFindings(findings, multiQueryDiff);
+      expect(result.suppressed).toBe(1);
+      expect(result.results[0]?.matcherId).toBe('react-query-dedup');
+    });
   });
 
   // ===========================================================================
