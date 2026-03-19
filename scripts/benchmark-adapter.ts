@@ -454,12 +454,14 @@ export function updateBenchmarkData(
     ? (JSON.parse(readFileSync(benchmarkDataPath, 'utf-8')) as BenchmarkData)
     : {};
 
+  for (const entry of Object.values(benchmarkData)) {
+    entry.reviews = (entry.reviews ?? []).filter((review) => review.tool !== options.toolName);
+  }
+
   for (const task of tasks) {
     const goldenUrl = task.golden.url;
     const existingEntry = benchmarkData[goldenUrl];
-    const reviews = (existingEntry?.reviews ?? []).filter(
-      (review) => review.tool !== options.toolName
-    );
+    const reviews = [...(existingEntry?.reviews ?? [])];
 
     reviews.push({
       tool: options.toolName,

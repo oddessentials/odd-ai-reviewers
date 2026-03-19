@@ -520,6 +520,74 @@ describe('updateBenchmarkData', () => {
       reviews.filter((review: { tool: string }) => review.tool === 'odd-ai-reviewers')
     ).toHaveLength(1);
   });
+
+  it('removes stale odd-ai-reviewers reviews for URLs outside the current task set', () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        'https://github.com/test-org/test-repo/pull/123': {
+          pr_title: 'Current run PR',
+          source_repo: 'test-org/test-repo',
+          golden_comments: [{ comment: 'Issue', severity: 'High' }],
+          reviews: [
+            {
+              tool: 'odd-ai-reviewers',
+              repo_name: 'stale-current',
+              pr_url: 'https://stale-current.example.com',
+              review_comments: [{ body: 'stale current' }],
+            },
+            {
+              tool: 'claude',
+              repo_name: 'claude__generated',
+              pr_url: 'https://example.com/current',
+              review_comments: [],
+            },
+          ],
+        },
+        'https://github.com/other-org/other-repo/pull/456': {
+          pr_title: 'Stale PR',
+          source_repo: 'other-org/other-repo',
+          golden_comments: [{ comment: 'Other issue', severity: 'Medium' }],
+          reviews: [
+            {
+              tool: 'odd-ai-reviewers',
+              repo_name: 'stale-other',
+              pr_url: 'https://stale-other.example.com',
+              review_comments: [{ body: 'stale other' }],
+            },
+            {
+              tool: 'gemini',
+              repo_name: 'gemini__generated',
+              pr_url: 'https://example.com/other',
+              review_comments: [],
+            },
+          ],
+        },
+      }) as unknown as ReturnType<typeof readFileSync>
+    );
+
+    updateBenchmarkData('/tmp/benchmark/results/benchmark_data.json', [makeTask()], makeOptions());
+
+    const written = JSON.parse(String(mockWriteFileSync.mock.calls[0]?.[1]));
+    expect(
+      written['https://github.com/test-org/test-repo/pull/123'].reviews.filter(
+        (review: { tool: string }) => review.tool === 'odd-ai-reviewers'
+      )
+    ).toHaveLength(1);
+    expect(
+      written['https://github.com/other-org/other-repo/pull/456'].reviews.filter(
+        (review: { tool: string }) => review.tool === 'odd-ai-reviewers'
+      )
+    ).toHaveLength(0);
+    expect(written['https://github.com/other-org/other-repo/pull/456'].reviews).toEqual([
+      {
+        tool: 'gemini',
+        repo_name: 'gemini__generated',
+        pr_url: 'https://example.com/other',
+        review_comments: [],
+      },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------
