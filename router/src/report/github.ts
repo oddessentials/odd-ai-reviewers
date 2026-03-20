@@ -323,10 +323,16 @@ async function createCheckRun(
   }
 
   // Convert findings to annotations (max 50 per request)
+  // Clamp each annotation message to 4096 chars to prevent oversized payloads
+  // that cause GitHub to close the TCP connection ("other side closed").
   const annotations = findings
     .map(toGitHubAnnotation)
     .filter((a): a is NonNullable<typeof a> => a !== null)
-    .slice(0, 50);
+    .slice(0, 50)
+    .map((a) => ({
+      ...a,
+      message: a.message.length > 4096 ? a.message.slice(0, 4093) + '...' : a.message,
+    }));
 
   const summary = generateSummaryMarkdown(findings);
 
@@ -340,7 +346,18 @@ async function createCheckRun(
     ? '\n> **Drift Gate Active**: Inline comments have been suppressed because line validation ' +
       'degradation exceeds the fail threshold. Review findings in this summary only.\n'
     : '';
-  const fullSummary = summary + partialSection + driftMarkdown + gateNotice;
+  let fullSummary = summary + partialSection + driftMarkdown + gateNotice;
+
+  // GitHub Check Run output.summary is capped at 65535 characters.
+  // Exceeding this causes the API server to close the TCP connection
+  // ("other side closed") rather than returning a clean 422.
+  const SUMMARY_LIMIT = 65_000; // leave buffer for encoding overhead
+  if (fullSummary.length > SUMMARY_LIMIT) {
+    const truncationNote =
+      '\n\n---\n> **Note:** Summary was truncated to fit GitHub API limits. ' +
+      'See inline comments for full details.\n';
+    fullSummary = fullSummary.slice(0, SUMMARY_LIMIT - truncationNote.length) + truncationNote;
+  }
 
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
@@ -397,7 +414,16 @@ async function postPRComment(
   }
 
   // (012-fix-agent-result-regressions) - Include partial findings section in PR comment
-  const summary = generateSummaryMarkdown(findings) + renderPartialFindingsSection(partialFindings);
+  let summary = generateSummaryMarkdown(findings) + renderPartialFindingsSection(partialFindings);
+
+  // GitHub issue comment body is capped at 65536 characters.
+  const COMMENT_LIMIT = 65_000;
+  if (summary.length > COMMENT_LIMIT) {
+    const truncationNote =
+      '\n\n---\n> **Note:** Summary was truncated to fit GitHub comment limits. ' +
+      'See inline comments for full details.\n';
+    summary = summary.slice(0, COMMENT_LIMIT - truncationNote.length) + truncationNote;
+  }
 
   // Find existing comment to update
   const existingComments = await octokit.issues.listComments({
