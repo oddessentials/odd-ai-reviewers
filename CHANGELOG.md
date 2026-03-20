@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.3](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.14.2...v1.14.3) (2026-03-20)
+
+### Bug Fixes
+
+* **github:** truncate check run payload to prevent TCP rejection on large PRs ([#198](https://github.com/oddessentials/odd-ai-reviewers/issues/198)) ([c3c2c0f](https://github.com/oddessentials/odd-ai-reviewers/commit/c3c2c0f6a495cbc057e83be154e82a6a94907b96)), closes [oddessentials/ado-git-repo-insights#178](https://github.com/oddessentials/ado-git-repo-insights/issues/178)
+
 ## [1.14.2](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.14.1...v1.14.2) (2026-03-20)
 
 ### Bug Fixes
