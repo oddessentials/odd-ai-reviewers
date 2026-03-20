@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.14.0...v1.14.1) (2026-03-20)
+
+### Bug Fixes
+
+* **local:** align local review config with ci ([#194](https://github.com/oddessentials/odd-ai-reviewers/issues/194)) ([93e0172](https://github.com/oddessentials/odd-ai-reviewers/commit/93e01726d6b0118b583e96a44da10e125ed53af8))
+
 ## [1.14.0](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.13.0...v1.14.0) (2026-03-19)
 
 ### Features
