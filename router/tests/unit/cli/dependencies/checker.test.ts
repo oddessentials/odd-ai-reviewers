@@ -4,6 +4,8 @@
  */
 
 import { execFileSync } from 'child_process';
+import { existsSync, readdirSync } from 'fs';
+import { delimiter, join } from 'path';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -19,11 +21,21 @@ vi.mock('child_process', () => ({
   execFileSync: vi.fn(),
 }));
 
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  readdirSync: vi.fn(),
+}));
+
 const mockExecFileSync = vi.mocked(execFileSync);
+const mockExistsSync = vi.mocked(existsSync);
+const mockReaddirSync = vi.mocked(readdirSync);
 
 describe('dependency checker', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
+    mockExistsSync.mockReturnValue(false);
+    mockReaddirSync.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -62,7 +74,56 @@ describe('dependency checker', () => {
         expect(mockExecFileSync).toHaveBeenCalledWith('semgrep', ['--version'], {
           timeout: 5000,
           encoding: 'utf8',
+          env: expect.any(Object),
         });
+      });
+
+      it('adds Windows Python Scripts fallback PATH for semgrep when APPDATA install exists', () => {
+        vi.stubEnv('APPDATA', 'C:\\Users\\petep\\AppData\\Roaming');
+        vi.stubEnv('PATH', 'C:\\existing\\tools');
+        mockExistsSync.mockImplementation((path) => {
+          const value = String(path);
+          return (
+            value === join('C:\\Users\\petep\\AppData\\Roaming', 'Python') ||
+            value === join('C:\\Users\\petep\\AppData\\Roaming', 'Python', 'Python314', 'Scripts')
+          );
+        });
+        mockReaddirSync.mockReturnValue([{ isDirectory: () => true, name: 'Python314' }] as never);
+        mockExecFileSync.mockReturnValue('semgrep 1.155.0');
+
+        vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+
+        checkDependency('semgrep');
+
+        const env = mockExecFileSync.mock.calls[0]?.[2]?.env;
+        expect(env).toBeDefined();
+        expect(env?.['PATH']).toBe(
+          `C:\\existing\\tools${delimiter}${join(
+            'C:\\Users\\petep\\AppData\\Roaming',
+            'Python',
+            'Python314',
+            'Scripts'
+          )}`
+        );
+      });
+
+      it('ignores unreadable APPDATA Python directories and falls back to existing PATH', () => {
+        vi.stubEnv('APPDATA', 'C:\\Users\\petep\\AppData\\Roaming');
+        vi.stubEnv('PATH', 'C:\\existing\\tools');
+        mockExistsSync.mockImplementation((path) => {
+          return String(path) === join('C:\\Users\\petep\\AppData\\Roaming', 'Python');
+        });
+        mockReaddirSync.mockImplementation(() => {
+          throw new Error('EACCES');
+        });
+        mockExecFileSync.mockReturnValue('semgrep 1.155.0');
+
+        vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+
+        expect(() => checkDependency('semgrep')).not.toThrow();
+
+        const env = mockExecFileSync.mock.calls[0]?.[2]?.env;
+        expect(env?.['PATH']).toBe('C:\\existing\\tools');
       });
 
       it('calls execFileSync with correct arguments for reviewdog', () => {

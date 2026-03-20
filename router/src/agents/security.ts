@@ -11,6 +11,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import { withAugmentedToolPath } from '../runtime/tool-paths.js';
 
 export type AgentId =
   | 'semgrep'
@@ -367,5 +368,5 @@ export function createSafeAgentEnv(
     }
   }
 
-  return safeEnv;
+  return withAugmentedToolPath(safeEnv);
 }

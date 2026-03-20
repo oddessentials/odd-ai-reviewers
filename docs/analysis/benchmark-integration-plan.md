@@ -241,7 +241,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - MARTIAN_API_KEY=${MARTIAN_API_KEY}
       - MARTIAN_BASE_URL=https://api.withmartian.com/v1
-      - MARTIAN_MODEL=openai/gpt-4o-mini
+      - MARTIAN_MODEL=openai/gpt-4.1-mini
     volumes:
       - ./benchmark-results:/results
     tmpfs:
@@ -257,7 +257,7 @@ services:
 | `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | Our tool's LLM provider                               | Running reviews        |
 | `MARTIAN_API_KEY`                       | LLM judge API key                                     | Benchmark step2, step3 |
 | `MARTIAN_BASE_URL`                      | Judge API endpoint (`https://api.withmartian.com/v1`) | Benchmark step2, step3 |
-| `MARTIAN_MODEL`                         | Judge model (`openai/gpt-4o-mini`)                    | Benchmark step2, step3 |
+| `MARTIAN_MODEL`                         | Judge model (`openai/gpt-4.1-mini`)                   | Benchmark step2, step3 |
 
 ---
 
@@ -306,7 +306,7 @@ on:
     inputs:
       judge_model:
         description: 'LLM judge model'
-        default: 'openai/gpt-4o-mini'
+        default: 'openai/gpt-4.1-mini'
         type: string
   schedule:
     # Run weekly on Sundays at 2am UTC
@@ -354,7 +354,7 @@ jobs:
         env:
           MARTIAN_API_KEY: ${{ secrets.MARTIAN_API_KEY }}
           MARTIAN_BASE_URL: https://api.withmartian.com/v1
-          MARTIAN_MODEL: ${{ inputs.judge_model || 'openai/gpt-4o-mini' }}
+          MARTIAN_MODEL: ${{ inputs.judge_model || 'openai/gpt-4.1-mini' }}
         working-directory: /tmp/benchmark/offline
         run: |
           uv run python -m code_review_benchmark.step3_judge_comments \

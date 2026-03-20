@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
+import * as childProcess from 'child_process';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -53,16 +54,14 @@ describe('Reviewdog Agent', () => {
   });
 
   describe('Binary availability functions', () => {
-    // These tests are conditional based on environment
-    // In CI without binaries, they should return false
-    // On dev machines with binaries, they should return true
-
     it('isReviewdogAvailable returns boolean', () => {
+      vi.spyOn(childProcess, 'execFileSync').mockReturnValue(undefined as never);
       const result = isReviewdogAvailable();
       expect(typeof result).toBe('boolean');
     });
 
     it('isSemgrepAvailable returns boolean', () => {
+      vi.spyOn(childProcess, 'execFileSync').mockReturnValue(undefined as never);
       const result = isSemgrepAvailable();
       expect(typeof result).toBe('boolean');
     });

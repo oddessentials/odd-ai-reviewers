@@ -127,10 +127,10 @@ When multiple API keys are configured:
 
 ### Common Mistakes
 
-| Configuration                                                | Result                                                           | Fix                                                                                     |
-| ------------------------------------------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + `MODEL=gpt-4o-mini` | ❌ **404 Error** — Anthropic wins but doesn't know `gpt-4o-mini` | Use `MODEL=claude-sonnet-4-20250514` or `claude-opus-4-6` or remove `ANTHROPIC_API_KEY` |
-| `OPENAI_API_KEY` + `MODEL=claude-3-opus`                     | ❌ **404 Error** — OpenAI doesn't know `claude-3-opus`           | Add `ANTHROPIC_API_KEY` or use `MODEL=gpt-4o-mini`                                      |
+| Configuration                                            | Result                                                       | Fix                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + `MODEL=gpt-4.1` | ❌ **404 Error** — Anthropic wins but doesn't know `gpt-4.1` | Use `MODEL=claude-sonnet-4-20250514` or `claude-opus-4-6` or remove `ANTHROPIC_API_KEY` |
+| `OPENAI_API_KEY` + `MODEL=claude-3-opus`                 | ❌ **404 Error** — OpenAI doesn't know `claude-3-opus`       | Add `ANTHROPIC_API_KEY` or use `MODEL=gpt-4.1`                                          |
 
 ### Valid Configurations
 
@@ -141,7 +141,7 @@ MODEL=claude-sonnet-4-20250514  # Or claude-opus-4-6
 
 # ✅ OpenAI only
 OPENAI_API_KEY=sk-xxx
-MODEL=gpt-4o-mini
+MODEL=gpt-4.1
 
 # ✅ Both keys, Claude model (Anthropic wins, model matches)
 ANTHROPIC_API_KEY=sk-ant-xxx
@@ -151,7 +151,7 @@ MODEL=claude-sonnet-4-20250514  # Or claude-opus-4-6
 # ❌ Both keys, GPT model (Anthropic wins, model MISMATCHES → 404)
 ANTHROPIC_API_KEY=sk-ant-xxx
 OPENAI_API_KEY=sk-xxx
-MODEL=gpt-4o-mini  # Will fail preflight!
+MODEL=gpt-4.1  # Will fail preflight!
 ```
 
 ### Troubleshooting 404 Errors
@@ -194,6 +194,14 @@ ai-review local .
 # Check if dependencies are installed
 ai-review check --verbose
 ```
+
+For repo-local parity with CI, prefer the committed convenience config:
+
+```bash
+ai-review local --config .ai-review-local.yml --range main...HEAD .
+```
+
+`.ai-review-local.yml` is intentionally kept aligned with `.ai-review.yml`. Local-only overrides should stay commented out unless you are deliberately testing a divergence.
 
 **Prerequisites:** Some agents require external tools:
 

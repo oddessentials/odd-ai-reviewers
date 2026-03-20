@@ -7,6 +7,7 @@
 import { execFileSync } from 'child_process';
 
 import type { Pass } from '../../config/schemas.js';
+import { withAugmentedToolPath } from '../../runtime/tool-paths.js';
 import { isNodeError } from '../../types/errors.js';
 import { getDependenciesForAgent, getDependencyInfo } from './catalog.js';
 import type { DependencyCheckResult, DependencyCheckSummary } from './types.js';
@@ -37,6 +38,7 @@ export function checkDependency(name: string): DependencyCheckResult {
     const output = execFileSync(binary, args, {
       timeout: VERSION_COMMAND_TIMEOUT,
       encoding: 'utf8',
+      env: name === 'semgrep' ? withAugmentedToolPath(process.env) : undefined,
     });
 
     // Parse version from output (execFileSync with encoding: 'utf8' returns string)

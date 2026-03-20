@@ -77,6 +77,14 @@ Run AI review on local changes (uncommitted/staged files).
 ai-review local [path] [options]
 ```
 
+For this repo, the preferred parity command is:
+
+```bash
+ai-review local --config .ai-review-local.yml --range main...HEAD .
+```
+
+`.ai-review-local.yml` is a convenience entrypoint that should remain aligned with `.ai-review.yml`. Keep any local-only overrides commented out unless you are intentionally testing a divergence.
+
 **Arguments:**
 
 - `path` - Path to repository (default: current directory)
