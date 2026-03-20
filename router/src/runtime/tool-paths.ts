@@ -18,10 +18,14 @@ export function getWindowsPythonScriptsDirs(
     return [];
   }
 
-  return readdirSync(pythonRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^Python\d+$/.test(entry.name))
-    .map((entry) => join(pythonRoot, entry.name, 'Scripts'))
-    .filter((dir) => existsSync(dir));
+  try {
+    return readdirSync(pythonRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && /^Python\d+$/.test(entry.name))
+      .map((entry) => join(pythonRoot, entry.name, 'Scripts'))
+      .filter((dir) => existsSync(dir));
+  } catch {
+    return [];
+  }
 }
 
 export function withAugmentedToolPath(
@@ -36,6 +40,6 @@ export function withAugmentedToolPath(
       Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
     ),
     PATH:
-      extraDirs.length > 0 ? `${extraDirs.join(delimiter)}${delimiter}${currentPath}` : currentPath,
+      extraDirs.length > 0 ? `${currentPath}${delimiter}${extraDirs.join(delimiter)}` : currentPath,
   };
 }

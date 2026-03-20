@@ -5,7 +5,7 @@
 
 import { execFileSync } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { delimiter, join } from 'path';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -80,6 +80,7 @@ describe('dependency checker', () => {
 
       it('adds Windows Python Scripts fallback PATH for semgrep when APPDATA install exists', () => {
         vi.stubEnv('APPDATA', 'C:\\Users\\petep\\AppData\\Roaming');
+        vi.stubEnv('PATH', 'C:\\existing\\tools');
         mockExistsSync.mockImplementation((path) => {
           const value = String(path);
           return (
@@ -96,9 +97,33 @@ describe('dependency checker', () => {
 
         const env = mockExecFileSync.mock.calls[0]?.[2]?.env;
         expect(env).toBeDefined();
-        expect(env?.['PATH']).toContain(
-          join('C:\\Users\\petep\\AppData\\Roaming', 'Python', 'Python314', 'Scripts')
+        expect(env?.['PATH']).toBe(
+          `C:\\existing\\tools${delimiter}${join(
+            'C:\\Users\\petep\\AppData\\Roaming',
+            'Python',
+            'Python314',
+            'Scripts'
+          )}`
         );
+      });
+
+      it('ignores unreadable APPDATA Python directories and falls back to existing PATH', () => {
+        vi.stubEnv('APPDATA', 'C:\\Users\\petep\\AppData\\Roaming');
+        vi.stubEnv('PATH', 'C:\\existing\\tools');
+        mockExistsSync.mockImplementation((path) => {
+          return String(path) === join('C:\\Users\\petep\\AppData\\Roaming', 'Python');
+        });
+        mockReaddirSync.mockImplementation(() => {
+          throw new Error('EACCES');
+        });
+        mockExecFileSync.mockReturnValue('semgrep 1.155.0');
+
+        vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+
+        expect(() => checkDependency('semgrep')).not.toThrow();
+
+        const env = mockExecFileSync.mock.calls[0]?.[2]?.env;
+        expect(env?.['PATH']).toBe('C:\\existing\\tools');
       });
 
       it('calls execFileSync with correct arguments for reviewdog', () => {
