@@ -179,13 +179,16 @@ export async function reportToGitHub(
   const sorted = sortFindings(deduplicated);
   const counts = countBySeverity(sorted);
 
-  try {
-    let checkRunId: number | undefined;
-    let commentId: number | undefined;
-    let skippedDuplicates = 0;
-    let checkRunCompleted = false;
+  let checkRunId: number | undefined;
+  let commentId: number | undefined;
+  let skippedDuplicates = 0;
+  let checkRunCompleted = false;
+  let commentError: string | undefined;
 
-    // Create check run if enabled
+  // Step 1: Create/update check run if enabled.
+  // Isolated from comment posting so that a comment failure does NOT
+  // overwrite an already-completed check run with "reporting failed".
+  try {
     if (reportingConfig.mode === 'checks_only' || reportingConfig.mode === 'checks_and_comments') {
       checkRunId = await createCheckRun(
         octokit,
@@ -200,48 +203,10 @@ export async function reportToGitHub(
       );
       checkRunCompleted = true;
     }
-
-    // Post PR comment if enabled and we have a PR number
-    if (
-      context.prNumber &&
-      (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
-    ) {
-      // Build set of deleted files for belt-and-suspenders guard in postPRComment
-      // FR-003: Use canonicalFiles for path normalization consistency with findings
-      const deletedFiles = new Set(
-        canonicalFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
-      );
-      const result = await postPRComment(
-        octokit,
-        context,
-        sorted,
-        partialFindings,
-        reportingConfig.max_inline_comments,
-        deletedFiles,
-        inlineDriftSignal,
-        config
-      );
-      commentId = result.commentId;
-      skippedDuplicates = result.skippedDuplicates;
-    }
-
-    return {
-      success: true,
-      checkRunId,
-      commentId,
-      skippedDuplicates,
-      checkRunCompleted,
-      validationStats: normalizationStats,
-      invalidLineDetails: invalidDetails.length > 0 ? invalidDetails : undefined,
-      inlineCommentsGated: shouldSuppressInlineComments(
-        inlineDriftSignal,
-        config.gating.drift_gate
-      ),
-      postNormalizationFindings: sorted,
-    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    let checkRunCompleted = false;
+    console.error(`[github] Check run creation/update failed: ${errorMessage}`);
+    // Check run failed — try to mark it as completed with the error
     if (context.checkRunId) {
       try {
         await octokit.checks.update({
@@ -272,6 +237,49 @@ export async function reportToGitHub(
       checkRunCompleted,
     };
   }
+
+  // Step 2: Post PR comment if enabled and we have a PR number.
+  // Errors here are logged but do NOT affect the check run conclusion.
+  if (
+    context.prNumber &&
+    (reportingConfig.mode === 'comments_only' || reportingConfig.mode === 'checks_and_comments')
+  ) {
+    try {
+      // Build set of deleted files for belt-and-suspenders guard in postPRComment
+      // FR-003: Use canonicalFiles for path normalization consistency with findings
+      const deletedFiles = new Set(
+        canonicalFiles.filter((f) => f.status === 'deleted').map((f) => f.path)
+      );
+      const result = await postPRComment(
+        octokit,
+        context,
+        sorted,
+        partialFindings,
+        reportingConfig.max_inline_comments,
+        deletedFiles,
+        inlineDriftSignal,
+        config
+      );
+      commentId = result.commentId;
+      skippedDuplicates = result.skippedDuplicates;
+    } catch (error) {
+      commentError = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`[github] PR comment posting failed (check run unaffected): ${commentError}`);
+    }
+  }
+
+  return {
+    success: !commentError,
+    checkRunId,
+    commentId,
+    skippedDuplicates,
+    checkRunCompleted,
+    validationStats: normalizationStats,
+    invalidLineDetails: invalidDetails.length > 0 ? invalidDetails : undefined,
+    inlineCommentsGated: shouldSuppressInlineComments(inlineDriftSignal, config.gating.drift_gate),
+    postNormalizationFindings: sorted,
+    error: commentError,
+  };
 }
 
 /**
