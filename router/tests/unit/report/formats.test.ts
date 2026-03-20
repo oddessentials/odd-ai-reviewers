@@ -14,6 +14,12 @@ import {
   sortFindings,
   countBySeverity,
   renderPartialFindingsSection,
+  generateCompactSummaryMarkdown,
+  buildBoundedSummary,
+  splitCommentBody,
+  toGitHubAnnotation,
+  GITHUB_SUMMARY_LIMIT,
+  GITHUB_ANNOTATION_MESSAGE_LIMIT,
 } from '../../../src/report/formats.js';
 import type { Finding } from '../../../src/agents/types.js';
 
@@ -444,5 +450,196 @@ describe('renderPartialFindingsSection (FR-007)', () => {
     expect(result).toContain('🛡'); // semgrep icon
     expect(result).toContain('(line 42)');
     expect(result).toContain('Security issue');
+  });
+});
+
+// --- Payload safety tests (GitHub API limits) ---
+
+function makeFinding(overrides: Partial<Finding> = {}): Finding {
+  return {
+    severity: 'warning',
+    file: 'src/app.ts',
+    line: 10,
+    message: 'Test message',
+    sourceAgent: 'semgrep',
+    ...overrides,
+  };
+}
+
+function makeManyFindings(count: number, messageLength = 200): Finding[] {
+  return Array.from({ length: count }, (_, i) =>
+    makeFinding({
+      file: `src/file-${i}.ts`,
+      line: i + 1,
+      message: `F${i} ${'x'.repeat(messageLength)}`,
+      ruleId: `rule/test-${i}`,
+    })
+  );
+}
+
+describe('generateCompactSummaryMarkdown', () => {
+  it('preserves every finding as a file+line entry', () => {
+    const findings = makeManyFindings(5);
+    const result = generateCompactSummaryMarkdown(findings);
+
+    for (let i = 0; i < 5; i++) {
+      expect(result).toContain(`src/file-${i}.ts`);
+      expect(result).toContain(`L${i + 1}`);
+    }
+  });
+
+  it('includes severity counts table', () => {
+    const findings = [
+      makeFinding({ severity: 'error' }),
+      makeFinding({ severity: 'warning' }),
+      makeFinding({ severity: 'info' }),
+    ];
+    const result = generateCompactSummaryMarkdown(findings);
+    expect(result).toContain('🔴 Errors | 1');
+    expect(result).toContain('🟡 Warnings | 1');
+    expect(result).toContain('🔵 Info | 1');
+  });
+
+  it('omits full message text', () => {
+    const findings = [makeFinding({ message: 'UNIQUE_MARKER_SHOULD_NOT_APPEAR' })];
+    const result = generateCompactSummaryMarkdown(findings);
+    expect(result).not.toContain('UNIQUE_MARKER_SHOULD_NOT_APPEAR');
+  });
+
+  it('includes ruleId when present', () => {
+    const findings = [makeFinding({ ruleId: 'security/sql-injection' })];
+    const result = generateCompactSummaryMarkdown(findings);
+    expect(result).toContain('`security/sql-injection`');
+  });
+
+  it('shows file-level for findings without line numbers', () => {
+    const findings = [makeFinding({ line: undefined })];
+    const result = generateCompactSummaryMarkdown(findings);
+    expect(result).toContain('file-level');
+  });
+});
+
+describe('buildBoundedSummary', () => {
+  it('returns verbose summary when it fits', () => {
+    const findings = makeManyFindings(3, 50);
+    const result = buildBoundedSummary(findings, [], '');
+
+    // Verbose summary includes full messages
+    expect(result).toContain('F0');
+    expect(result).toContain('F1');
+    expect(result).toContain('F2');
+    expect(result.length).toBeLessThanOrEqual(GITHUB_SUMMARY_LIMIT);
+  });
+
+  it('falls back to compact summary when verbose exceeds limit', () => {
+    // Create findings with messages large enough to exceed the limit
+    const perFindingSize = Math.ceil(GITHUB_SUMMARY_LIMIT / 10);
+    const findings = makeManyFindings(15, perFindingSize);
+    const result = buildBoundedSummary(findings, [], '');
+
+    expect(result.length).toBeLessThanOrEqual(GITHUB_SUMMARY_LIMIT);
+    // Compact summary still lists every file
+    for (let i = 0; i < 15; i++) {
+      expect(result).toContain(`src/file-${i}.ts`);
+    }
+    // Full messages should NOT be present (compact mode)
+    expect(result).toContain('Full finding messages were omitted');
+  });
+
+  it('includes partial findings in both verbose and compact paths', () => {
+    const findings = [makeFinding({ message: 'complete' })];
+    const partials = [makeFinding({ message: 'partial', sourceAgent: 'opencode' })];
+    const result = buildBoundedSummary(findings, partials, '');
+
+    expect(result).toContain('Partial Findings');
+  });
+
+  it('includes extra sections (drift/gate)', () => {
+    const findings = [makeFinding()];
+    const extra = '\n> **Drift Gate Active**\n';
+    const result = buildBoundedSummary(findings, [], extra);
+
+    expect(result).toContain('Drift Gate Active');
+  });
+
+  it('never exceeds the limit even with hundreds of files', () => {
+    const findings = makeManyFindings(500, 100);
+    const result = buildBoundedSummary(findings, [], '');
+
+    expect(result.length).toBeLessThanOrEqual(GITHUB_SUMMARY_LIMIT);
+  });
+});
+
+describe('splitCommentBody', () => {
+  it('returns single chunk when body fits', () => {
+    const body = 'short body';
+    const chunks = splitCommentBody(body, 100);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe(body);
+  });
+
+  it('splits into multiple chunks that each fit within the limit', () => {
+    const body = Array.from({ length: 200 }, (_, i) => `Line ${i}: ${'x'.repeat(80)}`).join('\n');
+    const chunks = splitCommentBody(body, 5000);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(5000);
+    }
+  });
+
+  it('preserves all content across chunks (no data loss)', () => {
+    const lines = Array.from({ length: 100 }, (_, i) => `Finding ${i}`);
+    const body = lines.join('\n');
+    const chunks = splitCommentBody(body, 500);
+
+    const reassembled = chunks.join('');
+    // Every original line must appear somewhere in the reassembled output
+    // (continuation headers are additive, not replacing)
+    for (const line of lines) {
+      expect(reassembled).toContain(line);
+    }
+  });
+
+  it('adds continuation headers on subsequent chunks', () => {
+    const body = 'x'.repeat(200);
+    const chunks = splitCommentBody(body, 100);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks[0]).not.toContain('continued');
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i]).toContain('continued');
+    }
+  });
+});
+
+describe('toGitHubAnnotation (message clamping)', () => {
+  it('passes through short messages unchanged', () => {
+    const finding = makeFinding({ message: 'short', suggestion: undefined });
+    const annotation = toGitHubAnnotation(finding);
+    expect(annotation?.message).toBe('short');
+  });
+
+  it('clamps messages exceeding GITHUB_ANNOTATION_MESSAGE_LIMIT', () => {
+    const longMessage = 'x'.repeat(GITHUB_ANNOTATION_MESSAGE_LIMIT + 500);
+    const finding = makeFinding({ message: longMessage, suggestion: undefined });
+    const annotation = toGitHubAnnotation(finding);
+
+    expect(annotation?.message.length).toBeLessThanOrEqual(GITHUB_ANNOTATION_MESSAGE_LIMIT);
+    expect(annotation?.message).toContain('...');
+  });
+
+  it('clamps combined message+suggestion', () => {
+    const msg = 'x'.repeat(3000);
+    const sug = 'y'.repeat(3000);
+    const finding = makeFinding({ message: msg, suggestion: sug });
+    const annotation = toGitHubAnnotation(finding);
+
+    expect(annotation?.message.length).toBeLessThanOrEqual(GITHUB_ANNOTATION_MESSAGE_LIMIT);
+  });
+
+  it('returns null for findings without line numbers', () => {
+    const finding = makeFinding({ line: undefined });
+    expect(toGitHubAnnotation(finding)).toBeNull();
   });
 });
