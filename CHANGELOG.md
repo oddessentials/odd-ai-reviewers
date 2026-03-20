@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.2](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.14.1...v1.14.2) (2026-03-20)
+
+### Bug Fixes
+
+* **github:** prevent comment failures from overwriting check run conclusion ([#197](https://github.com/oddessentials/odd-ai-reviewers/issues/197)) ([0e3cf76](https://github.com/oddessentials/odd-ai-reviewers/commit/0e3cf76327ee976b6809e3ad53c332ef94ffd25e))
+
 ## [1.14.1](https://github.com/oddessentials/odd-ai-reviewers/compare/v1.14.0...v1.14.1) (2026-03-20)
 
 ### Bug Fixes
