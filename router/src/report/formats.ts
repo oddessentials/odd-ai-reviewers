@@ -14,6 +14,142 @@ import { getAgentIcon } from './agent-icons.js';
 const FINGERPRINT_MARKER_PREFIX = 'odd-ai-reviewers:fingerprint:v1:';
 
 /**
+ * GitHub API payload limits.
+ *
+ * Exceeding output.summary or comment body causes the API server to close
+ * the TCP connection ("other side closed" / UND_ERR_SOCKET) instead of a 422.
+ * 535-char buffer kept below the hard 65 535 limit for JSON/encoding overhead.
+ */
+export const GITHUB_SUMMARY_LIMIT = 65_000;
+export const GITHUB_COMMENT_BODY_LIMIT = 65_000;
+export const GITHUB_ANNOTATION_MESSAGE_LIMIT = 4_096;
+
+/**
+ * Generate a compact summary that lists every finding by file/line/severity
+ * WITHOUT full message text.  Used as a fallback when the verbose summary
+ * exceeds the GitHub API limit so that zero findings are silently dropped.
+ */
+export function generateCompactSummaryMarkdown(findings: Finding[]): string {
+  const counts = countBySeverity(findings);
+  const grouped = groupByFile(findings);
+
+  const lines: string[] = [
+    '## AI Code Review Summary',
+    '',
+    `| Severity | Count |`,
+    `|----------|-------|`,
+    `| 🔴 Errors | ${counts.error} |`,
+    `| 🟡 Warnings | ${counts.warning} |`,
+    `| 🔵 Info | ${counts.info} |`,
+    '',
+    '> **Note:** Full finding messages were omitted to fit GitHub API size limits.',
+    '> See inline PR comments and check-run annotations for details.',
+    '',
+    '### Findings by File',
+    '',
+  ];
+
+  for (const [file, fileFindings] of grouped) {
+    const fileCounts = countBySeverity(fileFindings);
+    const badge = [
+      fileCounts.error > 0 ? `🔴${fileCounts.error}` : '',
+      fileCounts.warning > 0 ? `🟡${fileCounts.warning}` : '',
+      fileCounts.info > 0 ? `🔵${fileCounts.info}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    lines.push(`- \`${file}\` ${badge}`);
+
+    for (const f of fileFindings) {
+      const emoji = f.severity === 'error' ? '🔴' : f.severity === 'warning' ? '🟡' : '🔵';
+      const lineInfo = f.line ? `L${f.line}` : 'file-level';
+      const agent = f.sourceAgent ? ` ${getAgentIcon(f.sourceAgent)}` : '';
+      const ruleTag = f.ruleId ? ` \`${f.ruleId}\`` : '';
+      lines.push(`  - ${emoji} ${lineInfo}${agent}${ruleTag}`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Build a check-run summary that fits within GITHUB_SUMMARY_LIMIT.
+ *
+ * Strategy: try the verbose summary first.  If it exceeds the limit,
+ * fall back to the compact summary (severity + file + line, no messages)
+ * so that every finding is still represented — no silent data loss.
+ */
+export function buildBoundedSummary(
+  findings: Finding[],
+  partialFindings: Finding[],
+  extraSections: string
+): string {
+  const verbose =
+    generateSummaryMarkdown(findings) +
+    renderPartialFindingsSection(partialFindings) +
+    extraSections;
+
+  if (verbose.length <= GITHUB_SUMMARY_LIMIT) return verbose;
+
+  // Compact summary: file-level index of every finding
+  const compact =
+    generateCompactSummaryMarkdown(findings) +
+    renderPartialFindingsSection(partialFindings) +
+    extraSections;
+
+  if (compact.length <= GITHUB_SUMMARY_LIMIT) return compact;
+
+  // Even the compact form is too long (extreme edge case — hundreds of files).
+  // Truncate the compact form at a newline boundary with a note.
+  const note =
+    '\n\n---\n> ⚠️ Even the compact summary exceeded GitHub limits. ' +
+    `Showing first portion of ${findings.length + partialFindings.length} findings.\n`;
+  const budget = GITHUB_SUMMARY_LIMIT - note.length;
+  const lastNewline = compact.lastIndexOf('\n', budget);
+  const cutPoint = lastNewline > budget * 0.5 ? lastNewline : budget;
+  return compact.slice(0, cutPoint) + note;
+}
+
+/**
+ * Split a markdown body into chunks that each fit within a character limit.
+ * Cuts at newline boundaries to avoid breaking markdown rendering.
+ * Returns an array of body strings; callers post them as separate comments.
+ */
+export function splitCommentBody(
+  body: string,
+  limit: number = GITHUB_COMMENT_BODY_LIMIT
+): string[] {
+  if (body.length <= limit) return [body];
+
+  const chunks: string[] = [];
+  let remaining = body;
+  let part = 1;
+
+  while (remaining.length > 0) {
+    const header =
+      chunks.length > 0 ? `### AI Code Review Summary (continued, part ${part})\n\n` : '';
+
+    if (remaining.length + header.length <= limit) {
+      chunks.push(header + remaining);
+      break;
+    }
+
+    const budget = limit - header.length;
+
+    // Cut at last newline within budget to avoid breaking markdown
+    const lastNewline = remaining.lastIndexOf('\n', budget);
+    const cutPoint = lastNewline > budget * 0.5 ? lastNewline : budget;
+
+    chunks.push(header + remaining.slice(0, cutPoint));
+    remaining = remaining.slice(cutPoint);
+    part++;
+  }
+
+  return chunks;
+}
+
+/**
  * Generate a stable fingerprint for a finding
  *
  * Per CONSOLIDATED.md Section E:
@@ -378,6 +514,15 @@ export interface GitHubAnnotation {
 export function toGitHubAnnotation(finding: Finding): GitHubAnnotation | null {
   if (!finding.line) return null;
 
+  let message = finding.suggestion
+    ? `${finding.message}\n\n💡 Suggestion: ${finding.suggestion}`
+    : finding.message;
+
+  // Clamp annotation message to prevent oversized payloads.
+  if (message.length > GITHUB_ANNOTATION_MESSAGE_LIMIT) {
+    message = message.slice(0, GITHUB_ANNOTATION_MESSAGE_LIMIT - 4) + ' ...';
+  }
+
   return {
     path: finding.file,
     start_line: finding.line,
@@ -388,9 +533,7 @@ export function toGitHubAnnotation(finding: Finding): GitHubAnnotation | null {
         : finding.severity === 'warning'
           ? 'warning'
           : 'notice',
-    message: finding.suggestion
-      ? `${finding.message}\n\n💡 Suggestion: ${finding.suggestion}`
-      : finding.message,
+    message,
     title: finding.ruleId
       ? `${getAgentIcon(finding.sourceAgent)} ${finding.ruleId}`
       : getAgentIcon(finding.sourceAgent),

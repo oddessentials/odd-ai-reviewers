@@ -21,6 +21,9 @@ import {
   isDuplicateByProximity,
   identifyStaleComments,
   updateProximityMap,
+  buildBoundedSummary,
+  splitCommentBody,
+  GITHUB_COMMENT_BODY_LIMIT,
 } from './formats.js';
 import {
   buildCommentToMarkersMap,
@@ -322,42 +325,25 @@ async function createCheckRun(
     }
   }
 
-  // Convert findings to annotations (max 50 per request)
-  // Clamp each annotation message to 4096 chars to prevent oversized payloads
-  // that cause GitHub to close the TCP connection ("other side closed").
+  // Convert findings to annotations (max 50 per request).
+  // Message clamping is handled inside toGitHubAnnotation via GITHUB_ANNOTATION_MESSAGE_LIMIT.
   const annotations = findings
     .map(toGitHubAnnotation)
     .filter((a): a is NonNullable<typeof a> => a !== null)
-    .slice(0, 50)
-    .map((a) => ({
-      ...a,
-      message: a.message.length > 4096 ? a.message.slice(0, 4093) + '...' : a.message,
-    }));
+    .slice(0, 50);
 
-  const summary = generateSummaryMarkdown(findings);
-
-  // (012-fix-agent-result-regressions) - Append partial findings section if present
-  const partialSection = renderPartialFindingsSection(partialFindings);
-
-  // Append drift signal to summary (only shows when warn/fail threshold exceeded)
+  // Build drift/gate extra sections
   const driftMarkdown = generateDriftMarkdown(driftSignal);
   const isDriftGated = shouldSuppressInlineComments(inlineDriftSignal, config.gating.drift_gate);
   const gateNotice = isDriftGated
     ? '\n> **Drift Gate Active**: Inline comments have been suppressed because line validation ' +
       'degradation exceeds the fail threshold. Review findings in this summary only.\n'
     : '';
-  let fullSummary = summary + partialSection + driftMarkdown + gateNotice;
+  const extraSections = driftMarkdown + gateNotice;
 
-  // GitHub Check Run output.summary is capped at 65535 characters.
-  // Exceeding this causes the API server to close the TCP connection
-  // ("other side closed") rather than returning a clean 422.
-  const SUMMARY_LIMIT = 65_000; // leave buffer for encoding overhead
-  if (fullSummary.length > SUMMARY_LIMIT) {
-    const truncationNote =
-      '\n\n---\n> **Note:** Summary was truncated to fit GitHub API limits. ' +
-      'See inline comments for full details.\n';
-    fullSummary = fullSummary.slice(0, SUMMARY_LIMIT - truncationNote.length) + truncationNote;
-  }
+  // buildBoundedSummary tries verbose first, falls back to compact (file+line index)
+  // so zero findings are silently lost even on very large PRs.
+  const fullSummary = buildBoundedSummary(findings, partialFindings, extraSections);
 
   const output = {
     title: `AI Review: ${counts.error} errors, ${counts.warning} warnings, ${counts.info} info`,
@@ -414,50 +400,77 @@ async function postPRComment(
   }
 
   // (012-fix-agent-result-regressions) - Include partial findings section in PR comment
-  let summary = generateSummaryMarkdown(findings) + renderPartialFindingsSection(partialFindings);
+  const fullBody =
+    generateSummaryMarkdown(findings) + renderPartialFindingsSection(partialFindings);
 
-  // GitHub issue comment body is capped at 65536 characters.
-  const COMMENT_LIMIT = 65_000;
-  if (summary.length > COMMENT_LIMIT) {
-    const truncationNote =
-      '\n\n---\n> **Note:** Summary was truncated to fit GitHub comment limits. ' +
-      'See inline comments for full details.\n';
-    summary = summary.slice(0, COMMENT_LIMIT - truncationNote.length) + truncationNote;
-  }
+  // Split into chunks that fit within GitHub's comment body limit.
+  // This preserves ALL findings across multiple comments instead of
+  // silently truncating overflow findings that have no other outlet
+  // (e.g. when drift gating suppresses inline comments).
+  const bodyChunks = splitCommentBody(fullBody, GITHUB_COMMENT_BODY_LIMIT);
 
-  // Find existing comment to update
+  // Find existing bot comments to update (there may be multiple from previous splits)
   const existingComments = await octokit.issues.listComments({
     owner: context.owner,
     repo: context.repo,
     issue_number: context.prNumber,
   });
 
-  const botComment = existingComments.data.find(
-    (c) => c.user?.type === 'Bot' && c.body?.includes('## AI Code Review Summary')
+  const botComments = existingComments.data.filter(
+    (c) => c.user?.type === 'Bot' && c.body?.includes('AI Code Review Summary')
   );
 
-  let commentId: number;
+  let commentId: number | undefined;
 
-  if (botComment) {
-    // Update existing comment
-    const response = await octokit.issues.updateComment({
-      owner: context.owner,
-      repo: context.repo,
-      comment_id: botComment.id,
-      body: summary,
-    });
-    commentId = response.data.id;
-    console.log(`[github] Updated existing comment ${commentId}`);
-  } else {
-    // Create new comment
-    const response = await octokit.issues.createComment({
-      owner: context.owner,
-      repo: context.repo,
-      issue_number: context.prNumber,
-      body: summary,
-    });
-    commentId = response.data.id;
-    console.log(`[github] Created new comment ${commentId}`);
+  // Post each chunk: update existing bot comments where possible, create new ones for overflow
+  for (let i = 0; i < bodyChunks.length; i++) {
+    const chunk = bodyChunks[i];
+    if (!chunk) continue;
+
+    const existing = botComments[i];
+    if (existing) {
+      const response = await octokit.issues.updateComment({
+        owner: context.owner,
+        repo: context.repo,
+        comment_id: existing.id,
+        body: chunk,
+      });
+      commentId ??= response.data.id;
+      console.log(
+        `[github] Updated existing comment ${response.data.id}${i > 0 ? ` (part ${i + 1})` : ''}`
+      );
+    } else {
+      const response = await octokit.issues.createComment({
+        owner: context.owner,
+        repo: context.repo,
+        issue_number: context.prNumber,
+        body: chunk,
+      });
+      commentId ??= response.data.id;
+      console.log(
+        `[github] Created new comment ${response.data.id}${i > 0 ? ` (part ${i + 1})` : ''}`
+      );
+    }
+  }
+
+  // Clean up stale continuation comments from previous runs that had more chunks
+  for (let i = bodyChunks.length; i < botComments.length; i++) {
+    const stale = botComments[i];
+    if (!stale) continue;
+    try {
+      await octokit.issues.deleteComment({
+        owner: context.owner,
+        repo: context.repo,
+        comment_id: stale.id,
+      });
+      console.log(`[github] Deleted stale continuation comment ${stale.id}`);
+    } catch {
+      console.warn(`[github] Failed to delete stale continuation comment ${stale.id}`);
+    }
+  }
+
+  if (!commentId) {
+    throw new Error('Failed to create or update any PR comment');
   }
 
   // Drift gate: suppress inline comments when line validation is too degraded
