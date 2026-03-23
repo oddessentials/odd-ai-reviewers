@@ -42,7 +42,7 @@
   "devDependencies": {
     "@commitlint/cli": "20.5.0",
     "@commitlint/config-conventional": "20.5.0",
-    "@eslint/js": "9.39.4",
+    "@eslint/js": "10.0.1",
     "@oddessentials/repo-standards": "7.1.1",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/exec": "7.1.0",
