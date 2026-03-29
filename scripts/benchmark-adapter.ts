@@ -406,6 +406,11 @@ async function runLocalReview(
   const __dirname = import.meta.dirname ?? dirname(fileURLToPath(import.meta.url));
   const cliPath = resolve(__dirname, '..', 'router', 'dist', 'main.js');
 
+  // Use the benchmark config so cloned repos (which lack .ai-review.yml) get
+  // proper limits instead of zero-config's restrictive defaults (2000 diff
+  // lines, $0.10 budget) that silently skip most PRs.
+  const benchmarkConfigPath = resolve(__dirname, '..', '.ai-review-benchmark.yml');
+
   const baseBranch = await detectDefaultBranch(repoDir, 10_000);
 
   if (!(await hasMergeBase(repoDir, baseBranch, timeoutMs))) {
@@ -419,7 +424,18 @@ async function runLocalReview(
 
   const result = await execFile(
     'node',
-    [cliPath, 'local', '.', '--base', baseBranch, '--format', 'json', '--no-color'],
+    [
+      cliPath,
+      'local',
+      '.',
+      '--base',
+      baseBranch,
+      '--config',
+      benchmarkConfigPath,
+      '--format',
+      'json',
+      '--no-color',
+    ],
     {
       timeout: timeoutMs,
       encoding: 'utf-8',
