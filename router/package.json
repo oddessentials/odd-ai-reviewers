@@ -44,19 +44,19 @@
   },
   "dependencies": {
     "@actions/cache": "5.0.5",
-    "@anthropic-ai/sdk": "0.78.0",
+    "@anthropic-ai/sdk": "0.80.0",
     "@octokit/rest": "^22.0.1",
     "commander": "^14.0.3",
     "minimatch": "^10.2.4",
-    "openai": "^6.29.0",
+    "openai": "^6.33.0",
     "typescript": "5.9.3",
-    "yaml": "^2.8.2",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "25.5.0",
-    "@vitest/coverage-v8": "4.1.0",
-    "vitest": "^4.1.0"
+    "@vitest/coverage-v8": "4.1.2",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=22.0.0"
